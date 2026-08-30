@@ -53,3 +53,18 @@
     border-color: #059669;
     box-shadow: 0 4px 16px rgba(16, 185, 129, 0.2);
 }
+
+.hero-brand {
+    width: 180px;
+    height: auto;
+    margin-bottom: 24px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 640px) {
+    .hero-brand {
+        width: 140px;
+        margin-bottom: 16px;
+    }
+}
