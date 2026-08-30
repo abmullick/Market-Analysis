@@ -3,17 +3,25 @@ from typing import Any
 
 def _get_field(fund: dict[str, Any], field: str) -> str | None:
     """Get a field value from a fund dict."""
-    return fund.get(field)
+    if isinstance(fund, dict):
+        return fund.get(field)
+    return getattr(fund, field, None)
 
 
 def _get_metric_value(fund: dict[str, Any], field: str) -> float | None:
-    """Get a metric value from a fund dict."""
+    """Get a metric value from a fund dict or object."""
     if field == "consistency_score":
-        consistency = fund.get("rolling_return_consistency") or {}
+        if isinstance(fund, dict):
+            consistency = fund.get("rolling_return_consistency") or {}
+        else:
+            consistency = fund.rolling_return_consistency or {}
         one_y = consistency.get("1Y") or {}
         value = one_y.get("positive_pct")
         return float(value) if value is not None else None
-    value = fund.get(field)
+    if isinstance(fund, dict):
+        value = fund.get(field)
+    else:
+        value = getattr(fund, field, None)
     return float(value) if value is not None else None
 
 
