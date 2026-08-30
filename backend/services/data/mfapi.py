@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
@@ -18,11 +19,24 @@ class MfapiClient:
             response.raise_for_status()
             return response.json()
 
-    async def fetch_nav_history(self, scheme_code: str) -> dict[str, Any]:
+    async def fetch_nav_history(
+        self,
+        scheme_code: str,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> dict[str, Any]:
         url = f"{self.base_url}/mf/{scheme_code}"
-        logger.info("Fetching MF NAV history: %s", scheme_code)
+        params = {}
+        if start_date:
+            params["startDate"] = start_date.strftime("%d-%m-%Y")
+        if end_date:
+            params["endDate"] = end_date.strftime("%d-%m-%Y")
+
+        param_str = f" start={params.get('startDate')} end={params.get('endDate')}" if params else ""
+        logger.info("Fetching MF NAV history: %s%s", scheme_code, param_str)
+
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, timeout=15.0)
+            response = await client.get(url, params=params, timeout=15.0)
             response.raise_for_status()
             data = response.json()
             if isinstance(data, dict) and "error" in data:

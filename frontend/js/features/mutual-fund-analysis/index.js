@@ -81,11 +81,11 @@ async function loadCategories() {
     try {
         const response = await api.get("/mutual-funds/categories");
         categories = response.categories || [];
+        hideLoading(filtersContainer);
         buildControls();
     } catch (error) {
-        filtersContainer.innerHTML = `<div class="empty-state"><p>Failed to load categories: ${error.message}</p></div>`;
-    } finally {
         hideLoading(filtersContainer);
+        filtersContainer.innerHTML = `<div class="empty-state"><p>Failed to load categories: ${error.message}</p></div>`;
     }
 }
 
@@ -99,30 +99,42 @@ function buildControls() {
 
     filtersContainer.innerHTML = `
         <div class="filter-group">
-            <label for="category-select">Category</label>
-            <select id="category-select">
-                <option value="">Select a category</option>
-                ${categories.map(c => `<option value="${c}">${c}</option>`).join("")}
-            </select>
+            <label for="category-input">Category</label>
+            <div class="combobox" id="category-combobox">
+                <input type="text" id="category-input" class="combobox-input" placeholder="Search categories..." autocomplete="off">
+                <button type="button" class="combobox-toggle" tabindex="-1">&#9662;</button>
+                <div class="combobox-dropdown" id="category-dropdown"></div>
+                <input type="hidden" id="category-value">
+            </div>
         </div>
     `;
 
     presetContainer.innerHTML = `
         <div class="filter-group">
-            <label for="preset-select">Preset</label>
-            <select id="preset-select">
-                ${Object.entries(PRESETS).map(([key, preset]) => `<option value="${key}">${preset.label}</option>`).join("")}
-            </select>
+            <label for="preset-input">Preset</label>
+            <div class="combobox" id="preset-combobox">
+                <input type="text" id="preset-input" class="combobox-input" placeholder="Search presets..." autocomplete="off">
+                <button type="button" class="combobox-toggle" tabindex="-1">&#9662;</button>
+                <div class="combobox-dropdown" id="preset-dropdown"></div>
+                <input type="hidden" id="preset-value">
+            </div>
         </div>
     `;
 
-    document.getElementById("category-select").addEventListener("change", (e) => {
-        currentCategory = e.target.value;
+    initCombobox({
+        id: "category",
+        options: categories.map(c => ({ value: c, label: c })),
+        onSelect: (value) => { currentCategory = value; },
     });
 
-    document.getElementById("preset-select").addEventListener("change", (e) => {
-        currentPreset = e.target.value;
-        applyPreset(currentPreset);
+    initCombobox({
+        id: "preset",
+        options: Object.entries(PRESETS).map(([key, preset]) => ({ value: key, label: preset.label })),
+        onSelect: (value) => {
+            currentPreset = value;
+            applyPreset(currentPreset);
+        },
+        selectedValue: currentPreset,
     });
 
     buildCriteriaList(criteriaContainer);
@@ -131,6 +143,113 @@ function buildControls() {
     document.getElementById("run-ranking").addEventListener("click", runRanking);
 
     applyPreset(currentPreset);
+}
+
+function initCombobox({ id, options, onSelect, selectedValue = "" }) {
+    const combobox = document.getElementById(`${id}-combobox`);
+    const input = document.getElementById(`${id}-input`);
+    const dropdown = document.getElementById(`${id}-dropdown`);
+    const hidden = document.getElementById(`${id}-value`);
+    const toggle = combobox.querySelector(".combobox-toggle");
+
+    let filtered = options;
+    let highlightedIndex = -1;
+    let isOpen = false;
+
+    function renderDropdown() {
+        if (filtered.length === 0) {
+            dropdown.innerHTML = '<div class="combobox-empty">No matches</div>';
+            return;
+        }
+        dropdown.innerHTML = filtered.map((opt, idx) => `
+            <div class="combobox-option${idx === highlightedIndex ? ' highlighted' : ''}" data-value="${opt.value}">
+                ${highlightMatch(opt.label, input.value)}
+            </div>
+        `).join("");
+        dropdown.querySelectorAll(".combobox-option").forEach(el => {
+            el.addEventListener("mousedown", (e) => {
+                e.preventDefault();
+                selectOption(el.dataset.value);
+            });
+        });
+    }
+
+    function highlightMatch(text, query) {
+        if (!query) return text;
+        const idx = text.toLowerCase().indexOf(query.toLowerCase());
+        if (idx === -1) return text;
+        return `${text.slice(0, idx)}<strong>${text.slice(idx, idx + query.length)}</strong>${text.slice(idx + query.length)}`;
+    }
+
+    function selectOption(value) {
+        const opt = options.find(o => o.value === value);
+        input.value = opt ? opt.label : "";
+        hidden.value = value;
+        closeDropdown();
+        onSelect(value);
+    }
+
+    function openDropdown() {
+        isOpen = true;
+        combobox.classList.add("open");
+        filtered = options;
+        highlightedIndex = -1;
+        renderDropdown();
+        dropdown.style.display = "block";
+    }
+
+    function closeDropdown() {
+        isOpen = false;
+        combobox.classList.remove("open");
+        dropdown.style.display = "none";
+    }
+
+    function filterOptions(query) {
+        const q = query.toLowerCase();
+        filtered = options.filter(o => o.label.toLowerCase().includes(q));
+        highlightedIndex = filtered.length > 0 ? 0 : -1;
+        renderDropdown();
+        if (!isOpen) {
+            combobox.classList.add("open");
+            dropdown.style.display = "block";
+            isOpen = true;
+        }
+    }
+
+    input.addEventListener("focus", () => { openDropdown(); });
+    input.addEventListener("input", () => { filterOptions(input.value); });
+    input.addEventListener("blur", () => { setTimeout(closeDropdown, 150); });
+    input.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            if (!isOpen) openDropdown();
+            highlightedIndex = Math.min(highlightedIndex + 1, filtered.length - 1);
+            renderDropdown();
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            highlightedIndex = Math.max(highlightedIndex - 1, 0);
+            renderDropdown();
+        } else if (e.key === "Enter" && highlightedIndex >= 0) {
+            e.preventDefault();
+            selectOption(filtered[highlightedIndex].value);
+        } else if (e.key === "Escape") {
+            closeDropdown();
+        }
+    });
+
+    toggle.addEventListener("mousedown", (e) => { e.preventDefault(); });
+    toggle.addEventListener("click", () => {
+        if (isOpen) closeDropdown();
+        else { input.focus(); openDropdown(); }
+    });
+
+    if (selectedValue) {
+        const opt = options.find(o => o.value === selectedValue);
+        if (opt) {
+            input.value = opt.label;
+            hidden.value = selectedValue;
+        }
+    }
 }
 
 function buildCriteriaList(container) {
@@ -149,9 +268,10 @@ function buildCriteriaList(container) {
                 <label for="cb-${key}">${meta.label}</label>
             </div>
             <div class="criterion-weight">
+                <span class="weight-label">Weight:</span>
                 <input type="range" id="range-${key}" min="0" max="100" step="1" value="0">
                 <input type="number" id="num-${key}" min="0" max="100" step="1" value="0">
-                <span>%</span>
+                <span class="weight-unit">%</span>
             </div>
         `;
 
@@ -293,11 +413,11 @@ async function runRanking() {
             auto_renormalize: true,
         });
 
+        hideLoading(resultsContainer);
         renderRankingResults(response.rankings, response.category);
     } catch (error) {
-        resultsContainer.innerHTML = `<div class="empty-state"><p>Ranking failed: ${error.message}</p></div>`;
-    } finally {
         hideLoading(resultsContainer);
+        resultsContainer.innerHTML = `<div class="empty-state"><p>Ranking failed: ${error.message}</p></div>`;
     }
 }
 

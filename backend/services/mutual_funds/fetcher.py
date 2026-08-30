@@ -1,10 +1,16 @@
 import time
+from datetime import datetime, timedelta
 from typing import Any
 
 from backend.config.settings import Settings
 from backend.models.mutual_fund import MutualFund, NAVRecord, SchemeSearchResult
 from backend.services.data.amfi import AmfiClient
 from backend.services.data.mfapi import MfapiClient
+from backend.services.mutual_funds.cache import metrics_cache
+from backend.services.mutual_funds.lookback import (
+    get_date_range_for_lookback,
+    get_required_lookback_years,
+)
 from backend.services.mutual_funds.normalizer import (
     normalize_nav_history,
     normalize_scheme,
@@ -20,7 +26,6 @@ class MutualFundFetcher:
         self.cache_ttl = settings.cache_ttl_seconds
         self._schemes_cache: dict[str, tuple[list[MutualFund], float]] = {}
         self._scheme_cache: dict[str, tuple[MutualFund, float]] = {}
-        self._nav_cache: dict[str, tuple[list[NAVRecord], float]] = {}
 
     async def get_scheme(self, scheme_code: str) -> MutualFund:
         cached, expires = self._scheme_cache.get(scheme_code, (None, 0))
@@ -33,16 +38,70 @@ class MutualFundFetcher:
         self._scheme_cache[scheme_code] = (scheme, time.time() + self.cache_ttl)
         return scheme
 
-    async def get_nav_history(self, scheme_code: str) -> list[NAVRecord]:
-        cached, expires = self._nav_cache.get(scheme_code, (None, 0))
-        if cached and time.time() < expires:
-            logger.info("Returning cached NAV history: %s", scheme_code)
+    async def get_nav_history(
+        self,
+        scheme_code: str,
+        lookback_years: int | None = None,
+    ) -> list[NAVRecord]:
+        start_date = None
+        end_date = None
+        if lookback_years:
+            start_date, end_date = get_date_range_for_lookback(lookback_years)
+
+        raw = await self.mfapi.fetch_nav_history(scheme_code, start_date=start_date, end_date=end_date)
+        records = normalize_nav_history(raw)
+        logger.info(
+            "NAV history for %s: %d records (lookback=%s years)",
+            scheme_code,
+            len(records),
+            lookback_years or "full",
+        )
+        return records
+
+    async def get_metrics(
+        self,
+        scheme_code: str,
+        scheme_name: str,
+        criteria_names: list[str],
+    ) -> dict[str, Any] | None:
+        """Get calculated metrics, using cache when available."""
+        lookback_years = get_required_lookback_years(criteria_names)
+
+        cached = metrics_cache.get(scheme_code, lookback_years)
+        if cached is not None:
+            logger.info("CACHE HIT: %s (%d-year lookback)", scheme_code, lookback_years)
             return cached
 
-        raw = await self.mfapi.fetch_nav_history(scheme_code)
-        records = normalize_nav_history(raw)
-        self._nav_cache[scheme_code] = (records, time.time() + self.cache_ttl)
-        return records
+        logger.info("CACHE MISS: %s (%d-year lookback)", scheme_code, lookback_years)
+
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        t0 = time.time()
+        try:
+            navs = await self.get_nav_history(scheme_code, lookback_years=lookback_years)
+            fetch_time = time.time() - t0
+            logger.info("MFAPI fetch %s: %.2f seconds", scheme_code, fetch_time)
+
+            if len(navs) < 2:
+                logger.warning("Insufficient NAV data for %s: %d records", scheme_code, len(navs))
+                return None
+
+            calc_start = time.time()
+            calculator = MetricsCalculator(scheme_code=scheme_code, nav_records=navs)
+            metrics = calculator.calculate()
+            calc_time = time.time() - calc_start
+            logger.info("Metric calculation %s: %.2f seconds", scheme_code, calc_time)
+
+            result = metrics.model_dump()
+            result["scheme_code"] = scheme_code
+            result["scheme_name"] = scheme_name
+
+            metrics_cache.put(scheme_code, lookback_years, result)
+            return result
+
+        except Exception as e:
+            logger.warning("Failed to calculate metrics for %s: %s", scheme_code, e)
+            return None
 
     async def search_schemes(self, query: str) -> list[SchemeSearchResult]:
         raw_list = await self.mfapi.search_schemes(query)

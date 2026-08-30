@@ -11,8 +11,8 @@ from backend.models.mutual_fund import (
     RankingRequest,
     SchemeSearchResult,
 )
-from backend.services.mutual_funds.calculator import MetricsCalculator
 from backend.services.mutual_funds.fetcher import MutualFundFetcher
+from backend.services.mutual_funds.lookback import get_required_lookback_years
 from backend.services.mutual_funds.ranking import RankingEngine
 from backend.utils.logging import logger
 
@@ -94,29 +94,48 @@ async def get_metrics(scheme_code: str) -> dict[str, Any]:
 
 @router.post("/rank")
 async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
+    import time as time_module
+
+    total_start = time_module.time()
+
     schemes = await fetcher.get_schemes_by_category(payload.category)
-    schemes = schemes[:20]
-    funds: list[FundMetrics] = []
+    logger.info("Ranking %d schemes in category: %s", len(schemes), payload.category)
+
+    criteria_names = [c.name for c in payload.criteria]
+    lookback_years = get_required_lookback_years(criteria_names)
+    logger.info("Required lookback: %d years (criteria: %s)", lookback_years, criteria_names)
+
     sem = asyncio.Semaphore(5)
 
     async def fetch_metrics(scheme):
         async with sem:
-            try:
-                navs = await fetcher.get_nav_history(scheme.scheme_code)
-                calculator = MetricsCalculator(scheme_code=scheme.scheme_code, nav_records=navs)
-                metrics = calculator.calculate()
-                if metrics.data_points >= 2:
-                    metrics.scheme_name = scheme.scheme_name
-                    metrics.category = scheme.category
-                    return metrics
-            except Exception as e:
-                logger.warning("Skipping scheme %s: %s", scheme.scheme_code, e)
-            return None
+            return await fetcher.get_metrics(
+                scheme_code=scheme.scheme_code,
+                scheme_name=scheme.scheme_name,
+                criteria_names=criteria_names,
+            )
 
     results = await asyncio.gather(*[fetch_metrics(s) for s in schemes])
-    funds = [r for r in results if r is not None]
+    metrics_list = [r for r in results if r is not None]
+
+    logger.info(
+        "Metrics calculated: %d/%d schemes (%.1f%% success)",
+        len(metrics_list),
+        len(schemes),
+        len(metrics_list) / max(len(schemes), 1) * 100,
+    )
 
     engine = RankingEngine()
     criteria = [c.model_dump() for c in payload.criteria]
-    rankings = engine.rank(funds=funds, criteria=criteria, auto_renormalize=payload.auto_renormalize)
+    rankings = engine.rank(funds=metrics_list, criteria=criteria, auto_renormalize=payload.auto_renormalize)
+
+    total_time = time_module.time() - total_start
+    logger.info(
+        "Ranking complete: %d funds ranked in %.2f seconds (cache stats: %s)",
+        len(rankings),
+        total_time,
+        metrics_cache.stats(),
+    )
+
+    return {"category": payload.category, "rankings": rankings}
     return {"category": payload.category, "rankings": rankings}

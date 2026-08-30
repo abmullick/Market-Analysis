@@ -1,6 +1,20 @@
 from typing import Any
 
-from backend.models.mutual_fund import FundMetrics
+
+def _get_field(fund: dict[str, Any], field: str) -> str | None:
+    """Get a field value from a fund dict."""
+    return fund.get(field)
+
+
+def _get_metric_value(fund: dict[str, Any], field: str) -> float | None:
+    """Get a metric value from a fund dict."""
+    if field == "consistency_score":
+        consistency = fund.get("rolling_return_consistency") or {}
+        one_y = consistency.get("1Y") or {}
+        value = one_y.get("positive_pct")
+        return float(value) if value is not None else None
+    value = fund.get(field)
+    return float(value) if value is not None else None
 
 
 class RankingEngine:
@@ -17,7 +31,7 @@ class RankingEngine:
         "consistency": {"field": "consistency_score", "direction": "higher"},
     }
 
-    def rank(self, funds: list[FundMetrics], criteria: list[dict[str, Any]], auto_renormalize: bool = True) -> list[dict[str, Any]]:
+    def rank(self, funds: list[dict[str, Any]], criteria: list[dict[str, Any]], auto_renormalize: bool = True) -> list[dict[str, Any]]:
         if not funds or not criteria:
             return []
 
@@ -45,7 +59,7 @@ class RankingEngine:
         field_values: dict[str, list[float]] = {c["field"]: [] for c in selected}
         for fund in funds:
             for c in selected:
-                value = self._get_metric_value(fund, c["field"])
+                value = _get_metric_value(fund, c["field"])
                 if value is not None:
                     field_values[c["field"]].append(value)
 
@@ -66,7 +80,7 @@ class RankingEngine:
             has_any = False
 
             for c in selected:
-                raw = self._get_metric_value(fund, c["field"])
+                raw = _get_metric_value(fund, c["field"])
                 score = self._normalize(raw, ranges[c["field"]], c["direction"])
                 criteria_scores.append({
                     "criterion": c["name"],
@@ -79,9 +93,9 @@ class RankingEngine:
                     has_any = True
 
             results.append({
-                "scheme_code": fund.scheme_code,
-                "scheme_name": fund.scheme_name,
-                "category": fund.category,
+                "scheme_code": _get_field(fund, "scheme_code"),
+                "scheme_name": _get_field(fund, "scheme_name"),
+                "category": _get_field(fund, "category"),
                 "overall_score": overall * 100 if has_any else None,
                 "criteria_scores": criteria_scores,
             })
@@ -91,14 +105,6 @@ class RankingEngine:
             r["rank"] = i if r["overall_score"] is not None else None
 
         return results
-
-    def _get_metric_value(self, fund: FundMetrics, field: str) -> float | None:
-        if field == "consistency_score":
-            consistency = fund.rolling_return_consistency or {}
-            one_y = consistency.get("1Y") or {}
-            value = one_y.get("positive_pct")
-            return float(value) if value is not None else None
-        return getattr(fund, field, None)
 
     def _normalize(self, value: float | None, min_max: tuple[float, float] | None, direction: str) -> float | None:
         if value is None or min_max is None:
