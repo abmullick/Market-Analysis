@@ -14,8 +14,6 @@
 
 .card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 20px 40px var(--color-shadow);
-    border-color: var(--color-accent);
 }
 
 .card-icon {
@@ -24,10 +22,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(14, 165, 233, 0.05));
     border-radius: var(--radius-md);
     margin-bottom: 20px;
-    color: var(--color-accent);
+    color: #ffffff;
 }
 
 .card-icon svg {
@@ -55,24 +52,34 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 24px;
+    padding: 12px 28px;
     border-radius: var(--radius-sm);
     font-size: 0.9375rem;
     font-weight: 600;
     transition: all 0.2s ease;
     border: none;
     cursor: pointer;
-}
-
-.btn-primary {
-    background-color: var(--color-accent);
     color: #ffffff;
+    background-size: 200% 200%;
+    animation: pulse-gradient 3s ease infinite;
 }
 
-.btn-primary:hover {
-    background-color: var(--color-accent-hover);
+.btn:hover {
+    transform: translateY(-1px);
 }
 
 .hidden {
     display: none !important;
+}
+
+@keyframes pulse-gradient {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
 }
