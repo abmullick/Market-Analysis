@@ -7,5 +7,5 @@ class Settings(BaseSettings):
     stoxim_api_key: str = ""
     groq_api_key: str = ""
     app_env: str = "development"
-    app_port: int = 8000
+    app_port: int = 20090
     app_debug: bool = True

@@ -7,22 +7,53 @@
     <link rel="stylesheet" href="../css/base.css">
     <link rel="stylesheet" href="../css/layout.css">
     <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/features/home.css">
 </head>
 <body>
     <header class="site-header">
         <h1>Market Analysis</h1>
         <nav id="main-nav"></nav>
     </header>
-    <main class="container">
-        <h2>Welcome</h2>
-        <p>Select a module from the navigation to get started.</p>
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h2>Make smarter investment decisions</h2>
+                <p>Fundamental analysis and AI-powered insights for Indian stocks and mutual funds.</p>
+            </div>
+        </section>
+        <section class="cards-grid">
+            <a href="stocks.html" class="card" data-href="stocks.html">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                    </svg>
+                </div>
+                <h3>Stock Analysis</h3>
+                <p>Screen, rank, and analyze Indian stocks using fundamental criteria and multiple strategies.</p>
+                <span class="btn btn-primary">Explore Stocks</span>
+            </a>
+            <a href="mutual-funds.html" class="card" data-href="mutual-funds.html">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 6v6l4 2"></path>
+                    </svg>
+                </div>
+                <h3>Mutual Fund Analysis</h3>
+                <p>Evaluate mutual funds with portfolio holdings, sector allocation, and quality insights.</p>
+                <span class="btn btn-primary">Explore Funds</span>
+            </a>
+        </section>
     </main>
     <script type="module" src="../js/core/config.js"></script>
     <script type="module" src="../js/core/navigation.js"></script>
     <script type="module" src="../js/core/utils.js"></script>
+    <script type="module" src="../js/features/home/index.js"></script>
     <script type="module">
         import { initNavigation } from "../js/core/navigation.js";
+        import { initHome } from "../js/features/home/index.js";
         initNavigation();
+        initHome();
     </script>
 </body>
 </html>
