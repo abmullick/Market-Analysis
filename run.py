@@ -49,6 +49,7 @@ async def read_mutual_funds():
 # Serve static assets
 app.mount("/css", StaticFiles(directory="frontend/css"), name="css")
 app.mount("/js", StaticFiles(directory="frontend/js"), name="js")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(screener_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(stocks_router, prefix="/api/stocks", tags=["stocks"])

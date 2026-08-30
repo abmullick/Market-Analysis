@@ -7,7 +7,7 @@
 .site-header {
     background-color: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
-    padding: 16px 0;
+    padding: 12px 0;
     position: sticky;
     top: 0;
     z-index: 100;
@@ -17,6 +17,19 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo {
+    height: 32px;
+    width: auto;
+    border-radius: var(--radius-sm);
+    object-fit: contain;
 }
 
 .site-header h1 {
@@ -115,5 +128,13 @@
 
     .site-header h1 {
         font-size: 1.125rem;
+    }
+
+    .header-left {
+        gap: 8px;
+    }
+
+    .logo {
+        height: 28px;
     }
 }
