@@ -30,7 +30,6 @@
 .card-icon svg {
     width: 28px;
     height: 28px;
-    stroke-width: 2;
 }
 
 .card h3 {
@@ -57,9 +56,8 @@
     font-size: 0.9375rem;
     font-weight: 600;
     transition: all 0.2s ease;
-    border: none;
+    border: 2px solid transparent;
     cursor: pointer;
-    color: #ffffff;
     background-size: 200% 200%;
     animation: pulse-gradient 3s ease infinite;
 }
