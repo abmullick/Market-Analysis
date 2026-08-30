@@ -18,7 +18,22 @@
         <nav id="main-nav"></nav>
     </header>
     <main class="container">
-        <div id="mutual-fund-content"></div>
+        <div id="mutual-fund-content">
+            <div class="ranking-layout">
+                <aside class="ranking-controls">
+                    <h2>Ranking Controls</h2>
+                    <div id="ranking-filters"></div>
+                    <div id="ranking-preset"></div>
+                    <div id="ranking-criteria"></div>
+                    <button id="run-ranking" class="btn btn-primary">Run Ranking</button>
+                    <div id="ranking-methodology" class="methodology-box"></div>
+                </aside>
+                <section class="ranking-results">
+                    <div id="ranking-summary"></div>
+                    <div id="ranking-table-container"></div>
+                </section>
+            </div>
+        </div>
     </main>
     <script type="module" src="../js/core/config.js"></script>
     <script type="module" src="../js/core/navigation.js"></script>
