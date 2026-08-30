@@ -95,7 +95,7 @@ async def get_metrics(scheme_code: str) -> dict[str, Any]:
 @router.post("/rank")
 async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
     schemes = await fetcher.get_schemes_by_category(payload.category)
-    schemes = schemes[:50]
+    schemes = schemes[:20]
     funds: list[FundMetrics] = []
     sem = asyncio.Semaphore(5)
 
