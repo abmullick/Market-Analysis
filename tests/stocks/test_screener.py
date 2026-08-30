@@ -1,6 +1,6 @@
 import pytest
 
-from backend.services.screener import ScreenerEngine
+from backend.services.stocks.screener import ScreenerEngine
 
 
 @pytest.fixture

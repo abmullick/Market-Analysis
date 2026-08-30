@@ -1,4 +1,8 @@
-const utils = {
+window.APP_CONFIG = {
+    API_BASE_URL: "/api",
+};
+
+export const utils = {
     formatNumber(value, decimals = 2) {
         if (value === null || value === undefined) return "N/A";
         return Number(value).toFixed(decimals);

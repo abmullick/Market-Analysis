@@ -1,6 +1,6 @@
 import pytest
 
-from backend.services.fundamentals import normalize_fundamentals
+from backend.services.data.fundamentals import normalize_fundamentals
 
 
 def test_normalize_fundamentals_not_implemented():

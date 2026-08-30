@@ -3,30 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Screener | Market Analysis</title>
+    <title>Stock Selection | Market Analysis</title>
     <link rel="stylesheet" href="../css/base.css">
     <link rel="stylesheet" href="../css/layout.css">
     <link rel="stylesheet" href="../css/components.css">
-    <link rel="stylesheet" href="../css/pages/screener.css">
+    <link rel="stylesheet" href="../css/features/stock-selection.css">
 </head>
 <body>
     <header class="site-header">
-        <h1>Stock Screener</h1>
-        <nav>
-            <a href="index.html">Home</a>
-            <a href="stock.html">Stock Analysis</a>
-        </nav>
+        <h1>Stock Selection</h1>
+        <nav id="main-nav"></nav>
     </header>
     <main class="container">
         <div id="filters"></div>
         <div id="results"></div>
+        <div id="stock-details" class="hidden"></div>
     </main>
-    <script src="../js/core/config.js"></script>
-    <script src="../js/core/api.js"></script>
-    <script src="../js/core/utils.js"></script>
-    <script src="../js/components/filters.js"></script>
-    <script src="../js/components/table.js"></script>
-    <script src="../js/features/screener/index.js"></script>
-    <script src="../js/pages/screener.js"></script>
+    <script type="module" src="../js/core/config.js"></script>
+    <script type="module" src="../js/core/navigation.js"></script>
+    <script type="module" src="../js/core/api.js"></script>
+    <script type="module" src="../js/core/utils.js"></script>
+    <script type="module" src="../js/components/table.js"></script>
+    <script type="module" src="../js/components/filters.js"></script>
+    <script type="module" src="../js/features/stock-selection/index.js"></script>
+    <script type="module" src="../js/features/stock-selection/stock-detail/index.js"></script>
+    <script type="module" src="../js/pages/stocks.js"></script>
 </body>
 </html>

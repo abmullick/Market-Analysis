@@ -1,6 +1,6 @@
 import pytest
 
-from backend.services.stoxim import StoximClient
+from backend.services.data.stoxim import StoximClient
 from backend.config.settings import Settings
 
 

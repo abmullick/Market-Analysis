@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from backend.services.screener import ScreenerEngine
+from backend.services.stocks.screener import ScreenerEngine
 
 router = APIRouter()
 screener_engine = ScreenerEngine()

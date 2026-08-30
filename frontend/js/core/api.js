@@ -22,7 +22,7 @@ async function request(path, options = {}) {
     return response.json();
 }
 
-const api = {
+export const api = {
     get: (path) => request(path, { method: "GET" }),
     post: (path, data) => request(path, { method: "POST", body: JSON.stringify(data) }),
 };

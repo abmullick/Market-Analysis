@@ -3,26 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Market Analysis</title>
+    <title>Mutual Fund Analysis | Market Analysis</title>
     <link rel="stylesheet" href="../css/base.css">
     <link rel="stylesheet" href="../css/layout.css">
     <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/features/mutual-fund-analysis.css">
 </head>
 <body>
     <header class="site-header">
-        <h1>Market Analysis</h1>
+        <h1>Mutual Fund Analysis</h1>
         <nav id="main-nav"></nav>
     </header>
     <main class="container">
-        <h2>Welcome</h2>
-        <p>Select a module from the navigation to get started.</p>
+        <div id="mutual-fund-content"></div>
     </main>
     <script type="module" src="../js/core/config.js"></script>
     <script type="module" src="../js/core/navigation.js"></script>
     <script type="module" src="../js/core/utils.js"></script>
-    <script type="module">
-        import { initNavigation } from "../js/core/navigation.js";
-        initNavigation();
-    </script>
+    <script type="module" src="../js/features/mutual-fund-analysis/index.js"></script>
+    <script type="module" src="../js/pages/mutual-funds.js"></script>
 </body>
 </html>
