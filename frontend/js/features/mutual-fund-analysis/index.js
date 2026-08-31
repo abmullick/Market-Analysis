@@ -560,34 +560,6 @@ function renderRankingResults(rankings, category) {
         const content = trigger.querySelector(".tooltip-content");
         if (!content) return;
 
-        trigger.addEventListener("mouseenter", () => {
-            document.querySelectorAll(".tooltip-content").forEach(t => {
-                t.style.opacity = "0";
-                t.style.visibility = "hidden";
-            });
-            content.style.opacity = "1";
-            content.style.visibility = "visible";
-        });
-
-        trigger.addEventListener("mouseleave", () => {
-            content.style.opacity = "0";
-            content.style.visibility = "hidden";
-        });
-
-        trigger.addEventListener("focus", () => {
-            document.querySelectorAll(".tooltip-content").forEach(t => {
-                t.style.opacity = "0";
-                t.style.visibility = "hidden";
-            });
-            content.style.opacity = "1";
-            content.style.visibility = "visible";
-        });
-
-        trigger.addEventListener("blur", () => {
-            content.style.opacity = "0";
-            content.style.visibility = "hidden";
-        });
-
         trigger.addEventListener("click", (e) => {
             e.stopPropagation();
             const isVisible = content.style.opacity === "1";
@@ -695,34 +667,6 @@ function renderDetailContent(container, criteriaScores) {
                 content.style.visibility = "visible";
             }
         });
-
-        trigger.addEventListener("mouseenter", () => {
-            document.querySelectorAll(".tooltip-content").forEach(t => {
-                t.style.opacity = "0";
-                t.style.visibility = "hidden";
-            });
-            content.style.opacity = "1";
-            content.style.visibility = "visible";
-        });
-
-        trigger.addEventListener("mouseleave", () => {
-            content.style.opacity = "0";
-            content.style.visibility = "hidden";
-        });
-
-        trigger.addEventListener("focus", () => {
-            document.querySelectorAll(".tooltip-content").forEach(t => {
-                t.style.opacity = "0";
-                t.style.visibility = "hidden";
-            });
-            content.style.opacity = "1";
-            content.style.visibility = "visible";
-        });
-
-        trigger.addEventListener("blur", () => {
-            content.style.opacity = "0";
-            content.style.visibility = "hidden";
-        });
     });
 }
 
@@ -750,3 +694,12 @@ function formatRawValue(criterion, value) {
             return value.toFixed(2);
     }
 }
+
+document.addEventListener("click", (e) => {
+    if (!e.target.closest(".tooltip-trigger")) {
+        document.querySelectorAll(".tooltip-content").forEach(t => {
+            t.style.opacity = "0";
+            t.style.visibility = "hidden";
+        });
+    }
+});
