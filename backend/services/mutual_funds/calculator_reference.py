@@ -1,4 +1,3 @@
-import bisect
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -40,13 +39,10 @@ class MetricsCalculator:
         start_date = datetime.strptime(navs[0].date, "%Y-%m-%d")
         years_available = (end_date - start_date).days / 365.25
 
-        # Pre-parse dates once for all subsequent operations
-        parsed_dates = [datetime.strptime(n.date, "%Y-%m-%d") for n in navs]
-
-        one_year_navs = self._slice_navs(navs, 1.0, parsed_dates)
-        three_year_navs = self._slice_navs(navs, 3.0, parsed_dates)
-        five_year_navs = self._slice_navs(navs, 5.0, parsed_dates)
-        ten_year_navs = self._slice_navs(navs, 10.0, parsed_dates)
+        one_year_navs = self._slice_navs(navs, 1.0)
+        three_year_navs = self._slice_navs(navs, 3.0)
+        five_year_navs = self._slice_navs(navs, 5.0)
+        ten_year_navs = self._slice_navs(navs, 10.0)
 
         one_year_return = self._period_return(one_year_navs)
         three_year_cagr = self._cagr(three_year_navs)
@@ -63,7 +59,7 @@ class MetricsCalculator:
         sortino_ratio = self._sortino(annualized_return, daily_returns)
         maximum_drawdown = self._max_drawdown(navs)
         downside_deviation = self._downside_deviation(daily_returns)
-        rolling_consistency = self._rolling_consistency(navs, parsed_dates)
+        rolling_consistency = self._rolling_consistency(navs)
 
         return FundMetrics(
             scheme_code=self._scheme_code,
@@ -90,20 +86,18 @@ class MetricsCalculator:
             calculated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         )
 
-    def _slice_navs(self, navs: list[NAVRecord], years: float, parsed_dates: list[datetime] | None = None) -> list[NAVRecord]:
+    def _slice_navs(self, navs: list[NAVRecord], years: float) -> list[NAVRecord]:
         if not navs:
             return []
-        if parsed_dates is None:
-            parsed_dates = [datetime.strptime(n.date, "%Y-%m-%d") for n in navs]
-        start = parsed_dates[0]
-        end = parsed_dates[-1]
+        start = datetime.strptime(navs[0].date, "%Y-%m-%d")
+        end = datetime.strptime(navs[-1].date, "%Y-%m-%d")
         total_span = (end - start).days
         if total_span < int(years * 365.25):
             return []
         target_start = end - timedelta(days=int(years * 365.25))
-        idx = bisect.bisect_left(parsed_dates, target_start)
-        if idx < len(navs):
-            return navs[idx:]
+        for i, nav in enumerate(navs):
+            if datetime.strptime(nav.date, "%Y-%m-%d") >= target_start:
+                return navs[i:]
         return navs
 
     def _period_return(self, navs: list[NAVRecord]) -> float | None:
@@ -207,46 +201,17 @@ class MetricsCalculator:
 
         return results
 
-    def _rolling_consistency(self, navs: list[NAVRecord], parsed_dates: list[datetime] | None = None) -> dict[str, Any] | None:
+    def _rolling_consistency(self, navs: list[NAVRecord]) -> dict[str, Any] | None:
         windows = {
             "1Y": 365,
             "3Y": 1095,
             "5Y": 1825,
         }
-
-        if len(navs) < 2:
-            return None
-
-        if parsed_dates is None:
-            parsed_dates = [datetime.strptime(n.date, "%Y-%m-%d") for n in navs]
-
-        parsed = [(d, n.nav) for d, n in zip(parsed_dates, navs)]
-        n = len(parsed)
-
-        start_indices = {label: 0 for label in windows}
-        returns_by_window = {label: [] for label in windows}
-
-        for i in range(1, n):
-            date_i, nav_i = parsed[i]
-
-            for label, window_days in windows.items():
-                target_start = date_i - timedelta(days=window_days)
-                si = start_indices[label]
-
-                while si + 1 < i and parsed[si + 1][0] <= target_start:
-                    si += 1
-                start_indices[label] = si
-
-                if parsed[si][0] <= target_start:
-                    start_nav = parsed[si][1]
-                    if start_nav > 0:
-                        returns_by_window[label].append(nav_i / start_nav - 1)
-
         result = {}
         has_data = False
 
-        for label in windows:
-            returns = returns_by_window[label]
+        for label, days in windows.items():
+            returns = self._rolling_returns(navs, days)
             if not returns:
                 result[label] = None
                 continue
