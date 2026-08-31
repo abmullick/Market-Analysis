@@ -118,6 +118,84 @@ async def get_metrics(scheme_code: str) -> dict[str, Any]:
     return metrics.model_dump()
 
 
+def _apply_screening_filters(
+    funds: list[dict[str, Any]],
+    filters: list,
+    metadata: dict[int, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Apply screening filters to underlying funds before ranking."""
+    if not filters:
+        return funds
+
+    filtered = []
+    for fund in funds:
+        code = int(fund.get("_representative_scheme_code", 0))
+        fund_meta = metadata.get(code, {})
+
+        passes_all = True
+        for f in filters:
+            field = f.field
+            op = f.operator
+
+            if field == "amc":
+                value = fund.get("amc") or ""
+                if f.values:
+                    if op == "in":
+                        if value not in f.values:
+                            passes_all = False
+                            break
+                    elif op == "not_in":
+                        if value in f.values:
+                            passes_all = False
+                            break
+                continue
+
+            if field == "aum_cr":
+                value = fund_meta.get("aaum_cr_quarterly_avg")
+            elif field == "first_nav_date":
+                value = fund_meta.get("first_date")
+            elif field == "scheme_name":
+                value = fund.get("scheme_name") or ""
+                if f.values:
+                    if op == "in":
+                        if not any(v.lower() in value.lower() for v in f.values):
+                            passes_all = False
+                            break
+                    continue
+                continue
+            else:
+                continue
+
+            if value is None:
+                passes_all = False
+                break
+
+            if op == "gt" and not (value > f.value):
+                passes_all = False
+                break
+            elif op == "gte" and not (value >= f.value):
+                passes_all = False
+                break
+            elif op == "lt" and not (value < f.value):
+                passes_all = False
+                break
+            elif op == "lte" and not (value <= f.value):
+                passes_all = False
+                break
+            elif op == "between":
+                if f.value_min is not None and value < f.value_min:
+                    passes_all = False
+                    break
+                if f.value_max is not None and value > f.value_max:
+                    passes_all = False
+                    break
+
+        if passes_all:
+            filtered.append(fund)
+
+    return filtered
+
+
 @router.post("/rank")
 async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
     import time as time_module
@@ -139,6 +217,29 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
                 "skipped": 0,
             },
         }
+
+    # Apply screening filters before metric calculation
+    screened_count = fund_count
+    if payload.screening_filters:
+        metadata_service = get_tigzig_metadata()
+        metadata = await metadata_service.get_metadata()
+        underlying_funds = _apply_screening_filters(
+            underlying_funds, payload.screening_filters, metadata
+        )
+        screened_count = len(underlying_funds)
+        logger.info("After screening: %d funds match filters", screened_count)
+
+        if not underlying_funds:
+            return {
+                "category": payload.category,
+                "rankings": [],
+                "meta": {
+                    "underlying_funds": fund_count,
+                    "ranked": 0,
+                    "skipped": fund_count,
+                    "screened_matching": 0,
+                },
+            }
 
     criteria_names = [c.name for c in payload.criteria]
     lookback_years = get_required_lookback_years(criteria_names)
@@ -205,5 +306,6 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
             "skipped": skipped_count,
             "tigzig_available": tigzig_available,
             "total_time_seconds": total_time,
+            "screened_matching": screened_count,
         },
     }

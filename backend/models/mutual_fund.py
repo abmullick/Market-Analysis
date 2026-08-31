@@ -62,10 +62,20 @@ class CriterionConfig(BaseModel):
     weight: float
 
 
+class ScreeningFilter(BaseModel):
+    field: str
+    operator: str
+    value: Optional[float] = None
+    value_min: Optional[float] = None
+    value_max: Optional[float] = None
+    values: Optional[list[str]] = None
+
+
 class RankingRequest(BaseModel):
     category: str
     criteria: list[CriterionConfig]
     auto_renormalize: bool = True
+    screening_filters: list[ScreeningFilter] = []
 
 
 class CriterionScore(BaseModel):

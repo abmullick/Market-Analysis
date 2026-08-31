@@ -165,9 +165,24 @@ let currentRankings = [];
 let filteredRankings = [];
 let selectedFunds = new Set();
 let isComparisonView = false;
+let screeningFilters = [];
 
 const MAX_COMPARE = 5;
 const MIN_COMPARE = 2;
+
+const SCREENER_FIELDS = [
+    { key: "amc", label: "AMC", type: "categorical" },
+    { key: "aum_cr", label: "AUM (Cr)", type: "numeric", unit: "Cr" },
+    { key: "first_nav_date", label: "First NAV Date", type: "date" },
+];
+
+const SCREENER_OPERATORS = [
+    { key: "gt", label: ">" },
+    { key: "gte", label: "≥" },
+    { key: "lt", label: "<" },
+    { key: "lte", label: "≤" },
+    { key: "between", label: "Between" },
+];
 
 const COMPARE_METRICS = [
     { key: "1Y_return", label: "1Y Return", unit: "percent", higherBetter: true },
@@ -199,7 +214,12 @@ async function loadCategories() {
         categories = response.categories || [];
         hideLoading(filtersContainer);
         buildPageHeader();
-        buildControls();
+        try {
+            buildControls();
+        } catch (e) {
+            console.error("buildControls error:", e);
+            filtersContainer.innerHTML = `<div class="empty-state"><p>Error building controls: ${e.message}</p></div>`;
+        }
     } catch (error) {
         hideLoading(filtersContainer);
         filtersContainer.innerHTML = `<div class="empty-state"><p>Failed to load categories: ${error.message}</p></div>`;
@@ -222,60 +242,229 @@ function buildPageHeader() {
 
 function buildControls() {
     const filtersContainer = document.getElementById("ranking-filters");
+    const screenerContainer = document.getElementById("ranking-screener");
     const presetContainer = document.getElementById("ranking-preset");
     const criteriaContainer = document.getElementById("ranking-criteria");
     const methodologyContainer = document.getElementById("ranking-methodology");
 
-    if (!filtersContainer || !presetContainer || !criteriaContainer || !methodologyContainer) return;
+    if (!filtersContainer || !screenerContainer || !presetContainer || !criteriaContainer || !methodologyContainer) {
+        console.error("Missing containers:", {
+            filters: !!filtersContainer,
+            screener: !!screenerContainer,
+            preset: !!presetContainer,
+            criteria: !!criteriaContainer,
+            methodology: !!methodologyContainer,
+        });
+        return;
+    }
 
-    filtersContainer.innerHTML = `
-        <div class="filter-group">
-            <label for="category-input">Category</label>
-            <div class="combobox" id="category-combobox">
-                <input type="text" id="category-input" class="combobox-input" placeholder="Search categories..." autocomplete="off">
-                <button type="button" class="combobox-toggle" tabindex="-1">&#9662;</button>
-                <div class="combobox-dropdown" id="category-dropdown"></div>
-                <input type="hidden" id="category-value">
+    try {
+        filtersContainer.innerHTML = `
+            <div class="filter-group">
+                <label for="category-input">Category</label>
+                <div class="combobox" id="category-combobox">
+                    <input type="text" id="category-input" class="combobox-input" placeholder="Search categories..." autocomplete="off">
+                    <button type="button" class="combobox-toggle" tabindex="-1">&#9662;</button>
+                    <div class="combobox-dropdown" id="category-dropdown"></div>
+                    <input type="hidden" id="category-value">
+                </div>
+            </div>
+        `;
+
+        presetContainer.innerHTML = `
+            <div class="criteria-section-title">Preset</div>
+            <div class="preset-grid" id="preset-grid"></div>
+        `;
+
+        const presetGrid = document.getElementById("preset-grid");
+        if (presetGrid) {
+            const presetEntries = Object.entries(PRESETS);
+            presetEntries.forEach(([key, preset]) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = `preset-btn${key === currentPreset ? " active" : ""}${key === "custom" ? " preset-btn-wide" : ""}`;
+                btn.dataset.preset = key;
+                btn.textContent = preset.label;
+                btn.addEventListener("click", () => {
+                    currentPreset = key;
+                    document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    applyPreset(key);
+                });
+                presetGrid.appendChild(btn);
+            });
+        }
+
+        initCombobox({
+            id: "category",
+            options: categories.map(c => ({ value: c, label: c })),
+            onSelect: (value) => { currentCategory = value; },
+        });
+
+        buildScreener(screenerContainer);
+        buildCriteriaList(criteriaContainer);
+        buildMethodology(methodologyContainer);
+
+        document.getElementById("run-ranking").addEventListener("click", runRanking);
+
+        applyPreset(currentPreset);
+    } catch (e) {
+        console.error("buildControls error:", e);
+        filtersContainer.innerHTML = `<div class="empty-state"><p>Error building controls: ${e.message}</p></div>`;
+    }
+}
+
+function buildScreener(container) {
+    if (!container) return;
+    container.innerHTML = `
+        <div class="screener">
+            <button type="button" class="screener-toggle" id="screener-toggle">
+                <span class="screener-toggle-icon">&#9662;</span>
+                <span class="screener-toggle-label">Fund Screener</span>
+                <span class="screener-count" id="screener-count"></span>
+            </button>
+            <div class="screener-body" id="screener-body" hidden>
+                <div class="screener-add">
+                    <select id="screener-field" class="screener-select">
+                        ${SCREENER_FIELDS.map(f => `<option value="${f.key}">${f.label}</option>`).join("")}
+                    </select>
+                    <button type="button" class="screener-add-btn" id="screener-add-btn">Add Filter</button>
+                </div>
+                <div class="screener-filters" id="screener-filters"></div>
+                <div class="screener-footer">
+                    <button type="button" class="btn-text" id="screener-clear">Clear All</button>
+                    <span class="screener-result" id="screener-result"></span>
+                </div>
             </div>
         </div>
     `;
 
-    presetContainer.innerHTML = `
-        <div class="criteria-section-title">Preset</div>
-        <div class="preset-grid" id="preset-grid"></div>
-    `;
+    const toggle = document.getElementById("screener-toggle");
+    const body = document.getElementById("screener-body");
+    const toggleIcon = toggle ? toggle.querySelector(".screener-toggle-icon") : null;
+    const addBtn = document.getElementById("screener-add-btn");
+    const clearBtn = document.getElementById("screener-clear");
 
-    const presetGrid = document.getElementById("preset-grid");
-    if (presetGrid) {
-        const presetEntries = Object.entries(PRESETS);
-        presetEntries.forEach(([key, preset]) => {
-            const btn = document.createElement("button");
-            btn.type = "button";
-            btn.className = `preset-btn${key === currentPreset ? " active" : ""}${key === "custom" ? " preset-btn-wide" : ""}`;
-            btn.dataset.preset = key;
-            btn.textContent = preset.label;
-            btn.addEventListener("click", () => {
-                currentPreset = key;
-                document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
-                btn.classList.add("active");
-                applyPreset(key);
-            });
-            presetGrid.appendChild(btn);
+    if (toggle && body && toggleIcon) {
+        toggle.addEventListener("click", () => {
+            const isExpanded = !body.hidden;
+            body.hidden = isExpanded;
+            toggleIcon.style.transform = isExpanded ? "" : "rotate(180deg)";
         });
     }
 
-    initCombobox({
-        id: "category",
-        options: categories.map(c => ({ value: c, label: c })),
-        onSelect: (value) => { currentCategory = value; },
+    if (addBtn) {
+        addBtn.addEventListener("click", () => {
+            const fieldSelect = document.getElementById("screener-field");
+            if (!fieldSelect) return;
+            const fieldKey = fieldSelect.value;
+            const field = SCREENER_FIELDS.find(f => f.key === fieldKey);
+            if (!field) return;
+
+            const filter = {
+                field: fieldKey,
+                operator: "gte",
+                value: field.type === "numeric" ? 0 : "",
+                values: field.type === "categorical" ? [] : undefined,
+            };
+            screeningFilters.push(filter);
+            renderScreenerFilters();
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
+            screeningFilters = [];
+            renderScreenerFilters();
+        });
+    }
+
+    renderScreenerFilters();
+}
+
+function renderScreenerFilters() {
+    const container = document.getElementById("screener-filters");
+    if (!container) return;
+    container.innerHTML = "";
+
+    screeningFilters.forEach((filter, idx) => {
+        const field = SCREENER_FIELDS.find(f => f.key === filter.field);
+        if (!field) return;
+
+        const row = document.createElement("div");
+        row.className = "screener-filter-row";
+        row.dataset.idx = idx;
+
+        if (field.type === "categorical") {
+            row.innerHTML = `
+                <span class="screener-filter-label">${field.label}</span>
+                <input type="text" class="screener-filter-input" placeholder="Enter values separated by commas" value="${(filter.values || []).join(", ")}">
+                <button type="button" class="screener-filter-remove" data-idx="${idx}">&times;</button>
+            `;
+            const input = row.querySelector(".screener-filter-input");
+            input.addEventListener("change", () => {
+                filter.values = input.value.split(",").map(v => v.trim()).filter(v => v);
+                updateScreenerResult();
+            });
+        } else {
+            row.innerHTML = `
+                <span class="screener-filter-label">${field.label}</span>
+                <select class="screener-filter-op">
+                    ${SCREENER_OPERATORS.map(op => `<option value="${op.key}" ${op.key === filter.operator ? "selected" : ""}>${op.label}</option>`).join("")}
+                </select>
+                <input type="number" class="screener-filter-value" value="${filter.value || ""}" step="0.01">
+                ${filter.operator === "between" ? `<input type="number" class="screener-filter-value-max" value="${filter.value_max || ""}" step="0.01" placeholder="Max">` : ""}
+                <span class="screener-filter-unit">${field.unit || ""}</span>
+                <button type="button" class="screener-filter-remove" data-idx="${idx}">&times;</button>
+            `;
+            const opSelect = row.querySelector(".screener-filter-op");
+            const valueInput = row.querySelector(".screener-filter-value");
+            const valueMaxInput = row.querySelector(".screener-filter-value-max");
+
+            opSelect.addEventListener("change", () => {
+                filter.operator = opSelect.value;
+                renderScreenerFilters();
+            });
+
+            valueInput.addEventListener("input", () => {
+                filter.value = parseFloat(valueInput.value) || 0;
+                updateScreenerResult();
+            });
+
+            if (valueMaxInput) {
+                valueMaxInput.addEventListener("input", () => {
+                    filter.value_max = parseFloat(valueMaxInput.value) || 0;
+                    updateScreenerResult();
+                });
+            }
+        }
+
+        const removeBtn = row.querySelector(".screener-filter-remove");
+        removeBtn.addEventListener("click", () => {
+            screeningFilters.splice(idx, 1);
+            renderScreenerFilters();
+        });
+
+        container.appendChild(row);
     });
 
-    buildCriteriaList(criteriaContainer);
-    buildMethodology(methodologyContainer);
+    updateScreenerResult();
+}
 
-    document.getElementById("run-ranking").addEventListener("click", runRanking);
+function updateScreenerResult() {
+    const resultEl = document.getElementById("screener-result");
+    const countEl = document.getElementById("screener-count");
+    if (!resultEl) return;
 
-    applyPreset(currentPreset);
+    const activeCount = screeningFilters.length;
+    if (activeCount === 0) {
+        resultEl.textContent = "";
+        if (countEl) countEl.textContent = "";
+        return;
+    }
+
+    if (countEl) countEl.textContent = `${activeCount} filter${activeCount !== 1 ? "s" : ""}`;
+    resultEl.textContent = "Filters will apply on Run Ranking";
 }
 
 function initCombobox({ id, options, onSelect, selectedValue = "" }) {
@@ -283,7 +472,12 @@ function initCombobox({ id, options, onSelect, selectedValue = "" }) {
     const input = document.getElementById(`${id}-input`);
     const dropdown = document.getElementById(`${id}-dropdown`);
     const hidden = document.getElementById(`${id}-value`);
-    const toggle = combobox.querySelector(".combobox-toggle");
+    const toggle = combobox ? combobox.querySelector(".combobox-toggle") : null;
+
+    if (!combobox || !input || !dropdown || !hidden || !toggle) {
+        console.error(`Combobox ${id} elements missing`);
+        return;
+    }
 
     let filtered = options;
     let highlightedIndex = -1;
@@ -552,10 +746,30 @@ async function runRanking() {
             category: currentCategory,
             criteria: criteria,
             auto_renormalize: true,
+            screening_filters: screeningFilters.map(f => ({
+                field: f.field,
+                operator: f.operator,
+                value: f.value,
+                value_min: f.value_min,
+                value_max: f.value_max,
+                values: f.values,
+            })),
         });
 
         hideLoading(resultsContainer);
         renderRankingResults(response.rankings, response.category);
+
+        if (response.meta?.screened_matching != null) {
+            const summaryContainer = document.getElementById("ranking-summary");
+            if (summaryContainer) {
+                const existingInfo = summaryContainer.querySelector(".screener-info");
+                if (existingInfo) existingInfo.remove();
+                const info = document.createElement("div");
+                info.className = "screener-info";
+                info.textContent = `${response.meta.screened_matching} of ${response.meta.underlying_funds} funds match your filters`;
+                summaryContainer.appendChild(info);
+            }
+        }
     } catch (error) {
         hideLoading(resultsContainer);
         resultsContainer.innerHTML = `<div class="empty-state"><p>Ranking failed: ${error.message}</p></div>`;
