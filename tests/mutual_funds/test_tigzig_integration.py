@@ -249,3 +249,153 @@ class TestFundGroupingIntegration:
         excluded = grouper.get_excluded_variants()
         assert len(excluded) == 1
         assert excluded[0]["_selected_candidate"] == "1"  # Growth preferred
+
+
+class TestChunkedQueryCorrectness:
+    """Regression tests proving chunked queries produce identical results."""
+
+    def test_chunked_query_matches_full_query(self):
+        """query_nav_chunked should return same results as query_nav."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dataset = TigZigDataset(data_dir=tmpdir)
+
+            try:
+                import pyarrow as pa
+                import pyarrow.parquet as pq
+            except ImportError:
+                pytest.skip("pyarrow not available")
+
+            # Create test data with multiple scheme codes and dates
+            scheme_codes = [100001, 100002, 100003, 100004, 100005]
+            dates = ["2020-01-01", "2020-01-02", "2020-01-03"]
+            rows = []
+            for code in scheme_codes:
+                for date in dates:
+                    rows.append({
+                        "scheme_code": code,
+                        "date": date,
+                        "nav": 100.0 + code % 10 + dates.index(date),
+                    })
+
+            table = pa.table({
+                "scheme_code": pa.array([r["scheme_code"] for r in rows], type=pa.int32()),
+                "date": pa.array([r["date"] for r in rows], type=pa.string()),
+                "nav": pa.array([r["nav"] for r in rows], type=pa.float64()),
+            })
+            pq.write_table(table, dataset._dataset_path)
+
+            # Query all at once
+            full_result = dataset.query_nav(scheme_codes)
+
+            # Query in chunks of 2
+            chunked_result = dataset.query_nav_chunked(scheme_codes, chunk_size=2)
+
+            # Results should be identical
+            assert set(full_result.keys()) == set(chunked_result.keys())
+            for code in scheme_codes:
+                assert len(full_result[code]) == len(chunked_result[code])
+                for full_row, chunked_row in zip(
+                    sorted(full_result[code], key=lambda x: x["date"]),
+                    sorted(chunked_result[code], key=lambda x: x["date"])
+                ):
+                    assert full_row["date"] == chunked_row["date"]
+                    assert full_row["nav"] == chunked_row["nav"]
+
+    def test_chunked_query_with_various_chunk_sizes(self):
+        """Chunk size should not affect results."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dataset = TigZigDataset(data_dir=tmpdir)
+
+            try:
+                import pyarrow as pa
+                import pyarrow.parquet as pq
+            except ImportError:
+                pytest.skip("pyarrow not available")
+
+            # Create test data
+            scheme_codes = list(range(200001, 200021))  # 20 codes
+            dates = ["2021-06-01", "2021-06-02", "2021-06-03", "2021-06-04", "2021-06-05"]
+            rows = []
+            for code in scheme_codes:
+                for date in dates:
+                    rows.append({
+                        "scheme_code": code,
+                        "date": date,
+                        "nav": 50.0 + (code % 100) * 0.1 + dates.index(date) * 0.5,
+                    })
+
+            table = pa.table({
+                "scheme_code": pa.array([r["scheme_code"] for r in rows], type=pa.int32()),
+                "date": pa.array([r["date"] for r in rows], type=pa.string()),
+                "nav": pa.array([r["nav"] for r in rows], type=pa.float64()),
+            })
+            pq.write_table(table, dataset._dataset_path)
+
+            # Query all at once (baseline)
+            full_result = dataset.query_nav(scheme_codes)
+
+            # Test various chunk sizes
+            for chunk_size in [1, 3, 5, 10, 7, 15]:
+                chunked_result = dataset.query_nav_chunked(scheme_codes, chunk_size=chunk_size)
+
+                # Verify same scheme codes returned
+                assert set(full_result.keys()) == set(chunked_result.keys()), \
+                    f"Chunk size {chunk_size}: scheme codes mismatch"
+
+                # Verify same data for each scheme
+                for code in scheme_codes:
+                    full_sorted = sorted(full_result[code], key=lambda x: (x["date"], x["nav"]))
+                    chunked_sorted = sorted(chunked_result[code], key=lambda x: (x["date"], x["nav"]))
+                    assert len(full_sorted) == len(chunked_sorted), \
+                        f"Chunk size {chunk_size}: row count mismatch for code {code}"
+                    for full_row, chunked_row in zip(full_sorted, chunked_sorted):
+                        assert full_row["date"] == chunked_row["date"], \
+                            f"Chunk size {chunk_size}: date mismatch for code {code}"
+                        assert abs(full_row["nav"] - chunked_row["nav"]) < 1e-10, \
+                            f"Chunk size {chunk_size}: nav mismatch for code {code}"
+
+    def test_chunked_query_empty_codes(self):
+        """Chunked query with empty codes should return empty dict."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dataset = TigZigDataset(data_dir=tmpdir)
+
+            try:
+                import pyarrow as pa
+                import pyarrow.parquet as pq
+            except ImportError:
+                pytest.skip("pyarrow not available")
+
+            # Create minimal dataset
+            table = pa.table({
+                "scheme_code": pa.array([], type=pa.int32()),
+                "date": pa.array([], type=pa.string()),
+                "nav": pa.array([], type=pa.float64()),
+            })
+            pq.write_table(table, dataset._dataset_path)
+
+            result = dataset.query_nav_chunked([], chunk_size=10)
+            assert result == {}
+
+    def test_chunked_query_single_code(self):
+        """Chunked query with single code should work correctly."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dataset = TigZigDataset(data_dir=tmpdir)
+
+            try:
+                import pyarrow as pa
+                import pyarrow.parquet as pq
+            except ImportError:
+                pytest.skip("pyarrow not available")
+
+            # Create test data with single code
+            table = pa.table({
+                "scheme_code": pa.array([999999, 999999, 999999], type=pa.int32()),
+                "date": pa.array(["2023-01-01", "2023-01-02", "2023-01-03"], type=pa.string()),
+                "nav": pa.array([100.0, 101.0, 102.0], type=pa.float64()),
+            })
+            pq.write_table(table, dataset._dataset_path)
+
+            # Query with chunk_size=1 (edge case)
+            result = dataset.query_nav_chunked([999999], chunk_size=1)
+            assert 999999 in result
+            assert len(result[999999]) == 3

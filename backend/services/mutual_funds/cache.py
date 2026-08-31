@@ -6,6 +6,7 @@ from threading import Lock
 class MetricsCache:
     def __init__(self, ttl_seconds: int = 86400):
         self._cache: dict[str, tuple[dict[str, Any], float]] = {}
+        self._failures: dict[str, float] = {}
         self._ttl = ttl_seconds
         self._lock = Lock()
         self._hits = 0
@@ -35,19 +36,41 @@ class MetricsCache:
         with self._lock:
             self._cache[key] = (metrics, expires)
 
+    def is_failed(self, scheme_code: str, lookback_years: int) -> bool:
+        key = self._make_key(scheme_code, lookback_years)
+        with self._lock:
+            expires = self._failures.get(key)
+            if expires is None:
+                return False
+            if time.time() > expires:
+                del self._failures[key]
+                return False
+            return True
+
+    def put_failure(self, scheme_code: str, lookback_years: int) -> None:
+        key = self._make_key(scheme_code, lookback_years)
+        expires = time.time() + self._ttl
+        with self._lock:
+            self._failures[key] = expires
+
     def invalidate(self, scheme_code: str | None = None) -> None:
         with self._lock:
             if scheme_code is None:
                 self._cache.clear()
+                self._failures.clear()
             else:
                 keys_to_remove = [k for k in self._cache if k.startswith(f"{scheme_code}:")]
                 for k in keys_to_remove:
                     del self._cache[k]
+                keys_to_remove = [k for k in self._failures if k.startswith(f"{scheme_code}:")]
+                for k in keys_to_remove:
+                    del self._failures[k]
 
     def stats(self) -> dict[str, int]:
         with self._lock:
             return {
                 "size": len(self._cache),
+                "failures": len(self._failures),
                 "hits": self._hits,
                 "misses": self._misses,
             }

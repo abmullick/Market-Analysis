@@ -119,7 +119,13 @@ class MetricsCalculator:
     def _annualize(self, total_return: float, years: float) -> float | None:
         if years <= 0 or total_return <= -1:
             return None
-        return (1 + total_return) ** (1 / years) - 1
+        try:
+            result = (1 + total_return) ** (1 / years) - 1
+            if not isinstance(result, (int, float)) or result != result:
+                return None
+            return result
+        except (ZeroDivisionError, ValueError, OverflowError):
+            return None
 
     def _daily_returns(self, navs: list[NAVRecord]) -> list[float]:
         returns = []

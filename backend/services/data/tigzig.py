@@ -322,6 +322,83 @@ class TigZigDataset:
 
         return result
 
+    def query_nav_chunked(
+        self,
+        scheme_codes: list[int],
+        chunk_size: int = 100,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict[int, list[dict[str, Any]]]:
+        """Query NAV data for multiple schemes in memory-efficient chunks.
+
+        Processes scheme codes in batches to limit memory usage.
+        Each chunk is queried independently and results are merged.
+
+        Args:
+            scheme_codes: List of AMFI scheme codes
+            chunk_size: Number of schemes to query per chunk
+            start_date: Optional start date filter (YYYY-MM-DD)
+            end_date: Optional end date filter (YYYY-MM-DD)
+
+        Returns:
+            Dictionary mapping scheme_code to list of NAV records
+        """
+        if not self.is_available:
+            raise TigZigDatasetError("Dataset not available")
+
+        if not scheme_codes:
+            return {}
+
+        start_time = time.time()
+        result: dict[int, list[dict[str, Any]]] = {code: [] for code in scheme_codes}
+        total_rows = 0
+        num_chunks = 0
+
+        # Process in chunks
+        for i in range(0, len(scheme_codes), chunk_size):
+            chunk_codes = scheme_codes[i:i + chunk_size]
+            num_chunks += 1
+
+            # Build filters for this chunk
+            filters = [("scheme_code", "in", chunk_codes)]
+            if start_date:
+                filters.append(("date", ">=", start_date))
+            if end_date:
+                filters.append(("date", "<=", end_date))
+
+            # Read only required columns with filters
+            table = pq.read_table(
+                self._dataset_path,
+                columns=["scheme_code", "date", "nav"],
+                filters=filters,
+                memory_map=True,
+            )
+
+            # Convert to Python and merge into result
+            scheme_codes_col = table.column("scheme_code").to_pylist()
+            dates_col = table.column("date").to_pylist()
+            navs_col = table.column("nav").to_pylist()
+
+            for code, date, nav in zip(scheme_codes_col, dates_col, navs_col):
+                result[code].append({
+                    "date": date,
+                    "nav": float(nav),
+                })
+
+            chunk_rows = len(table)
+            total_rows += chunk_rows
+
+            # Explicitly release chunk data
+            del table, scheme_codes_col, dates_col, navs_col
+
+        query_time = time.time() - start_time
+        logger.info(
+            f"TigZig chunked query: {len(scheme_codes)} schemes in {num_chunks} chunks, "
+            f"{total_rows:,} rows in {query_time:.3f}s"
+        )
+
+        return result
+
     def query_single_scheme(
         self,
         scheme_code: int,

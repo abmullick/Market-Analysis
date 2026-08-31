@@ -14,9 +14,36 @@ from backend.services.mutual_funds.fund_grouper import (
     extract_option,
     extract_plan,
     get_fund_group_key,
+    is_segregated_portfolio,
     normalize_fund_name,
     select_ranking_candidate,
 )
+
+
+class TestIsSegregatedPortfolio:
+    """Test segregated portfolio detection."""
+
+    def test_trailing_dash(self):
+        """Trailing dash should indicate segregated portfolio."""
+        assert is_segregated_portfolio("ICICI Prudential Liquid Fund -") is True
+        assert is_segregated_portfolio("ABC Fund - ") is True
+        assert is_segregated_portfolio("ABC Fund-") is True
+
+    def test_segregated_in_parentheses(self):
+        """Segregated indicator in parentheses should be detected."""
+        assert is_segregated_portfolio("ABC Fund (Segregated - 06032020)") is True
+        assert is_segregated_portfolio("ABC Fund (segregated)") is True
+
+    def test_normal_fund(self):
+        """Normal funds should not be detected as segregated."""
+        assert is_segregated_portfolio("ICICI Prudential Liquid Fund") is False
+        assert is_segregated_portfolio("ABC Fund - Growth") is False
+        assert is_segregated_portfolio("ABC Fund - Direct Plan") is False
+
+    def test_empty_name(self):
+        """Empty name should return False."""
+        assert is_segregated_portfolio("") is False
+        assert is_segregated_portfolio(None) is False
 
 
 class TestNormalizeFundName:
@@ -241,6 +268,187 @@ class TestSelectRankingCandidate:
         """Empty group should raise ValueError."""
         with pytest.raises(ValueError):
             select_ranking_candidate([])
+
+    def test_segregated_portfolio_filtered_when_normal_exists(self):
+        """Segregated portfolios should be filtered out when normal schemes exist."""
+        group = [
+            {"scheme_code": "1", "scheme_name": "ICICI Prudential Liquid Fund -"},
+            {"scheme_code": "2", "scheme_name": "ICICI Prudential Liquid Fund"},
+            {"scheme_code": "3", "scheme_name": "ICICI Prudential Liquid Fund (Segregated - 06032020)"},
+        ]
+        result = select_ranking_candidate(group)
+        # Normal scheme should be selected, not segregated
+        assert result["scheme_code"] == "2"
+
+    def test_segregated_portfolio_selected_when_all_segregated(self):
+        """When all schemes are segregated, one should be selected."""
+        group = [
+            {"scheme_code": "1", "scheme_name": "ABC Fund (Segregated - 06032020)"},
+            {"scheme_code": "2", "scheme_name": "ABC Fund (Segregated - 07032020)"},
+        ]
+        result = select_ranking_candidate(group)
+        # Should still select one (first by scheme code)
+        assert result is not None
+        assert result["scheme_code"] == "1"
+
+    def test_growth_preferred_over_segregated(self):
+        """Growth normal scheme should be preferred over segregated."""
+        group = [
+            {"scheme_code": "1", "scheme_name": "ABC Fund -"},
+            {"scheme_code": "2", "scheme_name": "ABC Fund - Growth"},
+        ]
+        result = select_ranking_candidate(group)
+        assert result["scheme_code"] == "2"
+
+    def test_segregated_with_growth_in_name(self):
+        """Segregated portfolio with Growth in name should be filtered."""
+        group = [
+            {"scheme_code": "1", "scheme_name": "ABC Fund - Growth -"},
+            {"scheme_code": "2", "scheme_name": "ABC Fund"},
+        ]
+        result = select_ranking_candidate(group)
+        # Normal scheme should be selected
+        assert result["scheme_code"] == "2"
+
+
+class TestVariantHandling:
+    """Test Growth/IDCW/Dividend variant handling in representative selection."""
+
+    def test_growth_preferred_over_idcw(self):
+        """Growth should be preferred over IDCW when both exist."""
+        group = [
+            {"scheme_code": "1", "scheme_name": "ABC Fund - IDCW"},
+            {"scheme_code": "2", "scheme_name": "ABC Fund - Growth"},
+        ]
+        result = select_ranking_candidate(group)
+        assert result["scheme_code"] == "2"
+        assert extract_option(result["scheme_name"]) == "Growth"
+
+    def test_growth_preferred_over_dividend(self):
+        """Growth should be preferred over Dividend when both exist."""
+        group = [
+            {"scheme_code": "1", "scheme_name": "ABC Fund - Dividend"},
+            {"scheme_code": "2", "scheme_name": "ABC Fund - Growth"},
+        ]
+        result = select_ranking_candidate(group)
+        assert result["scheme_code"] == "2"
+        assert extract_option(result["scheme_name"]) == "Growth"
+
+    def test_growth_preferred_over_unspecified(self):
+        """Growth should be preferred over unspecified variants."""
+        group = [
+            {"scheme_code": "1", "scheme_name": "ABC Fund"},
+            {"scheme_code": "2", "scheme_name": "ABC Fund - Growth"},
+        ]
+        result = select_ranking_candidate(group)
+        assert result["scheme_code"] == "2"
+        assert extract_option(result["scheme_name"]) == "Growth"
+
+    def test_idcw_fallback_when_no_growth(self):
+        """IDCW should be selected when no Growth variant exists."""
+        group = [
+            {"scheme_code": "1", "scheme_name": "ABC Fund - IDCW"},
+            {"scheme_code": "2", "scheme_name": "ABC Fund"},
+        ]
+        result = select_ranking_candidate(group)
+        # IDCW is identifiable, first by code should be selected
+        assert result is not None
+
+    def test_dividend_fallback_when_no_growth(self):
+        """Dividend should be selected when no Growth variant exists."""
+        group = [
+            {"scheme_code": "1", "scheme_name": "ABC Fund - Dividend"},
+            {"scheme_code": "2", "scheme_name": "ABC Fund"},
+        ]
+        result = select_ranking_candidate(group)
+        # Dividend is identifiable, first by code should be selected
+        assert result is not None
+
+    def test_unspecified_fallback(self):
+        """When all variants are unspecified, first by code should be selected."""
+        group = [
+            {"scheme_code": "2", "scheme_name": "ABC Fund"},
+            {"scheme_code": "1", "scheme_name": "ABC Fund"},
+        ]
+        result = select_ranking_candidate(group)
+        # First by scheme code (numeric sort)
+        assert result["scheme_code"] == "1"
+
+    def test_growth_plus_idcw_selects_growth(self):
+        """Growth + IDCW should select Growth."""
+        group = [
+            {"scheme_code": "1", "scheme_name": "Mirae Asset Nifty 1D Rate Liquid ETF-IDCW"},
+            {"scheme_code": "2", "scheme_name": "Mirae Asset Nifty 1D Rate Liquid ETF - Growth"},
+        ]
+        result = select_ranking_candidate(group)
+        assert result["scheme_code"] == "2"
+        assert extract_option(result["scheme_name"]) == "Growth"
+
+    def test_idcw_only_fund(self):
+        """IDCW-only fund should select one IDCW variant."""
+        group = [
+            {"scheme_code": "1", "scheme_name": "Aditya Birla Sun Life Dividend Yield Fund"},
+            {"scheme_code": "2", "scheme_name": "Aditya Birla Sun Life Dividend Yield Fund"},
+        ]
+        result = select_ranking_candidate(group)
+        assert result is not None
+        # Both are IDCW, first by code should be selected
+        assert result["scheme_code"] == "1"
+
+    def test_dividend_only_fund(self):
+        """Dividend-only fund should select one Dividend variant."""
+        group = [
+            {"scheme_code": "2", "scheme_name": "Franklin India Dividend Yield Fund"},
+            {"scheme_code": "1", "scheme_name": "Franklin India Dividend Yield Fund"},
+        ]
+        result = select_ranking_candidate(group)
+        assert result is not None
+        # Both are IDCW (Dividend), first by code should be selected
+        assert result["scheme_code"] == "1"
+
+    def test_no_duplicate_representatives(self):
+        """Each underlying fund should have exactly one representative."""
+        grouper = FundGrouper()
+        schemes = [
+            {"scheme_code": "1", "scheme_name": "ABC Fund - Growth", "amc": "AMC A"},
+            {"scheme_code": "2", "scheme_name": "ABC Fund - IDCW", "amc": "AMC A"},
+            {"scheme_code": "3", "scheme_name": "XYZ Fund", "amc": "AMC A"},
+        ]
+        for s in schemes:
+            grouper.add_scheme(s)
+
+        candidates = grouper.get_ranking_candidates()
+        # Should have 2 candidates (ABC Fund and XYZ Fund)
+        assert len(candidates) == 2
+
+        # Check no duplicate fund names
+        fund_names = [c["_canonical_fund_name"] for c in candidates]
+        assert len(fund_names) == len(set(fund_names))
+
+    def test_exactly_one_representative_per_fund(self):
+        """Each underlying fund should have exactly one representative."""
+        grouper = FundGrouper()
+        schemes = [
+            {"scheme_code": "1", "scheme_name": "ABC Fund - Growth", "amc": "AMC A"},
+            {"scheme_code": "2", "scheme_name": "ABC Fund - IDCW", "amc": "AMC A"},
+            {"scheme_code": "3", "scheme_name": "ABC Fund", "amc": "AMC A"},
+            {"scheme_code": "4", "scheme_name": "XYZ Fund - Growth", "amc": "AMC A"},
+            {"scheme_code": "5", "scheme_name": "XYZ Fund - IDCW", "amc": "AMC A"},
+        ]
+        for s in schemes:
+            grouper.add_scheme(s)
+
+        candidates = grouper.get_ranking_candidates()
+        # Should have 2 candidates (ABC Fund and XYZ Fund)
+        assert len(candidates) == 2
+
+        # ABC Fund should have Growth selected
+        abc = next(c for c in candidates if c["_canonical_fund_name"] == "ABC Fund")
+        assert extract_option(abc["scheme_name"]) == "Growth"
+
+        # XYZ Fund should have Growth selected
+        xyz = next(c for c in candidates if c["_canonical_fund_name"] == "XYZ Fund")
+        assert extract_option(xyz["scheme_name"]) == "Growth"
 
 
 class TestFundGrouper:

@@ -139,25 +139,20 @@ def test_fetcher_search_schemes(fetcher):
 def test_fetcher_get_schemes_by_category(fetcher):
     import asyncio
 
-    mock_raw = [
-        {
-            "scheme_code": "1",
-            "meta": {
-                "scheme_name": "Large Cap Fund",
-                "scheme_category": "Equity Scheme - Large Cap Fund",
-                "scheme_type": "Large Cap",
-            },
-        },
-        {
-            "scheme_code": "2",
-            "meta": {
-                "scheme_name": "Liquid Fund",
-                "scheme_category": "Debt Scheme - Liquid Fund",
-                "scheme_type": "Liquid",
-            },
-        },
-    ]
-    with patch.object(fetcher.mfapi, "fetch_scheme", new_callable=AsyncMock, return_value=mock_raw):
+    # Mock AMFI NAVAll.txt response
+    # Format: field1;field2;field3;scheme_name;field5;date;nav;...
+    amfi_text = (
+        "Open Ended Schemes(Equity Scheme - Large Cap Fund)\n"
+        "AMC A\n"
+        "Scheme Code;Scheme Name;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Face Value;Date;NAV;Repurchase Price;Sale Price\n"
+        "1;INF001;INF002;Large Cap Fund;10.0;01-01-2024;100.0;99.0;101.0\n"
+        "\n"
+        "Open Ended Schemes(Debt Scheme - Liquid Fund)\n"
+        "AMC B\n"
+        "Scheme Code;Scheme Name;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Face Value;Date;NAV;Repurchase Price;Sale Price\n"
+        "2;INF003;INF004;Liquid Fund;10.0;01-01-2024;1000.0;999.0;1001.0\n"
+    )
+    with patch.object(fetcher.amfi, "fetch_nav_all", new_callable=AsyncMock, return_value=amfi_text):
         # Test canonical category filtering
         large_cap = asyncio.run(fetcher.get_schemes_by_category("Equity - Large Cap"))
         assert len(large_cap) == 1

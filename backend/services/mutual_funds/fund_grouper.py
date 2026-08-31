@@ -129,6 +129,39 @@ def extract_option(scheme_name: str) -> Optional[str]:
     return None
 
 
+def is_segregated_portfolio(scheme_name: str) -> bool:
+    """Check if a scheme name indicates a segregated portfolio.
+
+    Segregated portfolios are created when AMCs segregate stressed assets
+    from the main fund. These should not be selected as the representative
+    ranking candidate when a normal (non-segregated) scheme exists.
+
+    Args:
+        scheme_name: The raw scheme name
+
+    Returns:
+        True if the scheme is a segregated portfolio
+    """
+    if not scheme_name:
+        return False
+
+    name = scheme_name.strip()
+
+    # Trailing dash indicates segregated portfolio
+    if name.endswith("-"):
+        return True
+    if name.endswith("- "):
+        return True
+
+    # Check for segregated portfolio indicators in parentheses
+    if re.search(r'\(.*segregated.*\)', name, re.IGNORECASE):
+        return True
+    if re.search(r'Segregated\s*-\s*\d{6}', name, re.IGNORECASE):
+        return True
+
+    return False
+
+
 def get_fund_group_key(amc: Optional[str], fund_name: str) -> str:
     """Generate a unique key for grouping schemes into underlying funds.
 
@@ -148,8 +181,9 @@ def select_ranking_candidate(group: list[dict[str, Any]]) -> dict[str, Any]:
     """Select a single ranking candidate from a group of scheme variants.
 
     Selection hierarchy:
-    1. Growth (when Growth/IDCW can be identified from scheme name)
-    2. First scheme code (sorted numerically) as deterministic fallback
+    1. Filter out segregated portfolios if normal schemes exist
+    2. Growth (when Growth/IDCW can be identified from scheme name)
+    3. First scheme code (sorted numerically) as deterministic fallback
 
     IMPORTANT LIMITATION:
     AMFI NAVAll.txt does NOT reliably encode Direct/Regular plan information.
@@ -168,9 +202,20 @@ def select_ranking_candidate(group: list[dict[str, Any]]) -> dict[str, Any]:
     if len(group) == 1:
         return group[0]
 
+    # Filter out segregated portfolios if normal schemes exist
+    normal_schemes = [s for s in group if not is_segregated_portfolio(s.get("scheme_name", ""))]
+    if normal_schemes:
+        candidates = normal_schemes
+    else:
+        # All schemes are segregated, use them all
+        candidates = group
+
+    if len(candidates) == 1:
+        return candidates[0]
+
     # Enrich with option info
     enriched = []
-    for s in group:
+    for s in candidates:
         enriched.append({
             **s,
             "option": extract_option(s.get("scheme_name", "")),
@@ -183,7 +228,7 @@ def select_ranking_candidate(group: list[dict[str, Any]]) -> dict[str, Any]:
             return s
 
     # 2. Deterministic fallback: first scheme code sorted numerically
-    sorted_group = sorted(group, key=lambda x: int(x["scheme_code"]))
+    sorted_group = sorted(candidates, key=lambda x: int(x["scheme_code"]))
     return sorted_group[0]
 
 

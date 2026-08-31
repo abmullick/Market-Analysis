@@ -117,116 +117,114 @@ class MutualFundFetcher:
         self,
         funds: list[dict[str, Any]],
         criteria_names: list[str],
+        chunk_size: int = 100,
     ) -> list[dict[str, Any] | None]:
-        """Get metrics for multiple funds using batch TigZig queries.
+        """Get metrics for multiple funds using memory-efficient chunked processing.
+
+        Processes funds in chunks to limit peak memory usage.
+        For each chunk:
+        1. Query TigZig Parquet for only the schemes in that chunk
+        2. Calculate metrics for those funds
+        3. Store only the resulting metrics
+        4. Explicitly release NAV data before processing the next chunk
 
         Args:
             funds: List of fund dictionaries with '_representative_scheme_code' and '_canonical_fund_name'
             criteria_names: List of criterion names
+            chunk_size: Number of funds to process per chunk (default 100)
 
         Returns:
             List of metric dictionaries (None for failed funds)
         """
         from backend.services.mutual_funds.calculator import MetricsCalculator
-        from datetime import datetime, timedelta
 
         lookback_years = get_required_lookback_years(criteria_names)
-        lookback_days = int(lookback_years * 365.25) + 90  # Add buffer
-        start_date = (datetime.now() - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
-
-        # Collect representative scheme codes
-        scheme_codes = []
-        code_to_fund = {}
-        for fund in funds:
-            code = int(fund["_representative_scheme_code"])
-            scheme_codes.append(code)
-            code_to_fund[code] = fund
-
-        # Batch query TigZig
         dataset = get_tigzig_dataset()
-        tigzig_results = {}
-        fallback_codes = []
 
-        if dataset.is_available:
-            try:
-                t0 = time.time()
-                tigzig_results = dataset.query_nav(scheme_codes, start_date=start_date)
-                query_time = time.time() - t0
-                logger.info(
-                    "Batch TigZig query: %d schemes, %.2f seconds",
-                    len(scheme_codes),
-                    query_time,
-                )
-            except TigZigDatasetError as e:
-                logger.warning(f"Batch TigZig query failed: {e}")
-                fallback_codes = scheme_codes
-        else:
-            fallback_codes = scheme_codes
+        # Pre-check cache for all funds to avoid redundant work
+        cached_results: dict[int, dict[str, Any] | None] = {}
+        funds_to_process: list[tuple[int, dict[str, Any]]] = []
 
-        # Identify schemes that need fallback
-        for code in scheme_codes:
-            if code not in tigzig_results or not tigzig_results[code]:
-                fallback_codes.append(code)
-
-        # MFAPI fallback for missing schemes (with rate limiting)
-        mfapi_fallback_count = 0
-        max_fallback = min(len(fallback_codes), 50)  # Limit fallback requests
-
-        if fallback_codes and mfapi_fallback_count < max_fallback:
-            logger.info(f"MFAPI fallback for {len(fallback_codes)} schemes (max {max_fallback})")
-
-            for code in fallback_codes[:max_fallback]:
-                try:
-                    navs = await self._get_nav_history_mfapi(str(code), lookback_years)
-                    if navs:
-                        tigzig_results[code] = [
-                            {"date": r.date, "nav": r.nav} for r in navs
-                        ]
-                        mfapi_fallback_count += 1
-                except Exception as e:
-                    logger.debug(f"MFAPI fallback failed for {code}: {e}")
-
-            if len(fallback_codes) > max_fallback:
-                logger.warning(
-                    f"Skipped {len(fallback_codes) - max_fallback} fallback requests (limit reached)"
-                )
-
-        # Calculate metrics for each fund
-        results = []
         for fund in funds:
             code = int(fund["_representative_scheme_code"])
-            fund_name = fund.get("_canonical_fund_name", fund.get("scheme_name", ""))
-
-            # Check cache first
             cached = metrics_cache.get(str(code), lookback_years)
             if cached is not None:
-                results.append(cached)
-                continue
-
-            nav_data = tigzig_results.get(code, [])
-            if len(nav_data) < 2:
-                logger.warning(f"Insufficient NAV data for {fund_name} ({code})")
-                results.append(None)
-                continue
-
-            try:
-                nav_records = [NAVRecord(date=d["date"], nav=d["nav"]) for d in nav_data]
-                calculator = MetricsCalculator(scheme_code=str(code), nav_records=nav_records)
-                metrics = calculator.calculate()
-
-                result = metrics.model_dump()
-                result["scheme_code"] = str(code)
-                result["scheme_name"] = fund_name
-
-                metrics_cache.put(str(code), lookback_years, result)
-                results.append(result)
-            except Exception as e:
-                logger.warning(f"Metric calculation failed for {fund_name} ({code}): {e}")
-                results.append(None)
+                cached_results[code] = cached
+            else:
+                funds_to_process.append((code, fund))
 
         logger.info(
-            f"Batch metrics: {len(funds)} funds, {sum(1 for r in results if r is not None)} successful, "
-            f"{mfapi_fallback_count} MFAPI fallbacks"
+            f"Metrics batch: {len(funds)} total, {len(cached_results)} cached, "
+            f"{len(funds_to_process)} to process"
+        )
+
+        # Process in chunks
+        all_results: dict[int, dict[str, Any] | None] = dict(cached_results)
+        num_chunks = 0
+
+        for i in range(0, len(funds_to_process), chunk_size):
+            chunk = funds_to_process[i:i + chunk_size]
+            num_chunks += 1
+
+            # Get scheme codes for this chunk
+            chunk_codes = [code for code, _ in chunk]
+            chunk_funds = {code: fund for code, fund in chunk}
+
+            # Query TigZig for this chunk only
+            chunk_nav_data: dict[int, list[dict[str, Any]]] = {}
+            if dataset.is_available:
+                try:
+                    chunk_nav_data = dataset.query_nav(chunk_codes)
+                except TigZigDatasetError as e:
+                    logger.warning(f"Chunk {num_chunks} TigZig query failed: {e}")
+
+            # Calculate metrics for each fund in this chunk
+            for code, fund in chunk:
+                fund_name = fund.get("_canonical_fund_name", fund.get("scheme_name", ""))
+
+                # Check if this fund previously failed
+                if metrics_cache.is_failed(str(code), lookback_years):
+                    all_results[code] = None
+                    continue
+
+                nav_data = chunk_nav_data.get(code, [])
+                if len(nav_data) < 2:
+                    logger.warning(f"Insufficient NAV data for {fund_name} ({code})")
+                    metrics_cache.put_failure(str(code), lookback_years)
+                    all_results[code] = None
+                    continue
+
+                try:
+                    nav_records = [NAVRecord(date=d["date"], nav=d["nav"]) for d in nav_data]
+                    calculator = MetricsCalculator(scheme_code=str(code), nav_records=nav_records)
+                    metrics = calculator.calculate()
+
+                    result = metrics.model_dump()
+                    result["scheme_code"] = str(code)
+                    result["scheme_name"] = fund_name
+
+                    metrics_cache.put(str(code), lookback_years, result)
+                    all_results[code] = result
+                except Exception as e:
+                    logger.warning(f"Metric calculation failed for {fund_name} ({code}): {e}")
+                    metrics_cache.put_failure(str(code), lookback_years)
+                    all_results[code] = None
+
+            # Explicitly release chunk data before next iteration
+            del chunk_nav_data
+
+            if num_chunks % 5 == 0:
+                logger.info(f"Processed {num_chunks} chunks ({min((num_chunks) * chunk_size, len(funds_to_process))}/{len(funds_to_process)} funds)")
+
+        # Build results in original order
+        results: list[dict[str, Any] | None] = []
+        for fund in funds:
+            code = int(fund["_representative_scheme_code"])
+            results.append(all_results.get(code))
+
+        logger.info(
+            f"Batch metrics: {len(funds)} funds in {num_chunks} chunks, "
+            f"{sum(1 for r in results if r is not None)} successful"
         )
 
         return results
@@ -241,15 +239,7 @@ class MutualFundFetcher:
             logger.info("Returning cached schemes list")
             return cached
 
-        try:
-            raw = await self.mfapi.fetch_scheme("all")
-            if isinstance(raw, list):
-                schemes = [normalize_scheme(item) for item in raw]
-            else:
-                schemes = [normalize_scheme(raw)]
-        except Exception as e:
-            logger.warning("mfapi fetch_scheme('all') failed: %s — falling back to AMFI", e)
-            schemes = await self._get_all_schemes_from_amfi()
+        schemes = await self._get_all_schemes_from_amfi()
 
         self._schemes_cache["all"] = (schemes, time.time() + self.cache_ttl)
         return schemes
