@@ -99,13 +99,14 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
     total_start = time_module.time()
 
     schemes = await fetcher.get_schemes_by_category(payload.category)
-    logger.info("Ranking %d schemes in category: %s", len(schemes), payload.category)
+    scheme_count = len(schemes)
+    logger.info("Found %d schemes in category: %s", scheme_count, payload.category)
 
     criteria_names = [c.name for c in payload.criteria]
     lookback_years = get_required_lookback_years(criteria_names)
     logger.info("Required lookback: %d years (criteria: %s)", lookback_years, criteria_names)
 
-    sem = asyncio.Semaphore(5)
+    sem = asyncio.Semaphore(3)
 
     async def fetch_metrics(scheme):
         async with sem:
@@ -121,8 +122,8 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
     logger.info(
         "Metrics calculated: %d/%d schemes (%.1f%% success)",
         len(metrics_list),
-        len(schemes),
-        len(metrics_list) / max(len(schemes), 1) * 100,
+        scheme_count,
+        len(metrics_list) / max(scheme_count, 1) * 100,
     )
 
     engine = RankingEngine()
