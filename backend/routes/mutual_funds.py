@@ -16,7 +16,7 @@ from backend.services.mutual_funds.lookback import get_required_lookback_years
 from backend.services.mutual_funds.ranking import RankingEngine
 from backend.services.mutual_funds.category_normalizer import normalize_category
 from backend.services.mutual_funds.cache import metrics_cache
-from backend.services.data.tigzig import get_tigzig_dataset, initialize_tigzig
+from backend.services.data.tigzig import get_tigzig_dataset, get_tigzig_metadata, initialize_tigzig
 from backend.utils.logging import logger
 
 router = APIRouter()
@@ -169,6 +169,24 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
     engine = RankingEngine()
     criteria = [c.model_dump() for c in payload.criteria]
     rankings = engine.rank(funds=valid_metrics, criteria=criteria, auto_renormalize=payload.auto_renormalize)
+
+    # Enrich rankings with metadata (AUM, first NAV date)
+    metadata_service = get_tigzig_metadata()
+    metadata = await metadata_service.get_metadata()
+    for r in rankings:
+        code = r.get("scheme_code")
+        if code:
+            try:
+                fund_metadata = metadata_service.lookup(int(code))
+            except (ValueError, TypeError):
+                fund_metadata = None
+            if fund_metadata:
+                if fund_metadata.get("aaum_cr_quarterly_avg") is not None:
+                    r["aum_cr"] = fund_metadata["aaum_cr_quarterly_avg"]
+                    r["aum_quarter"] = fund_metadata.get("aaum_quarter")
+                    r["aum_quarter_end"] = fund_metadata.get("aaum_quarter_end")
+                if fund_metadata.get("first_date"):
+                    r["first_nav_date"] = fund_metadata["first_date"]
 
     total_time = time_module.time() - total_start
     logger.info(

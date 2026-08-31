@@ -105,6 +105,9 @@ class RankingEngine:
                 "scheme_name": _get_field(fund, "scheme_name"),
                 "amc": _get_field(fund, "amc"),
                 "category": _get_field(fund, "category"),
+                "nav": _get_field(fund, "nav"),
+                "nav_date": _get_field(fund, "nav_date"),
+                "data_points": _get_field(fund, "data_points"),
                 "overall_score": overall * 100 if has_any else None,
                 "criteria_scores": criteria_scores,
             })

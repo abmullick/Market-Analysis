@@ -468,3 +468,84 @@ async def initialize_tigzig() -> bool:
     """Initialize the TigZig dataset at startup."""
     dataset = get_tigzig_dataset()
     return await dataset.ensure_dataset()
+
+
+TIGZIG_LATEST_URL = f"{TIGZIG_BASE_URL}/download?format=latest"
+METADATA_CACHE_TTL = 86400
+
+
+class TigZigMetadata:
+    """Manages the TigZig latest scheme snapshot metadata."""
+
+    def __init__(self, cache_ttl: int = METADATA_CACHE_TTL):
+        self._cache_ttl = cache_ttl
+        self._metadata: dict[int, dict[str, Any]] | None = None
+        self._last_fetch: float = 0
+
+    @property
+    def is_cached(self) -> bool:
+        if self._metadata is None:
+            return False
+        return (time.time() - self._last_fetch) < self._cache_ttl
+
+    async def _fetch_snapshot(self) -> str:
+        logger.info("Fetching TigZig latest snapshot...")
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.get(TIGZIG_LATEST_URL, follow_redirects=True)
+            response.raise_for_status()
+            return response.text
+
+    def _parse_snapshot(self, csv_text: str) -> dict[int, dict[str, Any]]:
+        import csv
+        from io import StringIO
+
+        metadata: dict[int, dict[str, Any]] = {}
+        reader = csv.DictReader(StringIO(csv_text))
+        for row in reader:
+            try:
+                code = int(row["scheme_code"])
+            except (KeyError, ValueError):
+                continue
+            entry: dict[str, Any] = {"scheme_code": code}
+            if row.get("first_date"):
+                entry["first_date"] = row["first_date"]
+            if row.get("aaum_cr_quarterly_avg"):
+                try:
+                    entry["aaum_cr_quarterly_avg"] = float(row["aaum_cr_quarterly_avg"])
+                except ValueError:
+                    pass
+            if row.get("aaum_quarter"):
+                entry["aaum_quarter"] = row["aaum_quarter"]
+            if row.get("aaum_quarter_end"):
+                entry["aaum_quarter_end"] = row["aaum_quarter_end"]
+            if entry.get("aaum_cr_quarterly_avg") is not None or entry.get("first_date"):
+                metadata[code] = entry
+        return metadata
+
+    async def get_metadata(self) -> dict[int, dict[str, Any]]:
+        if self.is_cached:
+            return self._metadata
+        csv_text = await self._fetch_snapshot()
+        self._metadata = self._parse_snapshot(csv_text)
+        self._last_fetch = time.time()
+        logger.info(f"TigZig metadata cached: {len(self._metadata)} schemes")
+        return self._metadata
+
+    def lookup(self, scheme_code: int) -> dict[str, Any] | None:
+        if self._metadata is None:
+            return None
+        return self._metadata.get(scheme_code)
+
+    def invalidate(self) -> None:
+        self._metadata = None
+        self._last_fetch = 0
+
+
+_tigzig_metadata: TigZigMetadata | None = None
+
+
+def get_tigzig_metadata() -> TigZigMetadata:
+    global _tigzig_metadata
+    if _tigzig_metadata is None:
+        _tigzig_metadata = TigZigMetadata()
+    return _tigzig_metadata

@@ -82,6 +82,13 @@ class FundRank(BaseModel):
     rank: Optional[int] = None
     overall_score: Optional[float] = None
     criteria_scores: list[CriterionScore] = []
+    nav: Optional[float] = None
+    nav_date: Optional[str] = None
+    data_points: Optional[int] = None
+    aum_cr: Optional[float] = None
+    aum_quarter: Optional[str] = None
+    aum_quarter_end: Optional[str] = None
+    first_nav_date: Optional[str] = None
 
 
 class RankingResponse(BaseModel):

@@ -203,6 +203,8 @@ class MutualFundFetcher:
                     result["scheme_code"] = str(code)
                     result["scheme_name"] = fund_name
                     result["amc"] = fund.get("amc")
+                    result["nav"] = fund.get("nav")
+                    result["nav_date"] = fund.get("nav_date")
 
                     metrics_cache.put(str(code), lookback_years, result)
                     all_results[code] = result
