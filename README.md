@@ -305,6 +305,23 @@ To replace Stoxim or Groq:
 - **Screening strategies**: Add new strategies in `backend/services/stocks/screener.py` without touching the API or frontend.
 - **Frontend framework**: The modular JS structure allows replacing the frontend framework later without major rewrites.
 
+## Deployment
+
+### Render
+
+1. Push the repository to GitHub.
+2. Create a new **Web Service** on Render and connect your repository.
+3. Configure the service with these settings:
+   - **Runtime**: Python 3
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn run:app --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT`
+4. Set the following environment variables in the Render dashboard:
+   - `STOXIM_API_KEY`
+   - `GROQ_API_KEY`
+   - `APP_ENV` — set to `production`
+   - `APP_DEBUG` — set to `false`
+5. Deploy the service.
+
 ## Notes
 
 - No database is used yet; data flows from providers through cache to rankings.
