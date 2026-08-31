@@ -443,8 +443,11 @@ function renderRankingResults(rankings, category) {
     if (summaryContainer) {
         summaryContainer.innerHTML = `
             <div class="ranking-summary">
-                <h3>${category} Rankings</h3>
-                <span class="result-meta">${rankings.length} funds ranked</span>
+                <div>
+                    <h3>${category} Rankings</h3>
+                    <span class="result-meta">${rankings.length} unique funds ranked</span>
+                </div>
+                <span class="result-meta">Preset: ${PRESETS[currentPreset]?.label || currentPreset}</span>
             </div>
         `;
     }
@@ -503,7 +506,7 @@ function renderRankingResults(rankings, category) {
             <td>${row.amc}</td>
             <td>${row.category}</td>
             <td class="score-cell">
-                ${row.overall_score}
+                ${row.overall_score !== "N/A" ? `<span class="score-label">Score</span> ${row.overall_score} <span style="font-weight:400;color:var(--color-text-light);font-size:0.8125rem;">/ 100</span>` : "N/A"}
                 <div class="score-bar-bg">
                     <div class="score-bar-fill" style="width: ${row.score_width}%"></div>
                 </div>
@@ -558,11 +561,11 @@ function renderDetailContent(container, criteriaScores) {
         item.className = "detail-item";
         item.innerHTML = `
             <span class="detail-label">${meta.label}</span>
-            <span class="detail-value">${score} <span style="font-weight:400;color:var(--color-text-light);font-size:0.8125rem;">/ 100</span></span>
+            <span class="detail-value">Score: ${score} <span style="font-weight:400;color:var(--color-text-light);font-size:0.8125rem;">/ 100</span></span>
             <div class="detail-bar-bg">
                 <div class="detail-bar-fill" style="width: ${scoreWidth}%"></div>
             </div>
-            <span class="detail-raw">Raw: ${raw}</span>
+            <span class="detail-raw">Actual: ${raw}</span>
         `;
         container.appendChild(item);
     });
@@ -577,13 +580,13 @@ function formatRawValue(criterion, value) {
         case "3Y_cagr":
         case "5Y_cagr":
         case "10Y_cagr":
-            return `${value.toFixed(2)}%`;
+            return `${(value * 100).toFixed(2)}%`;
         case "sharpe_ratio":
         case "sortino_ratio":
             return value.toFixed(2);
         case "volatility":
         case "downside_deviation":
-            return `${value.toFixed(2)}%`;
+            return `${(value * 100).toFixed(2)}%`;
         case "maximum_drawdown":
             return `${(value * 100).toFixed(2)}%`;
         case "consistency":

@@ -103,6 +103,7 @@ class RankingEngine:
             results.append({
                 "scheme_code": _get_field(fund, "scheme_code"),
                 "scheme_name": _get_field(fund, "scheme_name"),
+                "amc": _get_field(fund, "amc"),
                 "category": _get_field(fund, "category"),
                 "overall_score": overall * 100 if has_any else None,
                 "criteria_scores": criteria_scores,
