@@ -50,16 +50,71 @@ const PRESETS = {
 };
 
 const CRITERIA_META = {
-    "1Y_return": { label: "1Y Return", direction: "higher", description: "Simple return over the past year" },
-    "3Y_cagr": { label: "3Y CAGR", direction: "higher", description: "3-year compound annual growth rate" },
-    "5Y_cagr": { label: "5Y CAGR", direction: "higher", description: "5-year compound annual growth rate" },
-    "10Y_cagr": { label: "10Y CAGR", direction: "higher", description: "10-year compound annual growth rate" },
-    "sharpe_ratio": { label: "Sharpe Ratio", direction: "higher", description: "Risk-adjusted return (higher is better)" },
-    "sortino_ratio": { label: "Sortino Ratio", direction: "higher", description: "Return vs downside risk (higher is better)" },
-    "volatility": { label: "Volatility", direction: "lower", description: "Annualized standard deviation (lower is better)" },
-    "maximum_drawdown": { label: "Max Drawdown", direction: "lower", description: "Largest peak-to-trough decline (lower is better)" },
-    "downside_deviation": { label: "Downside Deviation", direction: "lower", description: "Volatility of negative returns (lower is better)" },
-    "consistency": { label: "Consistency", direction: "higher", description: "1Y rolling positive-period percentage (higher is better)" },
+    "1Y_return": {
+        label: "1Y Return",
+        direction: "higher",
+        description: "Simple return over the past year",
+        tooltip: "Actual = the fund's 1-year return (percentage). Score = its normalized 0–100 ranking score relative to other funds in this category.",
+    },
+    "3Y_cagr": {
+        label: "3Y CAGR",
+        direction: "higher",
+        description: "3-year compound annual growth rate",
+        tooltip: "Actual = annualized growth rate over 3 years (percentage). Score = its normalized 0–100 ranking score relative to other funds in this category.",
+    },
+    "5Y_cagr": {
+        label: "5Y CAGR",
+        direction: "higher",
+        description: "5-year compound annual growth rate",
+        tooltip: "Actual = annualized growth rate over 5 years (percentage). Score = its normalized 0–100 ranking score relative to other funds in this category.",
+    },
+    "10Y_cagr": {
+        label: "10Y CAGR",
+        direction: "higher",
+        description: "10-year compound annual growth rate",
+        tooltip: "Actual = annualized growth rate over 10 years (percentage). Score = its normalized 0–100 ranking score relative to other funds in this category.",
+    },
+    "sharpe_ratio": {
+        label: "Sharpe Ratio",
+        direction: "higher",
+        description: "Risk-adjusted return (higher is better)",
+        tooltip: "Actual = risk-adjusted return ratio (not a percentage). Higher means better return per unit of total risk. Score = its normalized 0–100 ranking score relative to other funds in this category.",
+    },
+    "sortino_ratio": {
+        label: "Sortino Ratio",
+        direction: "higher",
+        description: "Return vs downside risk (higher is better)",
+        tooltip: "Actual = return relative to downside risk only (not a percentage). Higher means better return per unit of downside risk. Score = its normalized 0–100 ranking score relative to other funds in this category.",
+    },
+    "volatility": {
+        label: "Volatility",
+        direction: "lower",
+        description: "Annualized standard deviation (lower is better)",
+        tooltip: "Actual = annualized volatility (percentage). Lower means more stable returns. Score = its normalized 0–100 ranking score (inverted: lower volatility gets a higher score).",
+    },
+    "maximum_drawdown": {
+        label: "Max Drawdown",
+        direction: "lower",
+        description: "Largest peak-to-trough decline (lower is better)",
+        tooltip: "Actual = largest peak-to-trough decline in NAV history (percentage). Lower means smaller losses from peaks. Score = its normalized 0–100 ranking score (inverted: smaller drawdown gets a higher score).",
+    },
+    "downside_deviation": {
+        label: "Downside Deviation",
+        direction: "lower",
+        description: "Volatility of negative returns (lower is better)",
+        tooltip: "Actual = volatility of negative returns only (percentage). Lower means fewer/smaller downside moves. Score = its normalized 0–100 ranking score (inverted: lower deviation gets a higher score).",
+    },
+    "consistency": {
+        label: "Consistency",
+        direction: "higher",
+        description: "1Y rolling positive-period percentage (higher is better)",
+        tooltip: "Actual = percentage of rolling 1-year windows with positive returns. Higher means more consistently positive returns. Score = its normalized 0–100 ranking score relative to other funds in this category.",
+    },
+};
+
+const TOOLTIPS = {
+    score: "Normalized ranking score from 0 to 100, based on this fund's metric value relative to all other eligible funds in the selected category.",
+    overall_score: "Weighted combination of all selected metric scores (0–100), according to the active preset weights. Higher means better overall ranking.",
 };
 
 let currentPreset = "best_overall";
@@ -376,13 +431,12 @@ function autoRenormalize() {
 
 function buildMethodology(container) {
     container.innerHTML = `
-        <h4>Methodology</h4>
+        <h4>How to read the results</h4>
         <ul>
-            <li>Metrics computed from historical NAV data</li>
-            <li>Min-max normalized to 0-100 scale</li>
-            <li>Higher-is-better metrics ranked directly</li>
-            <li>Lower-is-better metrics inverted</li>
-            <li>Weights auto-renormalized to 100%</li>
+            <li><strong>Actual</strong> = the fund's real calculated metric (e.g., 18.00% return, 1.36 Sharpe ratio).</li>
+            <li><strong>Score / 100</strong> = normalized ranking score relative to other funds in this category. 100 = best, 0 = worst.</li>
+            <li><strong>Overall Score</strong> = weighted combination of individual scores per the selected preset.</li>
+            <li>Lower-is-better metrics (volatility, drawdown, downside deviation) are inverted so higher score always means better.</li>
         </ul>
     `;
 }
@@ -464,7 +518,7 @@ function renderRankingResults(rankings, category) {
         { key: "scheme_name", label: "Fund Name" },
         { key: "amc", label: "AMC" },
         { key: "category", label: "Category" },
-        { key: "overall_score", label: "Overall Score" },
+        { key: "overall_score", label: "Overall Score", tooltip: TOOLTIPS.overall_score },
         { key: "details", label: "" },
     ];
 
@@ -491,11 +545,62 @@ function renderRankingResults(rankings, category) {
     const headerRow = document.createElement("tr");
     columns.forEach(col => {
         const th = document.createElement("th");
-        th.textContent = col.label;
+        if (col.tooltip) {
+            th.innerHTML = `${col.label} <span class="tooltip-trigger header-tooltip" tabindex="0" role="button" aria-label="Help"><span class="tooltip-content">${col.tooltip}</span>ⓘ</span>`;
+        } else {
+            th.textContent = col.label;
+        }
         headerRow.appendChild(th);
     });
     thead.appendChild(headerRow);
     table.appendChild(thead);
+
+    // Attach tooltip listeners to header tooltips
+    thead.querySelectorAll(".tooltip-trigger").forEach(trigger => {
+        const content = trigger.querySelector(".tooltip-content");
+        if (!content) return;
+
+        trigger.addEventListener("mouseenter", () => {
+            document.querySelectorAll(".tooltip-content").forEach(t => {
+                t.style.opacity = "0";
+                t.style.visibility = "hidden";
+            });
+            content.style.opacity = "1";
+            content.style.visibility = "visible";
+        });
+
+        trigger.addEventListener("mouseleave", () => {
+            content.style.opacity = "0";
+            content.style.visibility = "hidden";
+        });
+
+        trigger.addEventListener("focus", () => {
+            document.querySelectorAll(".tooltip-content").forEach(t => {
+                t.style.opacity = "0";
+                t.style.visibility = "hidden";
+            });
+            content.style.opacity = "1";
+            content.style.visibility = "visible";
+        });
+
+        trigger.addEventListener("blur", () => {
+            content.style.opacity = "0";
+            content.style.visibility = "hidden";
+        });
+
+        trigger.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isVisible = content.style.opacity === "1";
+            document.querySelectorAll(".tooltip-content").forEach(t => {
+                t.style.opacity = "0";
+                t.style.visibility = "hidden";
+            });
+            if (!isVisible) {
+                content.style.opacity = "1";
+                content.style.visibility = "visible";
+            }
+        });
+    });
 
     const tbody = document.createElement("tbody");
     rows.forEach((row, idx) => {
@@ -556,11 +661,16 @@ function renderDetailContent(container, criteriaScores) {
         const score = cs.score != null ? cs.score.toFixed(1) : "N/A";
         const scoreWidth = cs.score != null ? Math.max(0, Math.min(100, cs.score)) : 0;
         const raw = cs.raw_value != null ? formatRawValue(cs.criterion, cs.raw_value) : "N/A";
+        const tooltipText = meta.tooltip || meta.description || "";
 
         const item = document.createElement("div");
         item.className = "detail-item";
+        const tooltipText = meta.tooltip || meta.description || "";
         item.innerHTML = `
-            <span class="detail-label">${meta.label}</span>
+            <div class="detail-header">
+                <span class="detail-label">${meta.label}</span>
+                ${tooltipText ? `<span class="tooltip-trigger" tabindex="0" role="button" aria-label="Help"><span class="tooltip-content">${tooltipText}</span>ⓘ</span>` : ""}
+            </div>
             <span class="detail-value">Score: ${score} <span style="font-weight:400;color:var(--color-text-light);font-size:0.8125rem;">/ 100</span></span>
             <div class="detail-bar-bg">
                 <div class="detail-bar-fill" style="width: ${scoreWidth}%"></div>
@@ -568,6 +678,52 @@ function renderDetailContent(container, criteriaScores) {
             <span class="detail-raw">Actual: ${raw}</span>
         `;
         container.appendChild(item);
+    });
+
+    container.querySelectorAll(".tooltip-trigger").forEach(trigger => {
+        const content = trigger.querySelector(".tooltip-content");
+        if (!content) return;
+
+        trigger.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isVisible = content.style.opacity === "1";
+            document.querySelectorAll(".tooltip-content").forEach(t => {
+                t.style.opacity = "0";
+                t.style.visibility = "hidden";
+            });
+            if (!isVisible) {
+                content.style.opacity = "1";
+                content.style.visibility = "visible";
+            }
+        });
+
+        trigger.addEventListener("mouseenter", () => {
+            document.querySelectorAll(".tooltip-content").forEach(t => {
+                t.style.opacity = "0";
+                t.style.visibility = "hidden";
+            });
+            content.style.opacity = "1";
+            content.style.visibility = "visible";
+        });
+
+        trigger.addEventListener("mouseleave", () => {
+            content.style.opacity = "0";
+            content.style.visibility = "hidden";
+        });
+
+        trigger.addEventListener("focus", () => {
+            document.querySelectorAll(".tooltip-content").forEach(t => {
+                t.style.opacity = "0";
+                t.style.visibility = "hidden";
+            });
+            content.style.opacity = "1";
+            content.style.visibility = "visible";
+        });
+
+        trigger.addEventListener("blur", () => {
+            content.style.opacity = "0";
+            content.style.visibility = "hidden";
+        });
     });
 }
 
