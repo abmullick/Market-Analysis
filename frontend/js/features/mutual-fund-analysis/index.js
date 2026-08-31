@@ -665,7 +665,6 @@ function renderDetailContent(container, criteriaScores) {
 
         const item = document.createElement("div");
         item.className = "detail-item";
-        const tooltipText = meta.tooltip || meta.description || "";
         item.innerHTML = `
             <div class="detail-header">
                 <span class="detail-label">${meta.label}</span>
