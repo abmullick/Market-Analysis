@@ -14,11 +14,33 @@ from backend.models.mutual_fund import (
 from backend.services.mutual_funds.fetcher import MutualFundFetcher
 from backend.services.mutual_funds.lookback import get_required_lookback_years
 from backend.services.mutual_funds.ranking import RankingEngine
+from backend.services.mutual_funds.category_normalizer import normalize_category
+from backend.services.mutual_funds.cache import metrics_cache
+from backend.services.data.tigzig import get_tigzig_dataset, initialize_tigzig
 from backend.utils.logging import logger
 
 router = APIRouter()
 settings = Settings()
 fetcher = MutualFundFetcher(settings=settings)
+
+
+@router.on_event("startup")
+async def startup_event():
+    """Initialize TigZig dataset at startup."""
+    logger.info("Starting up mutual fund service...")
+    try:
+        success = await initialize_tigzig()
+        if success:
+            dataset = get_tigzig_dataset()
+            stats = dataset.stats
+            logger.info(
+                f"TigZig dataset ready: {stats.get('size_mb', 0):.1f} MB, "
+                f"{stats.get('total_rows', 0):,} rows"
+            )
+        else:
+            logger.error("TigZig dataset not available - ranking will use MFAPI fallback")
+    except Exception as e:
+        logger.error(f"TigZig initialization failed: {e}")
 
 
 @router.get("/")
@@ -37,8 +59,12 @@ async def list_schemes(category: str | None = None) -> dict[str, Any]:
 @router.get("/categories")
 async def list_categories() -> dict[str, Any]:
     schemes = await fetcher.get_all_schemes()
-    categories = sorted({s.category for s in schemes if s.category})
-    return {"categories": categories}
+    # Normalize categories and get unique canonical categories
+    canonical_categories = set()
+    for s in schemes:
+        if s.category:
+            canonical_categories.add(normalize_category(s.category))
+    return {"categories": sorted(canonical_categories)}
 
 
 @router.get("/search")
@@ -98,37 +124,51 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
 
     total_start = time_module.time()
 
-    schemes = await fetcher.get_schemes_by_category(payload.category)
-    scheme_count = len(schemes)
-    logger.info("Found %d schemes in category: %s", scheme_count, payload.category)
+    # Get underlying funds (one per AMC + normalized name)
+    underlying_funds = await fetcher.get_ranking_candidates_by_category(payload.category)
+    fund_count = len(underlying_funds)
+    logger.info("Found %d underlying funds in category: %s", fund_count, payload.category)
+
+    if fund_count == 0:
+        return {
+            "category": payload.category,
+            "rankings": [],
+            "meta": {
+                "underlying_funds": 0,
+                "ranked": 0,
+                "skipped": 0,
+            },
+        }
 
     criteria_names = [c.name for c in payload.criteria]
     lookback_years = get_required_lookback_years(criteria_names)
     logger.info("Required lookback: %d years (criteria: %s)", lookback_years, criteria_names)
 
-    sem = asyncio.Semaphore(3)
+    # Check TigZig availability
+    dataset = get_tigzig_dataset()
+    tigzig_available = dataset.is_available
+    logger.info(f"TigZig dataset available: {tigzig_available}")
 
-    async def fetch_metrics(scheme):
-        async with sem:
-            return await fetcher.get_metrics(
-                scheme_code=scheme.scheme_code,
-                scheme_name=scheme.scheme_name,
-                criteria_names=criteria_names,
-            )
+    # Use batch metrics for efficiency
+    t0 = time_module.time()
+    metrics_list = await fetcher.get_metrics_batch(underlying_funds, criteria_names)
+    batch_time = time_module.time() - t0
 
-    results = await asyncio.gather(*[fetch_metrics(s) for s in schemes])
-    metrics_list = [r for r in results if r is not None]
+    # Filter out None results
+    valid_metrics = [m for m in metrics_list if m is not None]
+    skipped_count = fund_count - len(valid_metrics)
 
     logger.info(
-        "Metrics calculated: %d/%d schemes (%.1f%% success)",
-        len(metrics_list),
-        scheme_count,
-        len(metrics_list) / max(scheme_count, 1) * 100,
+        "Metrics calculated: %d/%d funds (%.1f%% success) in %.2f seconds",
+        len(valid_metrics),
+        fund_count,
+        len(valid_metrics) / max(fund_count, 1) * 100,
+        batch_time,
     )
 
     engine = RankingEngine()
     criteria = [c.model_dump() for c in payload.criteria]
-    rankings = engine.rank(funds=metrics_list, criteria=criteria, auto_renormalize=payload.auto_renormalize)
+    rankings = engine.rank(funds=valid_metrics, criteria=criteria, auto_renormalize=payload.auto_renormalize)
 
     total_time = time_module.time() - total_start
     logger.info(
@@ -138,5 +178,14 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
         metrics_cache.stats(),
     )
 
-    return {"category": payload.category, "rankings": rankings}
-    return {"category": payload.category, "rankings": rankings}
+    return {
+        "category": payload.category,
+        "rankings": rankings,
+        "meta": {
+            "underlying_funds": fund_count,
+            "ranked": len(rankings),
+            "skipped": skipped_count,
+            "tigzig_available": tigzig_available,
+            "total_time_seconds": total_time,
+        },
+    }
