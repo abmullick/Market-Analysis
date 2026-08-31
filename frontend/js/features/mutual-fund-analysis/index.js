@@ -180,11 +180,26 @@ async function loadCategories() {
         const response = await api.get("/mutual-funds/categories");
         categories = response.categories || [];
         hideLoading(filtersContainer);
+        buildPageHeader();
         buildControls();
     } catch (error) {
         hideLoading(filtersContainer);
         filtersContainer.innerHTML = `<div class="empty-state"><p>Failed to load categories: ${error.message}</p></div>`;
     }
+}
+
+function buildPageHeader() {
+    const container = document.getElementById("mutual-fund-content");
+    if (!container) return;
+    const existingHeader = container.querySelector(".mf-page-header");
+    if (existingHeader) existingHeader.remove();
+    const header = document.createElement("div");
+    header.className = "mf-page-header";
+    header.innerHTML = `
+        <h1 class="mf-page-title">Mutual Fund Analytics</h1>
+        <p class="mf-page-subtitle">Quantitative fund ranking based on normalized multi-metric scoring</p>
+    `;
+    container.insertBefore(header, container.firstChild);
 }
 
 function buildControls() {
@@ -208,31 +223,33 @@ function buildControls() {
     `;
 
     presetContainer.innerHTML = `
-        <div class="filter-group">
-            <label for="preset-input">Preset</label>
-            <div class="combobox" id="preset-combobox">
-                <input type="text" id="preset-input" class="combobox-input" placeholder="Search presets..." autocomplete="off">
-                <button type="button" class="combobox-toggle" tabindex="-1">&#9662;</button>
-                <div class="combobox-dropdown" id="preset-dropdown"></div>
-                <input type="hidden" id="preset-value">
-            </div>
-        </div>
+        <div class="criteria-section-title">Preset</div>
+        <div class="preset-grid" id="preset-grid"></div>
     `;
+
+    const presetGrid = document.getElementById("preset-grid");
+    if (presetGrid) {
+        const presetEntries = Object.entries(PRESETS);
+        presetEntries.forEach(([key, preset]) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = `preset-btn${key === currentPreset ? " active" : ""}${key === "custom" ? " preset-btn-wide" : ""}`;
+            btn.dataset.preset = key;
+            btn.textContent = preset.label;
+            btn.addEventListener("click", () => {
+                currentPreset = key;
+                document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                applyPreset(key);
+            });
+            presetGrid.appendChild(btn);
+        });
+    }
 
     initCombobox({
         id: "category",
         options: categories.map(c => ({ value: c, label: c })),
         onSelect: (value) => { currentCategory = value; },
-    });
-
-    initCombobox({
-        id: "preset",
-        options: Object.entries(PRESETS).map(([key, preset]) => ({ value: key, label: preset.label })),
-        onSelect: (value) => {
-            currentPreset = value;
-            applyPreset(currentPreset);
-        },
-        selectedValue: currentPreset,
     });
 
     buildCriteriaList(criteriaContainer);
@@ -351,7 +368,7 @@ function initCombobox({ id, options, onSelect, selectedValue = "" }) {
 }
 
 function buildCriteriaList(container) {
-    container.innerHTML = `<div class="criteria-list" id="criteria-list"></div>`;
+    container.innerHTML = `<div class="criteria-section-title">Criteria Weights</div><div class="criteria-list" id="criteria-list"></div>`;
     const list = document.getElementById("criteria-list");
     if (!list) return;
 
@@ -364,18 +381,18 @@ function buildCriteriaList(container) {
             <div class="criterion-header">
                 <input type="checkbox" id="cb-${key}" checked>
                 <label for="cb-${key}">${meta.label}</label>
+                <span class="weight-value" id="weight-${key}">0%</span>
             </div>
             <div class="criterion-weight">
-                <span class="weight-label">Weight:</span>
                 <input type="range" id="range-${key}" min="0" max="100" step="1" value="0">
                 <input type="number" id="num-${key}" min="0" max="100" step="1" value="0">
-                <span class="weight-unit">%</span>
             </div>
         `;
 
         const checkbox = item.querySelector(`#cb-${key}`);
         const range = item.querySelector(`#range-${key}`);
         const number = item.querySelector(`#num-${key}`);
+        const weightDisplay = item.querySelector(`#weight-${key}`);
 
         checkbox.addEventListener("change", () => {
             const enabled = checkbox.checked;
@@ -462,12 +479,21 @@ function autoRenormalize() {
         Object.entries(values).forEach(([key, val]) => {
             const num = document.getElementById(`num-${key}`);
             const range = document.getElementById(`range-${key}`);
+            const weightDisplay = document.getElementById(`weight-${key}`);
             if (num && range && values[key] > 0) {
                 const normalized = (val / total) * 100;
                 const rounded = Math.round(normalized * 10) / 10;
                 num.value = rounded;
                 range.value = rounded;
+                if (weightDisplay) weightDisplay.textContent = `${rounded}%`;
+            } else if (weightDisplay) {
+                weightDisplay.textContent = `0%`;
             }
+        });
+    } else {
+        Object.keys(values).forEach(key => {
+            const weightDisplay = document.getElementById(`weight-${key}`);
+            if (weightDisplay) weightDisplay.textContent = `0%`;
         });
     }
 }
@@ -566,7 +592,7 @@ function renderRankingResults(rankings, category) {
         { key: "rank", label: "Rank" },
         { key: "scheme_name", label: "Fund Name" },
         { key: "amc", label: "AMC" },
-        { key: "category", label: "Category" },
+        { key: "scheme_code", label: "Scheme Code" },
         { key: "nav", label: "Latest NAV" },
         { key: "overall_score", label: "Overall Score", tooltip: TOOLTIPS.overall_score },
         { key: "details", label: "" },
@@ -580,7 +606,7 @@ function renderRankingResults(rankings, category) {
             rank: index + 1,
             scheme_name: r.scheme_name,
             amc: r.amc || "—",
-            category: r.category || "—",
+            scheme_code: r.scheme_code || "—",
             nav: nav,
             nav_raw: r.nav,
             nav_date: r.nav_date || "—",
@@ -640,7 +666,7 @@ function renderRankingResults(rankings, category) {
             <td class="rank-cell">${row.rank}</td>
             <td><strong>${row.scheme_name}</strong></td>
             <td>${row.amc}</td>
-            <td>${row.category}</td>
+            <td>${row.scheme_code}</td>
             <td class="nav-cell">${row.nav}</td>
             <td class="score-cell">
                 ${row.overall_score !== "N/A" ? `<span class="score-label">Score</span> ${row.overall_score} <span style="font-weight:400;color:var(--color-text-light);font-size:0.8125rem;">/ 100</span>` : "N/A"}
@@ -845,7 +871,7 @@ function renderFilteredTable(rankings) {
         { key: "rank", label: "Rank" },
         { key: "scheme_name", label: "Fund Name" },
         { key: "amc", label: "AMC" },
-        { key: "category", label: "Category" },
+        { key: "scheme_code", label: "Scheme Code" },
         { key: "nav", label: "Latest NAV" },
         { key: "overall_score", label: "Overall Score", tooltip: TOOLTIPS.overall_score },
         { key: "details", label: "" },
@@ -859,7 +885,7 @@ function renderFilteredTable(rankings) {
             rank: index + 1,
             scheme_name: r.scheme_name,
             amc: r.amc || "—",
-            category: r.category || "—",
+            scheme_code: r.scheme_code || "—",
             nav: nav,
             nav_raw: r.nav,
             nav_date: r.nav_date || "—",
@@ -912,11 +938,14 @@ function renderFilteredTable(rankings) {
     const tbody = document.createElement("tbody");
     rows.forEach((row, idx) => {
         const tr = document.createElement("tr");
+        if (row.rank <= 3 && row.rank != null) {
+            tr.classList.add("top-rank");
+        }
         tr.innerHTML = `
             <td class="rank-cell">${row.rank}</td>
             <td><strong>${row.scheme_name}</strong></td>
-            <td>${row.amc}</td>
-            <td>${row.category}</td>
+            <td class="muted">${row.amc}</td>
+            <td class="muted">${row.scheme_code}</td>
             <td class="nav-cell">${row.nav}</td>
             <td class="score-cell">
                 ${row.overall_score !== "N/A" ? `<span class="score-label">Score</span> ${row.overall_score} <span style="font-weight:400;color:var(--color-text-light);font-size:0.8125rem;">/ 100</span>` : "N/A"}
