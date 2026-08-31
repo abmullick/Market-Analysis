@@ -163,6 +163,24 @@ let currentCategory = "";
 let categories = [];
 let currentRankings = [];
 let filteredRankings = [];
+let selectedFunds = new Set();
+let isComparisonView = false;
+
+const MAX_COMPARE = 5;
+const MIN_COMPARE = 2;
+
+const COMPARE_METRICS = [
+    { key: "1Y_return", label: "1Y Return", unit: "percent", higherBetter: true },
+    { key: "3Y_cagr", label: "3Y CAGR", unit: "percent", higherBetter: true },
+    { key: "5Y_cagr", label: "5Y CAGR", unit: "percent", higherBetter: true },
+    { key: "10Y_cagr", label: "10Y CAGR", unit: "percent", higherBetter: true },
+    { key: "sharpe_ratio", label: "Sharpe Ratio", unit: "ratio", higherBetter: true },
+    { key: "sortino_ratio", label: "Sortino Ratio", unit: "ratio", higherBetter: true },
+    { key: "volatility", label: "Volatility", unit: "percent", higherBetter: false },
+    { key: "maximum_drawdown", label: "Max Drawdown", unit: "percent", higherBetter: false },
+    { key: "downside_deviation", label: "Downside Deviation", unit: "percent", higherBetter: false },
+    { key: "consistency", label: "Consistency", unit: "percent", higherBetter: true },
+];
 
 export function initMutualFundAnalysis() {
     const container = document.getElementById("mutual-fund-content");
@@ -586,9 +604,35 @@ function renderRankingResults(rankings, category) {
         return;
     }
 
+    const existingBar = document.getElementById("comparison-bar");
+    if (existingBar) existingBar.remove();
+
+    const comparisonBar = document.createElement("div");
+    comparisonBar.id = "comparison-bar";
+    comparisonBar.className = "comparison-bar";
+    comparisonBar.innerHTML = `
+        <span class="comparison-bar-text" id="comparison-count">0 funds selected</span>
+        <div class="comparison-bar-actions">
+            <button class="btn-text" id="clear-selection">Clear</button>
+            <button class="btn-primary btn-small" id="compare-btn" disabled>Compare Funds</button>
+        </div>
+    `;
+    summaryContainer.appendChild(comparisonBar);
+
+    document.getElementById("clear-selection").addEventListener("click", () => {
+        selectedFunds.clear();
+        updateComparisonBar();
+        updateRowCheckboxes();
+        const selectAll = document.querySelector(".compare-select-all");
+        if (selectAll) selectAll.checked = false;
+    });
+
+    document.getElementById("compare-btn").addEventListener("click", showComparisonView);
+
     buildResultFilters(rankings);
 
     const columns = [
+        { key: "select", label: "" },
         { key: "rank", label: "Rank" },
         { key: "scheme_name", label: "Fund Name" },
         { key: "amc", label: "AMC" },
@@ -604,9 +648,9 @@ function renderRankingResults(rankings, category) {
         const nav = r.nav != null ? formatNAV(r.nav) : "N/A";
         return {
             rank: index + 1,
+            scheme_code: r.scheme_code || "—",
             scheme_name: r.scheme_name,
             amc: r.amc || "—",
-            scheme_code: r.scheme_code || "—",
             nav: nav,
             nav_raw: r.nav,
             nav_date: r.nav_date || "—",
@@ -630,7 +674,27 @@ function renderRankingResults(rankings, category) {
     const headerRow = document.createElement("tr");
     columns.forEach(col => {
         const th = document.createElement("th");
-        if (col.tooltip) {
+        if (col.key === "select") {
+            th.className = "select-cell";
+            const selectAll = document.createElement("input");
+            selectAll.type = "checkbox";
+            selectAll.className = "compare-select-all";
+            selectAll.addEventListener("change", () => {
+                const isChecked = selectAll.checked;
+                if (isChecked) {
+                    rows.forEach(row => {
+                        if (selectedFunds.size < MAX_COMPARE) {
+                            selectedFunds.add(row.scheme_code);
+                        }
+                    });
+                } else {
+                    rows.forEach(row => selectedFunds.delete(row.scheme_code));
+                }
+                updateComparisonBar();
+                updateRowCheckboxes();
+            });
+            th.appendChild(selectAll);
+        } else if (col.tooltip) {
             th.innerHTML = `${col.label} <span class="tooltip-trigger header-tooltip" tabindex="0" role="button" aria-label="Help"><span class="tooltip-content">${col.tooltip}</span>ⓘ</span>`;
         } else {
             th.textContent = col.label;
@@ -662,11 +726,16 @@ function renderRankingResults(rankings, category) {
     const tbody = document.createElement("tbody");
     rows.forEach((row, idx) => {
         const tr = document.createElement("tr");
+        if (row.rank <= 3 && row.rank != null) {
+            tr.classList.add("top-rank");
+        }
+        const isSelected = selectedFunds.has(row.scheme_code);
         tr.innerHTML = `
+            <td class="select-cell"><input type="checkbox" class="compare-cb" data-scheme="${row.scheme_code}" ${isSelected ? "checked" : ""}></td>
             <td class="rank-cell">${row.rank}</td>
             <td><strong>${row.scheme_name}</strong></td>
-            <td>${row.amc}</td>
-            <td>${row.scheme_code}</td>
+            <td class="muted">${row.amc}</td>
+            <td class="muted">${row.scheme_code}</td>
             <td class="nav-cell">${row.nav}</td>
             <td class="score-cell">
                 ${row.overall_score !== "N/A" ? `<span class="score-label">Score</span> ${row.overall_score} <span style="font-weight:400;color:var(--color-text-light);font-size:0.8125rem;">/ 100</span>` : "N/A"}
@@ -686,6 +755,23 @@ function renderRankingResults(rankings, category) {
     });
     table.appendChild(tbody);
     tableContainer.appendChild(table);
+
+    table.querySelectorAll(".compare-cb").forEach(cb => {
+        cb.addEventListener("change", () => {
+            const scheme = cb.dataset.scheme;
+            if (cb.checked) {
+                if (selectedFunds.size >= MAX_COMPARE) {
+                    cb.checked = false;
+                    return;
+                }
+                selectedFunds.add(scheme);
+            } else {
+                selectedFunds.delete(scheme);
+            }
+            updateComparisonBar();
+            updateSelectAllCheckbox();
+        });
+    });
 
     table.querySelectorAll(".expand-btn").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -713,6 +799,146 @@ function renderRankingResults(rankings, category) {
             }
         });
     });
+}
+
+function updateComparisonBar() {
+    const bar = document.getElementById("comparison-bar");
+    if (!bar) return;
+    const count = selectedFunds.size;
+    const countEl = document.getElementById("comparison-count");
+    const compareBtn = document.getElementById("compare-btn");
+    if (countEl) countEl.textContent = `${count} fund${count !== 1 ? "s" : ""} selected`;
+    if (compareBtn) compareBtn.disabled = count < MIN_COMPARE;
+    bar.classList.toggle("active", count > 0);
+}
+
+function updateSelectAllCheckbox() {
+    const selectAll = document.querySelector(".compare-select-all");
+    if (!selectAll) return;
+    const checkboxes = document.querySelectorAll(".compare-cb");
+    const allChecked = checkboxes.length > 0 && Array.from(checkboxes).every(cb => cb.checked);
+    selectAll.checked = allChecked;
+}
+
+function updateRowCheckboxes() {
+    document.querySelectorAll(".compare-cb").forEach(cb => {
+        cb.checked = selectedFunds.has(cb.dataset.scheme);
+    });
+}
+
+function showComparisonView() {
+    if (selectedFunds.size < MIN_COMPARE) return;
+    isComparisonView = true;
+    const resultsContainer = document.querySelector(".ranking-results");
+    if (!resultsContainer) return;
+    resultsContainer.innerHTML = "";
+    renderComparisonTable(resultsContainer);
+}
+
+function hideComparisonView() {
+    isComparisonView = false;
+    const resultsContainer = document.querySelector(".ranking-results");
+    if (!resultsContainer) return;
+    resultsContainer.innerHTML = "";
+    const summaryHtml = `
+        <div class="ranking-summary">
+            <div>
+                <h3>${currentCategory} Rankings</h3>
+                <span class="result-meta" id="result-count">${currentRankings.length} unique funds ranked</span>
+            </div>
+            <span class="result-meta">Preset: ${PRESETS[currentPreset]?.label || currentPreset}</span>
+        </div>
+    `;
+    resultsContainer.innerHTML = summaryHtml;
+    const tableContainer = document.createElement("div");
+    tableContainer.id = "ranking-table-container";
+    resultsContainer.appendChild(tableContainer);
+    buildResultFilters(filteredRankings);
+    renderFilteredTable(filteredRankings);
+}
+
+function renderComparisonTable(container) {
+    const selected = filteredRankings.filter(r => selectedFunds.has(r.scheme_code));
+    if (selected.length < MIN_COMPARE) {
+        container.innerHTML = `<div class="empty-state"><h3>Not enough funds selected</h3><p>Select at least ${MIN_COMPARE} funds to compare.</p></div>`;
+        return;
+    }
+
+    const getMetricValue = (fund, key) => {
+        if (key === "overall_score") return fund.overall_score;
+        const cs = (fund.criteria_scores || []).find(c => c.criterion === key);
+        return cs ? cs.raw_value : null;
+    };
+
+    const formatMetricValue = (value, unit) => {
+        if (value == null) return "N/A";
+        if (unit === "percent") return `${(value * 100).toFixed(2)}%`;
+        return value.toFixed(2);
+    };
+
+    const getMetricRank = (metric, values) => {
+        const validValues = values.filter(v => v.value != null);
+        if (validValues.length < 2) return null;
+        const sorted = [...validValues].sort((a, b) => metric.higherBetter ? b.value - a.value : a.value - b.value);
+        return sorted;
+    };
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "comparison-view";
+
+    const header = document.createElement("div");
+    header.className = "comparison-header";
+    header.innerHTML = `
+        <button class="btn-back" id="back-to-rankings">← Back to Rankings</button>
+        <h3 class="comparison-title">Fund Comparison</h3>
+        <span class="comparison-subtitle">${selected.length} funds</span>
+    `;
+    wrapper.appendChild(header);
+
+    const tableWrapper = document.createElement("div");
+    tableWrapper.className = "comparison-table-wrapper";
+
+    const table = document.createElement("table");
+    table.className = "comparison-table";
+
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    headerRow.innerHTML = `<th>Metric</th>${selected.map(f => `<th class="fund-col"><div class="fund-col-name">${f.scheme_name}</div><div class="fund-col-meta">${f.amc} · ${f.scheme_code}</div></th>`).join("")}`;
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+
+    const metaRows = [
+        { label: "AUM (AAUM)", render: (f) => f.aum_cr != null ? `₹${f.aum_cr.toLocaleString()} Cr` : "N/A" },
+        { label: "First NAV Date", render: (f) => f.first_nav_date || "N/A" },
+        { label: "Overall Score", render: (f) => f.overall_score != null ? `${f.overall_score.toFixed(1)} / 100` : "N/A" },
+    ];
+
+    metaRows.forEach(meta => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="metric-label">${meta.label}</td>${selected.map(f => `<td class="metric-value">${meta.render(f)}</td>`).join("")}`;
+        tbody.appendChild(tr);
+    });
+
+    COMPARE_METRICS.forEach(metric => {
+        const values = selected.map(f => ({ fund: f, value: getMetricValue(f, metric.key) }));
+        const ranked = getMetricRank(metric, values);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="metric-label">${metric.label}</td>${values.map(v => {
+            const rank = ranked ? ranked.findIndex(r => r.fund === v.fund) : -1;
+            const isBest = rank === 0 && v.value != null;
+            return `<td class="metric-value${isBest ? " best" : ""}">${formatMetricValue(v.value, metric.unit)}${isBest ? '<span class="best-indicator">●</span>' : ""}</td>`;
+        }).join("")}`;
+        tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    tableWrapper.appendChild(table);
+    wrapper.appendChild(tableWrapper);
+    container.appendChild(wrapper);
+
+    document.getElementById("back-to-rankings").addEventListener("click", hideComparisonView);
 }
 
 function buildResultFilters(rankings) {
@@ -868,6 +1094,7 @@ function renderFilteredTable(rankings) {
     }
 
     const columns = [
+        { key: "select", label: "" },
         { key: "rank", label: "Rank" },
         { key: "scheme_name", label: "Fund Name" },
         { key: "amc", label: "AMC" },
@@ -883,9 +1110,9 @@ function renderFilteredTable(rankings) {
         const nav = r.nav != null ? formatNAV(r.nav) : "N/A";
         return {
             rank: index + 1,
+            scheme_code: r.scheme_code || "—",
             scheme_name: r.scheme_name,
             amc: r.amc || "—",
-            scheme_code: r.scheme_code || "—",
             nav: nav,
             nav_raw: r.nav,
             nav_date: r.nav_date || "—",
@@ -908,7 +1135,27 @@ function renderFilteredTable(rankings) {
     const headerRow = document.createElement("tr");
     columns.forEach(col => {
         const th = document.createElement("th");
-        if (col.tooltip) {
+        if (col.key === "select") {
+            th.className = "select-cell";
+            const selectAll = document.createElement("input");
+            selectAll.type = "checkbox";
+            selectAll.className = "compare-select-all";
+            selectAll.addEventListener("change", () => {
+                const isChecked = selectAll.checked;
+                if (isChecked) {
+                    rows.forEach(row => {
+                        if (selectedFunds.size < MAX_COMPARE) {
+                            selectedFunds.add(row.scheme_code);
+                        }
+                    });
+                } else {
+                    rows.forEach(row => selectedFunds.delete(row.scheme_code));
+                }
+                updateComparisonBar();
+                updateRowCheckboxes();
+            });
+            th.appendChild(selectAll);
+        } else if (col.tooltip) {
             th.innerHTML = `${col.label} <span class="tooltip-trigger header-tooltip" tabindex="0" role="button" aria-label="Help"><span class="tooltip-content">${col.tooltip}</span>ⓘ</span>`;
         } else {
             th.textContent = col.label;
@@ -941,7 +1188,9 @@ function renderFilteredTable(rankings) {
         if (row.rank <= 3 && row.rank != null) {
             tr.classList.add("top-rank");
         }
+        const isSelected = selectedFunds.has(row.scheme_code);
         tr.innerHTML = `
+            <td class="select-cell"><input type="checkbox" class="compare-cb" data-scheme="${row.scheme_code}" ${isSelected ? "checked" : ""}></td>
             <td class="rank-cell">${row.rank}</td>
             <td><strong>${row.scheme_name}</strong></td>
             <td class="muted">${row.amc}</td>
@@ -964,8 +1213,24 @@ function renderFilteredTable(rankings) {
         tbody.appendChild(detailTr);
     });
     table.appendChild(tbody);
-    tableContainer.innerHTML = "";
     tableContainer.appendChild(table);
+
+    table.querySelectorAll(".compare-cb").forEach(cb => {
+        cb.addEventListener("change", () => {
+            const scheme = cb.dataset.scheme;
+            if (cb.checked) {
+                if (selectedFunds.size >= MAX_COMPARE) {
+                    cb.checked = false;
+                    return;
+                }
+                selectedFunds.add(scheme);
+            } else {
+                selectedFunds.delete(scheme);
+            }
+            updateComparisonBar();
+            updateSelectAllCheckbox();
+        });
+    });
 
     table.querySelectorAll(".expand-btn").forEach(btn => {
         btn.addEventListener("click", () => {

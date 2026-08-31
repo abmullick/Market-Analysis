@@ -929,3 +929,184 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Comparison bar */
+.comparison-bar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    margin-top: 12px;
+    background: var(--color-slate-100);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.comparison-bar.active {
+    display: flex;
+}
+
+.comparison-bar-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.comparison-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.btn-small {
+    height: 34px;
+    padding: 0 14px;
+    font-size: 0.8125rem;
+}
+
+/* Comparison view */
+.comparison-view {
+    padding: 8px 0;
+}
+
+.comparison-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.btn-back {
+    background: none;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+    font-family: var(--font-family);
+}
+
+.btn-back:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.comparison-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+.comparison-subtitle {
+    font-size: 0.8125rem;
+    color: var(--color-text-light);
+    margin-left: auto;
+}
+
+.comparison-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--color-surface);
+}
+
+.comparison-table th,
+.comparison-table td {
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 0.8125rem;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.comparison-table thead th {
+    background: var(--color-slate-100);
+    font-weight: 600;
+    color: var(--color-text);
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.comparison-table .fund-col {
+    min-width: 160px;
+}
+
+.comparison-table .fund-col-name {
+    font-weight: 600;
+    color: var(--color-primary);
+    font-size: 0.875rem;
+    margin-bottom: 2px;
+}
+
+.comparison-table .fund-col-meta {
+    font-size: 0.6875rem;
+    color: var(--color-text-light);
+}
+
+.comparison-table .metric-label {
+    font-weight: 500;
+    color: var(--color-text);
+    background: var(--color-slate-100);
+    position: sticky;
+    left: 0;
+}
+
+.comparison-table .metric-value {
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text);
+}
+
+.comparison-table .metric-value.best {
+    color: var(--color-success);
+    font-weight: 600;
+}
+
+.best-indicator {
+    margin-left: 4px;
+    font-size: 0.625rem;
+}
+
+.comparison-table tbody tr:hover {
+    background: rgba(15, 23, 42, 0.02);
+}
+
+/* Compare checkbox */
+.compare-cb,
+.compare-select-all {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+.compare-cb:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.data-table .select-cell {
+    width: 40px;
+    text-align: center;
+}
+
+/* Responsive comparison */
+@media (max-width: 900px) {
+    .comparison-header {
+        flex-wrap: wrap;
+    }
+
+    .comparison-table .metric-label {
+        position: static;
+    }
+}
