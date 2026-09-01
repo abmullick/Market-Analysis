@@ -2,6 +2,7 @@ import { api } from "../../core/api.js";
 import { showLoading, hideLoading } from "../../components/loading.js";
 
 let navChart = null;
+let rollingChart = null;
 let lastFocusedElement = null;
 let escapeHandler = null;
 let backdropHandler = null;
@@ -21,14 +22,14 @@ export async function openFundDetail(schemeCode, schemeName) {
         ]);
 
         hideLoading(modalContainer);
-        renderFundModal(detail, navHistory);
+        renderFundModal(detail, navHistory, schemeCode);
     } catch (error) {
         hideLoading(modalContainer);
         renderErrorModal(error, schemeCode, schemeName);
     }
 }
 
-function renderFundModal(detail, navHistory) {
+function renderFundModal(detail, navHistory, schemeCode) {
     const modalContainer = document.getElementById("fund-detail-modal");
     if (!modalContainer) return;
 
@@ -36,7 +37,6 @@ function renderFundModal(detail, navHistory) {
 
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
-    overlay.setAttribute("aria-hidden", "true");
 
     const dialog = document.createElement("div");
     dialog.className = "modal modal-large";
@@ -64,6 +64,9 @@ function renderFundModal(detail, navHistory) {
 
     content.appendChild(createFundHeader(detail));
     content.appendChild(createMetricsSection(detail));
+    const rollingSectionSchemeCode = schemeCode || detail.scheme_code;
+    console.log("[RollingReturns] renderFundModal calling createRollingReturnsSection with:", rollingSectionSchemeCode, "schemeCode:", schemeCode, "detail.scheme_code:", detail.scheme_code);
+    content.appendChild(createRollingReturnsSection(rollingSectionSchemeCode));
     content.appendChild(createChartSection(detail, navHistory));
     content.appendChild(createMetadataSection(detail));
 
@@ -429,6 +432,188 @@ function createMetadataSection(detail) {
     return section;
 }
 
+function createRollingReturnsSection(schemeCode) {
+    const section = document.createElement("div");
+    section.className = "rolling-returns-section";
+
+    const header = document.createElement("div");
+    header.className = "rolling-returns-header";
+
+    const title = document.createElement("h3");
+    title.className = "rolling-returns-title";
+    title.textContent = "Rolling Returns";
+    header.appendChild(title);
+
+    const controls = document.createElement("div");
+    controls.className = "rolling-returns-controls";
+
+    const periods = [1, 3, 5];
+    periods.forEach(period => {
+        const btn = document.createElement("button");
+        btn.className = `rolling-returns-btn${period === 3 ? " active" : ""}`;
+        btn.textContent = `${period}Y`;
+        btn.addEventListener("click", () => {
+            controls.querySelectorAll(".rolling-returns-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            loadRollingReturns(schemeCode, period, section);
+        });
+        controls.appendChild(btn);
+    });
+
+    header.appendChild(controls);
+    section.appendChild(header);
+
+    const summary = document.createElement("div");
+    summary.className = "rolling-returns-summary";
+    section.appendChild(summary);
+
+    const chartContainer = document.createElement("div");
+    chartContainer.className = "rolling-returns-chart-container";
+    const canvas = document.createElement("canvas");
+    canvas.id = "rolling-returns-chart";
+    chartContainer.appendChild(canvas);
+    section.appendChild(chartContainer);
+
+    loadRollingReturns(schemeCode, 3, section);
+
+    return section;
+}
+
+async function loadRollingReturns(schemeCode, years, section) {
+    const summaryEl = section.querySelector(".rolling-returns-summary");
+    const chartContainer = section.querySelector(".rolling-returns-chart-container");
+
+    console.log("[RollingReturns] loadRollingReturns called with schemeCode:", schemeCode, "years:", years);
+
+    summaryEl.innerHTML = `<div class="loading"><div class="loading-spinner"></div> Loading...</div>`;
+    chartContainer.innerHTML = `<div class="loading"><div class="loading-spinner"></div> Loading...</div>`;
+
+    if (rollingChart) {
+        rollingChart.destroy();
+        rollingChart = null;
+    }
+
+    try {
+        const response = await api.get(`/mutual-funds/${schemeCode}/rolling-returns?years=${years}`);
+        console.log("[RollingReturns] API response:", response);
+        summaryEl.innerHTML = "";
+        chartContainer.innerHTML = "";
+
+        if (response.insufficient_history || !response.summary) {
+            summaryEl.innerHTML = "";
+            chartContainer.innerHTML = `
+                <div class="rolling-returns-insufficient">
+                    <div class="rolling-returns-insufficient-title">Insufficient history</div>
+                    <div class="rolling-returns-insufficient-text">
+                        This fund does not have enough NAV history to calculate ${years}-year rolling returns.
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        renderRollingReturnsSummary(response.summary, years, summaryEl);
+
+        const canvas = document.createElement("canvas");
+        canvas.id = "rolling-returns-chart";
+        chartContainer.appendChild(canvas);
+
+        requestAnimationFrame(() => {
+            initRollingChart(response.dates, response.returns, years);
+        });
+    } catch (error) {
+        summaryEl.innerHTML = "";
+        chartContainer.innerHTML = `
+            <div class="rolling-returns-insufficient">
+                <div class="rolling-returns-insufficient-title">Failed to load rolling returns</div>
+                <div class="rolling-returns-insufficient-text">${error.message}</div>
+            </div>
+        `;
+    }
+}
+
+function renderRollingReturnsSummary(summary, period, container) {
+    const formatPct = (value) => `${(value * 100).toFixed(2)}%`;
+    const formatCount = (value) => value.toLocaleString();
+
+    const stats = [
+        { label: "Periods", value: formatCount(summary.count) },
+        { label: "Average", value: formatPct(summary.avg), className: summary.avg >= 0 ? "positive" : "negative" },
+        { label: "Median", value: formatPct(summary.median), className: summary.median >= 0 ? "positive" : "negative" },
+        { label: "Minimum", value: formatPct(summary.min), className: "negative" },
+        { label: "Maximum", value: formatPct(summary.max), className: "positive" },
+        { label: "Positive %", value: `${summary.positive_pct.toFixed(1)}%`, className: summary.positive_pct >= 50 ? "positive" : "negative" },
+    ];
+
+    container.innerHTML = stats.map(stat => `
+        <div class="rolling-returns-stat">
+            <div class="rolling-returns-stat-label">${stat.label}</div>
+            <div class="rolling-returns-stat-value ${stat.className || ""}">${stat.value}</div>
+        </div>
+    `).join("");
+}
+
+function initRollingChart(dates, returns, period) {
+    const canvas = document.getElementById("rolling-returns-chart");
+    if (!canvas || typeof Chart === "undefined") return;
+
+    if (rollingChart) {
+        rollingChart.destroy();
+    }
+
+    const ctx = canvas.getContext("2d");
+    rollingChart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: dates,
+            datasets: [{
+                label: `${period}Y Rolling Return`,
+                data: returns,
+                borderColor: "#2563eb",
+                backgroundColor: "rgba(37, 99, 235, 0.1)",
+                borderWidth: 2,
+                fill: true,
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: "index",
+            },
+            plugins: {
+                legend: {
+                    display: false,
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const val = context.parsed.y;
+                            return `${period}Y Rolling: ${(val * 100).toFixed(2)}%`;
+                        },
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxTicksLimit: 8,
+                    },
+                },
+                y: {
+                    ticks: {
+                        callback: (value) => `${(value * 100).toFixed(1)}%`,
+                    },
+                },
+            },
+        },
+    });
+}
+
 function initNavChart(navHistory, period) {
     const canvas = document.getElementById("nav-history-chart");
     if (!canvas || typeof Chart === "undefined") return;
@@ -540,7 +725,6 @@ function renderErrorModal(error, schemeCode, schemeName) {
 
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
-    overlay.setAttribute("aria-hidden", "true");
 
     const dialog = document.createElement("div");
     dialog.className = "modal modal-large";
@@ -623,6 +807,10 @@ export function closeFundDetail() {
     if (navChart) {
         navChart.destroy();
         navChart = null;
+    }
+    if (rollingChart) {
+        rollingChart.destroy();
+        rollingChart = null;
     }
 
     if (escapeHandler) {

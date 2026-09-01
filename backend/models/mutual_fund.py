@@ -197,3 +197,13 @@ class NAVHistoryResponse(BaseModel):
     scheme_name: str
     dates: list[str]
     navs: list[float]
+
+
+class RollingReturnResponse(BaseModel):
+    scheme_code: str
+    scheme_name: str
+    period_years: int
+    dates: list[str]
+    returns: list[float]
+    summary: Optional[dict[str, Any]] = None
+    insufficient_history: bool = False

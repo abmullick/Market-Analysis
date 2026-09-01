@@ -12,6 +12,7 @@ from backend.models.mutual_fund import (
     NAVHistoryResponse,
     NAVRecord,
     RankingRequest,
+    RollingReturnResponse,
     SchemeSearchResult,
 )
 from backend.services.mutual_funds.fetcher import MutualFundFetcher
@@ -251,6 +252,34 @@ async def get_nav_history_chart(scheme_code: str, years: int = 10) -> NAVHistory
         scheme_name=scheme.scheme_name,
         dates=dates,
         navs=nav_values,
+    )
+
+
+@router.get("/{scheme_code}/rolling-returns", response_model=RollingReturnResponse)
+async def get_rolling_returns(scheme_code: str, years: int = 3) -> RollingReturnResponse:
+    """Get rolling return time series for charting."""
+    try:
+        scheme = await fetcher.get_scheme(scheme_code)
+        lookback = max(years, 10)
+        navs = await fetcher.get_nav_history(scheme_code, lookback_years=lookback)
+    except MfapiError as e:
+        logger.error("MFAPI failure for /rolling-returns/%s: %s", scheme_code, e)
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        logger.error("Unexpected error for /rolling-returns/%s: %s", scheme_code, e)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch rolling returns: {str(e)}")
+
+    calculator = MetricsCalculator(scheme_code=scheme_code, nav_records=navs)
+    result = calculator.get_rolling_returns_series(years)
+
+    return RollingReturnResponse(
+        scheme_code=scheme_code,
+        scheme_name=scheme.scheme_name,
+        period_years=years,
+        dates=result["dates"],
+        returns=result["returns"],
+        summary=result["summary"],
+        insufficient_history=result["insufficient_history"],
     )
 
 

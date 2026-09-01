@@ -9,6 +9,7 @@ from backend.models.mutual_fund import (
     MutualFund,
     NAVHistoryResponse,
     NAVRecord,
+    RollingReturnResponse,
 )
 from backend.services.mutual_funds.cache import MetricsCache
 from backend.services.data.mfapi import MfapiError
@@ -283,3 +284,58 @@ class TestMetricsCacheReuse:
         stats = cache.stats()
         assert stats["hits"] == 1
         assert stats["misses"] == 0
+
+
+class TestRollingReturnsEndpoint:
+    @pytest.mark.asyncio
+    @patch("backend.routes.mutual_funds.fetcher")
+    async def test_get_rolling_returns_success(self, mock_fetcher, sample_scheme):
+        mock_fetcher.get_scheme = AsyncMock(return_value=sample_scheme)
+        mock_fetcher.get_nav_history = AsyncMock(return_value=[
+            NAVRecord(date="2021-01-01", nav=100.0),
+            NAVRecord(date="2021-01-02", nav=101.0),
+            NAVRecord(date="2024-01-01", nav=150.0),
+        ])
+
+        from backend.routes import mutual_funds
+        result = await mutual_funds.get_rolling_returns("120716", years=3)
+
+        assert result.scheme_code == "120716"
+        assert result.scheme_name == "HDFC Top 100 Fund Direct Plan Growth"
+        assert result.period_years == 3
+        assert result.insufficient_history is False
+        assert result.summary is not None
+        assert result.summary["count"] == len(result.returns)
+        assert len(result.dates) == len(result.returns)
+
+    @pytest.mark.asyncio
+    @patch("backend.routes.mutual_funds.fetcher")
+    async def test_get_rolling_returns_insufficient_history(self, mock_fetcher, sample_scheme):
+        mock_fetcher.get_scheme = AsyncMock(return_value=sample_scheme)
+        mock_fetcher.get_nav_history = AsyncMock(return_value=[
+            NAVRecord(date="2024-01-01", nav=100.0),
+            NAVRecord(date="2024-01-02", nav=110.0),
+        ])
+
+        from backend.routes import mutual_funds
+        result = await mutual_funds.get_rolling_returns("120716", years=5)
+
+        assert result.scheme_code == "120716"
+        assert result.period_years == 5
+        assert result.insufficient_history is True
+        assert result.dates == []
+        assert result.returns == []
+        assert result.summary is None
+
+    @pytest.mark.asyncio
+    @patch("backend.routes.mutual_funds.fetcher")
+    async def test_get_rolling_returns_mfapi_failure_returns_502(self, mock_fetcher, sample_scheme):
+        mock_fetcher.get_scheme = AsyncMock(return_value=sample_scheme)
+        mock_fetcher.get_nav_history = AsyncMock(side_effect=MfapiError("MFAPI is down"))
+
+        from backend.routes import mutual_funds
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as exc_info:
+            await mutual_funds.get_rolling_returns("120716", years=3)
+        assert exc_info.value.status_code == 502
+        assert "MFAPI is down" in exc_info.value.detail

@@ -152,3 +152,114 @@ def test_zero_start_nav():
     metrics = MetricsCalculator(scheme_code="123", nav_records=navs).calculate()
     assert metrics.one_year_return is None
     assert metrics.maximum_drawdown == pytest.approx(0.0, abs=1e-6)
+
+
+def test_rolling_returns_1y_known_series():
+    values = [100.0]
+    for i in range(1, 366):
+        values.append(100.0 * (1.10 ** (i / 365)))
+    navs = _make_navs(values, "2023-01-01")
+    calc = MetricsCalculator(scheme_code="123", nav_records=navs)
+    result = calc.get_rolling_returns_series(1)
+
+    assert result["insufficient_history"] is False
+    assert len(result["dates"]) >= 1
+    assert len(result["returns"]) == len(result["dates"])
+    assert all(abs(r - 0.10) < 0.01 for r in result["returns"])
+
+
+def test_rolling_returns_3y_known_series():
+    values = [100.0]
+    for i in range(1, 1100):
+        values.append(100.0 * (1.12 ** (i / 1095)))
+    navs = _make_navs(values, "2021-01-01")
+    calc = MetricsCalculator(scheme_code="123", nav_records=navs)
+    result = calc.get_rolling_returns_series(3)
+
+    assert result["insufficient_history"] is False
+    assert len(result["returns"]) >= 1
+    expected_cagr = 1.12 ** (1 / 3.0) - 1
+    assert result["summary"]["avg"] == pytest.approx(expected_cagr, abs=0.005)
+    assert result["summary"]["positive_pct"] == pytest.approx(100.0, abs=0.1)
+
+
+def test_rolling_returns_5y_insufficient_history():
+    navs = _make_navs([100.0, 110.0, 120.0], "2024-01-01")
+    calc = MetricsCalculator(scheme_code="123", nav_records=navs)
+    result = calc.get_rolling_returns_series(5)
+    assert result["insufficient_history"] is True
+    assert result["dates"] == []
+    assert result["returns"] == []
+    assert result["summary"] is None
+
+
+def test_rolling_returns_constant_nav():
+    navs = _make_navs([100.0] * 400, "2023-01-01")
+    calc = MetricsCalculator(scheme_code="123", nav_records=navs)
+    result = calc.get_rolling_returns_series(1)
+
+    assert result["insufficient_history"] is False
+    assert all(abs(r) < 1e-9 for r in result["returns"])
+    assert result["summary"]["avg"] == pytest.approx(0.0, abs=1e-9)
+    assert result["summary"]["min"] == pytest.approx(0.0, abs=1e-9)
+    assert result["summary"]["max"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_rolling_returns_negative_returns():
+    values = [100.0]
+    for i in range(1, 400):
+        values.append(100.0 * (0.90 ** (i / 365)))
+    navs = _make_navs(values, "2023-01-01")
+    calc = MetricsCalculator(scheme_code="123", nav_records=navs)
+    result = calc.get_rolling_returns_series(1)
+
+    assert result["insufficient_history"] is False
+    assert all(r < 0 for r in result["returns"])
+    assert result["summary"]["positive_pct"] == pytest.approx(0.0, abs=0.1)
+
+
+def test_rolling_returns_missing_observations():
+    values = [100.0]
+    for i in range(1, 400):
+        if i % 7 == 0:
+            values.append(values[-1])
+        else:
+            values.append(values[-1] * 1.01)
+    navs = _make_navs(values, "2023-01-01")
+    calc = MetricsCalculator(scheme_code="123", nav_records=navs)
+    result = calc.get_rolling_returns_series(1)
+
+    assert result["insufficient_history"] is False
+    assert len(result["returns"]) >= 1
+
+
+def test_rolling_returns_summary_statistics():
+    start_date = "2020-01-01"
+    values = [100.0 + i * 10 for i in range(400)]
+    navs = _make_navs(values, start_date)
+    calc = MetricsCalculator(scheme_code="123", nav_records=navs)
+    result = calc.get_rolling_returns_series(1)
+
+    assert result["insufficient_history"] is False
+    summary = result["summary"]
+    assert summary["count"] == len(result["returns"])
+    assert summary["min"] == min(result["returns"])
+    assert summary["max"] == max(result["returns"])
+    assert summary["avg"] == pytest.approx(sum(result["returns"]) / len(result["returns"]), abs=1e-9)
+    assert summary["positive_pct"] == pytest.approx(
+        sum(1 for r in result["returns"] if r > 0) / len(result["returns"]) * 100, abs=1e-9
+    )
+
+
+def test_rolling_returns_3y_cagr_matches_expected():
+    start_nav = 100.0
+    end_nav = 200.0
+    values = [start_nav] + [end_nav] * 1095
+    navs = _make_navs(values, "2021-01-01")
+    calc = MetricsCalculator(scheme_code="123", nav_records=navs)
+    result = calc.get_rolling_returns_series(3)
+
+    assert result["insufficient_history"] is False
+    assert len(result["returns"]) == 1
+    expected_cagr = (end_nav / start_nav) ** (1 / 3.0) - 1
+    assert result["returns"][0] == pytest.approx(expected_cagr, rel=1e-3)

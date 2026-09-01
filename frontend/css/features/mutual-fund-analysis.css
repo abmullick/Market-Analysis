@@ -2252,3 +2252,133 @@ body.modal-open {
 .fund-link:hover {
     color: var(--color-primary-dark);
 }
+
+/* Rolling Returns */
+.rolling-returns-section {
+    margin-bottom: 28px;
+}
+
+.rolling-returns-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.rolling-returns-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+}
+
+.rolling-returns-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.rolling-returns-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.rolling-returns-btn:hover {
+    background: var(--color-bg-secondary);
+}
+
+.rolling-returns-btn.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+.rolling-returns-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.rolling-returns-stat {
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    min-width: 120px;
+    flex: 1;
+}
+
+.rolling-returns-stat-label {
+    font-size: 0.6875rem;
+    color: var(--color-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+.rolling-returns-stat-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.rolling-returns-stat-value.positive {
+    color: var(--color-success);
+}
+
+.rolling-returns-stat-value.negative {
+    color: #ef4444;
+}
+
+.rolling-returns-chart-container {
+    position: relative;
+    height: 300px;
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 16px;
+}
+
+.rolling-returns-insufficient {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--color-text-light);
+}
+
+.rolling-returns-insufficient-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 6px;
+}
+
+.rolling-returns-insufficient-text {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+    .rolling-returns-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .rolling-returns-summary {
+        gap: 8px;
+    }
+
+    .rolling-returns-stat {
+        min-width: 100px;
+        padding: 10px 12px;
+    }
+
+    .rolling-returns-chart-container {
+        height: 250px;
+    }
+}

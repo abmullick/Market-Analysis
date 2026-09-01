@@ -270,3 +270,95 @@ class MetricsCalculator:
             }
 
         return result if has_data else None
+
+    def get_rolling_returns_series(self, window_years: int) -> dict[str, Any]:
+        """Calculate rolling CAGR time series for a given window period.
+
+        Uses the same date-alignment conventions as the existing metric
+        calculator: for each observation, finds the closest NAV not later
+        than approximately ``window_years`` calendar years earlier and
+        computes CAGR over that span.
+
+        Args:
+            window_years: Rolling window period in years (1, 3, or 5).
+
+        Returns:
+            dict with:
+                dates: ending dates of each rolling window.
+                returns: rolling CAGR values as decimals.
+                summary: count, avg, median, min, max, std_dev, positive_pct.
+                insufficient_history: True when no valid windows exist.
+        """
+        if len(self._navs) < 2:
+            return {
+                "dates": [],
+                "returns": [],
+                "summary": None,
+                "insufficient_history": True,
+            }
+
+        window_days = int(window_years * 365.25)
+        parsed = [(datetime.strptime(n.date, "%Y-%m-%d"), n.nav) for n in self._navs]
+        n = len(parsed)
+
+        dates: list[str] = []
+        returns: list[float] = []
+        start_idx = 0
+
+        for i in range(1, n):
+            date_i, nav_i = parsed[i]
+            target_start = date_i - timedelta(days=window_days)
+
+            while start_idx + 1 < i and parsed[start_idx + 1][0] <= target_start:
+                start_idx += 1
+
+            if parsed[start_idx][0] <= target_start:
+                start_nav = parsed[start_idx][1]
+                if start_nav > 0:
+                    total_return = nav_i / start_nav - 1
+                    years_actual = (date_i - parsed[start_idx][0]).days / 365.25
+                    if years_actual > 0:
+                        cagr = (1 + total_return) ** (1 / years_actual) - 1
+                        dates.append(date_i.strftime("%Y-%m-%d"))
+                        returns.append(cagr)
+
+        insufficient_history = len(returns) == 0
+        summary = None
+
+        if returns:
+            positive_count = sum(1 for r in returns if r > 0)
+            positive_pct = positive_count / len(returns) * 100
+            avg_r = sum(returns) / len(returns)
+
+            sorted_returns = sorted(returns)
+            mid = len(sorted_returns) // 2
+            if len(sorted_returns) % 2 == 0:
+                median_r = (sorted_returns[mid - 1] + sorted_returns[mid]) / 2
+            else:
+                median_r = sorted_returns[mid]
+
+            min_r = min(returns)
+            max_r = max(returns)
+
+            if len(returns) >= 2:
+                variance = sum((r - avg_r) ** 2 for r in returns) / (len(returns) - 1)
+                std_r = math.sqrt(variance)
+            else:
+                std_r = None
+
+            summary = {
+                "count": len(returns),
+                "avg": avg_r,
+                "median": median_r,
+                "min": min_r,
+                "max": max_r,
+                "std_dev": std_r,
+                "positive_pct": positive_pct,
+            }
+
+        return {
+            "dates": dates,
+            "returns": returns,
+            "summary": summary,
+            "insufficient_history": insufficient_history,
+        }
