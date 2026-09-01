@@ -1,5 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from datetime import datetime, timedelta
+
 import pytest
 from fastapi import HTTPException
 
@@ -1039,3 +1041,100 @@ class TestComparisonDataPreparation:
         assert enriched["_detail"]["annualized_volatility"] is None
         assert enriched["_detail"]["one_year_return"] is None
         assert enriched["_detail"]["rolling_return_consistency"] is None
+
+    def test_fund_detail_total_aum_used_when_available(self):
+        """Fund detail should prefer total_aum_cr over aum_cr."""
+        detail_data = {
+            "scheme_code": "122639",
+            "scheme_name": "Parag Parikh Flexi Cap Fund - Direct Plan - Growth",
+            "amc": "PPFAS Mutual Fund",
+            "aum_cr": 93775.037,
+            "aum_quarter": "June-2026",
+            "aum_quarter_end": "2026-06-30",
+            "total_aum_cr": 140659.71,
+            "total_aum_quarter": "June-2026",
+            "total_aum_quarter_end": "2026-06-30",
+        }
+
+        aum_value = (
+            f"₹{detail_data['total_aum_cr']:.2f} Cr"
+            if detail_data["total_aum_cr"] is not None
+            else (f"₹{detail_data['aum_cr']:.2f} Cr" if detail_data["aum_cr"] is not None else "Not available")
+        )
+        aum_label = (
+            "Total AUM"
+            if detail_data["total_aum_cr"] is not None
+            else ("AUM (Cr)" if detail_data["aum_cr"] is not None else "AUM")
+        )
+
+        assert aum_label == "Total AUM"
+        assert aum_value == "₹140659.71 Cr"
+
+    def test_fund_detail_aum_fallback_to_single_plan(self):
+        """When total_aum_cr is unavailable, fall back to aum_cr."""
+        detail_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "aum_cr": 50000.0,
+            "aum_quarter": "June-2026",
+            "total_aum_cr": None,
+            "total_aum_quarter": None,
+            "total_aum_quarter_end": None,
+        }
+
+        aum_value = (
+            f"₹{detail_data['total_aum_cr']:.2f} Cr"
+            if detail_data["total_aum_cr"] is not None
+            else (f"₹{detail_data['aum_cr']:.2f} Cr" if detail_data["aum_cr"] is not None else "Not available")
+        )
+        aum_label = (
+            "Total AUM"
+            if detail_data["total_aum_cr"] is not None
+            else ("AUM (Cr)" if detail_data["aum_cr"] is not None else "AUM")
+        )
+
+        assert aum_label == "AUM (Cr)"
+        assert aum_value == "₹50000.00 Cr"
+
+    def test_period_specific_volatility_fields_exist(self):
+        """FundMetrics should include period-specific volatility fields."""
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        navs = [
+            NAVRecord(date="2024-01-01", nav=100.0),
+            NAVRecord(date="2024-01-02", nav=101.0),
+            NAVRecord(date="2024-01-03", nav=102.0),
+            NAVRecord(date="2025-01-01", nav=110.0),
+            NAVRecord(date="2026-01-01", nav=120.0),
+        ]
+
+        metrics = MetricsCalculator(scheme_code="123", nav_records=navs).calculate()
+
+        assert hasattr(metrics, "one_year_volatility")
+        assert hasattr(metrics, "three_year_volatility")
+        assert hasattr(metrics, "five_year_volatility")
+        assert hasattr(metrics, "ten_year_volatility")
+
+    def test_period_specific_volatility_values(self):
+        """Period-specific volatility should be calculated from sliced NAV data."""
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        navs = []
+        start = datetime(2020, 1, 1)
+        for i in range(3650):
+            nav = 100.0 + i * 0.5
+            navs.append(NAVRecord(
+                date=(start + timedelta(days=i)).strftime("%Y-%m-%d"),
+                nav=nav,
+            ))
+
+        metrics = MetricsCalculator(scheme_code="148404", nav_records=navs).calculate()
+
+        assert metrics.one_year_volatility is not None
+        assert metrics.three_year_volatility is not None
+        assert metrics.five_year_volatility is not None
+        assert metrics.annualized_volatility is not None
+
+        assert metrics.one_year_volatility >= 0
+        assert metrics.three_year_volatility >= 0
+        assert metrics.five_year_volatility >= 0

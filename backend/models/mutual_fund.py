@@ -49,6 +49,10 @@ class FundMetrics(BaseModel):
     ten_year_cagr: Optional[float] = None
 
     annualized_volatility: Optional[float] = None
+    one_year_volatility: Optional[float] = None
+    three_year_volatility: Optional[float] = None
+    five_year_volatility: Optional[float] = None
+    ten_year_volatility: Optional[float] = None
     sharpe_ratio: Optional[float] = None
     sortino_ratio: Optional[float] = None
     maximum_drawdown: Optional[float] = None
@@ -187,6 +191,10 @@ class FundDetailResponse(BaseModel):
     five_year_cagr: Optional[float] = None
     ten_year_cagr: Optional[float] = None
     annualized_volatility: Optional[float] = None
+    one_year_volatility: Optional[float] = None
+    three_year_volatility: Optional[float] = None
+    five_year_volatility: Optional[float] = None
+    ten_year_volatility: Optional[float] = None
     sharpe_ratio: Optional[float] = None
     sortino_ratio: Optional[float] = None
     maximum_drawdown: Optional[float] = None

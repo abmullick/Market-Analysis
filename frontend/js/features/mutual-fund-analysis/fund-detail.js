@@ -147,8 +147,14 @@ function createFundHeader(detail, schemeCode) {
     infoGrid.appendChild(createInfoItem("Scheme Code", detail.scheme_code || schemeCode || "Not available"));
     infoGrid.appendChild(createInfoItem("Latest NAV", detail.nav != null ? detail.nav.toFixed(4) : "Not available"));
     infoGrid.appendChild(createInfoItem("NAV Date", detail.nav_date || "Not available"));
-    infoGrid.appendChild(createInfoItem("AUM (Cr)", detail.aum_cr != null ? detail.aum_cr.toFixed(2) : "Not available"));
-    infoGrid.appendChild(createInfoItem("AUM Quarter", detail.aum_quarter || "Not available"));
+    const aumValue = detail.total_aum_cr != null
+        ? `₹${detail.total_aum_cr.toFixed(2)} Cr`
+        : (detail.aum_cr != null ? `₹${detail.aum_cr.toFixed(2)} Cr` : "Not available");
+    const aumLabel = detail.total_aum_cr != null ? "Total AUM" : (detail.aum_cr != null ? "AUM (Cr)" : "AUM");
+    infoGrid.appendChild(createInfoItem(aumLabel, aumValue));
+
+    const totalQuarter = detail.total_aum_quarter || detail.aum_quarter || "Not available";
+    infoGrid.appendChild(createInfoItem("AUM Quarter", totalQuarter));
     infoGrid.appendChild(createInfoItem("First NAV Date", detail.first_nav_date || "Not available"));
     infoGrid.appendChild(createInfoItem("Fund Age", detail.fund_age_years != null ? `${detail.fund_age_years.toFixed(1)} years` : "Not available"));
     infoGrid.appendChild(createInfoItem("Expense Ratio", detail.expense_ratio != null ? `${detail.expense_ratio}%` : "Not available"));

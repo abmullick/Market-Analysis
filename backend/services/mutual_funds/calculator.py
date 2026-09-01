@@ -56,6 +56,11 @@ class MetricsCalculator:
         daily_returns = self._daily_returns(navs)
         annualized_volatility = self._annualized_volatility(daily_returns)
 
+        one_year_volatility = self._annualized_volatility(self._daily_returns(one_year_navs))
+        three_year_volatility = self._annualized_volatility(self._daily_returns(three_year_navs))
+        five_year_volatility = self._annualized_volatility(self._daily_returns(five_year_navs))
+        ten_year_volatility = self._annualized_volatility(self._daily_returns(ten_year_navs))
+
         total_return = navs[-1].nav / navs[0].nav - 1 if navs[0].nav > 0 else None
         annualized_return = self._annualize(total_return, years_available) if total_return is not None else None
 
@@ -77,6 +82,10 @@ class MetricsCalculator:
             five_year_cagr=five_year_cagr,
             ten_year_cagr=ten_year_cagr,
             annualized_volatility=annualized_volatility,
+            one_year_volatility=one_year_volatility,
+            three_year_volatility=three_year_volatility,
+            five_year_volatility=five_year_volatility,
+            ten_year_volatility=ten_year_volatility,
             sharpe_ratio=sharpe_ratio,
             sortino_ratio=sortino_ratio,
             maximum_drawdown=maximum_drawdown,

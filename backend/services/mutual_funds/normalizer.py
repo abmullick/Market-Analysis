@@ -6,7 +6,7 @@ from backend.models.mutual_fund import MutualFund, NAVRecord, SchemeSearchResult
 def normalize_scheme(raw: dict[str, Any]) -> MutualFund:
     meta = raw.get("meta", {})
     return MutualFund(
-        scheme_code=str(raw.get("scheme_code", "")),
+        scheme_code=str(meta.get("scheme_code") or raw.get("scheme_code", "")),
         scheme_name=meta.get("scheme_name", ""),
         amc=meta.get("fund_house"),
         category=meta.get("scheme_category"),
