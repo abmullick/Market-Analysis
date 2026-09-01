@@ -6,8 +6,10 @@ from fastapi import APIRouter, HTTPException
 
 from backend.config.settings import Settings
 from backend.models.mutual_fund import (
+    FundDetailResponse,
     FundMetrics,
     MutualFund,
+    NAVHistoryResponse,
     NAVRecord,
     RankingRequest,
     SchemeSearchResult,
@@ -17,7 +19,9 @@ from backend.services.mutual_funds.lookback import get_required_lookback_years
 from backend.services.mutual_funds.ranking import RankingEngine
 from backend.services.mutual_funds.category_normalizer import normalize_category
 from backend.services.mutual_funds.cache import metrics_cache
+from backend.services.mutual_funds.calculator import MetricsCalculator
 from backend.services.data.tigzig import get_tigzig_dataset, get_tigzig_metadata, initialize_tigzig, _get_memory_mb
+from backend.services.data.mfapi import MfapiError
 from backend.utils.logging import logger
 
 router = APIRouter()
@@ -95,7 +99,14 @@ async def get_scheme(scheme_code: str) -> MutualFund:
 
 @router.get("/{scheme_code}/nav", response_model=list[NAVRecord])
 async def get_nav_history(scheme_code: str) -> list[NAVRecord]:
-    return await fetcher.get_nav_history(scheme_code)
+    try:
+        return await fetcher.get_nav_history(scheme_code)
+    except MfapiError as e:
+        logger.error("MFAPI failure for /nav/%s: %s", scheme_code, e)
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        logger.error("Unexpected error for /nav/%s: %s", scheme_code, e)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch NAV history: {str(e)}")
 
 
 @router.get("/{scheme_code}/returns")
@@ -129,6 +140,142 @@ async def get_metrics(scheme_code: str) -> dict[str, Any]:
     calculator = MetricsCalculator(scheme_code=scheme_code, nav_records=navs)
     metrics = calculator.calculate()
     return metrics.model_dump()
+
+
+@router.get("/{scheme_code}/detail", response_model=FundDetailResponse)
+async def get_fund_detail(scheme_code: str) -> FundDetailResponse:
+    """Get comprehensive fund detail including metrics, metadata, and allocation."""
+    try:
+        scheme = await fetcher.get_scheme(scheme_code)
+    except MfapiError as e:
+        logger.error("MFAPI failure fetching scheme %s: %s", scheme_code, e)
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        logger.error("Unexpected error fetching scheme %s: %s", scheme_code, e)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch fund details: {str(e)}")
+
+    lookback_years = get_required_lookback_years([
+        "1Y_return", "3Y_cagr", "5Y_cagr", "10Y_cagr",
+        "sharpe_ratio", "sortino_ratio", "annualized_volatility",
+        "maximum_drawdown", "downside_deviation", "consistency",
+    ])
+
+    cached = metrics_cache.get(scheme_code, lookback_years)
+    if cached is not None:
+        metrics = cached
+    else:
+        try:
+            navs = await fetcher.get_nav_history(scheme_code, lookback_years=lookback_years)
+        except MfapiError as e:
+            logger.error("MFAPI failure for detail/%s: %s", scheme_code, e)
+            raise HTTPException(status_code=502, detail=str(e))
+        except Exception as e:
+            logger.error("Unexpected error for detail/%s: %s", scheme_code, e)
+            raise HTTPException(status_code=500, detail=f"Failed to fetch fund details: {str(e)}")
+        calculator = MetricsCalculator(scheme_code=scheme_code, nav_records=navs)
+        metrics = calculator.calculate().model_dump()
+        metrics_cache.put(scheme_code, lookback_years, metrics)
+
+    metadata_service = get_tigzig_metadata()
+    metadata = await metadata_service.get_metadata()
+    fund_metadata = metadata_service.lookup(int(scheme_code))
+
+    nav = scheme.nav
+    nav_date = scheme.nav_date
+
+    first_nav_date = fund_metadata.get("first_date") if fund_metadata else None
+    fund_age_years = None
+    if first_nav_date:
+        try:
+            from datetime import datetime
+            start = datetime.strptime(first_nav_date, "%Y-%m-%d")
+            end = datetime.strptime(nav_date, "%Y-%m-%d") if nav_date else datetime.now()
+            fund_age_years = (end - start).days / 365.25
+        except (ValueError, TypeError):
+            pass
+
+    return FundDetailResponse(
+        scheme_code=scheme.scheme_code,
+        scheme_name=scheme.scheme_name,
+        amc=scheme.amc,
+        category=scheme.category,
+        sub_category=scheme.sub_category,
+        plan=_extract_plan(scheme.scheme_name),
+        option=_extract_option(scheme.scheme_name),
+        nav=nav,
+        nav_date=nav_date,
+        aum_cr=fund_metadata.get("aaum_cr_quarterly_avg") if fund_metadata else None,
+        aum_quarter=fund_metadata.get("aaum_quarter") if fund_metadata else None,
+        aum_quarter_end=fund_metadata.get("aaum_quarter_end") if fund_metadata else None,
+        first_nav_date=first_nav_date,
+        fund_age_years=fund_age_years,
+        expense_ratio=scheme.expense_ratio,
+        minimum_investment=scheme.minimum_investment,
+        fund_manager=scheme.fund_manager,
+        asset_allocation=scheme.asset_allocation,
+        top_holdings=scheme.top_holdings,
+        one_year_return=metrics.get("one_year_return"),
+        three_year_cagr=metrics.get("three_year_cagr"),
+        five_year_cagr=metrics.get("five_year_cagr"),
+        ten_year_cagr=metrics.get("ten_year_cagr"),
+        annualized_volatility=metrics.get("annualized_volatility"),
+        sharpe_ratio=metrics.get("sharpe_ratio"),
+        sortino_ratio=metrics.get("sortino_ratio"),
+        maximum_drawdown=metrics.get("maximum_drawdown"),
+        downside_deviation=metrics.get("downside_deviation"),
+        rolling_return_consistency=metrics.get("rolling_return_consistency"),
+        data_points=metrics.get("data_points", 0),
+        data_start_date=metrics.get("data_start_date"),
+        data_end_date=metrics.get("data_end_date"),
+    )
+
+
+@router.get("/{scheme_code}/nav-history", response_model=NAVHistoryResponse)
+async def get_nav_history_chart(scheme_code: str, years: int = 10) -> NAVHistoryResponse:
+    """Get NAV history for charting."""
+    try:
+        scheme = await fetcher.get_scheme(scheme_code)
+        navs = await fetcher.get_nav_history(scheme_code, lookback_years=years)
+    except MfapiError as e:
+        logger.error("MFAPI failure for /nav-history/%s: %s", scheme_code, e)
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        logger.error("Unexpected error for /nav-history/%s: %s", scheme_code, e)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch NAV history: {str(e)}")
+
+    dates = [n.date for n in navs]
+    nav_values = [n.nav for n in navs]
+
+    return NAVHistoryResponse(
+        scheme_code=scheme_code,
+        scheme_name=scheme.scheme_name,
+        dates=dates,
+        navs=nav_values,
+    )
+
+
+def _extract_plan(scheme_name: str) -> str | None:
+    """Extract plan type from scheme name."""
+    if not scheme_name:
+        return None
+    name_lower = scheme_name.lower()
+    if "direct" in name_lower:
+        return "Direct"
+    elif "regular" in name_lower:
+        return "Regular"
+    return None
+
+
+def _extract_option(scheme_name: str) -> str | None:
+    """Extract option type from scheme name."""
+    if not scheme_name:
+        return None
+    name_lower = scheme_name.lower()
+    if "growth" in name_lower:
+        return "Growth"
+    elif "idcw" in name_lower or "dividend" in name_lower:
+        return "IDCW"
+    return None
 
 
 def _apply_screening_filters(

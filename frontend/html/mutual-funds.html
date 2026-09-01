@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mutual Fund Analysis | Market Analysis</title>
-    <link rel="stylesheet" href="../css/base.css">
-    <link rel="stylesheet" href="../css/layout.css">
-    <link rel="stylesheet" href="../css/components.css">
-    <link rel="stylesheet" href="../css/features/mutual-fund-analysis.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/features/mutual-fund-analysis.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <header class="site-header">
@@ -37,10 +38,14 @@
             </div>
         </div>
     </main>
-    <script type="module" src="../js/core/config.js"></script>
-    <script type="module" src="../js/core/navigation.js"></script>
-    <script type="module" src="../js/core/utils.js"></script>
-    <script type="module" src="../js/features/mutual-fund-analysis/index.js"></script>
-    <script type="module" src="../js/pages/mutual-funds.js"></script>
+    <div id="fund-detail-modal" class="modal-container"></div>
+    <script type="module" src="/js/core/config.js"></script>
+    <script type="module" src="/js/core/navigation.js"></script>
+    <script type="module" src="/js/core/utils.js"></script>
+    <script type="module" src="/js/components/modal.js"></script>
+    <script type="module" src="/js/components/loading.js"></script>
+    <script type="module" src="/js/features/mutual-fund-analysis/index.js"></script>
+    <script type="module" src="/js/features/mutual-fund-analysis/fund-detail.js"></script>
+    <script type="module" src="/js/pages/mutual-funds.js"></script>
 </body>
 </html>

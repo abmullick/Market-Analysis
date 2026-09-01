@@ -153,3 +153,47 @@ class FundRank(BaseModel):
 class RankingResponse(BaseModel):
     category: str
     rankings: list[FundRank]
+
+
+class FundDetailResponse(BaseModel):
+    scheme_code: str
+    scheme_name: str
+    amc: Optional[str] = None
+    category: Optional[str] = None
+    sub_category: Optional[str] = None
+    plan: Optional[str] = None
+    option: Optional[str] = None
+    nav: Optional[float] = None
+    nav_date: Optional[str] = None
+    aum_cr: Optional[float] = None
+    aum_quarter: Optional[str] = None
+    aum_quarter_end: Optional[str] = None
+    first_nav_date: Optional[str] = None
+    fund_age_years: Optional[float] = None
+    expense_ratio: Optional[float] = None
+    minimum_investment: Optional[float] = None
+    fund_manager: Optional[str] = None
+    asset_allocation: Optional[dict[str, float]] = None
+    top_holdings: Optional[list[dict[str, Any]]] = None
+
+    one_year_return: Optional[float] = None
+    three_year_cagr: Optional[float] = None
+    five_year_cagr: Optional[float] = None
+    ten_year_cagr: Optional[float] = None
+    annualized_volatility: Optional[float] = None
+    sharpe_ratio: Optional[float] = None
+    sortino_ratio: Optional[float] = None
+    maximum_drawdown: Optional[float] = None
+    downside_deviation: Optional[float] = None
+    rolling_return_consistency: Optional[dict[str, Any]] = None
+
+    data_points: int = 0
+    data_start_date: Optional[str] = None
+    data_end_date: Optional[str] = None
+
+
+class NAVHistoryResponse(BaseModel):
+    scheme_code: str
+    scheme_name: str
+    dates: list[str]
+    navs: list[float]

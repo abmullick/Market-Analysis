@@ -5,7 +5,7 @@ from typing import Any
 from backend.config.settings import Settings
 from backend.models.mutual_fund import MutualFund, NAVRecord, SchemeSearchResult
 from backend.services.data.amfi import AmfiClient
-from backend.services.data.mfapi import MfapiClient
+from backend.services.data.mfapi import MfapiClient, MfapiError
 from backend.services.mutual_funds.cache import metrics_cache
 from backend.services.mutual_funds.lookback import (
     get_date_range_for_lookback,
@@ -59,7 +59,22 @@ class MutualFundFetcher:
         if lookback_years:
             start_date, end_date = get_date_range_for_lookback(lookback_years)
 
-        raw = await self.mfapi.fetch_nav_history(scheme_code, start_date=start_date, end_date=end_date)
+        # Try TigZig first
+        dataset = get_tigzig_dataset()
+        if dataset.is_available:
+            try:
+                result = await self.get_nav_history_tigzig(scheme_code, lookback_years)
+                if result:
+                    return result
+                logger.info(f"TigZig returned no data for {scheme_code}, falling back to MFAPI")
+            except Exception as e:
+                logger.warning(f"TigZig query failed for {scheme_code}: {e}, falling back to MFAPI")
+
+        # Fallback to MFAPI
+        try:
+            raw = await self.mfapi.fetch_nav_history(scheme_code, start_date=start_date, end_date=end_date)
+        except MfapiError as e:
+            raise MfapiError(f"Failed to fetch NAV history for scheme {scheme_code}: {e}") from e
         records = normalize_nav_history(raw)
         logger.info(
             "NAV history for %s: %d records (lookback=%s years)",
@@ -365,31 +380,6 @@ class MutualFundFetcher:
             logger.warning(f"TigZig data unavailable for {scheme_code}: {e}")
             return []
 
-    async def get_nav_history(
-        self,
-        scheme_code: str,
-        lookback_years: int | None = None,
-    ) -> list[NAVRecord]:
-        """Get NAV history, using TigZig as primary source with MFAPI fallback.
-
-        Args:
-            scheme_code: AMFI scheme code
-            lookback_years: Optional lookback period in years
-
-        Returns:
-            List of NAVRecord objects
-        """
-        # Try TigZig first
-        dataset = get_tigzig_dataset()
-        if dataset.is_available:
-            result = await self.get_nav_history_tigzig(scheme_code, lookback_years)
-            if result:
-                return result
-            logger.info(f"TigZig returned no data for {scheme_code}, falling back to MFAPI")
-
-        # Fallback to MFAPI
-        return await self._get_nav_history_mfapi(scheme_code, lookback_years)
-
     async def _get_nav_history_mfapi(
         self,
         scheme_code: str,
@@ -409,7 +399,10 @@ class MutualFundFetcher:
         if lookback_years:
             start_date, end_date = get_date_range_for_lookback(lookback_years)
 
-        raw = await self.mfapi.fetch_nav_history(scheme_code, start_date=start_date, end_date=end_date)
+        try:
+            raw = await self.mfapi.fetch_nav_history(scheme_code, start_date=start_date, end_date=end_date)
+        except MfapiError as e:
+            raise MfapiError(f"MFAPI fallback failed for scheme {scheme_code}: {e}") from e
         records = normalize_nav_history(raw)
         logger.info(
             "NAV history for %s: %d records via MFAPI (fallback)",

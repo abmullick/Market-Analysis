@@ -1,5 +1,6 @@
 import { api } from "../../core/api.js";
 import { showLoading, hideLoading } from "../../components/loading.js";
+import { openFundDetail } from "./fund-detail.js";
 
 const PRESETS = {
     best_overall: {
@@ -1335,7 +1336,7 @@ function renderRankingResults(rankings, categories) {
         tr.innerHTML = `
             <td class="select-cell"><input type="checkbox" class="compare-cb" data-scheme="${row.scheme_code}" ${isSelected ? "checked" : ""}></td>
             <td class="rank-cell">${row.rank}</td>
-            <td><strong>${row.scheme_name}</strong></td>
+            <td><strong><span class="fund-link" data-scheme="${row.scheme_code}" data-name="${encodeURIComponent(row.scheme_name)}">${row.scheme_name}</span></strong></td>
             <td class="muted">${row.amc}</td>
             <td class="muted">${row.scheme_code}</td>
             <td class="nav-cell">${row.nav}</td>
@@ -1357,6 +1358,14 @@ function renderRankingResults(rankings, categories) {
     });
     table.appendChild(tbody);
     tableContainer.appendChild(table);
+
+    table.querySelectorAll(".fund-link").forEach(link => {
+        link.addEventListener("click", () => {
+            const schemeCode = link.dataset.scheme;
+            const schemeName = decodeURIComponent(link.dataset.name);
+            openFundDetail(schemeCode, schemeName);
+        });
+    });
 
     table.querySelectorAll(".compare-cb").forEach(cb => {
         cb.addEventListener("change", () => {
@@ -1505,7 +1514,7 @@ function renderComparisonTable(container) {
 
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
-    headerRow.innerHTML = `<th>Metric</th>${selected.map(f => `<th class="fund-col"><div class="fund-col-name">${f.scheme_name}</div><div class="fund-col-meta">${f.amc} · ${f.scheme_code}</div></th>`).join("")}`;
+    headerRow.innerHTML = `<th>Metric</th>${selected.map(f => `<th class="fund-col"><div class="fund-col-name"><span class="fund-link" data-scheme="${f.scheme_code}" data-name="${encodeURIComponent(f.scheme_name)}">${f.scheme_name}</span></div><div class="fund-col-meta">${f.amc} · ${f.scheme_code}</div></th>`).join("")}`;
     thead.appendChild(headerRow);
     table.appendChild(thead);
 
@@ -1541,6 +1550,14 @@ function renderComparisonTable(container) {
     container.appendChild(wrapper);
 
     document.getElementById("back-to-rankings").addEventListener("click", hideComparisonView);
+
+    wrapper.querySelectorAll(".fund-link").forEach(link => {
+        link.addEventListener("click", () => {
+            const schemeCode = link.dataset.scheme;
+            const schemeName = decodeURIComponent(link.dataset.name);
+            openFundDetail(schemeCode, schemeName);
+        });
+    });
 }
 
 function buildResultFilters(rankings) {
@@ -1794,7 +1811,7 @@ function renderFilteredTable(rankings) {
         tr.innerHTML = `
             <td class="select-cell"><input type="checkbox" class="compare-cb" data-scheme="${row.scheme_code}" ${isSelected ? "checked" : ""}></td>
             <td class="rank-cell">${row.rank}</td>
-            <td><strong>${row.scheme_name}</strong></td>
+            <td><strong><span class="fund-link" data-scheme="${row.scheme_code}" data-name="${encodeURIComponent(row.scheme_name)}">${row.scheme_name}</span></strong></td>
             <td class="muted">${row.amc}</td>
             <td class="muted">${row.scheme_code}</td>
             <td class="nav-cell">${row.nav}</td>
@@ -1817,6 +1834,14 @@ function renderFilteredTable(rankings) {
     table.appendChild(tbody);
     tableContainer.appendChild(table);
 
+
+    table.querySelectorAll(".fund-link").forEach(link => {
+        link.addEventListener("click", () => {
+            const schemeCode = link.dataset.scheme;
+            const schemeName = decodeURIComponent(link.dataset.name);
+            openFundDetail(schemeCode, schemeName);
+        });
+    });
     table.querySelectorAll(".compare-cb").forEach(cb => {
         cb.addEventListener("change", () => {
             const scheme = cb.dataset.scheme;

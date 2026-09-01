@@ -10,6 +10,7 @@ from backend.services.mutual_funds.normalizer import (
     normalize_scheme,
     normalize_search_result,
 )
+from backend.services.data.mfapi import MfapiError
 
 
 @pytest.fixture
@@ -161,3 +162,33 @@ def test_fetcher_get_schemes_by_category(fetcher):
         liquid = asyncio.run(fetcher.get_schemes_by_category("Debt - Liquid"))
         assert len(liquid) == 1
         assert liquid[0].scheme_name == "Liquid Fund"
+
+
+def test_fetcher_get_nav_history_mfapi_failure_raises(fetcher):
+    import asyncio
+
+    with patch("backend.services.mutual_funds.fetcher.get_tigzig_dataset") as mock_tigzig:
+        mock_tigzig.return_value.is_available = False
+        with patch.object(fetcher.mfapi, "fetch_nav_history", new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.side_effect = MfapiError("MFAPI is down")
+            with pytest.raises(MfapiError, match="MFAPI is down"):
+                asyncio.run(fetcher.get_nav_history("119594"))
+
+
+def test_fetcher_get_nav_history_tigzig_failure_falls_back_to_mfapi(fetcher):
+    import asyncio
+
+    mock_raw = {
+        "data": [
+            {"date": "2024-12-30", "nav": "100.0"},
+        ]
+    }
+
+    with patch("backend.services.mutual_funds.fetcher.get_tigzig_dataset") as mock_tigzig:
+        mock_dataset = mock_tigzig.return_value
+        mock_dataset.is_available = True
+        mock_dataset.query_single_scheme.side_effect = Exception("TigZig crashed")
+        with patch.object(fetcher.mfapi, "fetch_nav_history", new_callable=AsyncMock, return_value=mock_raw):
+            records = asyncio.run(fetcher.get_nav_history("119594"))
+            assert len(records) == 1
+            assert records[0].nav == 100.0
