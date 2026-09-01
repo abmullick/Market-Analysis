@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help & Methodology | Market Analysis</title>
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/features/mutual-fund-analysis.css">
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-left">
+            <img src="/static/images/m_analysis.png" alt="Market Analysis" class="logo">
+            <h1>Help & Methodology</h1>
+        </div>
+        <nav id="main-nav"></nav>
+    </header>
+    <main class="container">
+        <div class="help-container">
+            <section class="help-section">
+                <h2>Market Analysis Platform</h2>
+                <p class="help-lead">
+                    A quantitative analysis platform for Indian stocks and mutual funds,
+                    combining fundamental data, deterministic scoring, and category-relative benchmarking.
+                    Every metric, score, and rank is derived from transparent, reproducible formulas.
+                </p>
+            </section>
+
+            <section class="help-section">
+                <h3>Product Owner</h3>
+                <p>Abhisek Basu Mullick</p>
+            </section>
+
+            <section class="help-section">
+                <h3>Mutual Fund Analysis</h3>
+                <div class="help-grid">
+                    <div class="help-card">
+                        <h4>Fund Ranking</h4>
+                        <p>
+                            Rank mutual funds within a category using normalized multi-metric scoring.
+                            Choose from built-in presets (Best Overall, Highest Returns, Lowest Risk, Best Consistency)
+                            or define custom criteria and weights.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Category-Relative Analysis</h4>
+                        <p>
+                            See how a fund compares to its peers. For every metric, view the fund's percentile rank,
+                            ordinal position (e.g., 2nd of 27), and exact percentile value within the category.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Fund Comparison</h4>
+                        <p>
+                            Select multiple funds and compare them side-by-side across performance, risk, and consistency metrics.
+                            Overlay risk-return profiles, drawdown charts, and rolling return series.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Fund Details</h4>
+                        <p>
+                            Open any fund to inspect NAV history, 1Y/3Y/5Y/10Y returns, Sharpe/Sortino ratios,
+                            annualized volatility, maximum drawdown, downside deviation, and rolling-return consistency.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Screening & Filters</h4>
+                        <p>
+                            Apply filters such as AUM, fund age, and plan/option type before ranking.
+                            Filters are combined with AND logic and show match counts in the summary.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Methodology</h4>
+                        <p>
+                            Returns are calculated from NAV history using simple period returns and CAGR.
+                            Risk metrics use sample-standard-deviation annualized with 252 trading days.
+                            Percentile ranks include only funds with valid data for that specific metric.
+                            Rankings normalize raw values to a 0–100 score; lower-is-better metrics are inverted.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Metrics Reference</h3>
+                <p class="help-lead">
+                    Every number shown in Ranking, Fund Details, and Category-Relative Analysis comes from these building blocks.
+                    Click a metric to expand its formula, example, and usage.
+                </p>
+
+                <div class="metrics-accordion">
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">1Y Return</span>
+                            <span class="metric-meta">Return • Higher is better</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Definition</h4>
+                                    <p>Simple percentage return over the most recent ~365 calendar days using available NAV history.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">1Y Return = (NAV_end / NAV_start) - 1</div>
+                                    <p>NAV_end = latest available NAV in the lookback window.<br>NAV_start = NAV closest to 365 calendar days before NAV_end.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>NAV_start = 100.00, NAV_end = 116.44 → 1Y Return = 0.1644 → <strong>16.44%</strong>.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Use</h4>
+                                    <p>Shows near-term performance. Used in ranking presets like <strong>Highest Returns</strong> and <strong>Best Overall</strong>.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">3Y CAGR</span>
+                            <span class="metric-meta">Annualized return • Higher is better</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Definition</h4>
+                                    <p>Compound annual growth rate over approximately 3 calendar years of NAV history.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">CAGR = (NAV_end / NAV_start)^(1 / years) - 1</div>
+                                    <p>years = calendar days between NAV_start and NAV_end divided by 365.25.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>NAV_start = 100.00, NAV_end = 157.41 over ~3 years → CAGR ≈ 0.2146 → <strong>21.46%</strong>.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Use</h4>
+                                    <p>Measures medium-term growth. Heavily weighted in <strong>Best Overall</strong> and <strong>Highest Returns</strong> presets.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">5Y CAGR</span>
+                            <span class="metric-meta">Annualized return • Higher is better</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Definition</h4>
+                                    <p>Compound annual growth rate over approximately 5 calendar years of NAV history.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">CAGR = (NAV_end / NAV_start)^(1 / years) - 1</div>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>NAV_start = 100.00, NAV_end = 217.56 over ~5 years → CAGR ≈ 0.1756 → <strong>17.56%</strong>.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Use</h4>
+                                    <p>Reflects longer-term performance stability. Included in <strong>Highest Returns</strong> and <strong>Best Overall</strong> presets.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">10Y CAGR</span>
+                            <span class="metric-meta">Annualized return • Higher is better</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Definition</h4>
+                                    <p>Compound annual growth rate over approximately 10 calendar years of NAV history.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">CAGR = (NAV_end / NAV_start)^(1 / years) - 1</div>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>Only shown when a fund has at least ~10 years of NAV history. Otherwise displayed as <strong>Not available</strong>.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Use</h4>
+                                    <p>Useful for evaluating long-tenured funds. Appears in <strong>Highest Returns</strong> preset with smaller weight.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Sharpe Ratio</span>
+                            <span class="metric-meta">Risk-adjusted return • Higher is better</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Definition</h4>
+                                    <p>Return earned per unit of total volatility (risk). Uses a fixed risk-free rate of 4%.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">Sharpe = (Annualized Return - Risk Free Rate) / Annualized Volatility</div>
+                                    <p>Annualized Return = geometric return over the full NAV history.<br>Annualized Volatility = sample std dev of daily returns × √252.<br>Risk Free Rate = 0.04 (4%).</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>Annualized Return = 12%, Volatility = 16.61% → Sharpe = (0.12 - 0.04) / 0.1661 ≈ <strong>1.35</strong>.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Use</h4>
+                                    <p>Primary risk-adjusted metric. Higher Sharpe means more return per unit of total risk. Core to <strong>Best Overall</strong>, <strong>Lowest Risk</strong>, and <strong>Best Consistency</strong> presets.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Sortino Ratio</span>
+                            <span class="metric-meta">Downside risk-adjusted return • Higher is better</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Definition</h4>
+                                    <p>Like Sharpe, but penalizes only downside volatility. Better for evaluating funds where upside volatility is desirable.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">Sortino = (Annualized Return - Risk Free Rate) / Downside Deviation</div>
+                                    <p>Downside Deviation = √( Σ(min(r_t, 0)^2) / N ) × √252<br>Only negative daily returns contribute to the denominator.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>Annualized Return = 12%, Downside Deviation = 12.15% → Sortino = (0.12 - 0.04) / 0.1215 ≈ <strong>1.85</strong>.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Use</h4>
+                                    <p>Used alongside Sharpe in <strong>Best Overall</strong> and <strong>Best Consistency</strong> presets. Sortino &gt; Sharpe usually indicates positive skewness.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Annualized Volatility</span>
+                            <span class="metric-meta">Total risk • Lower is better</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Definition</h4>
+                                    <p>Standard deviation of daily returns, annualized to a yearly figure. Measures overall NAV fluctuation.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">Volatility = SampleStdDev(daily_returns) × √252</div>
+                                    <p>daily_return_t = (NAV_t / NAV_{t-1}) - 1<br>SampleStdDev uses N-1 denominator.<br>252 = typical trading days per year.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>Daily returns std dev ≈ 1.047% → Volatility = 0.01047 × √252 ≈ <strong>16.61%</strong>.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Use</h4>
+                                    <p>Core risk measure. Lower volatility implies more stable returns. Used in <strong>Lowest Risk</strong> preset and as a counterbalance in <strong>Best Overall</strong>.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Maximum Drawdown</span>
+                            <span class="metric-meta">Peak-to-trough loss • Lower is better</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Definition</h4>
+                                    <p>The largest percentage drop from any historical peak NAV to any subsequent trough before recovery.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">Max Drawdown = max( (peak - trough) / peak )</div>
+                                    <p>peak = highest NAV seen so far while iterating forward.<br>trough = lowest NAV after that peak.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>Peak = 120.00, trough = 91.20 → Drawdown = (120 - 91.2) / 120 = 0.24 → <strong>24.00%</strong>.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Use</h4>
+                                    <p>Shows worst historical loss from a peak. Lower is better. Used in <strong>Lowest Risk</strong> preset.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Downside Deviation</span>
+                            <span class="metric-meta">Bad volatility • Lower is better</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Definition</h4>
+                                    <p>Standard deviation of negative returns only, annualized. Ignores upside surprises.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">Downside Dev = √( Σ(min(r_t, 0)^2) / N ) × √252</div>
+                                    <p>r_t = daily return.<br>Only negative or zero returns enter the sum.<br>N = total number of daily returns.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>Sum of squared negative returns / N = 0.000233 → √0.000233 × √252 ≈ <strong>12.15%</strong>.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Use</h4>
+                                    <p>Used in Sortino and as an independent risk measure. Lower downside deviation means fewer/smaller negative periods.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">1Y Rolling Consistency</span>
+                            <span class="metric-meta">Consistency of positive returns • Higher is better</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Definition</h4>
+                                    <p>Percentage of overlapping 1-year rolling windows that produced positive returns.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">Positive % = Count(positive 1Y windows) / Count(all 1Y windows) × 100</div>
+                                    <p>A 1Y window = NAV at day t divided by NAV at day t-365.<br>Windows are overlapping and computed for every valid observation date.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>41 valid 1Y windows, 35 positive → 35 / 41 × 100 = <strong>85.37%</strong>.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Use</h4>
+                                    <p>Measures consistency, not just magnitude. A fund can have high returns with low consistency if returns are volatile. Used in <strong>Best Consistency</strong> and <strong>Best Overall</strong> presets.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Overall Score</span>
+                            <span class="metric-meta">Composite ranking score • Higher is better</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Definition</h4>
+                                    <p>A 0–100 composite score derived from weighted normalized metrics across the selected category.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">Overall Score = Σ ( Metric Score_i × Weight_i )</div>
+                                    <p>Metric Score = normalized 0–100 value for that metric across all category peers.<br>Weight = user-selected or preset weight, normalized to sum to 100.<br>Lower-is-better metrics are inverted so 100 always means best.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>1Y Return score = 80, weight = 25%; Sharpe score = 90, weight = 20%; Volatility score = 60, weight = 15% → Overall = 80×0.25 + 90×0.20 + 60×0.15 + ... = <strong>score out of 100</strong>.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Use</h4>
+                                    <p>Ranks funds from best to worst within a category. The top-ranked fund has the highest overall score.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Scoring & Percentiles</h3>
+                <div class="metrics-accordion">
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Normalized Metric Score</span>
+                            <span class="metric-meta">0–100 score per metric</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">Score = (value - min) / (max - min) × 100</div>
+                                    <p>If direction is lower-is-better, the score is inverted: 100 - Score.<br>If all peers have the same value, every fund receives 100.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>Category returns range from 10% to 20%. A fund with 16.44% scores = (0.1644 - 0.10) / (0.20 - 0.10) × 100 ≈ <strong>64.4</strong>.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Percentile Rank</span>
+                            <span class="metric-meta">Category-relative position</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">Percentile = (Count(values ≤ fund_value) / Count(valid peers)) × 100</div>
+                                    <p>For lower-is-better metrics: Count(values ≥ fund_value).<br>Peers with missing data for that metric are excluded.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>Fund A = 16.44%, peers = 41 valid values, 27 funds below or equal → 27/41 × 100 = <strong>65.9th percentile</strong>.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Ordinal Rank</span>
+                            <span class="metric-meta">1st, 2nd, 3rd ...</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>Formula</h4>
+                                    <div class="formula">Rank = 1 + Count(peers with strictly better value)</div>
+                                    <p>Higher-is-better: count peers with value &gt; fund_value.<br>Lower-is-better: count peers with value &lt; fund_value.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>Fund A = 16.44%. 26 funds have higher 1Y Return → Rank = 1 + 26 = <strong>27th of 41</strong>.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Using Metrics in Fund Details</h3>
+                <div class="metrics-accordion">
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Performance Metrics Section</span>
+                            <span class="metric-meta">Fund Details modal</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>What you see</h4>
+                                    <p>A card grid showing 1Y Return, 3Y CAGR, 5Y CAGR, 10Y CAGR, Sharpe Ratio, Sortino Ratio, Volatility, Max Drawdown, and Downside Deviation. Values are raw calculated numbers, not scores.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>How to read it</h4>
+                                    <p>Returns and ratios are shown as decimals converted to percentages (e.g., 0.1644 → 16.44%). Sharpe and Sortino are shown as unitless ratios (e.g., 1.35). Volatility, drawdown, and downside deviation are shown as percentages.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>A fund with 1Y Return = 16.44%, Sharpe = 1.35, Volatility = 16.61% means it delivered strong recent returns with moderate risk.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Rolling Return Consistency</span>
+                            <span class="metric-meta">Fund Details modal</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>What you see</h4>
+                                    <p>Cards for 1Y, 3Y, and 5Y rolling windows showing positive return percentage, number of windows, and a chart of rolling CAGR over time.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>How to read it</h4>
+                                    <p>Positive % close to 100% means the fund almost always produced gains over that rolling window. A chart with many peaks and troughs indicates inconsistent period-to-period performance.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Category Relative Analysis</span>
+                            <span class="metric-meta">Fund Details modal</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>What you see</h4>
+                                    <p>A table with Metric, Fund Value, and Category Position. Position includes wording like "Top 1%", ordinal rank (e.g., 2nd of 27), exact percentile (e.g., 96.3rd percentile), and a visual bar.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>How to read it</h4>
+                                    <p>Fund Value is the raw metric. Category Position tells you how the fund stands among peers with valid data for that metric. A high percentile with a low ordinal rank means the fund is near the top of its category.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>5Y CAGR = 17.56%, 2nd of 27, 96.3rd percentile means only 1 fund in the category had a higher 5Y CAGR.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Drawdown Analysis</span>
+                            <span class="metric-meta">Fund Details modal</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>What you see</h4>
+                                    <p>A chart showing NAV peak-to-trough declines over time, plus summary stats like maximum drawdown and recovery time.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>How to read it</h4>
+                                    <p>Deeper and longer drawdowns indicate higher historical risk. A fund that recovers quickly after a decline may be more resilient than one that takes years to recover.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Using Metrics in Comparison</h3>
+                <div class="metrics-accordion">
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Side-by-Side Metrics Table</span>
+                            <span class="metric-meta">Comparison view</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>What you see</h4>
+                                    <p>A table with one row per metric and one column per selected fund. Shows raw values for returns, ratios, volatility, drawdown, downside deviation, and consistency.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>How to read it</h4>
+                                    <p>Compare raw values directly. For returns and ratios, higher is better. For volatility, drawdown, and downside deviation, lower is better. Consistency shows positive rolling window percentages.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>Example</h4>
+                                    <p>Fund A: 1Y Return = 16.44%, Sharpe = 1.35, Volatility = 16.61%. Fund B: 1Y Return = 14.20%, Sharpe = 1.10, Volatility = 18.05%. Fund A is better on all three dimensions.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Risk-Return Profile</span>
+                            <span class="metric-meta">Comparison chart</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>What you see</h4>
+                                    <p>A scatter plot with annualized return on one axis and annualized volatility on the other. Each fund is a point.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>How to read it</h4>
+                                    <p>Funds in the top-left quadrant are ideal: high return, low risk. Funds in the bottom-right are less desirable: low return, high risk. Distance from the origin indicates risk-adjusted efficiency.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Drawdown Comparison</span>
+                            <span class="metric-meta">Comparison chart</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>What you see</h4>
+                                    <p>Overlaid drawdown charts for all selected funds, showing peak-to-trough declines over time.</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>How to read it</h4>
+                                    <p>Deeper shaded areas mean larger losses from peaks. A fund with consistently shallow drawdowns is more risk-tolerant. Look for funds that recover quickly after declines.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-item">
+                        <button class="metric-trigger" type="button">
+                            <span class="metric-name">Rolling Returns Comparison</span>
+                            <span class="metric-meta">Comparison chart</span>
+                            <svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="metric-panel">
+                            <div class="metric-panel-inner">
+                                <div class="metric-block">
+                                    <h4>What you see</h4>
+                                    <p>Overlaid rolling CAGR time series for the selected window period (1Y, 3Y, or 5Y).</p>
+                                </div>
+                                <div class="metric-block">
+                                    <h4>How to read it</h4>
+                                    <p>Smoother lines indicate more consistent rolling returns. Frequent large swings suggest the fund's performance is volatile over time. Compare the average level and stability across funds.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Stock Selection</h3>
+                <div class="help-grid">
+                    <div class="help-card">
+                        <h4>Screening</h4>
+                        <p>
+                            Filter Indian stocks by fundamental criteria such as market cap, sector, PE ratio,
+                            PB ratio, ROE, debt-to-equity, and more. Combine multiple criteria with AND logic.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Ranking</h4>
+                        <p>
+                            Rank screened stocks using deterministic scoring models. Select from multiple
+                            strategies to match your investment style.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Portfolio Analysis</h3>
+                <div class="help-grid">
+                    <div class="help-card">
+                        <h4>Upload & Parse</h4>
+                        <p>
+                            Upload your portfolio as CSV or Excel. The parser extracts holdings, quantities,
+                            invested value, and current value.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Analysis</h4>
+                        <p>
+                            View portfolio weights, sector allocation, and holding-level metrics.
+                            Identify concentration risks and diversification gaps.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Data Sources & Caching</h3>
+                <p>
+                    Market data is sourced from Stoxim (fundamentals), MFAPI (mutual fund NAV and scheme metadata),
+                    and TigZig (pre-computed NAV dataset for faster batch metric calculation).
+                    Category percentile results are cached for 24 hours. Per-fund metrics are cached per lookback window.
+                </p>
+            </section>
+
+            <section class="help-section">
+                <h3>Architecture</h3>
+                <p>
+                    The platform follows a layered architecture: Frontend → FastAPI Routes → Services → Models → External Providers.
+                    Stock Selection, Portfolio Analysis, and Mutual Fund Analysis are isolated modules.
+                    AI insights are provided via Groq and are interpretation-only; they do not compute scores or fetch data.
+                </p>
+            </section>
+        </div>
+    </main>
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p>
+        </div>
+    </footer>
+    <script type="module" src="/js/core/navigation.js"></script>
+    <script type="module" src="/js/features/home/help.js"></script>
+    <script type="module">
+        import { initNavigation } from "/js/core/navigation.js";
+        import { initHelp } from "/js/features/home/help.js";
+        initNavigation();
+        initHelp();
+    </script>
+</body>
+</html>

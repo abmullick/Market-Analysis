@@ -15,20 +15,20 @@ Services (business logic)
     ↓
 Models (data structures)
     ↓
-External Providers (Stoxim, Groq)
+External Providers (Stoxim, Groq, MFAPI, TigZig)
 ```
 
 ### Product Modules
 
 - **Stock Selection** — Identify stocks using fundamental criteria and ranking strategies.
 - **Portfolio Analysis** — Upload/import a portfolio and analyze existing holdings.
-- **Mutual Fund Analysis** — Future module for mutual fund analysis (architectural boundary created).
+- **Mutual Fund Analysis** — Rank mutual funds by normalized multi-metric scoring, compare funds side-by-side, inspect fund details with NAV history, rolling returns, category-relative percentile analysis, and drawdown analysis.
 
 ### Key Principles
 
 - **Data-provider abstraction**: Stoxim integration is isolated in `backend/services/data/`; other providers can be swapped in later.
 - **AI-provider abstraction**: Groq integration is isolated in `backend/services/ai/`; other LLM providers can be swapped in later.
-- **Deterministic scoring**: Numerical rankings are calculated independently of AI in `backend/services/stocks/`.
+- **Deterministic scoring**: Numerical rankings are calculated independently of AI in `backend/services/stocks/` and `backend/services/mutual_funds/`.
 - **No hardcoded secrets**: All configuration comes from environment variables via `backend/config/settings.py`.
 - **Dependency direction**: Frontend → Routes → Services → Models → External Providers. Never reversed.
 - **Module isolation**: Stock Selection, Portfolio Analysis, and Mutual Fund Analysis do not depend on each other's business logic.
@@ -83,14 +83,21 @@ Market-Analysis/
 │   ├── services/                   # Business logic
 │   │   ├── data/                   # Shared data provider layer
 │   │   │   ├── stoxim.py
-│   │   │   └── fundamentals.py
+│   │   │   ├── fundamentals.py
+│   │   │   ├── mfapi.py
+│   │   │   └── tigzig.py
 │   │   ├── stocks/                 # Stock Selection module
 │   │   │   └── screener.py
 │   │   ├── portfolio/              # Portfolio Analysis module
 │   │   │   ├── parser.py
 │   │   │   └── analysis.py
 │   │   ├── mutual_funds/           # Mutual Fund Analysis module
-│   │   │   └── analysis.py
+│   │   │   ├── fetcher.py
+│   │   │   ├── calculator.py
+│   │   │   ├── ranking.py
+│   │   │   ├── cache.py
+│   │   │   ├── normalizer.py
+│   │   │   └── category_normalizer.py
 │   │   └── ai/                     # AI insight service
 │   │       └── groq.py
 │   ├── models/                     # Data models
@@ -184,18 +191,18 @@ Owns portfolio upload, parsing, holdings, portfolio weights, holding-level analy
 - `backend/services/mutual_funds/`
 
 ### Mutual Fund Analysis
-Owns fund-specific analysis. Architectural boundary exists; implementation is future work.
+Owns fund-specific analysis including metric calculation from NAV history, category-relative percentile ranking, multi-fund comparison, fund detail modal with rolling returns and drawdown analysis, and screening/preset workflows.
 
 **Allowed to depend on:**
-- `backend/services/data/` (fundamental data)
-- `backend/services/ai/` (insights only, not analysis)
+- `backend/services/data/` (fundamental data, NAV history, TigZig dataset)
+- `backend/services/ai/` (insights only, not scoring)
 
 **Must NOT depend on:**
 - `backend/services/stocks/`
 - `backend/services/portfolio/`
 
 ### Shared Data Layer
-Owns market/company/fundamental data retrieval, normalization, and caching. Provides `FundamentalDataProvider` abstraction with Stoxim implementation. Product modules depend on this layer, not on Stoxim directly.
+Owns market/company/fundamental data retrieval, normalization, and caching. Provides `FundamentalDataProvider` abstraction with Stoxim implementation and `MutualFundFetcher` abstraction with MFAPI/TigZig implementations. Product modules depend on this layer, not on providers directly.
 
 **Must NOT depend on:**
 - Any product module (`stocks/`, `portfolio/`, `mutual_funds/`)
@@ -321,6 +328,15 @@ To replace Stoxim or Groq:
    - `APP_ENV` — set to `production`
    - `APP_DEBUG` — set to `false`
 5. Deploy the service.
+
+## Mutual Fund Analysis Features
+
+- **Fund Ranking**: Rank funds by normalized multi-metric scoring across 1Y/3Y/5Y/10Y returns, Sharpe, Sortino, volatility, drawdown, downside deviation, and rolling consistency.
+- **Category-Relative Analysis**: View percentile ranks and ordinal position within the fund's category for every metric.
+- **Fund Comparison**: Select multiple funds and compare metrics, risk-return profiles, drawdowns, and rolling returns side-by-side.
+- **Fund Details Modal**: Inspect NAV history, performance metrics, rolling returns chart, drawdown analysis, asset allocation, top holdings, and category-relative positioning.
+- **Screening & Presets**: Apply AUM, age, and other filters; use built-in presets (Best Overall, Highest Returns, Lowest Risk, Best Consistency) or custom criteria weights.
+- **Caching**: 24-hour category-level cache for percentile calculations and per-fund metric cache to minimize recalculation.
 
 ## Notes
 

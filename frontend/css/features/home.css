@@ -62,9 +62,27 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
+.header-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.product-owner {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--color-text-light);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
 @media (max-width: 640px) {
     .hero-brand {
         width: 140px;
         margin-bottom: 16px;
+    }
+
+    .product-owner {
+        font-size: 0.625rem;
     }
 }

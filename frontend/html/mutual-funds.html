@@ -19,24 +19,34 @@
         <nav id="main-nav"></nav>
     </header>
     <main class="container">
-        <div id="mutual-fund-content">
-            <div class="ranking-layout">
-                <aside class="ranking-controls">
-                    <h2>Ranking Controls</h2>
-                    <div id="ranking-filters"></div>
-                    <div id="ranking-screener"></div>
-                    <div id="ranking-preset"></div>
-                    <div id="ranking-criteria"></div>
-                    <button id="run-ranking" class="btn btn-primary">Run Ranking</button>
-                    <div id="ranking-methodology" class="methodology-box"></div>
-                </aside>
-                <section class="ranking-results">
-                    <div id="ranking-summary"></div>
-                    <div id="ranking-result-filters"></div>
-                    <div id="ranking-table-container"></div>
-                </section>
+        <div class="page-header">
+            <div id="mutual-fund-content">
+                <div class="ranking-layout">
+                    <aside class="ranking-controls">
+                        <h2>Ranking Controls</h2>
+                        <div id="ranking-filters"></div>
+                        <div id="ranking-screener"></div>
+                        <div id="ranking-preset"></div>
+                        <div id="ranking-criteria"></div>
+                        <button id="run-ranking" class="btn btn-primary">Run Ranking</button>
+                        <div id="ranking-methodology" class="methodology-box"></div>
+                    </aside>
+                    <section class="ranking-results">
+                        <div id="ranking-summary"></div>
+                        <div id="ranking-result-filters"></div>
+                        <div id="ranking-table-container"></div>
+                    </section>
+                </div>
             </div>
         </div>
+        <a href="help.html" class="help-link" title="Help & Methodology">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span>Help & Methodology</span>
+        </a>
     </main>
     <div id="fund-detail-modal" class="modal-container"></div>
     <script type="module" src="/js/core/config.js"></script>

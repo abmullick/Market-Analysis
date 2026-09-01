@@ -46,6 +46,11 @@ async def read_portfolio():
 async def read_mutual_funds():
     return FileResponse("frontend/html/mutual-funds.html")
 
+
+@app.get("/help.html")
+async def read_help():
+    return FileResponse("frontend/html/help.html")
+
 # Serve static assets
 app.mount("/css", StaticFiles(directory="frontend/css"), name="css")
 app.mount("/js", StaticFiles(directory="frontend/js"), name="js")

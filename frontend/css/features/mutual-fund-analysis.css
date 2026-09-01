@@ -2621,3 +2621,251 @@ body.modal-open {
 .position-low .percentile-bar {
     background: var(--color-danger);
 }
+
+/* Help & Methodology */
+.help-link {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: #ffffff;
+    border-radius: var(--radius-pill);
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.25);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 90;
+    text-decoration: none;
+}
+
+.help-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35);
+    color: #ffffff;
+}
+
+.help-link svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.help-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 0 80px;
+}
+
+.help-section {
+    margin-bottom: 48px;
+}
+
+.help-section h2 {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--color-primary);
+    margin-bottom: 12px;
+    letter-spacing: -0.02em;
+}
+
+.help-section h3 {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.help-lead {
+    font-size: 1.0625rem;
+    color: var(--color-text-light);
+    line-height: 1.7;
+}
+
+.help-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+}
+
+.help-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    transition: all 0.25s ease;
+}
+
+.help-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    border-color: var(--color-slate-400);
+}
+
+.help-card h4 {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin-bottom: 8px;
+}
+
+.help-card p {
+    font-size: 0.875rem;
+    color: var(--color-text-light);
+    line-height: 1.6;
+    margin: 0;
+}
+
+@media (max-width: 640px) {
+    .help-link {
+        bottom: 16px;
+        right: 16px;
+        padding: 10px 16px;
+        font-size: 0.8125rem;
+    }
+
+    .help-container {
+        padding: 24px 0 60px;
+    }
+
+    .help-section h2 {
+        font-size: 1.375rem;
+    }
+
+    .help-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Metrics Accordion */
+.metrics-accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.metric-item {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: all 0.25s ease;
+}
+
+.metric-item:hover {
+    border-color: var(--color-slate-400);
+}
+
+.metric-item.open {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.metric-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 20px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: background 0.2s ease;
+}
+
+.metric-trigger:hover {
+    background: var(--color-bg);
+}
+
+.metric-name {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+.metric-meta {
+    font-size: 0.8125rem;
+    color: var(--color-text-light);
+    font-weight: 500;
+}
+
+.metric-chevron {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: var(--color-text-light);
+    transition: transform 0.25s ease;
+}
+
+.metric-panel {
+    display: none;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg);
+}
+
+.metric-panel[hidden] {
+    display: none;
+}
+
+.metric-item.open .metric-panel {
+    display: block;
+}
+
+.metric-panel-inner {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.metric-block h4 {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--color-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+}
+
+.metric-block p {
+    font-size: 0.875rem;
+    color: var(--color-text);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.formula {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 6px;
+}
+
+@media (max-width: 640px) {
+    .metric-trigger {
+        padding: 14px 16px;
+        flex-wrap: wrap;
+    }
+
+    .metric-meta {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .metric-panel-inner {
+        padding: 16px;
+    }
+}
