@@ -339,3 +339,149 @@ class TestRollingReturnsEndpoint:
             await mutual_funds.get_rolling_returns("120716", years=3)
         assert exc_info.value.status_code == 502
         assert "MFAPI is down" in exc_info.value.detail
+
+
+class TestComparisonDataAvailability:
+    """Verify the detail endpoint provides all fields required for comparison."""
+
+    def test_fund_detail_contains_comparison_fields(self):
+        """FundDetailResponse must include fields used by the comparison view."""
+        detail = FundDetailResponse(
+            scheme_code="148404",
+            scheme_name="Test Flexi Cap Fund",
+            amc="Test AMC",
+            category="Equity - Flexi Cap",
+            sub_category="Flexi Cap",
+            plan="Direct",
+            option="Growth",
+            nav=42.77,
+            nav_date="2026-08-31",
+            aum_cr=592.85,
+            aum_quarter="June-2026",
+            aum_quarter_end="2026-06-30",
+            first_nav_date="2020-07-01",
+            fund_age_years=6.15,
+            expense_ratio=1.2,
+            minimum_investment=500,
+            fund_manager="Test Manager",
+            one_year_return=0.1644,
+            three_year_cagr=0.2145,
+            five_year_cagr=0.1755,
+            ten_year_cagr=0.1900,
+            annualized_volatility=0.1661,
+            sharpe_ratio=1.354,
+            sortino_ratio=1.852,
+            maximum_drawdown=0.25,
+            downside_deviation=0.12,
+            rolling_return_consistency={
+                "1Y": {"windows": 252, "positive_pct": 80.0, "mean_return": 0.012},
+                "3Y": {"windows": 756, "positive_pct": 65.0, "mean_return": 0.008},
+                "5Y": {"windows": 1260, "positive_pct": 70.0, "mean_return": 0.010},
+            },
+            data_points=1523,
+            data_start_date="2020-07-01",
+            data_end_date="2026-08-31",
+        )
+
+        assert detail.scheme_code == "148404"
+        assert detail.amc == "Test AMC"
+        assert detail.category == "Equity - Flexi Cap"
+        assert detail.plan == "Direct"
+        assert detail.option == "Growth"
+        assert detail.first_nav_date == "2020-07-01"
+        assert detail.fund_age_years == pytest.approx(6.15, abs=1e-2)
+        assert detail.aum_cr == pytest.approx(592.85)
+        assert detail.one_year_return == pytest.approx(0.1644)
+        assert detail.three_year_cagr == pytest.approx(0.2145)
+        assert detail.five_year_cagr == pytest.approx(0.1755)
+        assert detail.ten_year_cagr == pytest.approx(0.19)
+        assert detail.annualized_volatility == pytest.approx(0.1661)
+        assert detail.sharpe_ratio == pytest.approx(1.354)
+        assert detail.sortino_ratio == pytest.approx(1.852)
+        assert detail.maximum_drawdown == pytest.approx(0.25)
+        assert detail.downside_deviation == pytest.approx(0.12)
+        assert detail.rolling_return_consistency is not None
+        assert detail.rolling_return_consistency["1Y"]["positive_pct"] == 80.0
+        assert detail.rolling_return_consistency["3Y"]["positive_pct"] == 65.0
+        assert detail.rolling_return_consistency["5Y"]["positive_pct"] == 70.0
+        assert detail.data_points == 1523
+        assert detail.data_start_date == "2020-07-01"
+        assert detail.data_end_date == "2026-08-31"
+
+    def test_comparison_data_preparation_merges_ranking_and_detail(self):
+        """Comparison data should merge ranking results with detail data."""
+        ranking_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "amc": "Test AMC",
+            "category": "Equity - Flexi Cap",
+            "overall_score": 85.2,
+            "criteria_scores": [
+                {"criterion": "1Y_return", "weight": 100.0, "score": 85.2, "raw_value": 0.1644},
+            ],
+            "aum_cr": 592.85,
+            "first_nav_date": "2020-07-01",
+        }
+
+        detail_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "amc": "Test AMC",
+            "category": "Equity - Flexi Cap",
+            "plan": "Direct",
+            "option": "Growth",
+            "first_nav_date": "2020-07-01",
+            "fund_age_years": 6.15,
+            "aum_cr": 592.85,
+            "one_year_return": 0.1644,
+            "three_year_cagr": 0.2145,
+            "five_year_cagr": 0.1755,
+            "ten_year_cagr": 0.19,
+            "annualized_volatility": 0.1661,
+            "sharpe_ratio": 1.354,
+            "sortino_ratio": 1.852,
+            "maximum_drawdown": 0.25,
+            "downside_deviation": 0.12,
+            "rolling_return_consistency": {
+                "1Y": {"positive_pct": 80.0, "mean_return": 0.012},
+                "3Y": {"positive_pct": 65.0, "mean_return": 0.008},
+                "5Y": {"positive_pct": 70.0, "mean_return": 0.010},
+            },
+            "data_points": 1523,
+            "data_start_date": "2020-07-01",
+            "data_end_date": "2026-08-31",
+        }
+
+        enriched = {**ranking_data, "_detail": detail_data}
+
+        assert enriched["scheme_code"] == "148404"
+        assert enriched["_detail"]["plan"] == "Direct"
+        assert enriched["_detail"]["option"] == "Growth"
+        assert enriched["_detail"]["fund_age_years"] == pytest.approx(6.15, abs=1e-2)
+        assert enriched["_detail"]["rolling_return_consistency"]["1Y"]["positive_pct"] == 80.0
+        assert enriched["_detail"]["data_points"] == 1523
+
+    def test_comparison_falls_back_to_ranking_when_detail_missing(self):
+        """If detail fetch fails, comparison should still show ranking data."""
+        ranking_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "amc": "Test AMC",
+            "overall_score": 85.2,
+            "criteria_scores": [
+                {"criterion": "1Y_return", "weight": 100.0, "score": 85.2, "raw_value": 0.1644},
+                {"criterion": "3Y_cagr", "weight": 0.0, "score": 0.0, "raw_value": 0.2145},
+            ],
+            "aum_cr": 592.85,
+            "first_nav_date": "2020-07-01",
+        }
+
+        enriched = {**ranking_data, "_detail": None}
+
+        assert enriched["scheme_name"] == "Test Fund"
+        assert enriched["overall_score"] == 85.2
+        assert enriched["_detail"] is None
+
+        cs = next((c for c in enriched.get("criteria_scores", []) if c["criterion"] == "1Y_return"), None)
+        assert cs is not None
+        assert cs["raw_value"] == pytest.approx(0.1644)

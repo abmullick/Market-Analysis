@@ -1437,13 +1437,36 @@ function updateRowCheckboxes() {
     });
 }
 
-function showComparisonView() {
+async function showComparisonView() {
     if (selectedFunds.size < MIN_COMPARE) return;
     isComparisonView = true;
     const resultsContainer = document.querySelector(".ranking-results");
     if (!resultsContainer) return;
-    resultsContainer.innerHTML = "";
-    renderComparisonTable(resultsContainer);
+
+    const selected = filteredRankings.filter(r => selectedFunds.has(r.scheme_code));
+
+    resultsContainer.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading comparison data...</div>';
+
+    try {
+        const detailPromises = selected.map(f =>
+            api.get(`/mutual-funds/${f.scheme_code}/detail`).catch(err => {
+                console.error(`Failed to fetch detail for ${f.scheme_code}:`, err);
+                return null;
+            })
+        );
+
+        const details = await Promise.all(detailPromises);
+
+        const enriched = selected.map((fund, i) => ({
+            ...fund,
+            _detail: details[i],
+        }));
+
+        resultsContainer.innerHTML = "";
+        renderComparisonTable(resultsContainer, enriched);
+    } catch (error) {
+        resultsContainer.innerHTML = `<div class="empty-state"><h3>Comparison failed</h3><p>${error.message}</p></div>`;
+    }
 }
 
 function hideComparisonView() {
@@ -1468,30 +1491,88 @@ function hideComparisonView() {
     renderFilteredTable(filteredRankings);
 }
 
-function renderComparisonTable(container) {
-    const selected = filteredRankings.filter(r => selectedFunds.has(r.scheme_code));
-    if (selected.length < MIN_COMPARE) {
+function renderComparisonTable(container, enrichedFunds) {
+    if (!enrichedFunds || enrichedFunds.length < MIN_COMPARE) {
         container.innerHTML = `<div class="empty-state"><h3>Not enough funds selected</h3><p>Select at least ${MIN_COMPARE} funds to compare.</p></div>`;
         return;
     }
 
+    const formatValue = (value, unit) => {
+        if (value == null) return "Not available";
+        if (unit === "percent") return `${(value * 100).toFixed(2)}%`;
+        if (unit === "ratio") return value.toFixed(2);
+        if (unit === "integer") return Math.round(value).toLocaleString();
+        if (unit === "currency") return `₹${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        return value.toFixed(2);
+    };
+
+    const getDetailValue = (fund, key) => {
+        if (!fund._detail) return null;
+        return fund._detail[key];
+    };
+
     const getMetricValue = (fund, key) => {
         if (key === "overall_score") return fund.overall_score;
+
+        const detailKey = key === "1Y_return" ? "one_year_return" :
+                         key === "3Y_cagr" ? "three_year_cagr" :
+                         key === "5Y_cagr" ? "five_year_cagr" :
+                         key === "10Y_cagr" ? "ten_year_cagr" :
+                         key === "sharpe_ratio" ? "sharpe_ratio" :
+                         key === "sortino_ratio" ? "sortino_ratio" :
+                         key === "volatility" ? "annualized_volatility" :
+                         key === "maximum_drawdown" ? "maximum_drawdown" :
+                         key === "downside_deviation" ? "downside_deviation" :
+                         key === "consistency" ? null : key;
+
+        if (detailKey) {
+            const val = getDetailValue(fund, detailKey);
+            if (val != null) return val;
+        }
+
         const cs = (fund.criteria_scores || []).find(c => c.criterion === key);
         return cs ? cs.raw_value : null;
     };
 
-    const formatMetricValue = (value, unit) => {
-        if (value == null) return "N/A";
-        if (unit === "percent") return `${(value * 100).toFixed(2)}%`;
-        return value.toFixed(2);
+    const getRollingValue = (fund, period, metric) => {
+        if (!fund._detail) return null;
+        const rolling = fund._detail.rolling_return_consistency;
+        if (!rolling) return null;
+        const window = rolling[period];
+        if (!window) return null;
+        return window[metric];
     };
 
-    const getMetricRank = (metric, values) => {
-        const validValues = values.filter(v => v.value != null);
-        if (validValues.length < 2) return null;
-        const sorted = [...validValues].sort((a, b) => metric.higherBetter ? b.value - a.value : a.value - b.value);
-        return sorted;
+    const isHigherBetter = (key) => {
+        const meta = COMPARE_METRICS.find(m => m.key === key);
+        return meta ? meta.higherBetter : true;
+    };
+
+    const getBestIndices = (values, higherBetter) => {
+        const valid = values.filter(v => v != null);
+        if (valid.length < 2) return new Set();
+
+        const best = new Set();
+        let bestValue = higherBetter ? -Infinity : Infinity;
+
+        values.forEach((v, i) => {
+            if (v == null) return;
+            if (higherBetter ? v > bestValue : v < bestValue) {
+                bestValue = v;
+                best.clear();
+                best.add(i);
+            } else if (v === bestValue) {
+                best.add(i);
+            }
+        });
+
+        return best;
+    };
+
+    const sectionHeader = (label) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="comparison-section-header" colspan="${enrichedFunds.length + 1}">${label}</td>`;
+        return tr;
     };
 
     const wrapper = document.createElement("div");
@@ -1502,7 +1583,7 @@ function renderComparisonTable(container) {
     header.innerHTML = `
         <button class="btn-back" id="back-to-rankings">← Back to Rankings</button>
         <h3 class="comparison-title">Fund Comparison</h3>
-        <span class="comparison-subtitle">${selected.length} funds</span>
+        <span class="comparison-subtitle">${enrichedFunds.length} funds</span>
     `;
     wrapper.appendChild(header);
 
@@ -1514,32 +1595,107 @@ function renderComparisonTable(container) {
 
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
-    headerRow.innerHTML = `<th>Metric</th>${selected.map(f => `<th class="fund-col"><div class="fund-col-name"><span class="fund-link" data-scheme="${f.scheme_code}" data-name="${encodeURIComponent(f.scheme_name)}">${f.scheme_name}</span></div><div class="fund-col-meta">${f.amc} · ${f.scheme_code}</div></th>`).join("")}`;
+    headerRow.innerHTML = `<th>Metric</th>${enrichedFunds.map(f => `<th class="fund-col"><div class="fund-col-name"><span class="fund-link" data-scheme="${f.scheme_code}" data-name="${encodeURIComponent(f.scheme_name)}">${f.scheme_name}</span></div><div class="fund-col-meta">${f.amc || "—"} · ${f.scheme_code}</div></th>`).join("")}`;
     thead.appendChild(headerRow);
     table.appendChild(thead);
 
     const tbody = document.createElement("tbody");
 
-    const metaRows = [
-        { label: "AUM (AAUM)", render: (f) => f.aum_cr != null ? `₹${f.aum_cr.toLocaleString()} Cr` : "N/A" },
-        { label: "First NAV Date", render: (f) => f.first_nav_date || "N/A" },
-        { label: "Overall Score", render: (f) => f.overall_score != null ? `${f.overall_score.toFixed(1)} / 100` : "N/A" },
+    const fundInfoRows = [
+        { label: "AMC", key: "amc", fallback: (f) => f.amc || "Not available" },
+        { label: "Category", key: "category", fallback: (f) => f.category || "Not available" },
+        { label: "Plan", key: "plan", fallback: (f) => f._detail?.plan || "Not available" },
+        { label: "Option", key: "option", fallback: (f) => f._detail?.option || "Not available" },
+        { label: "Fund Inception", key: "first_nav_date", fallback: (f) => f.first_nav_date || "Not available" },
+        { label: "Fund Age", key: "fund_age_years", fallback: (f) => f._detail?.fund_age_years != null ? `${f._detail.fund_age_years.toFixed(1)} years` : "Not available" },
+        { label: "AUM (AAUM)", key: "aum_cr", fallback: (f) => f.aum_cr != null ? `₹${f.aum_cr.toLocaleString()} Cr` : "Not available" },
+        { label: "Overall Score", key: null, fallback: (f) => f.overall_score != null ? `${f.overall_score.toFixed(1)} / 100` : "Not available" },
     ];
 
-    metaRows.forEach(meta => {
+    tbody.appendChild(sectionHeader("Fund Information"));
+
+    fundInfoRows.forEach(row => {
+        const values = enrichedFunds.map(f => {
+            const val = getDetailValue(f, row.key);
+            if (val != null) return row.key === "aum_cr" ? `₹${val.toLocaleString()} Cr` : String(val);
+            return row.fallback(f);
+        });
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td class="metric-label">${meta.label}</td>${selected.map(f => `<td class="metric-value">${meta.render(f)}</td>`).join("")}`;
+        tr.innerHTML = `<td class="metric-label">${row.label}</td>${values.map(v => `<td class="metric-value">${v}</td>`).join("")}`;
         tbody.appendChild(tr);
     });
 
-    COMPARE_METRICS.forEach(metric => {
-        const values = selected.map(f => ({ fund: f, value: getMetricValue(f, metric.key) }));
-        const ranked = getMetricRank(metric, values);
+    tbody.appendChild(sectionHeader("Data Period"));
+
+    const dataPeriods = enrichedFunds.map(f => {
+        if (f._detail && f._detail.data_start_date && f._detail.data_end_date) {
+            const points = f._detail.data_points != null ? ` (${f._detail.data_points.toLocaleString()} points)` : "";
+            return `${f._detail.data_start_date} to ${f._detail.data_end_date}${points}`;
+        }
+        return "Not available";
+    });
+
+    const periodTr = document.createElement("tr");
+    periodTr.innerHTML = `<td class="metric-label">Period</td>${dataPeriods.map(v => `<td class="metric-value comparison-data-period">${v}</td>`).join("")}`;
+    tbody.appendChild(periodTr);
+
+    tbody.appendChild(sectionHeader("Performance"));
+
+    const performanceMetrics = [
+        { key: "1Y_return", label: "1Y Return", unit: "percent" },
+        { key: "3Y_cagr", label: "3Y CAGR", unit: "percent" },
+        { key: "5Y_cagr", label: "5Y CAGR", unit: "percent" },
+        { key: "10Y_cagr", label: "10Y CAGR", unit: "percent" },
+    ];
+
+    performanceMetrics.forEach(metric => {
+        const values = enrichedFunds.map(f => getMetricValue(f, metric.key));
+        const bestIndices = getBestIndices(values, true);
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td class="metric-label">${metric.label}</td>${values.map(v => {
-            const rank = ranked ? ranked.findIndex(r => r.fund === v.fund) : -1;
-            const isBest = rank === 0 && v.value != null;
-            return `<td class="metric-value${isBest ? " best" : ""}">${formatMetricValue(v.value, metric.unit)}${isBest ? '<span class="best-indicator">●</span>' : ""}</td>`;
+        tr.innerHTML = `<td class="metric-label">${metric.label}</td>${values.map((v, i) => {
+            const isBest = bestIndices.has(i) && v != null;
+            return `<td class="metric-value${isBest ? " best" : ""}">${formatValue(v, metric.unit)}${isBest ? '<span class="best-indicator">●</span>' : ""}</td>`;
+        }).join("")}`;
+        tbody.appendChild(tr);
+    });
+
+    tbody.appendChild(sectionHeader("Risk"));
+
+    const riskMetrics = [
+        { key: "volatility", label: "Annualized Volatility", unit: "percent" },
+        { key: "sharpe_ratio", label: "Sharpe Ratio", unit: "ratio" },
+        { key: "sortino_ratio", label: "Sortino Ratio", unit: "ratio" },
+        { key: "maximum_drawdown", label: "Maximum Drawdown", unit: "percent" },
+        { key: "downside_deviation", label: "Downside Deviation", unit: "percent" },
+    ];
+
+    riskMetrics.forEach(metric => {
+        const values = enrichedFunds.map(f => getMetricValue(f, metric.key));
+        const bestIndices = getBestIndices(values, false);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="metric-label">${metric.label}</td>${values.map((v, i) => {
+            const isBest = bestIndices.has(i) && v != null;
+            return `<td class="metric-value${isBest ? " best" : ""}">${formatValue(v, metric.unit)}${isBest ? '<span class="best-indicator">●</span>' : ""}</td>`;
+        }).join("")}`;
+        tbody.appendChild(tr);
+    });
+
+    tbody.appendChild(sectionHeader("Consistency"));
+
+    const rollingRows = [
+        { label: "1Y Rolling +%", period: "1Y", metric: "positive_pct", unit: "percent" },
+        { label: "3Y Rolling +%", period: "3Y", metric: "positive_pct", unit: "percent" },
+        { label: "5Y Rolling +%", period: "5Y", metric: "positive_pct", unit: "percent" },
+        { label: "Mean Rolling Return", period: "1Y", metric: "mean_return", unit: "percent" },
+    ];
+
+    rollingRows.forEach(row => {
+        const values = enrichedFunds.map(f => getRollingValue(f, row.period, row.metric));
+        const bestIndices = row.metric === "positive_pct" ? getBestIndices(values, true) : getBestIndices(values, true);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="metric-label">${row.label}</td>${values.map((v, i) => {
+            const isBest = bestIndices.has(i) && v != null;
+            return `<td class="metric-value${isBest ? " best" : ""}">${formatValue(v, row.unit)}${isBest ? '<span class="best-indicator">●</span>' : ""}</td>`;
         }).join("")}`;
         tbody.appendChild(tr);
     });
