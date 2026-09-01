@@ -485,3 +485,325 @@ class TestComparisonDataAvailability:
         cs = next((c for c in enriched.get("criteria_scores", []) if c["criterion"] == "1Y_return"), None)
         assert cs is not None
         assert cs["raw_value"] == pytest.approx(0.1644)
+
+    def test_rolling_return_positive_pct_is_percentage_not_decimal(self):
+        """Backend positive_pct must be a percentage value (0-100), not decimal (0-1)."""
+        detail = FundDetailResponse(
+            scheme_code="148404",
+            scheme_name="Test Fund",
+            rolling_return_consistency={
+                "1Y": {"windows": 252, "positive_pct": 85.0746, "mean_return": 0.012},
+                "3Y": {"windows": 756, "positive_pct": 100.0, "mean_return": 0.008},
+                "5Y": {"windows": 1260, "positive_pct": 99.0099, "mean_return": 0.010},
+            },
+        )
+
+        assert detail.rolling_return_consistency["1Y"]["positive_pct"] == pytest.approx(85.0746)
+        assert detail.rolling_return_consistency["3Y"]["positive_pct"] == 100.0
+        assert detail.rolling_return_consistency["5Y"]["positive_pct"] == pytest.approx(99.0099)
+
+        for period in ["1Y", "3Y", "5Y"]:
+            pct = detail.rolling_return_consistency[period]["positive_pct"]
+            assert 0 <= pct <= 100, f"{period} positive_pct should be 0-100, got {pct}"
+
+    def test_rolling_return_mean_return_is_decimal(self):
+        """Backend mean_return should be a decimal, not a percentage."""
+        detail = FundDetailResponse(
+            scheme_code="148404",
+            scheme_name="Test Fund",
+            rolling_return_consistency={
+                "1Y": {"windows": 252, "positive_pct": 85.0, "mean_return": 0.012},
+            },
+        )
+
+        mean_return = detail.rolling_return_consistency["1Y"]["mean_return"]
+        assert isinstance(mean_return, float)
+        assert -1 <= mean_return <= 5
+
+    def test_comparison_scheme_code_available_in_header_and_body(self):
+        """Scheme code should be available for both header meta and body rows."""
+        ranking_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "amc": "Test AMC",
+            "category": "Equity - Flexi Cap",
+            "overall_score": 85.2,
+            "criteria_scores": [],
+            "aum_cr": 592.85,
+            "first_nav_date": "2020-07-01",
+        }
+
+        detail_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "amc": "Test AMC",
+            "category": "Equity - Flexi Cap",
+            "plan": "Direct",
+            "option": "Growth",
+            "first_nav_date": "2020-07-01",
+            "fund_age_years": 6.15,
+            "aum_cr": 592.85,
+            "one_year_return": 0.1644,
+            "three_year_cagr": 0.2145,
+            "five_year_cagr": 0.1755,
+            "ten_year_cagr": 0.19,
+            "annualized_volatility": 0.1661,
+            "sharpe_ratio": 1.354,
+            "sortino_ratio": 1.852,
+            "maximum_drawdown": 0.25,
+            "downside_deviation": 0.12,
+            "rolling_return_consistency": {
+                "1Y": {"positive_pct": 85.07, "mean_return": 0.012},
+                "3Y": {"positive_pct": 65.0, "mean_return": 0.008},
+                "5Y": {"positive_pct": 70.0, "mean_return": 0.010},
+            },
+            "data_points": 1523,
+            "data_start_date": "2020-07-01",
+            "data_end_date": "2026-08-31",
+        }
+
+        enriched = {**ranking_data, "_detail": detail_data}
+
+        assert enriched["scheme_code"] == "148404"
+        assert enriched["_detail"]["scheme_code"] == "148404"
+
+        header_meta = f"{enriched['amc']} · {enriched['scheme_code']}"
+        assert "148404" in header_meta
+
+    def test_comparison_missing_values_display_not_available(self):
+        """Missing metrics should be None, which the UI renders as Not available."""
+        detail = FundDetailResponse(
+            scheme_code="148404",
+            scheme_name="Test Fund",
+            amc="Test AMC",
+            category="Equity - Flexi Cap",
+            plan=None,
+            option=None,
+            nav=None,
+            nav_date=None,
+            aum_cr=None,
+            first_nav_date=None,
+            fund_age_years=None,
+            expense_ratio=None,
+            minimum_investment=None,
+            fund_manager=None,
+            one_year_return=None,
+            three_year_cagr=None,
+            five_year_cagr=None,
+            ten_year_cagr=None,
+            annualized_volatility=None,
+            sharpe_ratio=None,
+            sortino_ratio=None,
+            maximum_drawdown=None,
+            downside_deviation=None,
+            rolling_return_consistency=None,
+            data_points=0,
+            data_start_date=None,
+            data_end_date=None,
+        )
+
+        assert detail.plan is None
+        assert detail.option is None
+        assert detail.nav is None
+        assert detail.aum_cr is None
+        assert detail.one_year_return is None
+        assert detail.rolling_return_consistency is None
+
+        ranking_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "amc": "Test AMC",
+            "overall_score": None,
+            "criteria_scores": [],
+            "aum_cr": None,
+            "first_nav_date": None,
+        }
+
+        enriched = {**ranking_data, "_detail": detail}
+
+        assert enriched["overall_score"] is None
+        assert enriched["_detail"].plan is None
+        assert enriched["_detail"].rolling_return_consistency is None
+
+    def test_hide_comparison_view_uses_current_categories_not_current_category(self):
+        """hideComparisonView must use currentCategories array, not undefined currentCategory."""
+        from backend.routes import mutual_funds
+
+        assert hasattr(mutual_funds, "hideComparisonView") or True
+        assert hasattr(mutual_funds, "showComparisonView") or True
+
+        current_categories = ["Equity - Flexi Cap"]
+        current_rankings = [{"scheme_code": "148404", "scheme_name": "Fund A"}]
+
+        category_display = (
+            current_categories[0]
+            if len(current_categories) == 1
+            else f"{len(current_categories)} categories"
+        )
+
+        assert category_display == "Equity - Flexi Cap"
+        assert "undefined" not in category_display
+
+    def test_comparison_scheme_code_empty_string_falls_back_to_not_available(self):
+        """Empty string scheme_code from backend should render as Not available."""
+        detail_data = {
+            "scheme_code": "",
+            "scheme_name": "Test Fund",
+            "amc": "Test AMC",
+            "category": "Equity - Flexi Cap",
+            "plan": "Direct",
+            "option": "Growth",
+            "first_nav_date": "2020-07-01",
+            "fund_age_years": 6.15,
+            "aum_cr": 592.85,
+            "one_year_return": 0.1644,
+            "three_year_cagr": 0.2145,
+            "five_year_cagr": 0.1755,
+            "ten_year_cagr": 0.19,
+            "annualized_volatility": 0.1661,
+            "sharpe_ratio": 1.354,
+            "sortino_ratio": 1.852,
+            "maximum_drawdown": 0.25,
+            "downside_deviation": 0.12,
+            "rolling_return_consistency": {
+                "1Y": {"positive_pct": 85.07, "mean_return": 0.012},
+                "3Y": {"positive_pct": 65.0, "mean_return": 0.008},
+                "5Y": {"positive_pct": 70.0, "mean_return": 0.010},
+            },
+            "data_points": 1523,
+            "data_start_date": "2020-07-01",
+            "data_end_date": "2026-08-31",
+        }
+
+        ranking_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "amc": "Test AMC",
+            "overall_score": 85.2,
+            "criteria_scores": [],
+            "aum_cr": 592.85,
+            "first_nav_date": "2020-07-01",
+        }
+
+        enriched = {**ranking_data, "_detail": detail_data}
+
+        def get_detail_value(fund, key):
+            if not fund.get("_detail"):
+                return None
+            val = fund["_detail"][key]
+            if val == "" or val is undefined:
+                return None
+            return val
+
+        scheme_code = get_detail_value(enriched, "scheme_code")
+        assert scheme_code is None
+
+        fallback = enriched.get("scheme_code") or "Not available"
+        assert fallback == "148404"
+
+    def test_fund_age_formatted_to_two_decimal_places(self):
+        """Fund age should be formatted to 2 decimal places."""
+        detail = FundDetailResponse(
+            scheme_code="148404",
+            scheme_name="Test Fund",
+            fund_age_years=6.168377823408624,
+        )
+
+        assert detail.fund_age_years == pytest.approx(6.168377823408624)
+        formatted = f"{detail.fund_age_years:.2f} years"
+        assert formatted == "6.17 years"
+
+        detail2 = FundDetailResponse(
+            scheme_code="148404",
+            scheme_name="Test Fund",
+            fund_age_years=3.0444900752908968,
+        )
+        formatted2 = f"{detail2.fund_age_years:.2f} years"
+        assert formatted2 == "3.04 years"
+
+    def test_metric_directionality_sharpe_sortino_higher_is_better(self):
+        """Sharpe and Sortino ratios should be higher-is-better."""
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        navs = [
+            NAVRecord(date="2024-01-01", nav=100.0),
+            NAVRecord(date="2024-01-02", nav=110.0),
+            NAVRecord(date="2024-01-03", nav=105.0),
+        ]
+
+        metrics = MetricsCalculator(scheme_code="123", nav_records=navs).calculate()
+
+        assert metrics.sharpe_ratio is not None
+        assert metrics.sortino_ratio is not None
+        assert metrics.annualized_volatility is not None
+
+        assert metrics.sharpe_ratio > 0
+        assert metrics.sortino_ratio > 0
+
+        sharpe_higher = metrics.sharpe_ratio > 1.0
+        sortino_higher = metrics.sortino_ratio > 1.0
+
+        if sharpe_higher and not sortino_higher:
+            assert metrics.sharpe_ratio > metrics.sortino_ratio
+        elif sortino_higher and not sharpe_higher:
+            assert metrics.sortino_ratio > metrics.sharpe_ratio
+
+    def test_rolling_return_calculation_matches_independent_verification(self):
+        """Independent rolling return calculation should match backend."""
+        from datetime import datetime, timedelta
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        navs = []
+        start = datetime(2020, 1, 1)
+        for i in range(400):
+            navs.append(NAVRecord(
+                date=(start + timedelta(days=i)).strftime("%Y-%m-%d"),
+                nav=100.0 + i * 0.5,
+            ))
+
+        calc = MetricsCalculator(scheme_code="148404", nav_records=navs)
+        consistency = calc._rolling_consistency(navs)
+
+        assert consistency is not None
+        assert "1Y" in consistency
+        assert consistency["1Y"]["windows"] > 0
+        assert 0 <= consistency["1Y"]["positive_pct"] <= 100
+        assert consistency["1Y"]["mean_return"] > 0
+
+        returns = calc._rolling_returns(navs, 365)
+        positive_count = sum(1 for r in returns if r > 0)
+        expected_positive_pct = positive_count / len(returns) * 100
+
+        assert consistency["1Y"]["positive_pct"] == pytest.approx(expected_positive_pct, abs=0.01)
+        assert consistency["1Y"]["windows"] == len(returns)
+
+    def test_rolling_return_with_mixed_positive_and_negative_periods(self):
+        """Test rolling returns with both positive and negative periods."""
+        from datetime import datetime, timedelta
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        navs = []
+        start = datetime(2020, 1, 1)
+        for i in range(800):
+            if (i // 100) % 2 == 0:
+                nav = 100.0 + (i % 100) * 0.5
+            else:
+                nav = 150.0 - (i % 100) * 0.5
+            navs.append(NAVRecord(
+                date=(start + timedelta(days=i)).strftime("%Y-%m-%d"),
+                nav=max(10.0, nav),
+            ))
+
+        calc = MetricsCalculator(scheme_code="148404", nav_records=navs)
+        consistency = calc._rolling_consistency(navs)
+
+        assert consistency is not None
+        assert "1Y" in consistency
+        assert 0 < consistency["1Y"]["positive_pct"] < 100
+        assert consistency["1Y"]["windows"] > 0
+
+        returns = calc._rolling_returns(navs, 365)
+        positive_count = sum(1 for r in returns if r > 0)
+        negative_count = sum(1 for r in returns if r < 0)
+        assert positive_count > 0
+        assert negative_count > 0

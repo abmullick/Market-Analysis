@@ -1474,21 +1474,51 @@ function hideComparisonView() {
     const resultsContainer = document.querySelector(".ranking-results");
     if (!resultsContainer) return;
     resultsContainer.innerHTML = "";
+
     const summaryHtml = `
-        <div class="ranking-summary">
+        <div id="ranking-summary">
             <div>
-                <h3>${currentCategory} Rankings</h3>
+                <h3>${currentCategories.length === 1 ? currentCategories[0] : `${currentCategories.length} categories`} Rankings</h3>
                 <span class="result-meta" id="result-count">${currentRankings.length} unique funds ranked</span>
             </div>
             <span class="result-meta">Preset: ${PRESETS[currentPreset]?.label || currentPreset}</span>
         </div>
+        <div id="ranking-result-filters"></div>
     `;
     resultsContainer.innerHTML = summaryHtml;
+
     const tableContainer = document.createElement("div");
     tableContainer.id = "ranking-table-container";
     resultsContainer.appendChild(tableContainer);
+
+    const existingBar = document.getElementById("comparison-bar");
+    if (existingBar) existingBar.remove();
+
+    const comparisonBar = document.createElement("div");
+    comparisonBar.id = "comparison-bar";
+    comparisonBar.className = `comparison-bar${selectedFunds.size > 0 ? " active" : ""}`;
+    comparisonBar.innerHTML = `
+        <span class="comparison-bar-text" id="comparison-count">${selectedFunds.size} fund${selectedFunds.size !== 1 ? "s" : ""} selected</span>
+        <div class="comparison-bar-actions">
+            <button class="btn-text" id="clear-selection">Clear</button>
+            <button class="btn-primary btn-small" id="compare-btn" ${selectedFunds.size < MIN_COMPARE ? "disabled" : ""}>Compare Funds</button>
+        </div>
+    `;
+    document.getElementById("ranking-summary").appendChild(comparisonBar);
+
+    document.getElementById("clear-selection").addEventListener("click", () => {
+        selectedFunds.clear();
+        updateComparisonBar();
+        updateRowCheckboxes();
+        const selectAll = document.querySelector(".compare-select-all");
+        if (selectAll) selectAll.checked = false;
+    });
+
+    document.getElementById("compare-btn").addEventListener("click", showComparisonView);
+
     buildResultFilters(filteredRankings);
     renderFilteredTable(filteredRankings);
+    updateComparisonBar();
 }
 
 function renderComparisonTable(container, enrichedFunds) {
@@ -1500,6 +1530,7 @@ function renderComparisonTable(container, enrichedFunds) {
     const formatValue = (value, unit) => {
         if (value == null) return "Not available";
         if (unit === "percent") return `${(value * 100).toFixed(2)}%`;
+        if (unit === "percentage") return `${value.toFixed(2)}%`;
         if (unit === "ratio") return value.toFixed(2);
         if (unit === "integer") return Math.round(value).toLocaleString();
         if (unit === "currency") return `₹${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -1508,7 +1539,9 @@ function renderComparisonTable(container, enrichedFunds) {
 
     const getDetailValue = (fund, key) => {
         if (!fund._detail) return null;
-        return fund._detail[key];
+        const val = fund._detail[key];
+        if (val === "" || val === undefined) return null;
+        return val;
     };
 
     const getMetricValue = (fund, key) => {
@@ -1603,11 +1636,12 @@ function renderComparisonTable(container, enrichedFunds) {
 
     const fundInfoRows = [
         { label: "AMC", key: "amc", fallback: (f) => f.amc || "Not available" },
+        { label: "Scheme Code", key: "scheme_code", fallback: (f) => f.scheme_code || "Not available" },
         { label: "Category", key: "category", fallback: (f) => f.category || "Not available" },
         { label: "Plan", key: "plan", fallback: (f) => f._detail?.plan || "Not available" },
         { label: "Option", key: "option", fallback: (f) => f._detail?.option || "Not available" },
         { label: "Fund Inception", key: "first_nav_date", fallback: (f) => f.first_nav_date || "Not available" },
-        { label: "Fund Age", key: "fund_age_years", fallback: (f) => f._detail?.fund_age_years != null ? `${f._detail.fund_age_years.toFixed(1)} years` : "Not available" },
+        { label: "Fund Age", key: "fund_age_years", fallback: (f) => f._detail?.fund_age_years != null ? `${f._detail.fund_age_years.toFixed(2)} years` : "Not available" },
         { label: "AUM (AAUM)", key: "aum_cr", fallback: (f) => f.aum_cr != null ? `₹${f.aum_cr.toLocaleString()} Cr` : "Not available" },
         { label: "Overall Score", key: null, fallback: (f) => f.overall_score != null ? `${f.overall_score.toFixed(1)} / 100` : "Not available" },
     ];
@@ -1671,7 +1705,7 @@ function renderComparisonTable(container, enrichedFunds) {
 
     riskMetrics.forEach(metric => {
         const values = enrichedFunds.map(f => getMetricValue(f, metric.key));
-        const bestIndices = getBestIndices(values, false);
+        const bestIndices = getBestIndices(values, isHigherBetter(metric.key));
         const tr = document.createElement("tr");
         tr.innerHTML = `<td class="metric-label">${metric.label}</td>${values.map((v, i) => {
             const isBest = bestIndices.has(i) && v != null;
@@ -1683,9 +1717,9 @@ function renderComparisonTable(container, enrichedFunds) {
     tbody.appendChild(sectionHeader("Consistency"));
 
     const rollingRows = [
-        { label: "1Y Rolling +%", period: "1Y", metric: "positive_pct", unit: "percent" },
-        { label: "3Y Rolling +%", period: "3Y", metric: "positive_pct", unit: "percent" },
-        { label: "5Y Rolling +%", period: "5Y", metric: "positive_pct", unit: "percent" },
+        { label: "1Y Positive Rolling Periods (%)", period: "1Y", metric: "positive_pct", unit: "percentage" },
+        { label: "3Y Positive Rolling Periods (%)", period: "3Y", metric: "positive_pct", unit: "percentage" },
+        { label: "5Y Positive Rolling Periods (%)", period: "5Y", metric: "positive_pct", unit: "percentage" },
         { label: "Mean Rolling Return", period: "1Y", metric: "mean_return", unit: "percent" },
     ];
 
