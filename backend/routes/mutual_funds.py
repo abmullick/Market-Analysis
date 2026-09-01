@@ -4,6 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from fastapi import HTTPException
+
 from backend.config.settings import Settings
 from backend.models.mutual_fund import (
     FundDetailResponse,
@@ -488,7 +490,11 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
 
     engine = RankingEngine()
     criteria = [c.model_dump() for c in payload.criteria]
-    rankings = engine.rank(funds=valid_metrics, criteria=criteria, auto_renormalize=payload.auto_renormalize)
+    try:
+        rankings = engine.rank(funds=valid_metrics, criteria=criteria, auto_renormalize=payload.auto_renormalize)
+    except ValueError as e:
+        logger.warning("Ranking validation error: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Enrich rankings with metadata (AUM, first NAV date)
     metadata_service = get_tigzig_metadata()

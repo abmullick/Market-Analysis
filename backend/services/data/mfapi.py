@@ -49,6 +49,10 @@ class MfapiClient:
                 try:
                     async with httpx.AsyncClient() as client:
                         response = await client.get(url, params=params, timeout=20.0)
+                        logger.info(
+                            "MFAPI response for %s: status=%d size=%d",
+                            scheme_code, response.status_code, len(response.content)
+                        )
                         response.raise_for_status()
                         data = response.json()
                         if isinstance(data, dict) and "error" in data:
@@ -68,7 +72,16 @@ class MfapiClient:
                         ) from e
 
         try:
-            return await asyncio.wait_for(_fetch_with_retries(), timeout=overall_timeout)
+            data = await asyncio.wait_for(_fetch_with_retries(), timeout=overall_timeout)
+            nav_records = data.get("data", [])
+            logger.info(
+                "MFAPI NAV records for %s: %d records, first=%s, last=%s",
+                scheme_code,
+                len(nav_records),
+                nav_records[0]["date"] if nav_records else "none",
+                nav_records[-1]["date"] if nav_records else "none",
+            )
+            return data
         except asyncio.TimeoutError:
             raise MfapiError(f"MFAPI request timed out for scheme {scheme_code} after {overall_timeout}s")
 

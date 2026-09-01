@@ -192,3 +192,44 @@ def test_fetcher_get_nav_history_tigzig_failure_falls_back_to_mfapi(fetcher):
             records = asyncio.run(fetcher.get_nav_history("119594"))
             assert len(records) == 1
             assert records[0].nav == 100.0
+
+
+def test_get_metrics_batch_falls_back_to_mfapi_when_tigzig_unavailable(fetcher):
+    import asyncio
+
+    from backend.models.mutual_fund import FundMetrics
+
+    funds = [
+        {"_representative_scheme_code": "148404", "_canonical_fund_name": "Fund A", "scheme_name": "Fund A"},
+        {"_representative_scheme_code": "129046", "_canonical_fund_name": "Fund B", "scheme_name": "Fund B"},
+    ]
+
+    mock_nav_raw = {
+        "data": [
+            {"date": "2024-01-01", "nav": "100.0"},
+            {"date": "2024-01-02", "nav": "101.0"},
+            {"date": "2024-01-03", "nav": "102.0"},
+        ]
+    }
+
+    mock_metrics = FundMetrics(
+        scheme_code="148404",
+        data_points=3,
+        data_start_date="2024-01-01",
+        data_end_date="2024-01-03",
+        one_year_return=0.02,
+    )
+
+    with patch("backend.services.mutual_funds.fetcher.get_tigzig_dataset") as mock_tigzig:
+        mock_tigzig.return_value.is_available = False
+        with patch.object(fetcher.mfapi, "fetch_nav_history", new_callable=AsyncMock, return_value=mock_nav_raw):
+            with patch("backend.services.mutual_funds.fetcher.MetricsCalculator") as mock_calc:
+                mock_calc.return_value.calculate.return_value = mock_metrics
+                with patch("backend.services.mutual_funds.fetcher.metrics_cache") as mock_cache:
+                    mock_cache.get.return_value = None
+                    results = asyncio.run(fetcher.get_metrics_batch(funds, ["1Y_return"]))
+                    assert results[0] is not None
+                    assert results[1] is not None
+                    assert results[0]["scheme_code"] == "148404"
+                    assert results[1]["scheme_code"] == "129046"
+                    assert fetcher.mfapi.fetch_nav_history.call_count == 2

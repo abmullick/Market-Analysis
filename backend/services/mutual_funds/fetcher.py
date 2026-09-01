@@ -209,9 +209,20 @@ class MutualFundFetcher:
                     )
                     rows_for_chunk = sum(len(v) for v in chunk_nav_data.values())
                     total_rows_read += rows_for_chunk
-                    logger.debug(
-                        f"Chunk {num_chunks}: read {rows_for_chunk:,} rows for {len(chunk_codes)} schemes"
+                    logger.info(
+                        f"Chunk {num_chunks}: read {rows_for_chunk:,} rows for {len(chunk_codes)} schemes "
+                        f"(date_range={start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})"
                     )
+                    for code in chunk_codes:
+                        rows = chunk_nav_data.get(code, [])
+                        if rows:
+                            dates = [r["date"] for r in rows]
+                            logger.info(
+                                f"  Scheme {code}: {len(rows)} rows, "
+                                f"first={min(dates)}, last={max(dates)}"
+                            )
+                        else:
+                            logger.warning(f"  Scheme {code}: 0 rows returned by TigZig")
                 except TigZigDatasetError as e:
                     logger.warning(f"Chunk {num_chunks} TigZig query failed: {e}")
 
@@ -221,9 +232,19 @@ class MutualFundFetcher:
 
                 nav_data = chunk_nav_data.get(code, [])
                 if len(nav_data) < 2:
-                    logger.warning(f"Insufficient NAV data for {fund_name} ({code})")
-                    all_results[code] = None
-                    continue
+                    if not dataset.is_available or not nav_data:
+                        try:
+                            nav_records = await self.get_nav_history(str(code), lookback_years=lookback_years)
+                            if len(nav_records) >= 2:
+                                nav_data = [{"date": r.date, "nav": r.nav} for r in nav_records]
+                                logger.info("MFAPI fallback returned %d NAV records for %s", len(nav_data), code)
+                        except Exception as e:
+                            logger.warning("MFAPI fallback failed for %s (%s): %s", fund_name, code, e)
+
+                    if len(nav_data) < 2:
+                        logger.warning("Insufficient NAV data for %s (%s)", fund_name, code)
+                        all_results[code] = None
+                        continue
 
                 try:
                     nav_records = [NAVRecord(date=d["date"], nav=d["nav"]) for d in nav_data]
@@ -375,6 +396,15 @@ class MutualFundFetcher:
 
         try:
             nav_data = dataset.query_single_scheme(int(scheme_code), start_date=start_date)
+            logger.info(
+                f"TigZig single scheme {scheme_code}: {len(nav_data)} rows "
+                f"(start_date={start_date})"
+            )
+            if nav_data:
+                dates = [d["date"] for d in nav_data]
+                logger.info(
+                    f"  first={min(dates)}, last={max(dates)}"
+                )
             return [NAVRecord(date=d["date"], nav=d["nav"]) for d in nav_data]
         except TigZigDatasetError as e:
             logger.warning(f"TigZig data unavailable for {scheme_code}: {e}")
