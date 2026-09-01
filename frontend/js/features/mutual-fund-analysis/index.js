@@ -1,6 +1,9 @@
 import { api } from "../../core/api.js";
 import { showLoading, hideLoading } from "../../components/loading.js";
 import { openFundDetail } from "./fund-detail.js";
+import { renderRiskReturnChart } from "./comparison/risk-return.js";
+import { renderDrawdownChart } from "./comparison/drawdown.js";
+import { renderRollingReturnsChart } from "./comparison/rolling-returns.js";
 
 const PRESETS = {
     best_overall: {
@@ -1464,6 +1467,25 @@ async function showComparisonView() {
 
         resultsContainer.innerHTML = "";
         renderComparisonTable(resultsContainer, enriched);
+
+        const analysisContainer = document.createElement("div");
+        analysisContainer.className = "comparison-analysis-sections";
+        resultsContainer.appendChild(analysisContainer);
+
+        const riskReturnSection = document.createElement("div");
+        riskReturnSection.className = "comparison-chart-module";
+        analysisContainer.appendChild(riskReturnSection);
+        renderRiskReturnChart(riskReturnSection, enriched);
+
+        const drawdownSection = document.createElement("div");
+        drawdownSection.className = "comparison-chart-module";
+        analysisContainer.appendChild(drawdownSection);
+        renderDrawdownChart(drawdownSection, enriched);
+
+        const rollingSection = document.createElement("div");
+        rollingSection.className = "comparison-chart-module";
+        analysisContainer.appendChild(rollingSection);
+        renderRollingReturnsChart(rollingSection, enriched);
     } catch (error) {
         resultsContainer.innerHTML = `<div class="empty-state"><h3>Comparison failed</h3><p>${error.message}</p></div>`;
     }
@@ -1642,7 +1664,7 @@ function renderComparisonTable(container, enrichedFunds) {
         { label: "Option", key: "option", fallback: (f) => f._detail?.option || "Not available" },
         { label: "Fund Inception", key: "first_nav_date", fallback: (f) => f.first_nav_date || "Not available" },
         { label: "Fund Age", key: "fund_age_years", fallback: (f) => f._detail?.fund_age_years != null ? `${f._detail.fund_age_years.toFixed(2)} years` : "Not available" },
-        { label: "AUM (AAUM)", key: "aum_cr", fallback: (f) => f.aum_cr != null ? `₹${f.aum_cr.toLocaleString()} Cr` : "Not available" },
+        { label: "Total AUM", key: "total_aum_cr", fallback: (f) => f._detail?.total_aum_cr != null ? `₹${f._detail.total_aum_cr.toLocaleString()} Cr` : (f.aum_cr != null ? `₹${f.aum_cr.toLocaleString()} Cr` : "Not available") },
         { label: "Overall Score", key: null, fallback: (f) => f.overall_score != null ? `${f.overall_score.toFixed(1)} / 100` : "Not available" },
     ];
 

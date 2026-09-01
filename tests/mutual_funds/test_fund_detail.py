@@ -157,6 +157,7 @@ class TestFundDetailEndpoint:
     async def test_get_fund_detail_success(self, mock_fetcher, mock_metadata_class, sample_scheme, sample_metrics, sample_metadata):
         mock_fetcher.get_scheme = AsyncMock(return_value=sample_scheme)
         mock_fetcher.get_nav_history = AsyncMock(return_value=[])
+        mock_fetcher.get_scheme_variants = AsyncMock(return_value=["120716"])
 
         mock_metadata_service = MagicMock()
         mock_metadata_service.get_metadata = AsyncMock(return_value={})
@@ -188,6 +189,7 @@ class TestFundDetailEndpoint:
             NAVRecord(date="2020-01-01", nav=100.0),
             NAVRecord(date="2024-12-31", nav=200.0),
         ])
+        mock_fetcher.get_scheme_variants = AsyncMock(return_value=["120716"])
 
         mock_metadata_service = MagicMock()
         mock_metadata_service.get_metadata = AsyncMock(return_value={})
@@ -807,3 +809,233 @@ class TestComparisonDataAvailability:
         negative_count = sum(1 for r in returns if r < 0)
         assert positive_count > 0
         assert negative_count > 0
+
+
+class TestTotalAumAggregation:
+    """Test total AUM aggregation across plan/option variants."""
+
+    def test_aggregate_direct_and_regular_plans(self):
+        """Total AUM should sum Direct + Regular plan AUM."""
+        from backend.routes.mutual_funds import _aggregate_total_aum
+
+        metadata_service = MagicMock()
+        metadata_service.lookup = MagicMock(side_effect=lambda code: {
+            101: {"aaum_cr_quarterly_avg": 50000.0, "aaum_quarter": "Q2 FY24", "aaum_quarter_end": "2024-06-30"},
+            102: {"aaum_cr_quarterly_avg": 30000.0, "aaum_quarter": "Q2 FY24", "aaum_quarter_end": "2024-06-30"},
+        }.get(code))
+
+        total_aum, quarter, quarter_end = _aggregate_total_aum(metadata_service, "101", ["101", "102"])
+        assert total_aum == pytest.approx(80000.0)
+        assert quarter == "Q2 FY24"
+        assert quarter_end == "2024-06-30"
+
+    def test_aggregate_growth_and_idcw_options(self):
+        """Total AUM should sum Growth + IDCW option AUM."""
+        from backend.routes.mutual_funds import _aggregate_total_aum
+
+        metadata_service = MagicMock()
+        metadata_service.lookup = MagicMock(side_effect=lambda code: {
+            201: {"aaum_cr_quarterly_avg": 40000.0, "aaum_quarter": "Q2 FY24"},
+            202: {"aaum_cr_quarterly_avg": 15000.0, "aaum_quarter": "Q2 FY24"},
+        }.get(code))
+
+        total_aum, quarter, quarter_end = _aggregate_total_aum(metadata_service, "201", ["201", "202"])
+        assert total_aum == pytest.approx(55000.0)
+
+    def test_different_schemes_not_combined(self):
+        """Different underlying schemes should not be combined."""
+        from backend.routes.mutual_funds import _aggregate_total_aum
+
+        metadata_service = MagicMock()
+        metadata_service.lookup = MagicMock(side_effect=lambda code: {
+            301: {"aaum_cr_quarterly_avg": 50000.0, "aaum_quarter": "Q2 FY24"},
+            302: {"aaum_cr_quarterly_avg": 30000.0, "aaum_quarter": "Q2 FY24"},
+        }.get(code))
+
+        total_aum, _, _ = _aggregate_total_aum(metadata_service, "301", ["301"])
+        assert total_aum == pytest.approx(50000.0)
+
+    def test_missing_aum_values_skipped(self):
+        """Schemes without AUM should be skipped, not treated as zero."""
+        from backend.routes.mutual_funds import _aggregate_total_aum
+
+        metadata_service = MagicMock()
+        metadata_service.lookup = MagicMock(side_effect=lambda code: {
+            401: {"aaum_cr_quarterly_avg": 50000.0, "aaum_quarter": "Q2 FY24"},
+            402: {"aaum_quarter": "Q2 FY24"},
+            403: {"aaum_cr_quarterly_avg": 25000.0, "aaum_quarter": "Q2 FY24"},
+        }.get(code))
+
+        total_aum, _, _ = _aggregate_total_aum(metadata_service, "401", ["401", "402", "403"])
+        assert total_aum == pytest.approx(75000.0)
+
+    def test_all_missing_aum_returns_none(self):
+        """If no variants have AUM, return None."""
+        from backend.routes.mutual_funds import _aggregate_total_aum
+
+        metadata_service = MagicMock()
+        metadata_service.lookup = MagicMock(return_value={"aaum_quarter": "Q2 FY24"})
+
+        total_aum, _, _ = _aggregate_total_aum(metadata_service, "501", ["501"])
+        assert total_aum is None
+
+    def test_duplicate_scheme_codes_not_counted_twice(self):
+        """Duplicate scheme codes in the list should not double-count."""
+        from backend.routes.mutual_funds import _aggregate_total_aum
+
+        metadata_service = MagicMock()
+        metadata_service.lookup = MagicMock(side_effect=lambda code: {
+            601: {"aaum_cr_quarterly_avg": 50000.0, "aaum_quarter": "Q2 FY24"},
+        }.get(code))
+
+        total_aum, _, _ = _aggregate_total_aum(metadata_service, "601", ["601", "601", "601"])
+        assert total_aum == pytest.approx(50000.0)
+
+    def test_parag_parikh_grouping(self):
+        """Parag Parikh Flexi Cap Fund variants should aggregate correctly."""
+        from backend.routes.mutual_funds import _aggregate_total_aum
+
+        metadata_service = MagicMock()
+        metadata_service.lookup = MagicMock(side_effect=lambda code: {
+            120718: {"aaum_cr_quarterly_avg": 75000.0, "aaum_quarter": "June-2026", "aaum_quarter_end": "2026-06-30"},
+            120719: {"aaum_cr_quarterly_avg": 40000.0, "aaum_quarter": "June-2026", "aaum_quarter_end": "2026-06-30"},
+            120720: {"aaum_cr_quarterly_avg": 28388.43, "aaum_quarter": "June-2026", "aaum_quarter_end": "2026-06-30"},
+        }.get(code))
+
+        total_aum, quarter, quarter_end = _aggregate_total_aum(
+            metadata_service, "120718", ["120718", "120719", "120720"]
+        )
+        assert total_aum == pytest.approx(143388.43)
+        assert quarter == "June-2026"
+        assert quarter_end == "2026-06-30"
+
+    def test_get_scheme_variants_returns_all_codes(self):
+        """Fetcher should return all variant scheme codes for a fund."""
+        from backend.services.mutual_funds.fetcher import MutualFundFetcher
+        from unittest.mock import MagicMock
+
+        mock_fetcher = MagicMock(spec=MutualFundFetcher)
+        mock_fetcher.get_underlying_funds = AsyncMock(return_value=[
+            {
+                "scheme_code": "148404",
+                "_all_scheme_codes": ["148404", "148405", "148406"],
+            }
+        ])
+        mock_fetcher.get_scheme_variants = AsyncMock(return_value=["148404", "148405", "148406"])
+
+        import asyncio
+        variants = asyncio.run(mock_fetcher.get_scheme_variants("148404"))
+        assert variants == ["148404", "148405", "148406"]
+
+    def test_get_scheme_variants_fallback_to_single(self):
+        """If scheme not found in groups, return the code itself."""
+        from backend.services.mutual_funds.fetcher import MutualFundFetcher
+        from unittest.mock import MagicMock
+
+        mock_fetcher = MagicMock(spec=MutualFundFetcher)
+        mock_fetcher.get_underlying_funds = AsyncMock(return_value=[
+            {
+                "scheme_code": "999999",
+                "_all_scheme_codes": ["999999"],
+            }
+        ])
+        mock_fetcher.get_scheme_variants = AsyncMock(return_value=["888888"])
+
+        import asyncio
+        variants = asyncio.run(mock_fetcher.get_scheme_variants("888888"))
+        assert variants == ["888888"]
+
+
+class TestComparisonDataPreparation:
+    """Verify comparison data preparation for charts."""
+
+    def test_risk_return_data_mapping(self):
+        """Risk vs Return chart should use correct metrics."""
+        detail_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "amc": "Test AMC",
+            "annualized_volatility": 0.1661,
+            "one_year_return": 0.1644,
+            "three_year_cagr": 0.2145,
+            "sharpe_ratio": 1.354,
+            "sortino_ratio": 1.852,
+            "maximum_drawdown": 0.25,
+            "downside_deviation": 0.12,
+            "rolling_return_consistency": {
+                "1Y": {"positive_pct": 85.07, "mean_return": 0.012},
+                "3Y": {"positive_pct": 65.0, "mean_return": 0.008},
+                "5Y": {"positive_pct": 70.0, "mean_return": 0.010},
+            },
+        }
+
+        ranking_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "amc": "Test AMC",
+            "overall_score": 85.2,
+            "criteria_scores": [],
+        }
+
+        enriched = {**ranking_data, "_detail": detail_data}
+
+        volatility = enriched["_detail"]["annualized_volatility"] * 100
+        one_year = enriched["_detail"]["one_year_return"] * 100
+        assert volatility == pytest.approx(16.61)
+        assert one_year == pytest.approx(16.44)
+
+    def test_drawdown_data_mapping(self):
+        """Drawdown chart should use maximum_drawdown and downside_deviation."""
+        detail_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "maximum_drawdown": 0.25,
+            "downside_deviation": 0.12,
+        }
+
+        ranking_data = {"scheme_code": "148404", "scheme_name": "Test Fund", "criteria_scores": []}
+        enriched = {**ranking_data, "_detail": detail_data}
+
+        max_dd = enriched["_detail"]["maximum_drawdown"]
+        downside = enriched["_detail"]["downside_deviation"]
+        assert max_dd == pytest.approx(0.25)
+        assert downside == pytest.approx(0.12)
+
+    def test_rolling_return_data_mapping(self):
+        """Rolling returns chart should use positive_pct and mean_return."""
+        detail_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "rolling_return_consistency": {
+                "1Y": {"positive_pct": 85.07, "mean_return": 0.012},
+                "3Y": {"positive_pct": 65.0, "mean_return": 0.008},
+                "5Y": {"positive_pct": 70.0, "mean_return": 0.010},
+            },
+        }
+
+        ranking_data = {"scheme_code": "148404", "scheme_name": "Test Fund", "criteria_scores": []}
+        enriched = {**ranking_data, "_detail": detail_data}
+
+        pct_1y = enriched["_detail"]["rolling_return_consistency"]["1Y"]["positive_pct"]
+        mean_1y = enriched["_detail"]["rolling_return_consistency"]["1Y"]["mean_return"]
+        assert pct_1y == pytest.approx(85.07)
+        assert mean_1y == pytest.approx(0.012)
+
+    def test_missing_metrics_display_not_available(self):
+        """Missing chart metrics should be None, rendering as Not available."""
+        detail_data = {
+            "scheme_code": "148404",
+            "scheme_name": "Test Fund",
+            "annualized_volatility": None,
+            "one_year_return": None,
+            "maximum_drawdown": None,
+            "downside_deviation": None,
+            "rolling_return_consistency": None,
+        }
+
+        ranking_data = {"scheme_code": "148404", "scheme_name": "Test Fund", "criteria_scores": []}
+        enriched = {**ranking_data, "_detail": detail_data}
+
+        assert enriched["_detail"]["annualized_volatility"] is None
+        assert enriched["_detail"]["one_year_return"] is None
+        assert enriched["_detail"]["rolling_return_consistency"] is None

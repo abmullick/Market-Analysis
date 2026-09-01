@@ -197,6 +197,19 @@ async def get_fund_detail(scheme_code: str) -> FundDetailResponse:
         except (ValueError, TypeError):
             pass
 
+    total_aum_cr = None
+    total_aum_quarter = None
+    total_aum_quarter_end = None
+    if metadata_service:
+        all_variants = await fetcher.get_scheme_variants(scheme_code)
+        total_aum, total_quarter, total_quarter_end = _aggregate_total_aum(
+            metadata_service, scheme_code, all_variants
+        )
+        if total_aum is not None:
+            total_aum_cr = total_aum
+            total_aum_quarter = total_quarter
+            total_aum_quarter_end = total_quarter_end
+
     return FundDetailResponse(
         scheme_code=scheme.scheme_code,
         scheme_name=scheme.scheme_name,
@@ -210,6 +223,9 @@ async def get_fund_detail(scheme_code: str) -> FundDetailResponse:
         aum_cr=fund_metadata.get("aaum_cr_quarterly_avg") if fund_metadata else None,
         aum_quarter=fund_metadata.get("aaum_quarter") if fund_metadata else None,
         aum_quarter_end=fund_metadata.get("aaum_quarter_end") if fund_metadata else None,
+        total_aum_cr=total_aum_cr,
+        total_aum_quarter=total_aum_quarter,
+        total_aum_quarter_end=total_aum_quarter_end,
         first_nav_date=first_nav_date,
         fund_age_years=fund_age_years,
         expense_ratio=scheme.expense_ratio,
@@ -307,6 +323,68 @@ def _extract_option(scheme_name: str) -> str | None:
     elif "idcw" in name_lower or "dividend" in name_lower:
         return "IDCW"
     return None
+
+
+def _aggregate_total_aum(
+    metadata_service,
+    scheme_code: str,
+    all_scheme_codes: list[str] | None = None,
+) -> tuple[float | None, str | None, str | None]:
+    """Aggregate AUM across all plan/option variants of the same underlying scheme.
+
+    Uses the provided list of scheme codes if available (e.g., from ranking
+    candidates), otherwise looks up the variants via the fetcher.
+
+    Args:
+        metadata_service: TigZig metadata service instance
+        scheme_code: The representative scheme code
+        all_scheme_codes: Optional list of all scheme codes in the same fund group
+
+    Returns:
+        Tuple of (total_aum_cr, quarter, quarter_end)
+    """
+    if all_scheme_codes is None:
+        all_scheme_codes = [str(scheme_code)]
+
+    seen = set()
+    unique_codes = []
+    for code in all_scheme_codes:
+        normalized = str(code)
+        if normalized not in seen:
+            seen.add(normalized)
+            unique_codes.append(normalized)
+
+    total_aum = 0.0
+    quarters: list[str] = []
+    quarter_ends: list[str] = []
+
+    for code in unique_codes:
+        try:
+            meta = metadata_service.lookup(int(code))
+        except (ValueError, TypeError):
+            meta = None
+        if not meta:
+            continue
+        aum = meta.get("aaum_cr_quarterly_avg")
+        if aum is not None:
+            try:
+                total_aum += float(aum)
+            except (TypeError, ValueError):
+                pass
+            quarter = meta.get("aaum_quarter")
+            quarter_end = meta.get("aaum_quarter_end")
+            if quarter:
+                quarters.append(quarter)
+            if quarter_end:
+                quarter_ends.append(quarter_end)
+
+    if total_aum <= 0 and not quarters:
+        return None, None, None
+
+    common_quarter = quarters[0] if quarters else None
+    common_quarter_end = quarter_ends[0] if quarter_ends else None
+
+    return total_aum, common_quarter, common_quarter_end
 
 
 def _apply_screening_filters(
@@ -513,6 +591,15 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
                     r["aum_quarter_end"] = fund_metadata.get("aaum_quarter_end")
                 if fund_metadata.get("first_date"):
                     r["first_nav_date"] = fund_metadata["first_date"]
+
+            all_codes = r.get("_all_scheme_codes")
+            total_aum, total_quarter, total_quarter_end = _aggregate_total_aum(
+                metadata_service, code, all_codes
+            )
+            if total_aum is not None:
+                r["total_aum_cr"] = total_aum
+                r["total_aum_quarter"] = total_quarter
+                r["total_aum_quarter_end"] = total_quarter_end
 
     total_time = time_module.time() - total_start
     logger.info(

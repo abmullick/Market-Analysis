@@ -62,7 +62,7 @@ function renderFundModal(detail, navHistory, schemeCode) {
     const content = document.createElement("div");
     content.className = "fund-detail-content";
 
-    content.appendChild(createFundHeader(detail));
+    content.appendChild(createFundHeader(detail, schemeCode));
     content.appendChild(createMetricsSection(detail));
     const rollingSectionSchemeCode = schemeCode || detail.scheme_code;
     console.log("[RollingReturns] renderFundModal calling createRollingReturnsSection with:", rollingSectionSchemeCode, "schemeCode:", schemeCode, "detail.scheme_code:", detail.scheme_code);
@@ -100,7 +100,7 @@ function renderFundModal(detail, navHistory, schemeCode) {
     }, 100);
 }
 
-function createFundHeader(detail) {
+function createFundHeader(detail, schemeCode) {
     const section = document.createElement("div");
     section.className = "fund-detail-header";
 
@@ -144,7 +144,7 @@ function createFundHeader(detail) {
     const infoGrid = document.createElement("div");
     infoGrid.className = "fund-info-grid";
 
-    infoGrid.appendChild(createInfoItem("Scheme Code", detail.scheme_code));
+    infoGrid.appendChild(createInfoItem("Scheme Code", detail.scheme_code || schemeCode || "Not available"));
     infoGrid.appendChild(createInfoItem("Latest NAV", detail.nav != null ? detail.nav.toFixed(4) : "Not available"));
     infoGrid.appendChild(createInfoItem("NAV Date", detail.nav_date || "Not available"));
     infoGrid.appendChild(createInfoItem("AUM (Cr)", detail.aum_cr != null ? detail.aum_cr.toFixed(2) : "Not available"));

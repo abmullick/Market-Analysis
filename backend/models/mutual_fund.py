@@ -147,6 +147,9 @@ class FundRank(BaseModel):
     aum_cr: Optional[float] = None
     aum_quarter: Optional[str] = None
     aum_quarter_end: Optional[str] = None
+    total_aum_cr: Optional[float] = None
+    total_aum_quarter: Optional[str] = None
+    total_aum_quarter_end: Optional[str] = None
     first_nav_date: Optional[str] = None
 
 
@@ -168,6 +171,9 @@ class FundDetailResponse(BaseModel):
     aum_cr: Optional[float] = None
     aum_quarter: Optional[str] = None
     aum_quarter_end: Optional[str] = None
+    total_aum_cr: Optional[float] = None
+    total_aum_quarter: Optional[str] = None
+    total_aum_quarter_end: Optional[str] = None
     first_nav_date: Optional[str] = None
     fund_age_years: Optional[float] = None
     expense_ratio: Optional[float] = None

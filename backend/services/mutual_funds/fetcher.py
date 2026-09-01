@@ -499,3 +499,22 @@ class MutualFundFetcher:
             New FundGrouper instance
         """
         return FundGrouper()
+
+    async def get_scheme_variants(self, scheme_code: str) -> list[str]:
+        """Get all scheme codes belonging to the same underlying fund.
+
+        Uses the cached underlying funds if available to avoid
+        recomputing groups on every call.
+
+        Args:
+            scheme_code: The scheme code to find variants for
+
+        Returns:
+            List of scheme codes in the same underlying fund group
+        """
+        underlying = await self.get_underlying_funds()
+        target = str(scheme_code)
+        for fund in underlying:
+            if str(fund.get("scheme_code")) == target:
+                return [str(c) for c in fund.get("_all_scheme_codes", [target])]
+        return [target]
