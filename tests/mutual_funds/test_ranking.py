@@ -554,3 +554,197 @@ class TestClientSideFilterLogic:
         filtered = self._filter_rankings(rankings, [("aum_cr", ">=", 1000, "currency")])
         assert len(filtered) == 1
         assert filtered[0]["scheme_code"] == "1"
+
+
+class TestCategoryPercentiles:
+    """Test category-relative percentile calculations."""
+
+    @pytest.fixture
+    def engine(self):
+        return RankingEngine()
+
+    def test_higher_is_better_percentile(self, engine):
+        funds = [
+            {"scheme_code": "1", "scheme_name": "Fund A", "one_year_return": 10.0},
+            {"scheme_code": "2", "scheme_name": "Fund B", "one_year_return": 20.0},
+            {"scheme_code": "3", "scheme_name": "Fund C", "one_year_return": 15.0},
+        ]
+        criteria = [{"name": "1Y_return", "weight": 1.0}]
+        results = engine.calculate_percentiles(funds, criteria)
+
+        fund_1 = next(r for r in results if r["scheme_code"] == "1")
+        assert fund_1["percentile"] == pytest.approx(33.33, abs=0.1)
+        assert fund_1["higher_is_better"] is True
+        assert fund_1["category_count"] == 3
+
+        fund_2 = next(r for r in results if r["scheme_code"] == "2")
+        assert fund_2["percentile"] == pytest.approx(100.0, abs=0.1)
+
+    def test_lower_is_better_percentile(self, engine):
+        funds = [
+            {"scheme_code": "1", "scheme_name": "Fund A", "maximum_drawdown": 30.0},
+            {"scheme_code": "2", "scheme_name": "Fund B", "maximum_drawdown": 10.0},
+            {"scheme_code": "3", "scheme_name": "Fund C", "maximum_drawdown": 20.0},
+        ]
+        criteria = [{"name": "maximum_drawdown", "weight": 1.0}]
+        results = engine.calculate_percentiles(funds, criteria)
+
+        fund_2 = next(r for r in results if r["scheme_code"] == "2")
+        assert fund_2["percentile"] == pytest.approx(100.0, abs=0.1)
+        assert fund_2["higher_is_better"] is False
+
+        fund_3 = next(r for r in results if r["scheme_code"] == "3")
+        assert fund_3["percentile"] == pytest.approx(66.67, abs=0.1)
+
+        fund_1 = next(r for r in results if r["scheme_code"] == "1")
+        assert fund_1["percentile"] == pytest.approx(33.33, abs=0.1)
+
+    def test_missing_metric_excluded_from_percentile(self, engine):
+        funds = [
+            {"scheme_code": "1", "scheme_name": "Fund A", "one_year_return": 10.0},
+            {"scheme_code": "2", "scheme_name": "Fund B", "one_year_return": None},
+            {"scheme_code": "3", "scheme_name": "Fund C", "one_year_return": 20.0},
+        ]
+        criteria = [{"name": "1Y_return", "weight": 1.0}]
+        results = engine.calculate_percentiles(funds, criteria)
+
+        fund_1 = next(r for r in results if r["scheme_code"] == "1")
+        assert fund_1["percentile"] == pytest.approx(50.0, abs=0.1)
+        assert fund_1["category_count"] == 2
+
+        fund_2 = next(r for r in results if r["scheme_code"] == "2")
+        assert fund_2["percentile"] is None
+        assert fund_2["fund_value"] is None
+
+    def test_insufficient_category_data(self, engine):
+        funds = [
+            {"scheme_code": "1", "scheme_name": "Fund A", "one_year_return": 10.0},
+        ]
+        criteria = [{"name": "1Y_return", "weight": 1.0}]
+        results = engine.calculate_percentiles(funds, criteria)
+
+        assert results[0]["percentile"] is None
+        assert results[0]["category_count"] == 1
+
+    def test_tied_values(self, engine):
+        funds = [
+            {"scheme_code": "1", "scheme_name": "Fund A", "one_year_return": 15.0},
+            {"scheme_code": "2", "scheme_name": "Fund B", "one_year_return": 15.0},
+            {"scheme_code": "3", "scheme_name": "Fund C", "one_year_return": 10.0},
+        ]
+        criteria = [{"name": "1Y_return", "weight": 1.0}]
+        results = engine.calculate_percentiles(funds, criteria)
+
+        fund_1 = next(r for r in results if r["scheme_code"] == "1")
+        assert fund_1["percentile"] == pytest.approx(100.0, abs=0.1)
+
+        fund_3 = next(r for r in results if r["scheme_code"] == "3")
+        assert fund_3["percentile"] == pytest.approx(33.33, abs=0.1)
+
+    def test_multiple_criteria_percentiles(self, engine):
+        funds = [
+            {"scheme_code": "1", "scheme_name": "Fund A", "one_year_return": 10.0, "maximum_drawdown": 30.0},
+            {"scheme_code": "2", "scheme_name": "Fund B", "one_year_return": 20.0, "maximum_drawdown": 10.0},
+        ]
+        criteria = [
+            {"name": "1Y_return", "weight": 1.0},
+            {"name": "maximum_drawdown", "weight": 1.0},
+        ]
+        results = engine.calculate_percentiles(funds, criteria)
+
+        assert len(results) == 4
+
+        fund_1_return = next(r for r in results if r["scheme_code"] == "1" and r["metric"] == "1Y_return")
+        assert fund_1_return["percentile"] == pytest.approx(50.0, abs=0.1)
+
+        fund_1_dd = next(r for r in results if r["scheme_code"] == "1" and r["metric"] == "maximum_drawdown")
+        assert fund_1_dd["percentile"] == pytest.approx(50.0, abs=0.1)
+
+        fund_2_return = next(r for r in results if r["scheme_code"] == "2" and r["metric"] == "1Y_return")
+        assert fund_2_return["percentile"] == pytest.approx(100.0, abs=0.1)
+
+        fund_2_dd = next(r for r in results if r["scheme_code"] == "2" and r["metric"] == "maximum_drawdown")
+        assert fund_2_dd["percentile"] == pytest.approx(100.0, abs=0.1)
+
+
+class TestCategoryPercentileLabels:
+    """Verify human-readable labels in category percentile output."""
+
+    def test_labels_are_human_readable(self):
+        engine = RankingEngine()
+        labels = engine.LABELS
+
+        assert labels["1Y_return"] == "1Y Return"
+        assert labels["3Y_cagr"] == "3Y CAGR"
+        assert labels["5Y_cagr"] == "5Y CAGR"
+        assert labels["10Y_cagr"] == "10Y CAGR"
+        assert labels["sharpe_ratio"] == "Sharpe Ratio"
+        assert labels["sortino_ratio"] == "Sortino Ratio"
+        assert labels["volatility"] == "Annualized Volatility"
+        assert labels["maximum_drawdown"] == "Maximum Drawdown"
+        assert labels["downside_deviation"] == "Downside Deviation"
+        assert labels["consistency"] == "1Y Rolling Consistency"
+
+    def test_calculate_percentiles_returns_labels(self):
+        engine = RankingEngine()
+        funds = [
+            {"scheme_code": "1", "scheme_name": "Fund A", "one_year_return": 10.0},
+            {"scheme_code": "2", "scheme_name": "Fund B", "one_year_return": 20.0},
+        ]
+        criteria = [{"name": "1Y_return", "weight": 1.0}]
+        results = engine.calculate_percentiles(funds, criteria)
+
+        fund_1 = next(r for r in results if r["scheme_code"] == "1")
+        assert fund_1["label"] == "1Y Return"
+        assert fund_1["metric"] == "1Y_return"
+
+    def test_percentile_precision_preserved(self):
+        engine = RankingEngine()
+        funds = [
+            {"scheme_code": "1", "scheme_name": "Fund A", "one_year_return": 10.0},
+            {"scheme_code": "2", "scheme_name": "Fund B", "one_year_return": 20.0},
+            {"scheme_code": "3", "scheme_name": "Fund C", "one_year_return": 15.0},
+        ]
+        criteria = [{"name": "1Y_return", "weight": 1.0}]
+        results = engine.calculate_percentiles(funds, criteria)
+
+        fund_1 = next(r for r in results if r["scheme_code"] == "1")
+        assert fund_1["percentile"] == pytest.approx(33.333333, abs=1e-6)
+        assert fund_1["rank"] == 3
+
+        fund_2 = next(r for r in results if r["scheme_code"] == "2")
+        assert fund_2["percentile"] == pytest.approx(100.0, abs=1e-6)
+        assert fund_2["rank"] == 1
+
+    def test_rank_ordinal_position(self):
+        engine = RankingEngine()
+        funds = [
+            {"scheme_code": "1", "scheme_name": "Fund A", "one_year_return": 10.0},
+            {"scheme_code": "2", "scheme_name": "Fund B", "one_year_return": 20.0},
+            {"scheme_code": "3", "scheme_name": "Fund C", "one_year_return": 15.0},
+        ]
+        criteria = [{"name": "1Y_return", "weight": 1.0}]
+        results = engine.calculate_percentiles(funds, criteria)
+
+        result_map = {r["scheme_code"]: r for r in results}
+        assert result_map["2"]["rank"] == 1
+        assert result_map["3"]["rank"] == 2
+        assert result_map["1"]["rank"] == 3
+
+    def test_category_count_reflects_valid_peers(self):
+        engine = RankingEngine()
+        funds = [
+            {"scheme_code": "1", "scheme_name": "Fund A", "one_year_return": 10.0},
+            {"scheme_code": "2", "scheme_name": "Fund B", "one_year_return": None},
+            {"scheme_code": "3", "scheme_name": "Fund C", "one_year_return": 20.0},
+        ]
+        criteria = [{"name": "1Y_return", "weight": 1.0}]
+        results = engine.calculate_percentiles(funds, criteria)
+
+        fund_1 = next(r for r in results if r["scheme_code"] == "1")
+        assert fund_1["category_count"] == 2
+        assert fund_1["percentile"] == pytest.approx(50.0, abs=0.1)
+
+        fund_2 = next(r for r in results if r["scheme_code"] == "2")
+        assert fund_2["category_count"] == 2
+        assert fund_2["percentile"] is None

@@ -77,3 +77,25 @@ class MetricsCache:
 
 
 metrics_cache = MetricsCache(ttl_seconds=86400)
+category_analysis_cache: dict[str, tuple[dict[str, Any], float]] = {}
+_category_analysis_lock = Lock()
+
+
+def get_category_analysis(category: str) -> dict[str, Any] | None:
+    key = f"category:{category}"
+    with _category_analysis_lock:
+        entry = category_analysis_cache.get(key)
+        if entry is None:
+            return None
+        data, expires = entry
+        if time.time() > expires:
+            del category_analysis_cache[key]
+            return None
+        return data
+
+
+def put_category_analysis(category: str, data: dict[str, Any], ttl_seconds: int = 86400) -> None:
+    key = f"category:{category}"
+    expires = time.time() + ttl_seconds
+    with _category_analysis_lock:
+        category_analysis_cache[key] = (data, expires)

@@ -76,6 +76,24 @@ def test_normalize_nav_history():
     assert records[1].nav == 101.5
 
 
+def test_normalize_nav_history_sorts_reverse_chronological():
+    raw = {
+        "data": [
+            {"date": "2024-01-03", "nav": "120.0"},
+            {"date": "2024-01-02", "nav": "110.0"},
+            {"date": "2024-01-01", "nav": "100.0"},
+        ]
+    }
+    records = normalize_nav_history(raw)
+    assert len(records) == 3
+    assert records[0].date == "2024-01-01"
+    assert records[0].nav == 100.0
+    assert records[1].date == "2024-01-02"
+    assert records[1].nav == 110.0
+    assert records[2].date == "2024-01-03"
+    assert records[2].nav == 120.0
+
+
 def test_normalize_search_result():
     raw = {
         "scheme_code": "119594",

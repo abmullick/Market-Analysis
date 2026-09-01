@@ -1138,3 +1138,149 @@ class TestComparisonDataPreparation:
         assert metrics.one_year_volatility >= 0
         assert metrics.three_year_volatility >= 0
         assert metrics.five_year_volatility >= 0
+
+
+class TestDrawdownAnalysis:
+    """Test drawdown analysis calculations and frontend data preparation."""
+
+    def test_drawdown_calculation_known_series(self):
+        """Drawdown should match manual calculation for known NAV series."""
+        navs = [100.0, 120.0, 110.0, 90.0, 105.0, 125.0]
+        dates = ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-06"]
+
+        peak = navs[0]
+        drawdowns = []
+        max_drawdown = 0.0
+        max_dd_date = dates[0]
+        current_drawdown = 0.0
+
+        for i in range(len(navs)):
+            if navs[i] > peak:
+                peak = navs[i]
+            dd = ((navs[i] / peak) - 1) * 100
+            drawdowns.append(dd)
+            if dd < max_drawdown:
+                max_drawdown = dd
+                max_dd_date = dates[i]
+            current_drawdown = dd
+
+        assert drawdowns[0] == 0.0
+        assert drawdowns[1] == 0.0
+        assert drawdowns[2] == pytest.approx(-8.33, abs=0.01)
+        assert drawdowns[3] == pytest.approx(-25.0, abs=0.01)
+        assert drawdowns[4] == pytest.approx(-12.5, abs=0.01)
+        assert drawdowns[5] == 0.0
+        assert max_drawdown == pytest.approx(-25.0, abs=0.01)
+        assert max_dd_date == "2024-01-04"
+        assert current_drawdown == 0.0
+
+    def test_drawdown_consistency_with_backend_max_drawdown(self):
+        """Frontend drawdown calculation should match backend maximum_drawdown."""
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        nav_records = [
+            NAVRecord(date="2024-01-01", nav=100.0),
+            NAVRecord(date="2024-01-02", nav=120.0),
+            NAVRecord(date="2024-01-03", nav=110.0),
+            NAVRecord(date="2024-01-04", nav=90.0),
+            NAVRecord(date="2024-01-05", nav=105.0),
+            NAVRecord(date="2024-01-06", nav=125.0),
+        ]
+
+        metrics = MetricsCalculator(scheme_code="123", nav_records=nav_records).calculate()
+        backend_max_dd = metrics.maximum_drawdown
+
+        navs = [n.nav for n in nav_records]
+        peak = navs[0]
+        max_dd = 0.0
+        for nav in navs[1:]:
+            if nav > peak:
+                peak = nav
+            dd = (peak - nav) / peak
+            if dd > max_dd:
+                max_dd = dd
+
+        assert backend_max_dd == pytest.approx(max_dd, abs=1e-6)
+        assert backend_max_dd == pytest.approx(0.25, abs=1e-6)
+
+    def test_drawdown_insufficient_data(self):
+        """With fewer than 2 NAV points, drawdown should be empty."""
+        navs = [100.0]
+        dates = ["2024-01-01"]
+
+        if len(navs) < 2:
+            drawdowns = []
+            max_drawdown = None
+            current_drawdown = None
+        else:
+            peak = navs[0]
+            drawdowns = []
+            max_drawdown = 0.0
+            current_drawdown = 0.0
+            for i in range(len(navs)):
+                if navs[i] > peak:
+                    peak = navs[i]
+                dd = ((navs[i] / peak) - 1) * 100
+                drawdowns.append(dd)
+                if dd < max_drawdown:
+                    max_drawdown = dd
+                current_drawdown = dd
+
+        assert drawdowns == []
+        assert max_drawdown is None
+        assert current_drawdown is None
+
+    def test_drawdown_all_declining(self):
+        """When NAV only declines, drawdown should equal decline from first NAV."""
+        navs = [100.0, 90.0, 80.0, 70.0]
+        dates = ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"]
+
+        peak = navs[0]
+        drawdowns = []
+        max_drawdown = 0.0
+        max_dd_date = dates[0]
+        current_drawdown = 0.0
+
+        for i in range(len(navs)):
+            if navs[i] > peak:
+                peak = navs[i]
+            dd = ((navs[i] / peak) - 1) * 100
+            drawdowns.append(dd)
+            if dd < max_drawdown:
+                max_drawdown = dd
+                max_dd_date = dates[i]
+            current_drawdown = dd
+
+        assert drawdowns[0] == 0.0
+        assert drawdowns[1] == pytest.approx(-10.0, abs=1e-6)
+        assert drawdowns[2] == pytest.approx(-20.0, abs=1e-6)
+        assert drawdowns[3] == pytest.approx(-30.0, abs=1e-6)
+        assert max_drawdown == pytest.approx(-30.0, abs=1e-6)
+        assert max_dd_date == "2024-01-04"
+        assert current_drawdown == pytest.approx(-30.0, abs=1e-6)
+
+    def test_drawdown_recovery_exceeds_peak(self):
+        """When NAV exceeds initial peak, drawdown should return to 0%."""
+        navs = [100.0, 80.0, 90.0, 110.0]
+        dates = ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"]
+
+        peak = navs[0]
+        drawdowns = []
+        max_drawdown = 0.0
+        current_drawdown = 0.0
+
+        for i in range(len(navs)):
+            if navs[i] > peak:
+                peak = navs[i]
+            dd = ((navs[i] / peak) - 1) * 100
+            drawdowns.append(dd)
+            if dd < max_drawdown:
+                max_drawdown = dd
+            current_drawdown = dd
+
+        assert drawdowns[0] == 0.0
+        assert drawdowns[1] == pytest.approx(-20.0, abs=1e-6)
+        assert drawdowns[2] == pytest.approx(-10.0, abs=1e-6)
+        assert drawdowns[3] == 0.0
+        assert max_drawdown == pytest.approx(-20.0, abs=1e-6)
+        assert current_drawdown == 0.0

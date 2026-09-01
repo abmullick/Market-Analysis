@@ -1,5 +1,7 @@
 import { api } from "../../core/api.js";
 import { showLoading, hideLoading } from "../../components/loading.js";
+import { renderDrawdownAnalysis } from "./fund-detail/drawdown.js";
+import { renderCategoryAnalysis } from "./fund-detail/category/category-analysis.js";
 
 let navChart = null;
 let rollingChart = null;
@@ -13,23 +15,24 @@ export async function openFundDetail(schemeCode, schemeName) {
 
     lastFocusedElement = document.activeElement;
 
-    showLoading(modalContainer);
+    showLoading(modalContainer, "Loading fund details...");
 
     try {
-        const [detail, navHistory] = await Promise.all([
+        const [detail, navHistory, categoryAnalysis] = await Promise.all([
             api.get(`/mutual-funds/${schemeCode}/detail`),
             api.get(`/mutual-funds/${schemeCode}/nav-history?years=10`),
+            api.get(`/mutual-funds/${schemeCode}/category-analysis`).catch(() => null),
         ]);
 
         hideLoading(modalContainer);
-        renderFundModal(detail, navHistory, schemeCode);
+        renderFundModal(detail, navHistory, schemeCode, categoryAnalysis);
     } catch (error) {
         hideLoading(modalContainer);
         renderErrorModal(error, schemeCode, schemeName);
     }
 }
 
-function renderFundModal(detail, navHistory, schemeCode) {
+function renderFundModal(detail, navHistory, schemeCode, categoryAnalysis) {
     const modalContainer = document.getElementById("fund-detail-modal");
     if (!modalContainer) return;
 
@@ -68,6 +71,10 @@ function renderFundModal(detail, navHistory, schemeCode) {
     console.log("[RollingReturns] renderFundModal calling createRollingReturnsSection with:", rollingSectionSchemeCode, "schemeCode:", schemeCode, "detail.scheme_code:", detail.scheme_code);
     content.appendChild(createRollingReturnsSection(rollingSectionSchemeCode));
     content.appendChild(createChartSection(detail, navHistory));
+    renderDrawdownAnalysis(content, detail, navHistory);
+    if (categoryAnalysis) {
+        renderCategoryAnalysis(content, detail, categoryAnalysis);
+    }
     content.appendChild(createMetadataSection(detail));
 
     dialog.appendChild(header);

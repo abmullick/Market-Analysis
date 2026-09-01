@@ -39,6 +39,19 @@ class RankingEngine:
         "consistency": {"field": "consistency_score", "direction": "higher"},
     }
 
+    LABELS = {
+        "1Y_return": "1Y Return",
+        "3Y_cagr": "3Y CAGR",
+        "5Y_cagr": "5Y CAGR",
+        "10Y_cagr": "10Y CAGR",
+        "sharpe_ratio": "Sharpe Ratio",
+        "sortino_ratio": "Sortino Ratio",
+        "volatility": "Annualized Volatility",
+        "maximum_drawdown": "Maximum Drawdown",
+        "downside_deviation": "Downside Deviation",
+        "consistency": "1Y Rolling Consistency",
+    }
+
     def rank(self, funds: list[dict[str, Any]], criteria: list[dict[str, Any]], auto_renormalize: bool = True) -> list[dict[str, Any]]:
         if not funds or not criteria:
             return []
@@ -115,6 +128,79 @@ class RankingEngine:
         results.sort(key=lambda x: x["overall_score"] if x["overall_score"] is not None else -float("inf"), reverse=True)
         for i, r in enumerate(results, start=1):
             r["rank"] = i if r["overall_score"] is not None else None
+
+        return results
+
+    def calculate_percentiles(self, funds: list[dict[str, Any]], criteria: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Calculate percentile ranks for each fund within the category for each criterion.
+
+        Args:
+            funds: List of fund dictionaries with metric values
+            criteria: List of criterion dictionaries with name and direction
+
+        Returns:
+            List of dicts with metric name, fund value, percentile, and category count
+        """
+        if not funds or not criteria:
+            return []
+
+        selected = []
+        for c in criteria:
+            name = c["name"]
+            if name not in self.CRITERIA:
+                continue
+            selected.append({"name": name, **self.CRITERIA[name]})
+
+        field_values: dict[str, list[float]] = {c["field"]: [] for c in selected}
+        for fund in funds:
+            for c in selected:
+                value = _get_metric_value(fund, c["field"])
+                if value is not None:
+                    field_values[c["field"]].append(value)
+
+        results = []
+        for fund in funds:
+            scheme_code = _get_field(fund, "scheme_code")
+            scheme_name = _get_field(fund, "scheme_name")
+
+            for c in selected:
+                field = c["field"]
+                direction = c["direction"]
+                raw = _get_metric_value(fund, field)
+                values = field_values[field]
+                category_count = len(values)
+
+                if raw is None or category_count < 2:
+                    results.append({
+                        "scheme_code": scheme_code,
+                        "scheme_name": scheme_name,
+                        "metric": c["name"],
+                        "label": self.LABELS.get(c["name"], c["name"]),
+                        "fund_value": raw,
+                        "percentile": None,
+                        "category_count": category_count,
+                        "higher_is_better": direction == "higher",
+                    })
+                    continue
+
+                if direction == "higher":
+                    percentile = (sum(1 for v in values if v <= raw) / category_count) * 100
+                    rank = 1 + sum(1 for v in values if v > raw)
+                else:
+                    percentile = (sum(1 for v in values if v >= raw) / category_count) * 100
+                    rank = 1 + sum(1 for v in values if v < raw)
+
+                results.append({
+                    "scheme_code": scheme_code,
+                    "scheme_name": scheme_name,
+                    "metric": c["name"],
+                    "label": self.LABELS.get(c["name"], c["name"]),
+                    "fund_value": raw,
+                    "percentile": percentile,
+                    "category_count": category_count,
+                    "higher_is_better": direction == "higher",
+                    "rank": rank,
+                })
 
         return results
 

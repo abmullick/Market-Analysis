@@ -206,6 +206,23 @@ class FundDetailResponse(BaseModel):
     data_end_date: Optional[str] = None
 
 
+class CategoryMetricPercentile(BaseModel):
+    metric: str
+    label: str
+    fund_value: Optional[float] = None
+    percentile: Optional[float] = None
+    category_count: int = 0
+    higher_is_better: bool = True
+    rank: Optional[int] = None
+
+
+class CategoryAnalysisResponse(BaseModel):
+    scheme_code: str
+    scheme_name: str
+    category: str
+    metrics: list[CategoryMetricPercentile] = []
+
+
 class NAVHistoryResponse(BaseModel):
     scheme_code: str
     scheme_name: str

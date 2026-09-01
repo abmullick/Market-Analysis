@@ -34,6 +34,7 @@ def normalize_nav_history(raw: dict[str, Any]) -> list[NAVRecord]:
             normalized_date = _normalize_date(date)
             if normalized_date:
                 records.append(NAVRecord(date=normalized_date, nav=nav))
+    records.sort(key=lambda r: r.date)
     return records
 
 

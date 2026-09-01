@@ -8,6 +8,8 @@ from fastapi import HTTPException
 
 from backend.config.settings import Settings
 from backend.models.mutual_fund import (
+    CategoryAnalysisResponse,
+    CategoryMetricPercentile,
     FundDetailResponse,
     FundMetrics,
     MutualFund,
@@ -22,6 +24,7 @@ from backend.services.mutual_funds.lookback import get_required_lookback_years
 from backend.services.mutual_funds.ranking import RankingEngine
 from backend.services.mutual_funds.category_normalizer import normalize_category
 from backend.services.mutual_funds.cache import metrics_cache
+from backend.services.mutual_funds.cache import get_category_analysis as get_cached_category_analysis, put_category_analysis as cache_put_category_analysis
 from backend.services.mutual_funds.calculator import MetricsCalculator
 from backend.services.data.tigzig import get_tigzig_dataset, get_tigzig_metadata, initialize_tigzig, _get_memory_mb
 from backend.services.data.mfapi import MfapiError
@@ -251,6 +254,104 @@ async def get_fund_detail(scheme_code: str) -> FundDetailResponse:
         data_start_date=metrics.get("data_start_date"),
         data_end_date=metrics.get("data_end_date"),
     )
+
+
+@router.get("/{scheme_code}/category-analysis", response_model=CategoryAnalysisResponse)
+async def get_category_analysis(scheme_code: str) -> CategoryAnalysisResponse:
+    """Get category-relative analysis for a fund.
+
+    Returns percentile ranks for the selected fund against its category peers
+    for all available metrics.
+    """
+    try:
+        detail = await get_fund_detail(scheme_code)
+    except Exception as e:
+        logger.error("Failed to fetch fund detail for category analysis %s: %s", scheme_code, e)
+        raise HTTPException(status_code=502, detail=f"Failed to fetch fund detail: {str(e)}")
+
+    category = detail.category
+    if not category:
+        raise HTTPException(status_code=400, detail="Fund has no category information")
+
+    normalized_category = normalize_category(category)
+
+    cached = get_cached_category_analysis(normalized_category)
+    if cached:
+        return CategoryAnalysisResponse(
+            scheme_code=scheme_code,
+            scheme_name=detail.scheme_name,
+            category=category,
+            metrics=[CategoryMetricPercentile(**m) for m in cached.get("metrics", [])],
+        )
+
+    engine = RankingEngine()
+    criteria = [{"name": name, "weight": 1.0} for name in engine.CRITERIA.keys()]
+
+    try:
+        funds = await fetcher.get_ranking_candidates_by_category(normalized_category)
+    except Exception as e:
+        logger.error("Failed to fetch category funds for %s: %s", scheme_code, e)
+        raise HTTPException(status_code=502, detail=f"Failed to fetch category funds: {str(e)}")
+
+    valid_funds = []
+    for f in funds:
+        scheme_code_val = f.get("scheme_code") if isinstance(f, dict) else getattr(f, "scheme_code", None)
+        if str(scheme_code_val) == str(scheme_code):
+            continue
+        valid_funds.append(f)
+
+    if len(valid_funds) < 1:
+        raise HTTPException(status_code=422, detail="Insufficient category data for percentile calculation")
+
+    selected_fund_entry = None
+    for f in funds:
+        if str(f.get("scheme_code")) == str(scheme_code):
+            selected_fund_entry = f
+            break
+
+    all_funds_for_metrics = valid_funds[:]
+    if selected_fund_entry:
+        all_funds_for_metrics.append(selected_fund_entry)
+
+    metrics = await fetcher.get_metrics_batch(all_funds_for_metrics, [c["name"] for c in criteria])
+    metrics_map = {}
+    for f, m in zip(all_funds_for_metrics, metrics):
+        if m:
+            merged = dict(f)
+            merged.update(m)
+            metrics_map[str(f.get("scheme_code"))] = merged
+
+    valid_with_metrics = [v for v in metrics_map.values() if v]
+    if len(valid_with_metrics) < 2:
+        raise HTTPException(status_code=422, detail="Insufficient category data with valid metrics")
+
+    selected_fund = metrics_map.get(str(scheme_code), {})
+    all_funds = [selected_fund] + [f for f in valid_with_metrics if str(f.get("scheme_code")) != str(scheme_code)]
+    percentiles = engine.calculate_percentiles(all_funds, criteria)
+
+    metric_percentiles = []
+    for p in percentiles:
+        if str(p.get("scheme_code")) != str(scheme_code):
+            continue
+        metric_percentiles.append(CategoryMetricPercentile(
+            metric=p["metric"],
+            label=p["label"],
+            fund_value=p.get("fund_value"),
+            percentile=p.get("percentile"),
+            category_count=p.get("category_count", 0),
+            higher_is_better=p.get("higher_is_better", True),
+            rank=p.get("rank"),
+        ))
+
+    response = CategoryAnalysisResponse(
+        scheme_code=scheme_code,
+        scheme_name=detail.scheme_name,
+        category=category,
+        metrics=metric_percentiles,
+    )
+
+    cache_put_category_analysis(normalized_category, response.model_dump())
+    return response
 
 
 @router.get("/{scheme_code}/nav-history", response_model=NAVHistoryResponse)
