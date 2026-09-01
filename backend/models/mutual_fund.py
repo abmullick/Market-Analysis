@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Any, Optional
 
 
@@ -65,17 +65,66 @@ class CriterionConfig(BaseModel):
 class ScreeningFilter(BaseModel):
     field: str
     operator: str
-    value: Optional[float] = None
-    value_min: Optional[float] = None
-    value_max: Optional[float] = None
+    value: Optional[Any] = None
+    value_min: Optional[Any] = None
+    value_max: Optional[Any] = None
     values: Optional[list[str]] = None
+
+    @model_validator(mode="after")
+    def validate_filter_value(self):
+        """Validate that filter values match the expected type for the field."""
+        numeric_fields = {
+            "aum_cr", "first_nav_date",
+            "one_year_return", "three_year_cagr", "five_year_cagr", "ten_year_cagr",
+            "sharpe_ratio", "sortino_ratio", "annualized_volatility",
+            "maximum_drawdown", "downside_deviation", "consistency"
+        }
+        categorical_fields = {"amc", "plan", "option", "scheme_code", "scheme_name"}
+
+        if self.field in numeric_fields:
+            # Numeric filters require numeric value
+            if self.value is not None and not isinstance(self.value, (int, float)):
+                raise ValueError(f"Field '{self.field}' requires a numeric value, got {type(self.value).__name__}")
+            if self.value_min is not None and not isinstance(self.value_min, (int, float)):
+                raise ValueError(f"Field '{self.field}' requires numeric value_min")
+            if self.value_max is not None and not isinstance(self.value_max, (int, float)):
+                raise ValueError(f"Field '{self.field}' requires numeric value_max")
+        elif self.field in categorical_fields:
+            # Categorical filters require string value
+            if self.value is not None and not isinstance(self.value, str):
+                raise ValueError(f"Field '{self.field}' requires a string value, got {type(self.value).__name__}")
+            if self.value == "":
+                raise ValueError(f"Field '{self.field}' cannot have empty value")
+        # For unknown fields, allow any type (backward compatibility)
+
+        return self
 
 
 class RankingRequest(BaseModel):
-    category: str
+    category: Any = None  # Can be str (single) or list[str] (multiple)
     criteria: list[CriterionConfig]
     auto_renormalize: bool = True
     screening_filters: list[ScreeningFilter] = []
+
+    @model_validator(mode="after")
+    def validate_category(self):
+        """Normalize category to list format."""
+        if self.category is None:
+            self.category = []
+        elif isinstance(self.category, str):
+            self.category = [self.category]
+        elif isinstance(self.category, list):
+            # Remove duplicates while preserving order
+            seen = set()
+            unique = []
+            for c in self.category:
+                if c and c not in seen:
+                    seen.add(c)
+                    unique.append(c)
+            self.category = unique
+        else:
+            raise ValueError("Category must be a string or list of strings")
+        return self
 
 
 class CriterionScore(BaseModel):

@@ -1,6 +1,11 @@
 """TigZig bulk NAV dataset service.
 
 Manages download, validation, and querying of the TigZig complete NAV Parquet dataset.
+
+Memory-efficient design:
+- Startup: Only checks file existence, does NOT open Parquet file
+- Querying: Uses predicate pushdown and column projection
+- Never loads entire dataset into RAM
 """
 import os
 import shutil
@@ -27,8 +32,21 @@ class TigZigDatasetError(Exception):
     """Raised when TigZig dataset operations fail."""
 
 
+def _get_memory_mb() -> float:
+    """Get current process memory usage in MB."""
+    import psutil
+    process = psutil.Process()
+    return process.memory_info().rss / 1024 / 1024
+
+
 class TigZigDataset:
-    """Manages the TigZig bulk NAV Parquet dataset."""
+    """Manages the TigZig bulk NAV Parquet dataset.
+
+    Memory-efficient design:
+    - Does NOT keep Parquet file handles open
+    - Uses memory-mapped reads only during active queries
+    - Applies predicate pushdown for date/scheme filtering
+    """
 
     def __init__(
         self,
@@ -42,7 +60,6 @@ class TigZigDataset:
 
         self._manifest: dict[str, Any] | None = None
         self._manifest_etag: str | None = None
-        self._parquet_file: pq.ParquetFile | None = None
         self._last_check: float = 0
         self._check_interval = 3600  # Check manifest every hour
 
@@ -50,7 +67,10 @@ class TigZigDataset:
 
     @property
     def is_available(self) -> bool:
-        """Check if a valid dataset file exists."""
+        """Check if a valid dataset file exists.
+
+        This only checks file existence and size - does NOT open the Parquet file.
+        """
         return os.path.exists(self._dataset_path) and os.path.getsize(self._dataset_path) > 0
 
     @property
@@ -58,17 +78,20 @@ class TigZigDataset:
         """Get the path to the active dataset file."""
         return self._dataset_path
 
-    @property
-    def stats(self) -> dict[str, Any]:
-        """Get dataset statistics."""
+    def get_stats(self) -> dict[str, Any]:
+        """Get dataset statistics using lightweight metadata read.
+
+        This reads ONLY the Parquet metadata, not any row data.
+        Suitable for startup use when memory is constrained.
+        """
         if not self.is_available:
             return {"available": False}
 
         try:
-            if self._parquet_file is None:
-                self._parquet_file = pq.ParquetFile(self._dataset_path)
+            mem_before = _get_memory_mb()
+            metadata = pq.read_metadata(self._dataset_path)
+            mem_after = _get_memory_mb()
 
-            metadata = self._parquet_file.metadata
             file_size = os.path.getsize(self._dataset_path)
 
             return {
@@ -78,8 +101,7 @@ class TigZigDataset:
                 "size_mb": file_size / (1024 * 1024),
                 "row_groups": metadata.num_row_groups,
                 "total_rows": metadata.num_rows,
-                "manifest_etag": self._manifest_etag,
-                "last_check": self._last_check,
+                "memory_delta_mb": mem_after - mem_before,
             }
         except Exception as e:
             return {"available": False, "error": str(e)}
@@ -143,7 +165,8 @@ class TigZigDataset:
     async def _download_dataset(self, manifest: dict[str, Any] | None = None) -> bool:
         """Download the TigZig Parquet dataset.
 
-        Downloads to a temporary file, validates, then atomically renames.
+        Downloads to a temporary file using streaming to minimize memory usage.
+        Validates, then atomically renames.
 
         Args:
             manifest: Optional manifest data for validation
@@ -151,17 +174,21 @@ class TigZigDataset:
         Returns:
             True if download and validation succeeded
         """
+        mem_before = _get_memory_mb()
+        logger.info(f"Memory before download: {mem_before:.1f} MB")
+
         logger.info("Downloading TigZig NAV dataset...")
 
         start_time = time.time()
         try:
             async with httpx.AsyncClient(timeout=300.0) as client:
-                response = await client.get(TIGZIG_DOWNLOAD_URL, follow_redirects=True)
-                response.raise_for_status()
+                async with client.stream("GET", TIGZIG_DOWNLOAD_URL, follow_redirects=True) as response:
+                    response.raise_for_status()
 
-                # Write to temp file
-                with open(self._temp_path, "wb") as f:
-                    f.write(response.content)
+                    # Stream to temp file to minimize memory usage
+                    with open(self._temp_path, "wb") as f:
+                        async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):
+                            f.write(chunk)
 
             download_time = time.time() - start_time
             file_size = os.path.getsize(self._temp_path)
@@ -169,19 +196,22 @@ class TigZigDataset:
                 f"Downloaded {file_size / (1024 * 1024):.1f} MB in {download_time:.1f}s"
             )
 
-            # Validate the downloaded file
-            if not self._validate_dataset(self._temp_path, manifest):
+            mem_after_download = _get_memory_mb()
+            logger.info(f"Memory after download: {mem_after_download:.1f} MB")
+
+            # Validate the downloaded file (lightweight metadata check only)
+            if not self._validate_dataset_light(self._temp_path):
                 logger.error("Downloaded dataset validation failed")
                 if os.path.exists(self._temp_path):
                     os.remove(self._temp_path)
-                return self.is_available  # Return True if existing dataset is valid
+                return self.is_available
 
             # Atomic rename
             shutil.move(self._temp_path, self._dataset_path)
             logger.info(f"Dataset installed at {self._dataset_path}")
 
-            # Reset parquet file handle (will be reopened on next query)
-            self._parquet_file = None
+            mem_after = _get_memory_mb()
+            logger.info(f"Memory after install: {mem_after:.1f} MB")
 
             return True
 
@@ -189,7 +219,7 @@ class TigZigDataset:
             logger.error(f"Failed to download TigZig dataset: {e}")
             if os.path.exists(self._temp_path):
                 os.remove(self._temp_path)
-            return self.is_available  # Return True if existing dataset is valid
+            return self.is_available
 
     def _validate_dataset(self, path: str, manifest: dict[str, Any] | None = None) -> bool:
         """Validate the downloaded Parquet file.
@@ -237,6 +267,49 @@ class TigZigDataset:
             logger.error(f"Dataset validation error: {e}")
             return False
 
+    def _validate_dataset_light(self, path: str) -> bool:
+        """Lightweight validation of the Parquet file using only metadata.
+
+        This method does NOT read any row data, only the Parquet metadata.
+        Suitable for startup validation when memory is constrained.
+
+        Args:
+            path: Path to the Parquet file
+
+        Returns:
+            True if validation passes
+        """
+        mem_before = _get_memory_mb()
+
+        try:
+            # Check file exists and has content
+            if not os.path.exists(path) or os.path.getsize(path) == 0:
+                logger.error("Dataset file is empty or missing")
+                return False
+
+            # Read ONLY metadata (no row data loaded)
+            metadata = pq.read_metadata(path)
+
+            # Check required columns exist in schema
+            schema = metadata.schema.to_arrow_schema()
+            column_names = set(schema.names)
+            required_columns = {"scheme_code", "date", "nav"}
+            if not required_columns.issubset(column_names):
+                logger.error(f"Missing required columns: {required_columns - column_names}")
+                return False
+
+            mem_after = _get_memory_mb()
+            logger.info(
+                f"Dataset validated (light): {metadata.num_rows:,} rows, "
+                f"{metadata.num_row_groups} row groups, "
+                f"memory: {mem_before:.1f} -> {mem_after:.1f} MB"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Dataset validation error: {e}")
+            return False
+
     def _get_stored_etag(self) -> str | None:
         """Get the stored ETag for the current dataset."""
         etag_file = f"{self._dataset_path}.etag"
@@ -250,12 +323,6 @@ class TigZigDataset:
         etag_file = f"{self._dataset_path}.etag"
         with open(etag_file, "w") as f:
             f.write(etag)
-
-    def _get_parquet_file(self) -> pq.ParquetFile:
-        """Get or open the Parquet file handle."""
-        if self._parquet_file is None:
-            self._parquet_file = pq.ParquetFile(self._dataset_path, memory_map=True)
-        return self._parquet_file
 
     def query_nav(
         self,
@@ -283,8 +350,9 @@ class TigZigDataset:
             return {}
 
         start_time = time.time()
+        mem_before = _get_memory_mb()
 
-        # Build filters
+        # Build filters for predicate pushdown
         filters = [("scheme_code", "in", scheme_codes)]
         if start_date:
             filters.append(("date", ">=", start_date))
@@ -300,16 +368,23 @@ class TigZigDataset:
         )
 
         query_time = time.time() - start_time
+        mem_after = _get_memory_mb()
 
-        # Group by scheme code
+        # Group by scheme code - build result directly from Arrow table
+        # to avoid creating large intermediate Python lists
         result: dict[int, list[dict[str, Any]]] = {code: [] for code in scheme_codes}
 
-        # Convert to Python (only the filtered data)
-        scheme_codes_col = table.column("scheme_code").to_pylist()
-        dates_col = table.column("date").to_pylist()
-        navs_col = table.column("nav").to_pylist()
+        # Use Arrow's native iteration instead of to_pylist() for memory efficiency
+        # This avoids creating full Python lists in memory
+        scheme_codes_col = table.column("scheme_code")
+        dates_col = table.column("date")
+        navs_col = table.column("nav")
 
-        for code, date, nav in zip(scheme_codes_col, dates_col, navs_col):
+        # Iterate over rows and build result dictionary
+        for i in range(len(table)):
+            code = scheme_codes_col[i].as_py()
+            date = dates_col[i].as_py()
+            nav = navs_col[i].as_py()
             result[code].append({
                 "date": date,
                 "nav": float(nav),
@@ -317,8 +392,13 @@ class TigZigDataset:
 
         total_rows = len(table)
         logger.info(
-            f"TigZig query: {len(scheme_codes)} schemes, {total_rows:,} rows in {query_time:.3f}s"
+            f"TigZig query: {len(scheme_codes)} schemes, {total_rows:,} rows in {query_time:.3f}s, "
+            f"memory: {mem_before:.1f} -> {mem_after:.1f} MB (delta: {mem_after - mem_before:.1f} MB), "
+            f"date_range={start_date or 'none'} to {end_date or 'none'}"
         )
+
+        # Explicitly release table memory
+        del table, scheme_codes_col, dates_col, navs_col
 
         return result
 
@@ -350,6 +430,7 @@ class TigZigDataset:
             return {}
 
         start_time = time.time()
+        mem_before = _get_memory_mb()
         result: dict[int, list[dict[str, Any]]] = {code: [] for code in scheme_codes}
         total_rows = 0
         num_chunks = 0
@@ -375,11 +456,15 @@ class TigZigDataset:
             )
 
             # Convert to Python and merge into result
-            scheme_codes_col = table.column("scheme_code").to_pylist()
-            dates_col = table.column("date").to_pylist()
-            navs_col = table.column("nav").to_pylist()
+            # Use Arrow's native iteration for memory efficiency
+            scheme_codes_col = table.column("scheme_code")
+            dates_col = table.column("date")
+            navs_col = table.column("nav")
 
-            for code, date, nav in zip(scheme_codes_col, dates_col, navs_col):
+            for i in range(len(table)):
+                code = scheme_codes_col[i].as_py()
+                date = dates_col[i].as_py()
+                nav = navs_col[i].as_py()
                 result[code].append({
                     "date": date,
                     "nav": float(nav),
@@ -392,9 +477,12 @@ class TigZigDataset:
             del table, scheme_codes_col, dates_col, navs_col
 
         query_time = time.time() - start_time
+        mem_after = _get_memory_mb()
         logger.info(
             f"TigZig chunked query: {len(scheme_codes)} schemes in {num_chunks} chunks, "
-            f"{total_rows:,} rows in {query_time:.3f}s"
+            f"{total_rows:,} rows in {query_time:.3f}s, "
+            f"memory: {mem_before:.1f} -> {mem_after:.1f} MB (delta: {mem_after - mem_before:.1f} MB), "
+            f"date_range={start_date or 'none'} to {end_date or 'none'}"
         )
 
         return result
@@ -424,24 +512,28 @@ class TigZigDataset:
         """Initialize the dataset at application startup.
 
         Ensures a valid dataset is available.
+        Uses lightweight metadata read - does NOT load row data.
 
         Returns:
             True if dataset is available
         """
         logger.info("Initializing TigZig dataset...")
+        mem_before = _get_memory_mb()
 
         try:
             # Fetch manifest first
             manifest = await self.fetch_manifest()
 
-            # Ensure dataset is available
+            # Ensure dataset is available (downloads if needed)
             success = await self.ensure_dataset(manifest=manifest)
 
             if success and self.is_available:
-                stats = self.stats
+                stats = self.get_stats()
+                mem_after = _get_memory_mb()
                 logger.info(
-                    f"TigZig dataset ready: {stats.get('size_mb', 0):.1f} MB, "
-                    f"{stats.get('total_rows', 0):,} rows"
+                    f"TigZig dataset ready: {stats.get('size_mb', 0):.1f} MB on disk, "
+                    f"{stats.get('total_rows', 0):,} rows, "
+                    f"memory: {mem_before:.1f} -> {mem_after:.1f} MB"
                 )
 
             return success

@@ -159,7 +159,7 @@ function convertFilterInputToBackend(value, unit) {
 }
 
 let currentPreset = "best_overall";
-let currentCategory = "";
+let currentCategories = [];  // Changed from currentCategory to currentCategories (array)
 let categories = [];
 let currentRankings = [];
 let filteredRankings = [];
@@ -261,12 +261,38 @@ function buildControls() {
     try {
         filtersContainer.innerHTML = `
             <div class="filter-group">
-                <label for="category-input">Category</label>
-                <div class="combobox" id="category-combobox">
-                    <input type="text" id="category-input" class="combobox-input" placeholder="Search categories..." autocomplete="off">
-                    <button type="button" class="combobox-toggle" tabindex="-1">&#9662;</button>
-                    <div class="combobox-dropdown" id="category-dropdown"></div>
-                    <input type="hidden" id="category-value">
+                <label for="category-trigger">Category</label>
+                <div class="category-picker" id="category-picker">
+                    <button type="button" class="category-picker-trigger" id="category-trigger" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="category-picker-value" id="category-value">All Categories</span>
+                        <span class="category-picker-arrow">
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M3 4.5L6 7.5L9 4.5"/>
+                            </svg>
+                        </span>
+                    </button>
+                    <div class="category-picker-dropdown" id="category-dropdown" role="listbox" hidden>
+                        <div class="category-picker-search">
+                            <svg class="category-picker-search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <circle cx="6" cy="6" r="4.5"/>
+                                <path d="M9.5 9.5L13 13"/>
+                            </svg>
+                            <input type="text" class="category-picker-search-input" id="category-search" placeholder="Search categories..." autocomplete="off">
+                            <button type="button" class="category-picker-search-clear" id="category-search-clear" hidden>
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M3 3L9 9M9 3L3 9"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="category-picker-actions">
+                            <button type="button" class="category-picker-action" id="category-select-all">Select All</button>
+                            <button type="button" class="category-picker-action" id="category-clear-all">Clear</button>
+                        </div>
+                        <div class="category-picker-list" id="category-list"></div>
+                        <div class="category-picker-footer">
+                            <span class="category-picker-count" id="category-count">0 selected</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -295,11 +321,7 @@ function buildControls() {
             });
         }
 
-        initCombobox({
-            id: "category",
-            options: categories.map(c => ({ value: c, label: c })),
-            onSelect: (value) => { currentCategory = value; },
-        });
+        initCategoryMultiSelect();
 
         buildScreener(screenerContainer);
         buildCriteriaList(criteriaContainer);
@@ -465,6 +487,278 @@ function updateScreenerResult() {
 
     if (countEl) countEl.textContent = `${activeCount} filter${activeCount !== 1 ? "s" : ""}`;
     resultEl.textContent = "Filters will apply on Run Ranking";
+}
+
+function initCategoryMultiSelect() {
+    const picker = document.getElementById("category-picker");
+    const trigger = document.getElementById("category-trigger");
+    const dropdown = document.getElementById("category-dropdown");
+    const valueEl = document.getElementById("category-value");
+    const searchInput = document.getElementById("category-search");
+    const searchClear = document.getElementById("category-search-clear");
+    const listContainer = document.getElementById("category-list");
+    const selectAllBtn = document.getElementById("category-select-all");
+    const clearAllBtn = document.getElementById("category-clear-all");
+    const countEl = document.getElementById("category-count");
+
+    if (!picker || !trigger || !dropdown || !listContainer) return;
+
+    let isOpen = false;
+    let searchText = "";
+
+    // Derive category groups from category names
+    function getCategoryGroups() {
+        const groups = [];
+        const groupMap = {};
+
+        categories.forEach(cat => {
+            let group = "Other";
+            const lower = cat.toLowerCase();
+
+            if (lower.includes("equity") || lower.includes("large cap") || lower.includes("mid cap") ||
+                lower.includes("small cap") || lower.includes("flexi cap") || lower.includes("multi cap") ||
+                lower.includes("focused") || lower.includes("elss") || lower.includes("value") ||
+                lower.includes("contra") || lower.includes("dividend yield")) {
+                group = "Equity";
+            } else if (lower.includes("debt") || lower.includes("bond") || lower.includes("liquid") ||
+                       lower.includes("money market") || lower.includes("overnight") || lower.includes("ultra short") ||
+                       lower.includes("low duration") || lower.includes("short duration") || lower.includes("medium duration") ||
+                       lower.includes("long duration") || lower.includes("dynamic bond") || lower.includes("gilt") ||
+                       lower.includes("credit risk") || lower.includes("floater") || lower.includes("banking & psu")) {
+                group = "Debt";
+            } else if (lower.includes("hybrid") || lower.includes("aggressive hybrid") || lower.includes("balanced advantage") ||
+                       lower.includes("equity savings") || lower.includes("conservative hybrid") || lower.includes("multi asset") ||
+                       lower.includes("arbitrage")) {
+                group = "Hybrid";
+            } else if (lower.includes("other") || lower.includes("index") || lower.includes("etf") ||
+                       lower.includes("fof") || lower.includes("gold")) {
+                group = "Other";
+            }
+
+            if (!groupMap[group]) {
+                groupMap[group] = [];
+            }
+            groupMap[group].push(cat);
+        });
+
+        // Sort groups in preferred order
+        const groupOrder = ["Equity", "Debt", "Hybrid", "Other"];
+        groupOrder.forEach(g => {
+            if (groupMap[g]) {
+                groups.push({ name: g, items: groupMap[g].sort() });
+            }
+        });
+
+        return groups;
+    }
+
+    function renderList() {
+        listContainer.innerHTML = "";
+        const groups = getCategoryGroups();
+        const filteredGroups = [];
+
+        groups.forEach(group => {
+            const filteredItems = group.items.filter(cat =>
+                cat.toLowerCase().includes(searchText.toLowerCase())
+            );
+            if (filteredItems.length > 0) {
+                filteredGroups.push({ name: group.name, items: filteredItems });
+            }
+        });
+
+        if (filteredGroups.length === 0) {
+            listContainer.innerHTML = '<div class="category-picker-empty">No categories found</div>';
+            return;
+        }
+
+        filteredGroups.forEach(group => {
+            const groupEl = document.createElement("div");
+            groupEl.className = "category-picker-group";
+
+            const header = document.createElement("div");
+            header.className = "category-picker-group-header";
+            header.textContent = group.name;
+            groupEl.appendChild(header);
+
+            group.items.forEach(cat => {
+                const isSelected = currentCategories.includes(cat);
+                const item = document.createElement("div");
+                item.className = `category-picker-item${isSelected ? " selected" : ""}`;
+                item.setAttribute("role", "option");
+                item.setAttribute("aria-selected", isSelected);
+                item.dataset.value = cat;
+
+                const checkbox = document.createElement("span");
+                checkbox.className = "category-picker-checkbox";
+                checkbox.innerHTML = isSelected
+                    ? '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M11.2 3.8L5.5 9.5 2.8 6.8l-.9.9L5.5 11.3 12.1 4.7l-.9-.9z"/></svg>'
+                    : '';
+
+                const label = document.createElement("span");
+                label.className = "category-picker-item-label";
+                label.textContent = cat;
+
+                item.appendChild(checkbox);
+                item.appendChild(label);
+
+                item.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    toggleCategory(cat);
+                });
+
+                groupEl.appendChild(item);
+            });
+
+            listContainer.appendChild(groupEl);
+        });
+    }
+
+    function toggleCategory(cat) {
+        if (currentCategories.includes(cat)) {
+            currentCategories = currentCategories.filter(c => c !== cat);
+        } else {
+            currentCategories.push(cat);
+        }
+        updateTrigger();
+        renderList();
+        updateCount();
+    }
+
+    function updateTrigger() {
+        if (currentCategories.length === 0) {
+            valueEl.textContent = "All Categories";
+            valueEl.classList.remove("has-selection");
+        } else if (currentCategories.length === 1) {
+            valueEl.textContent = currentCategories[0];
+            valueEl.classList.add("has-selection");
+        } else if (currentCategories.length === categories.length) {
+            valueEl.textContent = "All Categories";
+            valueEl.classList.add("has-selection");
+        } else {
+            valueEl.textContent = `${currentCategories.length} categories selected`;
+            valueEl.classList.add("has-selection");
+        }
+        trigger.setAttribute("aria-expanded", isOpen);
+    }
+
+    function updateCount() {
+        if (countEl) {
+            countEl.textContent = `${currentCategories.length} selected`;
+        }
+    }
+
+    function open() {
+        isOpen = true;
+        dropdown.hidden = false;
+        trigger.setAttribute("aria-expanded", "true");
+        if (searchInput) {
+            searchInput.focus();
+        }
+    }
+
+    function close() {
+        isOpen = false;
+        dropdown.hidden = true;
+        trigger.setAttribute("aria-expanded", "false");
+    }
+
+    function toggle() {
+        if (isOpen) {
+            close();
+        } else {
+            open();
+        }
+    }
+
+    // Trigger click
+    trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggle();
+    });
+
+    // Close on outside click
+    document.addEventListener("click", (e) => {
+        if (!picker.contains(e.target)) {
+            close();
+        }
+    });
+
+    // Keyboard support
+    trigger.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+            e.preventDefault();
+            open();
+        } else if (e.key === "Escape") {
+            close();
+        }
+    });
+
+    // Search functionality
+    if (searchInput) {
+        searchInput.addEventListener("input", () => {
+            searchText = searchInput.value;
+            if (searchClear) {
+                searchClear.hidden = searchText.length === 0;
+            }
+            renderList();
+        });
+
+        searchInput.addEventListener("click", (e) => {
+            e.stopPropagation();
+        });
+
+        searchInput.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                close();
+                trigger.focus();
+            }
+            e.stopPropagation();
+        });
+    }
+
+    // Search clear
+    if (searchClear) {
+        searchClear.addEventListener("click", (e) => {
+            e.stopPropagation();
+            searchInput.value = "";
+            searchText = "";
+            searchClear.hidden = true;
+            renderList();
+            searchInput.focus();
+        });
+    }
+
+    // Select All
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            // Select all categories (not just filtered)
+            categories.forEach(cat => {
+                if (!currentCategories.includes(cat)) {
+                    currentCategories.push(cat);
+                }
+            });
+            updateTrigger();
+            renderList();
+            updateCount();
+        });
+    }
+
+    // Clear All
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            currentCategories = [];
+            updateTrigger();
+            renderList();
+            updateCount();
+        });
+    }
+
+    // Initialize
+    renderList();
+    updateTrigger();
+    updateCount();
 }
 
 function initCombobox({ id, options, onSelect, selectedValue = "" }) {
@@ -723,8 +1017,8 @@ function buildMethodology(container) {
 }
 
 async function runRanking() {
-    if (!currentCategory) {
-        alert("Please select a category first.");
+    if (!currentCategories || currentCategories.length === 0) {
+        alert("Please select at least one category first.");
         return;
     }
 
@@ -742,22 +1036,31 @@ async function runRanking() {
     if (summaryContainer) summaryContainer.innerHTML = "";
 
     try {
-        const response = await api.post("/mutual-funds/rank", {
-            category: currentCategory,
+        // Build and validate screening filters
+        const filters = buildScreeningFiltersPayload();
+        if (filters === null) {
+            // Validation failed, error already shown
+            hideLoading(resultsContainer);
+            return;
+        }
+
+        // Debug logging - show the actual payload being sent
+        console.log("Ranking request payload:", {
+            category: currentCategories,
             criteria: criteria,
             auto_renormalize: true,
-            screening_filters: screeningFilters.map(f => ({
-                field: f.field,
-                operator: f.operator,
-                value: f.value,
-                value_min: f.value_min,
-                value_max: f.value_max,
-                values: f.values,
-            })),
+            screening_filters: filters,
+        });
+
+        const response = await api.post("/mutual-funds/rank", {
+            category: currentCategories,
+            criteria: criteria,
+            auto_renormalize: true,
+            screening_filters: filters,
         });
 
         hideLoading(resultsContainer);
-        renderRankingResults(response.rankings, response.category);
+        renderRankingResults(response.rankings, response.category || currentCategories);
 
         if (response.meta?.screened_matching != null) {
             const summaryContainer = document.getElementById("ranking-summary");
@@ -766,7 +1069,8 @@ async function runRanking() {
                 if (existingInfo) existingInfo.remove();
                 const info = document.createElement("div");
                 info.className = "screener-info";
-                info.textContent = `${response.meta.screened_matching} of ${response.meta.underlying_funds} funds match your filters`;
+                const catCount = response.categories_count || currentCategories.length;
+                info.textContent = `${response.meta.screened_matching} of ${response.meta.underlying_funds} funds across ${catCount} categor${catCount !== 1 ? "ies" : "y"} match your filters`;
                 summaryContainer.appendChild(info);
             }
         }
@@ -774,6 +1078,85 @@ async function runRanking() {
         hideLoading(resultsContainer);
         resultsContainer.innerHTML = `<div class="empty-state"><p>Ranking failed: ${error.message}</p></div>`;
     }
+}
+
+function buildScreeningFiltersPayload() {
+    const filters = [];
+
+    for (const f of screeningFilters) {
+        const field = SCREENER_FIELDS.find(sf => sf.key === f.field);
+        if (!field) continue;
+
+        // Check for validation errors
+        const row = document.querySelector(`.screener-filter-row[data-idx="${screeningFilters.indexOf(f)}"]`);
+        const errorEl = row?.querySelector(".screener-filter-error");
+
+        if (field.type === "categorical") {
+            // Categorical filters: use values array
+            const values = f.values || [];
+            if (values.length === 0) {
+                // Show validation error
+                if (row) {
+                    showFilterError(row, "Please enter at least one value");
+                }
+                return null;
+            }
+            filters.push({
+                field: f.field,
+                operator: f.operator,
+                values: values,
+            });
+        } else {
+            // Numeric filters: ensure value is a valid number
+            const numValue = parseFloat(f.value);
+            if (isNaN(numValue) || f.value === "" || f.value === null) {
+                if (row) {
+                    showFilterError(row, "Please enter a valid number");
+                }
+                return null;
+            }
+
+            if (f.operator === "between") {
+                const numMax = parseFloat(f.value_max);
+                if (isNaN(numMax) || f.value_max === "" || f.value_max === null) {
+                    if (row) {
+                        showFilterError(row, "Please enter a valid max value");
+                    }
+                    return null;
+                }
+                filters.push({
+                    field: f.field,
+                    operator: f.operator,
+                    value: numValue,
+                    value_min: numValue,
+                    value_max: numMax,
+                });
+            } else {
+                filters.push({
+                    field: f.field,
+                    operator: f.operator,
+                    value: numValue,
+                });
+            }
+        }
+    }
+
+    return filters;
+}
+
+function showFilterError(row, message) {
+    // Remove existing error
+    const existing = row.querySelector(".screener-filter-error");
+    if (existing) existing.remove();
+
+    // Add error message
+    const error = document.createElement("div");
+    error.className = "screener-filter-error";
+    error.textContent = message;
+    row.appendChild(error);
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => error.remove(), 3000);
 }
 
 function getSelectedCriteria() {
@@ -791,18 +1174,23 @@ function getSelectedCriteria() {
     return criteria;
 }
 
-function renderRankingResults(rankings, category) {
+function renderRankingResults(rankings, categories) {
     currentRankings = rankings;
     filteredRankings = rankings;
 
     const summaryContainer = document.getElementById("ranking-summary");
     const tableContainer = document.getElementById("ranking-table-container");
 
+    // Format category display
+    const categoryDisplay = Array.isArray(categories)
+        ? (categories.length === 1 ? categories[0] : `${categories.length} categories`)
+        : (categories || "Unknown");
+
     if (summaryContainer) {
         summaryContainer.innerHTML = `
             <div class="ranking-summary">
                 <div>
-                    <h3>${category} Rankings</h3>
+                    <h3>${categoryDisplay} Rankings</h3>
                     <span class="result-meta" id="result-count">${rankings.length} unique funds ranked</span>
                 </div>
                 <span class="result-meta">Preset: ${PRESETS[currentPreset]?.label || currentPreset}</span>

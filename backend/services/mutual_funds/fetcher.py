@@ -20,6 +20,7 @@ from backend.utils.logging import logger
 
 
 from backend.services.data.tigzig import get_tigzig_dataset, TigZigDatasetError
+from backend.services.mutual_funds.calculator import MetricsCalculator
 from backend.services.mutual_funds.fund_grouper import (
     FundGrouper,
     normalize_fund_name,
@@ -123,7 +124,7 @@ class MutualFundFetcher:
 
         Processes funds in chunks to limit peak memory usage.
         For each chunk:
-        1. Query TigZig Parquet for only the schemes in that chunk
+        1. Query TigZig Parquet for only the schemes in that chunk AND the required date range
         2. Calculate metrics for those funds
         3. Store only the resulting metrics
         4. Explicitly release NAV data before processing the next chunk
@@ -136,9 +137,20 @@ class MutualFundFetcher:
         Returns:
             List of metric dictionaries (None for failed funds)
         """
-        from backend.services.mutual_funds.calculator import MetricsCalculator
+        from backend.services.data.tigzig import _get_memory_mb
+        from backend.services.mutual_funds.lookback import get_date_range_for_lookback
+
+        mem_before = _get_memory_mb()
+        logger.info(f"Memory before metrics batch: {mem_before:.1f} MB")
 
         lookback_years = get_required_lookback_years(criteria_names)
+        start_date, end_date = get_date_range_for_lookback(lookback_years)
+
+        logger.info(
+            f"Metrics batch: {len(funds)} funds, lookback={lookback_years}y, "
+            f"date_range={start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+        )
+
         dataset = get_tigzig_dataset()
 
         # Pre-check cache for all funds to avoid redundant work
@@ -161,6 +173,7 @@ class MutualFundFetcher:
         # Process in chunks
         all_results: dict[int, dict[str, Any] | None] = dict(cached_results)
         num_chunks = 0
+        total_rows_read = 0
 
         for i in range(0, len(funds_to_process), chunk_size):
             chunk = funds_to_process[i:i + chunk_size]
@@ -170,11 +183,20 @@ class MutualFundFetcher:
             chunk_codes = [code for code, _ in chunk]
             chunk_funds = {code: fund for code, fund in chunk}
 
-            # Query TigZig for this chunk only
+            # Query TigZig for this chunk only, with date range filtering
             chunk_nav_data: dict[int, list[dict[str, Any]]] = {}
             if dataset.is_available:
                 try:
-                    chunk_nav_data = dataset.query_nav(chunk_codes)
+                    chunk_nav_data = dataset.query_nav(
+                        chunk_codes,
+                        start_date=start_date.strftime("%Y-%m-%d"),
+                        end_date=end_date.strftime("%Y-%m-%d"),
+                    )
+                    rows_for_chunk = sum(len(v) for v in chunk_nav_data.values())
+                    total_rows_read += rows_for_chunk
+                    logger.debug(
+                        f"Chunk {num_chunks}: read {rows_for_chunk:,} rows for {len(chunk_codes)} schemes"
+                    )
                 except TigZigDatasetError as e:
                     logger.warning(f"Chunk {num_chunks} TigZig query failed: {e}")
 
@@ -182,15 +204,9 @@ class MutualFundFetcher:
             for code, fund in chunk:
                 fund_name = fund.get("_canonical_fund_name", fund.get("scheme_name", ""))
 
-                # Check if this fund previously failed
-                if metrics_cache.is_failed(str(code), lookback_years):
-                    all_results[code] = None
-                    continue
-
                 nav_data = chunk_nav_data.get(code, [])
                 if len(nav_data) < 2:
                     logger.warning(f"Insufficient NAV data for {fund_name} ({code})")
-                    metrics_cache.put_failure(str(code), lookback_years)
                     all_results[code] = None
                     continue
 
@@ -209,8 +225,7 @@ class MutualFundFetcher:
                     metrics_cache.put(str(code), lookback_years, result)
                     all_results[code] = result
                 except Exception as e:
-                    logger.warning(f"Metric calculation failed for {fund_name} ({code}): {e}")
-                    metrics_cache.put_failure(str(code), lookback_years)
+                    logger.exception(f"Metric calculation failed for {fund_name} ({code})")
                     all_results[code] = None
 
             # Explicitly release chunk data before next iteration
@@ -225,9 +240,12 @@ class MutualFundFetcher:
             code = int(fund["_representative_scheme_code"])
             results.append(all_results.get(code))
 
+        mem_after = _get_memory_mb()
         logger.info(
             f"Batch metrics: {len(funds)} funds in {num_chunks} chunks, "
-            f"{sum(1 for r in results if r is not None)} successful"
+            f"{sum(1 for r in results if r is not None)} successful, "
+            f"{total_rows_read:,} total rows read, "
+            f"memory: {mem_before:.1f} -> {mem_after:.1f} MB (delta: {mem_after - mem_before:.1f} MB)"
         )
 
         return results

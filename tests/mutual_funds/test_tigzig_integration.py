@@ -33,10 +33,10 @@ class TestTigZigDataset:
             assert dataset.is_available is False
 
     def test_stats_unavailable(self):
-        """stats should report unavailable when no file exists."""
+        """get_stats() should report unavailable when no file exists."""
         with tempfile.TemporaryDirectory() as tmpdir:
             dataset = TigZigDataset(data_dir=tmpdir)
-            stats = dataset.stats
+            stats = dataset.get_stats()
             assert stats["available"] is False
 
     async def test_ensure_dataset_downloads_when_missing(self):

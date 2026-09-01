@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -16,7 +17,7 @@ from backend.services.mutual_funds.lookback import get_required_lookback_years
 from backend.services.mutual_funds.ranking import RankingEngine
 from backend.services.mutual_funds.category_normalizer import normalize_category
 from backend.services.mutual_funds.cache import metrics_cache
-from backend.services.data.tigzig import get_tigzig_dataset, get_tigzig_metadata, initialize_tigzig
+from backend.services.data.tigzig import get_tigzig_dataset, get_tigzig_metadata, initialize_tigzig, _get_memory_mb
 from backend.utils.logging import logger
 
 router = APIRouter()
@@ -26,19 +27,31 @@ fetcher = MutualFundFetcher(settings=settings)
 
 @router.on_event("startup")
 async def startup_event():
-    """Initialize TigZig dataset at startup."""
-    logger.info("Starting up mutual fund service...")
+    """Initialize TigZig dataset at startup with minimal memory usage.
+
+    This startup handler does NOT load the Parquet dataset into memory.
+    It only checks file existence and logs the file size.
+    The dataset will be loaded on-demand during ranking requests.
+    """
+    mem_before = _get_memory_mb()
+    logger.info(f"Starting up mutual fund service... (memory: {mem_before:.1f} MB)")
+
     try:
-        success = await initialize_tigzig()
-        if success:
-            dataset = get_tigzig_dataset()
-            stats = dataset.stats
+        # Only check if dataset file exists, do NOT load it into memory
+        dataset = get_tigzig_dataset()
+        if dataset.is_available:
+            # Lightweight check - only read file size, not Parquet metadata
+            file_size = os.path.getsize(dataset.dataset_path)
             logger.info(
-                f"TigZig dataset ready: {stats.get('size_mb', 0):.1f} MB, "
-                f"{stats.get('total_rows', 0):,} rows"
+                f"TigZig dataset available: {file_size / (1024 * 1024):.1f} MB on disk. "
+                f"Will be loaded on-demand during ranking."
             )
         else:
-            logger.error("TigZig dataset not available - ranking will use MFAPI fallback")
+            logger.warning("TigZig dataset not found - will download on first ranking request")
+
+        mem_after = _get_memory_mb()
+        logger.info(f"Startup complete (memory: {mem_before:.1f} -> {mem_after:.1f} MB)")
+
     except Exception as e:
         logger.error(f"TigZig initialization failed: {e}")
 
@@ -202,14 +215,43 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
 
     total_start = time_module.time()
 
-    # Get underlying funds (one per AMC + normalized name)
-    underlying_funds = await fetcher.get_ranking_candidates_by_category(payload.category)
+    # Get underlying funds for all selected categories
+    categories = payload.category if isinstance(payload.category, list) else [payload.category]
+    categories = [c for c in categories if c]  # Remove empty strings
+
+    if not categories:
+        return {
+            "category": categories,
+            "categories_count": 0,
+            "rankings": [],
+            "meta": {
+                "underlying_funds": 0,
+                "ranked": 0,
+                "skipped": 0,
+            },
+        }
+
+    # Collect funds from all categories, deduplicating by scheme code
+    underlying_funds = []
+    seen_codes = set()
+    for cat in categories:
+        cat_funds = await fetcher.get_ranking_candidates_by_category(cat)
+        for fund in cat_funds:
+            code = fund.get("_representative_scheme_code")
+            if code and code not in seen_codes:
+                seen_codes.add(code)
+                underlying_funds.append(fund)
+
     fund_count = len(underlying_funds)
-    logger.info("Found %d underlying funds in category: %s", fund_count, payload.category)
+    logger.info(
+        "Found %d underlying funds across %d categories: %s",
+        fund_count, len(categories), categories
+    )
 
     if fund_count == 0:
         return {
-            "category": payload.category,
+            "category": categories,
+            "categories_count": len(categories),
             "rankings": [],
             "meta": {
                 "underlying_funds": 0,
@@ -231,7 +273,8 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
 
         if not underlying_funds:
             return {
-                "category": payload.category,
+                "category": categories,
+                "categories_count": len(categories),
                 "rankings": [],
                 "meta": {
                     "underlying_funds": fund_count,
@@ -298,7 +341,8 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
     )
 
     return {
-        "category": payload.category,
+        "category": categories,
+        "categories_count": len(categories),
         "rankings": rankings,
         "meta": {
             "underlying_funds": fund_count,
