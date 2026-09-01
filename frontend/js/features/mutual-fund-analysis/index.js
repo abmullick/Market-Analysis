@@ -212,7 +212,7 @@ async function loadCategories() {
     const filtersContainer = document.getElementById("ranking-filters");
     if (!filtersContainer) return;
 
-    showLoading(filtersContainer);
+    showLoading(filtersContainer, "Loading categories...");
     try {
         const response = await api.get("/mutual-funds/categories");
         categories = response.categories || [];
@@ -1036,7 +1036,7 @@ async function runRanking() {
     const summaryContainer = document.getElementById("ranking-summary");
     if (!resultsContainer) return;
 
-    showLoading(resultsContainer);
+    showLoading(resultsContainer, "Generating rankings...");
     if (summaryContainer) summaryContainer.innerHTML = "";
 
     try {
@@ -1448,7 +1448,7 @@ async function showComparisonView() {
 
     const selected = filteredRankings.filter(r => selectedFunds.has(r.scheme_code));
 
-    resultsContainer.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading comparison data...</div>';
+    showLoading(resultsContainer, "Loading comparison data...");
 
     try {
         const detailPromises = selected.map(f =>
