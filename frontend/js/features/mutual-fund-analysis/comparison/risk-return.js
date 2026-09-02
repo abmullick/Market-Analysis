@@ -1,18 +1,21 @@
+const COLORS = [
+    "#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed",
+    "#0891b2", "#ea580c", "#65a30d", "#9333ea", "#0f766e",
+];
+
 export function renderRiskReturnChart(container, enrichedFunds) {
     if (!container || !enrichedFunds || enrichedFunds.length < 2) return;
 
     const wrapper = document.createElement("div");
-    wrapper.className = "comparison-chart-section";
+    wrapper.className = "comparison-chart-module is-chart";
 
-    const header = document.createElement("div");
-    header.className = "comparison-section-header";
-    header.textContent = "Risk vs Return";
-    wrapper.appendChild(header);
-
-    const description = document.createElement("p");
-    description.className = "comparison-chart-description";
-    description.textContent = "Higher return is generally preferable, while lower volatility represents lower historical variability.";
-    wrapper.appendChild(description);
+    const heading = document.createElement("div");
+    heading.className = "comparison-section-heading";
+    heading.innerHTML = `
+        <h4 class="comparison-section-title">Risk vs Return</h4>
+        <p class="comparison-section-subtitle">Higher return is generally preferable, while lower volatility represents lower historical variability. Points in the upper-left indicate stronger risk-adjusted outcomes for the selected period.</p>
+    `;
+    wrapper.appendChild(heading);
 
     const controls = document.createElement("div");
     controls.className = "chart-period-buttons";
@@ -61,20 +64,20 @@ export function renderRiskReturnChart(container, enrichedFunds) {
             return;
         }
 
-        const colors = [
-            "#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed",
-            "#059669", "#db2777", "#2563eb", "#65a30d", "#0891b2",
-        ];
-
         const datasets = fundsWithData.map((f, i) => {
             const volatility = f._detail[period.volatilityKey] * 100;
             const ret = f._detail[period.returnKey] * 100;
+            const color = COLORS[i % COLORS.length];
             return {
                 label: f.scheme_name,
                 data: [{ x: volatility, y: ret }],
-                backgroundColor: colors[i % colors.length],
-                pointRadius: 8,
-                pointHoverRadius: 10,
+                backgroundColor: color,
+                borderColor: color,
+                pointRadius: 10,
+                pointHoverRadius: 12,
+                pointBorderColor: "#ffffff",
+                pointBorderWidth: 2,
+                pointStyle: "circle",
             };
         });
 
@@ -84,12 +87,24 @@ export function renderRiskReturnChart(container, enrichedFunds) {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: { mode: "nearest", intersect: true },
                 plugins: {
                     legend: {
                         position: "bottom",
-                        labels: { usePointStyle: true, pointStyle: "circle", padding: 16, font: { size: 12 } },
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: "circle",
+                            boxWidth: 8,
+                            boxHeight: 8,
+                            padding: 16,
+                            font: { size: 12, weight: "500" },
+                        },
                     },
                     tooltip: {
+                        backgroundColor: "rgba(15, 23, 42, 0.95)",
+                        padding: 10,
+                        titleFont: { size: 12 },
+                        bodyFont: { size: 12 },
                         callbacks: {
                             label(ctx) {
                                 const fund = fundsWithData[ctx.datasetIndex];
@@ -106,12 +121,14 @@ export function renderRiskReturnChart(container, enrichedFunds) {
                 },
                 scales: {
                     x: {
-                        title: { display: true, text: `${period.label} Annualized Volatility (%)`, font: { size: 12 } },
-                        ticks: { callback: (v) => `${v.toFixed(1)}%` },
+                        title: { display: true, text: `${period.label} Annualized Volatility (%)`, font: { size: 11, weight: "500" }, color: "#64748b" },
+                        ticks: { callback: (v) => `${v.toFixed(1)}%`, color: "#64748b" },
+                        grid: { color: "rgba(15, 23, 42, 0.06)" },
                     },
                     y: {
-                        title: { display: true, text: `${period.label} Return (%)`, font: { size: 12 } },
-                        ticks: { callback: (v) => `${v.toFixed(1)}%` },
+                        title: { display: true, text: `${period.label} Return (%)`, font: { size: 11, weight: "500" }, color: "#64748b" },
+                        ticks: { callback: (v) => `${v.toFixed(1)}%`, color: "#64748b" },
+                        grid: { color: "rgba(15, 23, 42, 0.06)" },
                     },
                 },
             },
@@ -120,6 +137,7 @@ export function renderRiskReturnChart(container, enrichedFunds) {
 
     periods.forEach(period => {
         const btn = document.createElement("button");
+        btn.type = "button";
         btn.className = `chart-period-btn${period === activePeriod ? " active" : ""}`;
         btn.textContent = period.label;
         btn.addEventListener("click", () => {

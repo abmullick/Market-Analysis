@@ -1659,11 +1659,93 @@ function renderComparisonTable(container, enrichedFunds) {
     const header = document.createElement("div");
     header.className = "comparison-header";
     header.innerHTML = `
-        <button class="btn-back" id="back-to-rankings">← Back to Rankings</button>
-        <h3 class="comparison-title">Fund Comparison</h3>
-        <span class="comparison-subtitle">${enrichedFunds.length} funds</span>
+        <div class="comparison-header-top">
+            <button class="btn-back" id="back-to-rankings">← Back to Rankings</button>
+            <div class="comparison-header-titles">
+                <h3 class="comparison-title">Fund Comparison</h3>
+                <p class="comparison-subtitle">${enrichedFunds.length} funds selected for side-by-side analysis</p>
+            </div>
+        </div>
     `;
     wrapper.appendChild(header);
+
+    const identitySection = document.createElement("div");
+    identitySection.className = "comparison-identity-grid";
+    enrichedFunds.forEach((fund, i) => {
+        const amc = fund.amc || fund._detail?.amc || "AMC not available";
+        const category = fund._categoryAnalysis?.category
+            || fund.category
+            || fund._detail?.category
+            || "Category not available";
+        const colorIndex = i % 5;
+        const card = document.createElement("div");
+        card.className = `fund-identity-card fund-color-${colorIndex}`;
+        card.innerHTML = `
+            <div class="fund-identity-accent"></div>
+            <div class="fund-identity-body">
+                <div class="fund-identity-name"><span class="fund-link" data-scheme="${fund.scheme_code}" data-name="${encodeURIComponent(fund.scheme_name)}">${fund.scheme_name}</span></div>
+                <div class="fund-identity-meta">
+                    <span class="fund-identity-amc">${amc}</span>
+                    <span class="fund-identity-sep">·</span>
+                    <span class="fund-identity-category">${category}</span>
+                </div>
+            </div>
+        `;
+        identitySection.appendChild(card);
+    });
+    wrapper.appendChild(identitySection);
+
+    const kpiSection = document.createElement("div");
+    kpiSection.className = "comparison-kpi-section";
+    const kpiTitleRow = document.createElement("div");
+    kpiTitleRow.className = "comparison-kpi-title-row";
+    const kpiLegend = document.createElement("div");
+    kpiLegend.className = "comparison-kpi-legend";
+    enrichedFunds.forEach((f, i) => {
+        const chip = document.createElement("span");
+        chip.className = `comparison-legend-chip fund-color-${i % 5}`;
+        chip.innerHTML = `<span class="comparison-legend-swatch"></span><span class="comparison-legend-label">F${i + 1}</span><span class="comparison-legend-name">${f.scheme_name}</span>`;
+        kpiLegend.appendChild(chip);
+    });
+    kpiTitleRow.innerHTML = `
+        <h4 class="comparison-kpi-title">Key Metrics at a Glance</h4>
+        <p class="comparison-kpi-subtitle">Best value per metric is highlighted across the selected funds.</p>
+    `;
+    kpiSection.appendChild(kpiTitleRow);
+    kpiSection.appendChild(kpiLegend);
+    const kpiGrid = document.createElement("div");
+    kpiGrid.className = "comparison-kpi-grid";
+    kpiSection.appendChild(kpiGrid);
+    wrapper.appendChild(kpiSection);
+
+    const KPI_METRICS = [
+        { key: "3Y_cagr", label: "3Y CAGR", unit: "percent", higherBetter: true, semantic: "positive" },
+        { key: "5Y_cagr", label: "5Y CAGR", unit: "percent", higherBetter: true, semantic: "positive" },
+        { key: "volatility", label: "Annualized Volatility", unit: "percent", higherBetter: false, semantic: "risk" },
+        { key: "sharpe_ratio", label: "Sharpe Ratio", unit: "ratio", higherBetter: true, semantic: "positive" },
+        { key: "sortino_ratio", label: "Sortino Ratio", unit: "ratio", higherBetter: true, semantic: "positive" },
+        { key: "maximum_drawdown", label: "Maximum Drawdown", unit: "percent", higherBetter: false, semantic: "risk" },
+    ];
+
+    const kpiValuesByMetric = KPI_METRICS.map(m => enrichedFunds.map(f => getMetricValue(f, m.key)));
+    const kpiBestByMetric = KPI_METRICS.map((m, i) => getBestIndices(kpiValuesByMetric[i], m.higherBetter));
+
+    KPI_METRICS.forEach((m, mi) => {
+        const values = kpiValuesByMetric[mi];
+        const best = kpiBestByMetric[mi];
+        const card = document.createElement("div");
+        card.className = `kpi-card kpi-${m.semantic}`;
+        let row = `<div class="kpi-card-header"><span class="kpi-card-label">${m.label}</span></div>`;
+        row += `<div class="kpi-card-values">`;
+        values.forEach((v, fi) => {
+            const isBest = best.has(fi) && v != null;
+            const display = formatValue(v, m.unit);
+            row += `<div class="kpi-cell${isBest ? " kpi-best" : ""}"><span class="kpi-cell-value">${display}</span><span class="kpi-cell-fund">F${fi + 1}</span></div>`;
+        });
+        row += `</div>`;
+        card.innerHTML = row;
+        kpiGrid.appendChild(card);
+    });
 
     const tableWrapper = document.createElement("div");
     tableWrapper.className = "comparison-table-wrapper";
@@ -1673,7 +1755,7 @@ function renderComparisonTable(container, enrichedFunds) {
 
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
-    headerRow.innerHTML = `<th>Metric</th>${enrichedFunds.map(f => `<th class="fund-col"><div class="fund-col-name"><span class="fund-link" data-scheme="${f.scheme_code}" data-name="${encodeURIComponent(f.scheme_name)}">${f.scheme_name}</span></div><div class="fund-col-meta">${f.amc || "—"} · ${f.scheme_code}</div></th>`).join("")}`;
+    headerRow.innerHTML = `<th>Metric</th>${enrichedFunds.map((f, i) => `<th class="fund-col fund-color-${i % 5}"><div class="fund-col-tag">F${i + 1}</div><div class="fund-col-name"><span class="fund-link" data-scheme="${f.scheme_code}" data-name="${encodeURIComponent(f.scheme_name)}">${f.scheme_name}</span></div><div class="fund-col-meta">${f.amc || "—"} · ${f.scheme_code}</div></th>`).join("")}`;
     thead.appendChild(headerRow);
     table.appendChild(thead);
 

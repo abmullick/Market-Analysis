@@ -4,22 +4,15 @@ export function renderDrawdownAnalysis(container, detail, navHistory) {
     }
 
     const section = document.createElement("div");
-    section.className = "fund-detail-section";
+    section.className = "fund-drawdown-subsection";
 
-    const titleRow = document.createElement("div");
-    titleRow.className = "section-title-row";
-
-    const title = document.createElement("h3");
-    title.className = "section-title";
-    title.textContent = "Drawdown Analysis";
-    titleRow.appendChild(title);
-
-    const subtitle = document.createElement("span");
-    subtitle.className = "section-subtitle";
-    subtitle.textContent = "Shows how far the fund has fallen from its previous NAV peak over time.";
-    titleRow.appendChild(subtitle);
-
-    section.appendChild(titleRow);
+    const heading = document.createElement("div");
+    heading.className = "fund-section-heading";
+    heading.innerHTML = `
+        <h3 class="fund-section-title fund-section-title-sub">Drawdown Analysis</h3>
+        <p class="fund-section-subtitle">How far the fund has fallen from its previous NAV peak over time.</p>
+    `;
+    section.appendChild(heading);
 
     const dates = navHistory.dates;
     const navs = navHistory.navs;
@@ -106,12 +99,15 @@ export function renderDrawdownAnalysis(container, detail, navHistory) {
                 label: "Drawdown %",
                 data: drawdowns,
                 borderColor: "#2563eb",
-                backgroundColor: "rgba(37, 99, 235, 0.1)",
+                backgroundColor: "rgba(37, 99, 235, 0.08)",
                 borderWidth: 2,
                 fill: true,
-                tension: 0.1,
+                tension: 0,
                 pointRadius: 0,
-                pointHoverRadius: 4,
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: "#2563eb",
+                pointHoverBorderColor: "#ffffff",
+                pointHoverBorderWidth: 2,
                 pointBackgroundColor: pointColors,
             }],
         },
@@ -123,11 +119,15 @@ export function renderDrawdownAnalysis(container, detail, navHistory) {
                 mode: "index",
             },
             plugins: {
-                legend: {
-                    display: false,
-                },
+                legend: { display: false },
                 tooltip: {
+                    backgroundColor: "rgba(15, 23, 42, 0.95)",
+                    padding: 10,
+                    titleFont: { size: 12, weight: "600" },
+                    bodyFont: { size: 12 },
+                    displayColors: false,
                     callbacks: {
+                        title: (items) => items[0]?.label || "",
                         label: (context) => {
                             const dd = context.parsed.y;
                             const label = dd === maxDrawdown ? " [MAX DRAWDOWN]" : "";
@@ -138,14 +138,14 @@ export function renderDrawdownAnalysis(container, detail, navHistory) {
             },
             scales: {
                 x: {
-                    ticks: {
-                        maxTicksLimit: 8,
-                    },
+                    title: { display: true, text: "Date", font: { size: 11, weight: "500" }, color: "#64748b" },
+                    ticks: { maxTicksLimit: 8, color: "#64748b", font: { size: 11 } },
+                    grid: { color: "rgba(15, 23, 42, 0.04)" },
                 },
                 y: {
-                    ticks: {
-                        callback: (value) => `${value.toFixed(1)}%`,
-                    },
+                    title: { display: true, text: "Drawdown (%)", font: { size: 11, weight: "500" }, color: "#64748b" },
+                    ticks: { callback: (value) => `${value.toFixed(1)}%`, color: "#64748b", font: { size: 11 } },
+                    grid: { color: "rgba(15, 23, 42, 0.06)" },
                 },
             },
         },

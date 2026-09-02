@@ -2,27 +2,20 @@ export function renderCategoryAnalysis(container, detail, categoryData) {
     if (!container || !detail || !categoryData) return;
 
     const section = document.createElement("div");
-    section.className = "fund-detail-section";
+    section.className = "fund-category-subsection";
 
-    const titleRow = document.createElement("div");
-    titleRow.className = "section-title-row";
-
-    const title = document.createElement("h3");
-    title.className = "section-title";
-    title.textContent = "Category Relative Analysis";
-    titleRow.appendChild(title);
-
-    const subtitle = document.createElement("span");
-    subtitle.className = "section-subtitle";
-    subtitle.textContent = `Compared with ${detail.category || "category"} funds`;
-    titleRow.appendChild(subtitle);
-
-    section.appendChild(titleRow);
+    const heading = document.createElement("div");
+    heading.className = "fund-section-heading";
+    heading.innerHTML = `
+        <h3 class="fund-section-title fund-section-title-sub">Category Relative Analysis</h3>
+        <p class="fund-section-subtitle">How this fund ranks within the ${detail.category || "category"} peer group.</p>
+    `;
+    section.appendChild(heading);
 
     if (!categoryData.metrics || categoryData.metrics.length === 0) {
         const empty = document.createElement("div");
-        empty.className = "empty-state";
-        empty.innerHTML = `<p>Insufficient category data for comparison.</p>`;
+        empty.className = "fund-empty-state";
+        empty.textContent = "Insufficient category data for comparison.";
         section.appendChild(empty);
         container.appendChild(section);
         return;

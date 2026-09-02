@@ -65,16 +65,31 @@ function renderFundModal(detail, navHistory, schemeCode, categoryAnalysis) {
     const content = document.createElement("div");
     content.className = "fund-detail-content";
 
-    content.appendChild(createFundHeader(detail, schemeCode));
-    content.appendChild(createMetricsSection(detail));
+    content.appendChild(createFundIdentitySection(detail, schemeCode));
+    content.appendChild(createKpiSection(detail));
+    content.appendChild(createPerformanceSummarySection(detail, navHistory));
+    content.appendChild(createChartSection(detail, navHistory));
+
+    const riskSection = document.createElement("div");
+    riskSection.className = "fund-detail-section fund-risk-section";
+    const riskHeading = document.createElement("div");
+    riskHeading.className = "fund-section-heading";
+    riskHeading.innerHTML = `
+        <h3 class="fund-section-title">Risk &amp; Risk-Adjusted Performance</h3>
+        <p class="fund-section-subtitle">Volatility, drawdown behavior, and where Sharpe/Sortino place the fund within its category.</p>
+    `;
+    riskSection.appendChild(riskHeading);
+    content.appendChild(riskSection);
+    renderDrawdownAnalysis(riskSection, detail, navHistory);
+    if (categoryAnalysis) {
+        renderCategoryAnalysis(riskSection, detail, categoryAnalysis);
+    }
+
     const rollingSectionSchemeCode = schemeCode || detail.scheme_code;
     console.log("[RollingReturns] renderFundModal calling createRollingReturnsSection with:", rollingSectionSchemeCode, "schemeCode:", schemeCode, "detail.scheme_code:", detail.scheme_code);
     content.appendChild(createRollingReturnsSection(rollingSectionSchemeCode));
-    content.appendChild(createChartSection(detail, navHistory));
-    renderDrawdownAnalysis(content, detail, navHistory);
-    if (categoryAnalysis) {
-        renderCategoryAnalysis(content, detail, categoryAnalysis);
-    }
+
+    content.appendChild(createPortfolioSection(detail));
     content.appendChild(createMetadataSection(detail));
 
     dialog.appendChild(header);
@@ -107,216 +122,248 @@ function renderFundModal(detail, navHistory, schemeCode, categoryAnalysis) {
     }, 100);
 }
 
-function createFundHeader(detail, schemeCode) {
+function createFundIdentitySection(detail, schemeCode) {
     const section = document.createElement("div");
-    section.className = "fund-detail-header";
+    section.className = "fund-identity-section";
 
-    const topRow = document.createElement("div");
-    topRow.className = "fund-detail-top-row";
+    const badgesRow = document.createElement("div");
+    badgesRow.className = "fund-identity-badges";
 
-    const badgeGroup = document.createElement("div");
-    badgeGroup.className = "fund-badges";
+    const addBadge = (text, className) => {
+        if (!text) return;
+        const b = document.createElement("span");
+        b.className = `fund-badge ${className || ""}`;
+        b.textContent = text;
+        badgesRow.appendChild(b);
+    };
+    addBadge(detail.amc, "fund-badge-amc");
+    addBadge(detail.category, "fund-badge-category");
+    addBadge(detail.plan, `fund-badge-plan ${(detail.plan || "").toLowerCase()}`);
+    addBadge(detail.option, "fund-badge-option");
 
-    if (detail.amc) {
-        const amcBadge = document.createElement("span");
-        amcBadge.className = "fund-badge fund-badge-amc";
-        amcBadge.textContent = detail.amc;
-        badgeGroup.appendChild(amcBadge);
+    if (badgesRow.children.length > 0) {
+        section.appendChild(badgesRow);
     }
 
-    if (detail.category) {
-        const catBadge = document.createElement("span");
-        catBadge.className = "fund-badge fund-badge-category";
-        catBadge.textContent = detail.category;
-        badgeGroup.appendChild(catBadge);
+    const metaRow = document.createElement("div");
+    metaRow.className = "fund-identity-meta";
+
+    const inception = detail.first_nav_date || "Not available";
+    const fundAge = detail.fund_age_years != null ? `${detail.fund_age_years.toFixed(1)} years` : "Not available";
+    const dataRange = (detail.data_start_date && detail.data_end_date)
+        ? `${detail.data_start_date} – ${detail.data_end_date}`
+        : "Not available";
+    const dataPoints = detail.data_points != null ? `${detail.data_points.toLocaleString()} points` : null;
+
+    const metaItems = [
+        { label: "Inception", value: inception },
+        { label: "Fund Age", value: fundAge },
+        { label: "Data Range", value: dataRange },
+    ];
+    if (dataPoints) {
+        metaItems.push({ label: "Data Points", value: dataPoints });
     }
 
-    if (detail.plan) {
-        const planBadge = document.createElement("span");
-        planBadge.className = `fund-badge fund-badge-plan ${detail.plan.toLowerCase()}`;
-        planBadge.textContent = detail.plan;
-        badgeGroup.appendChild(planBadge);
-    }
-
-    if (detail.option) {
-        const optionBadge = document.createElement("span");
-        optionBadge.className = "fund-badge fund-badge-option";
-        optionBadge.textContent = detail.option;
-        badgeGroup.appendChild(optionBadge);
-    }
-
-    topRow.appendChild(badgeGroup);
-    section.appendChild(topRow);
-
-    const infoGrid = document.createElement("div");
-    infoGrid.className = "fund-info-grid";
-
-    infoGrid.appendChild(createInfoItem("Scheme Code", detail.scheme_code || schemeCode || "Not available"));
-    infoGrid.appendChild(createInfoItem("Latest NAV", detail.nav != null ? detail.nav.toFixed(4) : "Not available"));
-    infoGrid.appendChild(createInfoItem("NAV Date", detail.nav_date || "Not available"));
-    const aumValue = detail.total_aum_cr != null
-        ? `₹${detail.total_aum_cr.toFixed(2)} Cr`
-        : (detail.aum_cr != null ? `₹${detail.aum_cr.toFixed(2)} Cr` : "Not available");
-    const aumLabel = detail.total_aum_cr != null ? "Total AUM" : (detail.aum_cr != null ? "AUM (Cr)" : "AUM");
-    infoGrid.appendChild(createInfoItem(aumLabel, aumValue));
-
-    const totalQuarter = detail.total_aum_quarter || detail.aum_quarter || "Not available";
-    infoGrid.appendChild(createInfoItem("AUM Quarter", totalQuarter));
-    infoGrid.appendChild(createInfoItem("First NAV Date", detail.first_nav_date || "Not available"));
-    infoGrid.appendChild(createInfoItem("Fund Age", detail.fund_age_years != null ? `${detail.fund_age_years.toFixed(1)} years` : "Not available"));
-    infoGrid.appendChild(createInfoItem("Expense Ratio", detail.expense_ratio != null ? `${detail.expense_ratio}%` : "Not available"));
-
-    if (detail.fund_manager) {
-        infoGrid.appendChild(createInfoItem("Fund Manager", detail.fund_manager));
-    }
-
-    section.appendChild(infoGrid);
+    metaItems.forEach(item => {
+        const cell = document.createElement("div");
+        cell.className = "fund-identity-meta-item";
+        const labelEl = document.createElement("span");
+        labelEl.className = "fund-identity-meta-label";
+        labelEl.textContent = item.label;
+        const valueEl = document.createElement("span");
+        valueEl.className = "fund-identity-meta-value";
+        valueEl.textContent = item.value;
+        cell.appendChild(labelEl);
+        cell.appendChild(valueEl);
+        metaRow.appendChild(cell);
+    });
+    section.appendChild(metaRow);
 
     return section;
 }
 
-function createInfoItem(label, value) {
-    const item = document.createElement("div");
-    item.className = "fund-info-item";
+function createKpiSection(detail) {
+    const section = document.createElement("div");
+    section.className = "fund-detail-section fund-kpi-section";
 
-    const labelEl = document.createElement("span");
-    labelEl.className = "fund-info-label";
-    labelEl.textContent = label;
+    const heading = document.createElement("div");
+    heading.className = "fund-section-heading";
+    heading.innerHTML = `
+        <h3 class="fund-section-title">At a Glance</h3>
+        <p class="fund-section-subtitle">Key performance and risk-adjusted metrics from the fund's history.</p>
+    `;
+    section.appendChild(heading);
 
-    const valueEl = document.createElement("span");
-    valueEl.className = "fund-info-value";
-    valueEl.textContent = value;
+    const grid = document.createElement("div");
+    grid.className = "fund-kpi-grid";
 
-    item.appendChild(labelEl);
-    item.appendChild(valueEl);
-    return item;
+    const kpis = [
+        { key: "3y", label: "3Y CAGR", value: detail.three_year_cagr, kind: "cagr-positive" },
+        { key: "5y", label: "5Y CAGR", value: detail.five_year_cagr, kind: "cagr-positive" },
+        { key: "vol", label: "Volatility", value: detail.annualized_volatility, kind: "risk" },
+        { key: "sharpe", label: "Sharpe Ratio", value: detail.sharpe_ratio, kind: "ratio-positive" },
+        { key: "sortino", label: "Sortino Ratio", value: detail.sortino_ratio, kind: "ratio-positive" },
+        { key: "mdd", label: "Max Drawdown", value: detail.maximum_drawdown, kind: "risk" },
+    ];
+
+    kpis.forEach(kpi => {
+        const card = document.createElement("div");
+        card.className = `fund-kpi-card fund-kpi-${kpi.kind}`;
+
+        const labelEl = document.createElement("div");
+        labelEl.className = "fund-kpi-label";
+        labelEl.textContent = kpi.label;
+
+        const valueEl = document.createElement("div");
+        valueEl.className = "fund-kpi-value";
+        if (kpi.value == null) {
+            valueEl.textContent = "Not available";
+            valueEl.classList.add("fund-kpi-na");
+        } else if (kpi.kind === "cagr-positive" || kpi.kind === "risk") {
+            const pct = kpi.value * 100;
+            valueEl.textContent = `${pct >= 0 ? "" : ""}${pct.toFixed(2)}%`;
+            if (kpi.kind === "cagr-positive") {
+                valueEl.classList.add(pct >= 0 ? "fund-kpi-positive" : "fund-kpi-negative");
+            } else {
+                valueEl.classList.add("fund-kpi-risk-neutral");
+            }
+        } else {
+            valueEl.textContent = kpi.value.toFixed(2);
+            if (kpi.value > 1) valueEl.classList.add("fund-kpi-positive");
+            else if (kpi.value > 0) valueEl.classList.add("fund-kpi-amber");
+            else valueEl.classList.add("fund-kpi-negative");
+        }
+
+        card.appendChild(labelEl);
+        card.appendChild(valueEl);
+        grid.appendChild(card);
+    });
+
+    section.appendChild(grid);
+    return section;
 }
 
-function createMetricsSection(detail) {
+function createPerformanceSummarySection(detail, navHistory) {
     const section = document.createElement("div");
     section.className = "fund-detail-section";
 
-    const title = document.createElement("h3");
-    title.className = "section-title";
-    title.textContent = "Performance Metrics";
-    section.appendChild(title);
+    const heading = document.createElement("div");
+    heading.className = "fund-section-heading";
+    heading.innerHTML = `
+        <h3 class="fund-section-title">Performance Summary</h3>
+        <p class="fund-section-subtitle">Simple period return for 1Y; CAGR for multi-year periods.</p>
+    `;
+    section.appendChild(heading);
 
-    const metricsGrid = document.createElement("div");
-    metricsGrid.className = "metrics-grid";
+    const table = document.createElement("table");
+    table.className = "fund-perf-table";
 
-    metricsGrid.appendChild(createMetricCard("1Y Return", detail.one_year_return, "percentage"));
-    metricsGrid.appendChild(createMetricCard("3Y CAGR", detail.three_year_cagr, "percentage"));
-    metricsGrid.appendChild(createMetricCard("5Y CAGR", detail.five_year_cagr, "percentage"));
-    metricsGrid.appendChild(createMetricCard("10Y CAGR", detail.ten_year_cagr, "percentage"));
-    metricsGrid.appendChild(createMetricCard("Sharpe Ratio", detail.sharpe_ratio, "ratio"));
-    metricsGrid.appendChild(createMetricCard("Sortino Ratio", detail.sortino_ratio, "ratio"));
-    metricsGrid.appendChild(createMetricCard("Volatility", detail.annualized_volatility, "percentage"));
-    metricsGrid.appendChild(createMetricCard("Max Drawdown", detail.maximum_drawdown, "percentage", true));
-    metricsGrid.appendChild(createMetricCard("Downside Dev", detail.downside_deviation, "percentage"));
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    headerRow.innerHTML = `
+        <th class="fund-perf-period-col">Period</th>
+        <th class="fund-perf-kind-col">Type</th>
+        <th class="fund-perf-value-col">Return</th>
+    `;
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
 
-    section.appendChild(metricsGrid);
+    const tbody = document.createElement("tbody");
 
-    if (detail.rolling_return_consistency) {
-        const consistencySection = createConsistencySection(detail.rolling_return_consistency);
-        section.appendChild(consistencySection);
-    }
+    const sinceInceptionCagr = computeSinceInceptionCagr(detail, navHistory);
 
-    const dataInfo = document.createElement("div");
-    dataInfo.className = "data-info";
-    dataInfo.textContent = `Based on ${detail.data_points} data points from ${detail.data_start_date || "N/A"} to ${detail.data_end_date || "N/A"}`;
-    section.appendChild(dataInfo);
+    const rows = [
+        { period: "1Y", kind: "Simple Return", value: detail.one_year_return, kindClass: "perf-kind-simple" },
+        { period: "3Y", kind: "CAGR", value: detail.three_year_cagr, kindClass: "perf-kind-cagr" },
+        { period: "5Y", kind: "CAGR", value: detail.five_year_cagr, kindClass: "perf-kind-cagr" },
+        { period: "10Y", kind: "CAGR", value: detail.ten_year_cagr, kindClass: "perf-kind-cagr" },
+        { period: "Since Inception", kind: "CAGR", value: sinceInceptionCagr, kindClass: "perf-kind-cagr" },
+    ];
 
+    rows.forEach(row => {
+        const tr = document.createElement("tr");
+        const periodCell = document.createElement("td");
+        periodCell.className = "fund-perf-period";
+        periodCell.textContent = row.period;
+        tr.appendChild(periodCell);
+
+        const kindCell = document.createElement("td");
+        kindCell.className = `fund-perf-kind ${row.kindClass}`;
+        kindCell.textContent = row.kind;
+        tr.appendChild(kindCell);
+
+        const valueCell = document.createElement("td");
+        valueCell.className = "fund-perf-value";
+        if (row.value == null) {
+            valueCell.textContent = "Not available";
+            valueCell.classList.add("fund-perf-na");
+        } else {
+            const pct = row.value * 100;
+            valueCell.textContent = `${pct.toFixed(2)}%`;
+            if (pct >= 0) valueCell.classList.add("fund-perf-positive");
+            else valueCell.classList.add("fund-perf-negative");
+        }
+        tr.appendChild(valueCell);
+
+        tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    section.appendChild(table);
     return section;
 }
 
-function createMetricCard(label, value, type, invertColor = false) {
-    const card = document.createElement("div");
-    card.className = "metric-card";
+function computeSinceInceptionCagr(detail, navHistory) {
+    if (!navHistory || !Array.isArray(navHistory.dates) || navHistory.dates.length < 2) return null;
+    if (!Array.isArray(navHistory.navs) || navHistory.navs.length !== navHistory.dates.length) return null;
 
-    const labelEl = document.createElement("div");
-    labelEl.className = "metric-label";
-    labelEl.textContent = label;
+    const firstDate = navHistory.dates[0];
+    const firstNav = navHistory.navs[0];
+    const lastDate = navHistory.dates[navHistory.dates.length - 1];
+    const lastNav = navHistory.navs[navHistory.navs.length - 1];
 
-    const valueEl = document.createElement("div");
-    valueEl.className = "metric-value";
+    if (!firstDate || !lastDate || !Number.isFinite(firstNav) || !Number.isFinite(lastNav)) return null;
+    if (firstNav <= 0 || lastNav <= 0) return null;
 
-    if (value == null || value === undefined) {
-        valueEl.textContent = "Not available";
-        valueEl.classList.add("metric-na");
-    } else {
-        if (type === "percentage") {
-            valueEl.textContent = `${(value * 100).toFixed(2)}%`;
-        } else {
-            valueEl.textContent = value.toFixed(3);
-        }
+    const fundFirstDate = detail.first_nav_date;
+    if (fundFirstDate && firstDate > fundFirstDate) return null;
 
-        if (invertColor) {
-            valueEl.classList.add(value <= 0.1 ? "metric-good" : value <= 0.2 ? "metric-warn" : "metric-bad");
-        } else {
-            if (label.includes("Return") || label.includes("CAGR")) {
-                valueEl.classList.add(value > 0 ? "metric-good" : "metric-bad");
-            } else if (label.includes("Sharpe") || label.includes("Sortino")) {
-                valueEl.classList.add(value > 1 ? "metric-good" : value > 0 ? "metric-warn" : "metric-bad");
-            }
-        }
+    const years = yearsBetween(firstDate, lastDate);
+    if (!Number.isFinite(years) || years <= 0) return null;
+
+    const totalReturn = lastNav / firstNav - 1;
+    if (totalReturn <= -1) return null;
+
+    try {
+        const cagr = Math.pow(1 + totalReturn, 1 / years) - 1;
+        if (!Number.isFinite(cagr)) return null;
+        return cagr;
+    } catch {
+        return null;
     }
-
-    card.appendChild(labelEl);
-    card.appendChild(valueEl);
-    return card;
 }
 
-function createConsistencySection(consistency) {
-    const section = document.createElement("div");
-    section.className = "consistency-section";
-
-    const title = document.createElement("h4");
-    title.className = "subsection-title";
-    title.textContent = "Rolling Return Consistency";
-    section.appendChild(title);
-
-    const consistencyGrid = document.createElement("div");
-    consistencyGrid.className = "consistency-grid";
-
-    for (const [period, data] of Object.entries(consistency)) {
-        if (!data) continue;
-
-        const card = document.createElement("div");
-        card.className = "consistency-card";
-
-        const periodEl = document.createElement("div");
-        periodEl.className = "consistency-period";
-        periodEl.textContent = period;
-        card.appendChild(periodEl);
-
-        const pctEl = document.createElement("div");
-        pctEl.className = "consistency-pct";
-        pctEl.textContent = `${data.positive_pct?.toFixed(1) || "N/A"}% positive`;
-        card.appendChild(pctEl);
-
-        const windowsEl = document.createElement("div");
-        windowsEl.className = "consistency-windows";
-        windowsEl.textContent = `${data.windows || "N/A"} windows`;
-        card.appendChild(windowsEl);
-
-        consistencyGrid.appendChild(card);
-    }
-
-    section.appendChild(consistencyGrid);
-    return section;
+function yearsBetween(startISO, endISO) {
+    const start = new Date(startISO);
+    const end = new Date(endISO);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return NaN;
+    return (end.getTime() - start.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
 }
 
 function createChartSection(detail, navHistory) {
     const section = document.createElement("div");
-    section.className = "fund-detail-section";
+    section.className = "fund-detail-section fund-chart-section is-chart";
 
     const titleRow = document.createElement("div");
     titleRow.className = "section-title-row";
 
-    const title = document.createElement("h3");
-    title.className = "section-title";
-    title.textContent = "Historical NAV";
-    titleRow.appendChild(title);
+    const heading = document.createElement("div");
+    heading.className = "fund-section-heading fund-section-heading-row";
+    heading.innerHTML = `
+        <h3 class="fund-section-title">Historical NAV</h3>
+        <p class="fund-section-subtitle">Fund NAV over the selected period. Toggle to change the time window.</p>
+    `;
+    titleRow.appendChild(heading);
 
     const buttons = document.createElement("div");
     buttons.className = "chart-period-buttons";
@@ -324,6 +371,7 @@ function createChartSection(detail, navHistory) {
     const periods = ["1Y", "3Y", "5Y", "10Y", "Max"];
     periods.forEach(period => {
         const btn = document.createElement("button");
+        btn.type = "button";
         btn.className = `chart-period-btn${period === "10Y" ? " active" : ""}`;
         btn.textContent = period;
         btn.addEventListener("click", () => {
@@ -338,7 +386,7 @@ function createChartSection(detail, navHistory) {
     section.appendChild(titleRow);
 
     const chartContainer = document.createElement("div");
-    chartContainer.className = "chart-container";
+    chartContainer.className = "chart-container fund-nav-chart";
 
     const canvas = document.createElement("canvas");
     canvas.id = "nav-history-chart";
@@ -349,31 +397,47 @@ function createChartSection(detail, navHistory) {
     return section;
 }
 
-function createMetadataSection(detail) {
+function createPortfolioSection(detail) {
     const section = document.createElement("div");
-    section.className = "fund-detail-section";
+    section.className = "fund-detail-section fund-portfolio-section";
 
-    const title = document.createElement("h3");
-    title.className = "section-title";
-    title.textContent = "Fund Details";
-    section.appendChild(title);
+    const heading = document.createElement("div");
+    heading.className = "fund-section-heading";
+    heading.innerHTML = `
+        <h3 class="fund-section-title">Portfolio</h3>
+        <p class="fund-section-subtitle">Asset allocation and top holdings as last reported.</p>
+    `;
+    section.appendChild(heading);
 
-    const detailsGrid = document.createElement("div");
-    detailsGrid.className = "details-grid";
+    if ((!detail.asset_allocation || Object.keys(detail.asset_allocation).length === 0)
+        && (!detail.top_holdings || detail.top_holdings.length === 0)) {
+        const empty = document.createElement("div");
+        empty.className = "fund-empty-state";
+        empty.textContent = "Portfolio composition is not available for this fund.";
+        section.appendChild(empty);
+        return section;
+    }
+
+    const grid = document.createElement("div");
+    grid.className = "fund-portfolio-grid";
 
     if (detail.asset_allocation && Object.keys(detail.asset_allocation).length > 0) {
-        const allocationCard = document.createElement("div");
-        allocationCard.className = "detail-card";
+        const allocCard = document.createElement("div");
+        allocCard.className = "fund-portfolio-card";
 
         const allocTitle = document.createElement("h4");
-        allocTitle.className = "detail-card-title";
+        allocTitle.className = "fund-portfolio-card-title";
         allocTitle.textContent = "Asset Allocation";
-        allocationCard.appendChild(allocTitle);
+        allocCard.appendChild(allocTitle);
 
         const allocList = document.createElement("div");
         allocList.className = "allocation-list";
 
-        for (const [asset, pct] of Object.entries(detail.asset_allocation)) {
+        const entries = Object.entries(detail.asset_allocation);
+        const total = entries.reduce((sum, [, v]) => sum + (typeof v === "number" ? v : 0), 0);
+        const baseDenom = total > 1.01 ? 100 : 1;
+
+        for (const [asset, pct] of entries) {
             const item = document.createElement("div");
             item.className = "allocation-item";
 
@@ -386,12 +450,13 @@ function createMetadataSection(detail) {
 
             const bar = document.createElement("span");
             bar.className = "allocation-bar";
-            bar.style.width = `${Math.min(pct * 100, 100)}%`;
+            const displayPct = (pct * (baseDenom === 100 ? 1 : 100));
+            bar.style.width = `${Math.min(displayPct, 100)}%`;
             barContainer.appendChild(bar);
 
             const pctLabel = document.createElement("span");
             pctLabel.className = "allocation-pct";
-            pctLabel.textContent = `${(pct * 100).toFixed(1)}%`;
+            pctLabel.textContent = `${displayPct.toFixed(1)}%`;
 
             item.appendChild(label);
             item.appendChild(barContainer);
@@ -399,16 +464,16 @@ function createMetadataSection(detail) {
             allocList.appendChild(item);
         }
 
-        allocationCard.appendChild(allocList);
-        detailsGrid.appendChild(allocationCard);
+        allocCard.appendChild(allocList);
+        grid.appendChild(allocCard);
     }
 
     if (detail.top_holdings && detail.top_holdings.length > 0) {
         const holdingsCard = document.createElement("div");
-        holdingsCard.className = "detail-card";
+        holdingsCard.className = "fund-portfolio-card";
 
         const holdingsTitle = document.createElement("h4");
-        holdingsTitle.className = "detail-card-title";
+        holdingsTitle.className = "fund-portfolio-card-title";
         holdingsTitle.textContent = "Top Holdings";
         holdingsCard.appendChild(holdingsTitle);
 
@@ -429,7 +494,7 @@ function createMetadataSection(detail) {
 
             const weight = document.createElement("span");
             weight.className = "holding-weight";
-            weight.textContent = holding.weight ? `${holding.weight.toFixed(2)}%` : "";
+            weight.textContent = holding.weight != null ? `${holding.weight.toFixed(2)}%` : "—";
 
             item.appendChild(rank);
             item.appendChild(name);
@@ -438,24 +503,78 @@ function createMetadataSection(detail) {
         });
 
         holdingsCard.appendChild(holdingsList);
-        detailsGrid.appendChild(holdingsCard);
+        grid.appendChild(holdingsCard);
     }
 
-    section.appendChild(detailsGrid);
+    section.appendChild(grid);
+    return section;
+}
+
+function createMetadataSection(detail) {
+    const section = document.createElement("div");
+    section.className = "fund-detail-section fund-metadata-section";
+
+    const heading = document.createElement("div");
+    heading.className = "fund-section-heading";
+    heading.innerHTML = `
+        <h3 class="fund-section-title">Fund Details</h3>
+        <p class="fund-section-subtitle">Supporting identifying information.</p>
+    `;
+    section.appendChild(heading);
+
+    const grid = document.createElement("div");
+    grid.className = "fund-metadata-grid";
+
+    const addInfo = (label, value) => {
+        if (!value || value === "Not available") return;
+        const item = document.createElement("div");
+        item.className = "fund-metadata-item";
+        const labelEl = document.createElement("span");
+        labelEl.className = "fund-metadata-label";
+        labelEl.textContent = label;
+        const valueEl = document.createElement("span");
+        valueEl.className = "fund-metadata-value";
+        valueEl.textContent = value;
+        item.appendChild(labelEl);
+        item.appendChild(valueEl);
+        grid.appendChild(item);
+    };
+
+    addInfo("Scheme Code", detail.scheme_code);
+    addInfo("Latest NAV", detail.nav != null ? detail.nav.toFixed(4) : null);
+    addInfo("NAV Date", detail.nav_date);
+    if (detail.total_aum_cr != null) {
+        addInfo("Total AUM", `₹${detail.total_aum_cr.toFixed(2)} Cr`);
+    } else if (detail.aum_cr != null) {
+        addInfo("AUM", `₹${detail.aum_cr.toFixed(2)} Cr`);
+    }
+    addInfo("AUM Quarter", detail.total_aum_quarter || detail.aum_quarter);
+    addInfo("Expense Ratio", detail.expense_ratio != null ? `${detail.expense_ratio}%` : null);
+    addInfo("Fund Manager", detail.fund_manager);
+
+    if (grid.children.length === 0) {
+        section.style.display = "none";
+    } else {
+        section.appendChild(grid);
+    }
+
     return section;
 }
 
 function createRollingReturnsSection(schemeCode) {
     const section = document.createElement("div");
-    section.className = "rolling-returns-section";
+    section.className = "fund-detail-section fund-rolling-section";
 
-    const header = document.createElement("div");
-    header.className = "rolling-returns-header";
+    const titleRow = document.createElement("div");
+    titleRow.className = "section-title-row";
 
-    const title = document.createElement("h3");
-    title.className = "rolling-returns-title";
-    title.textContent = "Rolling Returns";
-    header.appendChild(title);
+    const heading = document.createElement("div");
+    heading.className = "fund-section-heading fund-section-heading-row";
+    heading.innerHTML = `
+        <h3 class="fund-section-title">Rolling Returns &amp; Consistency</h3>
+        <p class="fund-section-subtitle">How often rolling windows produced a positive return, and the distribution of outcomes.</p>
+    `;
+    titleRow.appendChild(heading);
 
     const controls = document.createElement("div");
     controls.className = "rolling-returns-controls";
@@ -463,6 +582,7 @@ function createRollingReturnsSection(schemeCode) {
     const periods = [1, 3, 5];
     periods.forEach(period => {
         const btn = document.createElement("button");
+        btn.type = "button";
         btn.className = `rolling-returns-btn${period === 3 ? " active" : ""}`;
         btn.textContent = `${period}Y`;
         btn.addEventListener("click", () => {
@@ -473,8 +593,8 @@ function createRollingReturnsSection(schemeCode) {
         controls.appendChild(btn);
     });
 
-    header.appendChild(controls);
-    section.appendChild(header);
+    titleRow.appendChild(controls);
+    section.appendChild(titleRow);
 
     const summary = document.createElement("div");
     summary.className = "rolling-returns-summary";
@@ -583,12 +703,15 @@ function initRollingChart(dates, returns, period) {
                 label: `${period}Y Rolling Return`,
                 data: returns,
                 borderColor: "#2563eb",
-                backgroundColor: "rgba(37, 99, 235, 0.1)",
+                backgroundColor: "rgba(37, 99, 235, 0.08)",
                 borderWidth: 2,
                 fill: true,
-                tension: 0.1,
+                tension: 0,
                 pointRadius: 0,
-                pointHoverRadius: 4,
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: "#2563eb",
+                pointHoverBorderColor: "#ffffff",
+                pointHoverBorderWidth: 2,
             }],
         },
         options: {
@@ -599,28 +722,32 @@ function initRollingChart(dates, returns, period) {
                 mode: "index",
             },
             plugins: {
-                legend: {
-                    display: false,
-                },
+                legend: { display: false },
                 tooltip: {
+                    backgroundColor: "rgba(15, 23, 42, 0.95)",
+                    padding: 10,
+                    titleFont: { size: 12, weight: "600" },
+                    bodyFont: { size: 12 },
+                    displayColors: false,
                     callbacks: {
+                        title: (items) => items[0]?.label || "",
                         label: (context) => {
                             const val = context.parsed.y;
-                            return `${period}Y Rolling: ${(val * 100).toFixed(2)}%`;
+                            return `${period}Y Rolling Return: ${(val * 100).toFixed(2)}%`;
                         },
                     },
                 },
             },
             scales: {
                 x: {
-                    ticks: {
-                        maxTicksLimit: 8,
-                    },
+                    title: { display: true, text: "Window End Date", font: { size: 11, weight: "500" }, color: "#64748b" },
+                    ticks: { maxTicksLimit: 8, color: "#64748b", font: { size: 11 } },
+                    grid: { color: "rgba(15, 23, 42, 0.04)" },
                 },
                 y: {
-                    ticks: {
-                        callback: (value) => `${(value * 100).toFixed(1)}%`,
-                    },
+                    title: { display: true, text: `${period}Y Rolling Return`, font: { size: 11, weight: "500" }, color: "#64748b" },
+                    ticks: { callback: (value) => `${(value * 100).toFixed(1)}%`, color: "#64748b", font: { size: 11 } },
+                    grid: { color: "rgba(15, 23, 42, 0.06)" },
                 },
             },
         },
@@ -646,12 +773,15 @@ function initNavChart(navHistory, period) {
                 label: "NAV",
                 data: filteredData.navs,
                 borderColor: "#2563eb",
-                backgroundColor: "rgba(37, 99, 235, 0.1)",
+                backgroundColor: "rgba(37, 99, 235, 0.08)",
                 borderWidth: 2,
                 fill: true,
-                tension: 0.1,
+                tension: 0,
                 pointRadius: 0,
-                pointHoverRadius: 4,
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: "#2563eb",
+                pointHoverBorderColor: "#ffffff",
+                pointHoverBorderWidth: 2,
             }],
         },
         options: {
@@ -662,25 +792,41 @@ function initNavChart(navHistory, period) {
                 mode: "index",
             },
             plugins: {
-                legend: {
-                    display: false,
-                },
+                legend: { display: false },
                 tooltip: {
+                    backgroundColor: "rgba(15, 23, 42, 0.95)",
+                    padding: 10,
+                    titleFont: { size: 12, weight: "600" },
+                    bodyFont: { size: 12 },
+                    displayColors: false,
                     callbacks: {
-                        label: (context) => `NAV: ${context.parsed.y.toFixed(4)}`,
+                        title: (items) => items[0]?.label || "",
+                        label: (context) => {
+                            const v = context.parsed.y;
+                            const series = filteredData.navs;
+                            const idx = context.dataIndex;
+                            let changePct = null;
+                            if (idx > 0 && series[idx - 1]) {
+                                changePct = ((v - series[idx - 1]) / series[idx - 1]) * 100;
+                            }
+                            const changeLine = changePct != null
+                                ? ` (${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}% vs prior)`
+                                : "";
+                            return `NAV: ₹${v.toFixed(4)}${changeLine}`;
+                        },
                     },
                 },
             },
             scales: {
                 x: {
-                    ticks: {
-                        maxTicksLimit: 8,
-                    },
+                    title: { display: true, text: "Date", font: { size: 11, weight: "500" }, color: "#64748b" },
+                    ticks: { maxTicksLimit: 8, color: "#64748b", font: { size: 11 } },
+                    grid: { color: "rgba(15, 23, 42, 0.04)" },
                 },
                 y: {
-                    ticks: {
-                        callback: (value) => value.toFixed(2),
-                    },
+                    title: { display: true, text: "NAV (₹)", font: { size: 11, weight: "500" }, color: "#64748b" },
+                    ticks: { callback: (value) => `₹${value.toFixed(2)}`, color: "#64748b", font: { size: 11 } },
+                    grid: { color: "rgba(15, 23, 42, 0.06)" },
                 },
             },
         },

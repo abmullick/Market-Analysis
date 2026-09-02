@@ -14,21 +14,20 @@ export async function renderPerformanceSummary(container, enrichedFunds) {
     container.innerHTML = "";
 
     const wrapper = document.createElement("div");
-    wrapper.className = "comparison-chart-section";
+    wrapper.className = "comparison-chart-module is-table";
 
-    const header = document.createElement("div");
-    header.className = "comparison-section-header";
-    header.textContent = "Performance Summary";
-    wrapper.appendChild(header);
-
-    const description = document.createElement("p");
-    description.className = "comparison-chart-description";
-    description.textContent = "CAGR (Compound Annual Growth Rate) is shown for periods ≥ 1 year; 1Y figure is a simple period return. Since-Inception CAGR requires the full NAV history to be available.";
-    wrapper.appendChild(description);
+    const heading = document.createElement("div");
+    heading.className = "comparison-section-heading";
+    heading.innerHTML = `
+        <h4 class="comparison-section-title">Performance Summary</h4>
+        <p class="comparison-section-subtitle">CAGR (Compound Annual Growth Rate) is shown for periods ≥ 1 year; 1Y figure is a simple period return. Since-Inception CAGR requires the full NAV history to be available.</p>
+    `;
+    wrapper.appendChild(heading);
 
     const loadingEl = document.createElement("div");
     loadingEl.className = "comparison-chart-loading";
     loadingEl.textContent = "Loading inception history...";
+    loadingEl.style.padding = "16px 22px";
     wrapper.appendChild(loadingEl);
 
     const tableWrapper = document.createElement("div");
@@ -64,8 +63,8 @@ function buildTable(tableWrapper, enrichedFunds, navHistories) {
 
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
-    headerRow.innerHTML = `<th>Metric</th>${enrichedFunds.map(f =>
-        `<th class="fund-col"><div class="fund-col-name">${f.scheme_name}</div><div class="fund-col-meta">${f.amc || "—"} · ${f.scheme_code}</div></th>`
+    headerRow.innerHTML = `<th>Metric</th>${enrichedFunds.map((f, i) =>
+        `<th class="fund-col fund-color-${i % 5}"><div class="fund-col-tag">F${i + 1}</div><div class="fund-col-name">${f.scheme_name}</div><div class="fund-col-meta">${f.amc || "—"} · ${f.scheme_code}</div></th>`
     ).join("")}`;
     thead.appendChild(headerRow);
     table.appendChild(thead);

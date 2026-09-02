@@ -1,8 +1,8 @@
 import { api } from "../../../core/api.js";
 
 const COLORS = [
-    "#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed",
-    "#059669", "#db2777", "#65a30d", "#0891b2", "#ea580c",
+    "#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed",
+    "#0891b2", "#ea580c", "#65a30d", "#9333ea", "#0f766e",
 ];
 
 export async function renderNavHistoryChart(container, enrichedFunds) {
@@ -10,21 +10,20 @@ export async function renderNavHistoryChart(container, enrichedFunds) {
 
     container.innerHTML = "";
     const wrapper = document.createElement("div");
-    wrapper.className = "comparison-chart-section";
+    wrapper.className = "comparison-chart-module is-chart";
 
-    const header = document.createElement("div");
-    header.className = "comparison-section-header";
-    header.textContent = "Historical Performance";
-    wrapper.appendChild(header);
-
-    const description = document.createElement("p");
-    description.className = "comparison-chart-description";
-    description.textContent = "Each fund is rebased to 100 at the start of the common historical window. No interpolation of missing NAVs.";
-    wrapper.appendChild(description);
+    const heading = document.createElement("div");
+    heading.className = "comparison-section-heading";
+    heading.innerHTML = `
+        <h4 class="comparison-section-title">Historical Performance</h4>
+        <p class="comparison-section-subtitle">Each fund is rebased to 100 at the start of the common historical window. No interpolation of missing NAVs.</p>
+    `;
+    wrapper.appendChild(heading);
 
     const loadingEl = document.createElement("div");
     loadingEl.className = "comparison-chart-loading";
     loadingEl.textContent = "Loading NAV history...";
+    loadingEl.style.padding = "20px 0";
     wrapper.appendChild(loadingEl);
 
     const chartContainer = document.createElement("div");
@@ -159,9 +158,12 @@ function drawChart(chartContainer, aligned, enrichedFunds) {
             backgroundColor: color,
             borderWidth: 2,
             fill: false,
-            tension: 0.1,
+            tension: 0,
             pointRadius: 0,
-            pointHoverRadius: 4,
+            pointHoverRadius: 5,
+            pointHoverBorderWidth: 2,
+            pointHoverBackgroundColor: color,
+            pointHoverBorderColor: "#ffffff",
             spanGaps: false,
         };
     });
@@ -186,11 +188,17 @@ function drawChart(chartContainer, aligned, enrichedFunds) {
                     labels: {
                         usePointStyle: true,
                         pointStyle: "circle",
+                        boxWidth: 8,
+                        boxHeight: 8,
                         padding: 16,
-                        font: { size: 12 },
+                        font: { size: 12, weight: "500" },
                     },
                 },
                 tooltip: {
+                    backgroundColor: "rgba(15, 23, 42, 0.95)",
+                    padding: 10,
+                    titleFont: { size: 12 },
+                    bodyFont: { size: 12 },
                     callbacks: {
                         label: (ctx) => {
                             const fund = aligned.funds[ctx.datasetIndex];
@@ -202,12 +210,14 @@ function drawChart(chartContainer, aligned, enrichedFunds) {
             },
             scales: {
                 x: {
-                    title: { display: true, text: "Date", font: { size: 12 } },
-                    ticks: { maxTicksLimit: 8 },
+                    title: { display: true, text: "Date", font: { size: 11, weight: "500" }, color: "#64748b" },
+                    ticks: { maxTicksLimit: 8, color: "#64748b" },
+                    grid: { color: "rgba(15, 23, 42, 0.04)" },
                 },
                 y: {
-                    title: { display: true, text: "Normalized Value (Base = 100)", font: { size: 12 } },
-                    ticks: { callback: (v) => v.toFixed(0) },
+                    title: { display: true, text: "Normalized Value (Base = 100)", font: { size: 11, weight: "500" }, color: "#64748b" },
+                    ticks: { callback: (v) => v.toFixed(0), color: "#64748b" },
+                    grid: { color: "rgba(15, 23, 42, 0.06)" },
                 },
             },
         },

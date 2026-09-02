@@ -11,19 +11,22 @@ export function renderDrawdownChart(container, enrichedFunds) {
     }
 
     const wrapper = document.createElement("div");
-    wrapper.className = "comparison-chart-section";
+    wrapper.className = "comparison-chart-module is-table";
 
-    const header = document.createElement("div");
-    header.className = "comparison-section-header";
-    header.textContent = "Drawdown Analysis";
-    wrapper.appendChild(header);
+    const heading = document.createElement("div");
+    heading.className = "comparison-section-heading";
+    heading.innerHTML = `
+        <h4 class="comparison-section-title">Drawdown Analysis</h4>
+        <p class="comparison-section-subtitle">Measures of historical downside risk across the selected funds.</p>
+    `;
+    wrapper.appendChild(heading);
 
     const table = document.createElement("table");
     table.className = "comparison-table";
 
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
-    headerRow.innerHTML = `<th>Metric</th>${fundsWithData.map(f => `<th class="fund-col"><div class="fund-col-name">${f.scheme_name}</div><div class="fund-col-meta">${f.amc || "—"} · ${f.scheme_code}</div></th>`).join("")}`;
+    headerRow.innerHTML = `<th>Metric</th>${fundsWithData.map((f, i) => `<th class="fund-col fund-color-${i % 5}"><div class="fund-col-tag">F${i + 1}</div><div class="fund-col-name">${f.scheme_name}</div><div class="fund-col-meta">${f.amc || "—"} · ${f.scheme_code}</div></th>`).join("")}`;
     thead.appendChild(headerRow);
     table.appendChild(thead);
 
@@ -51,7 +54,10 @@ export function renderDrawdownChart(container, enrichedFunds) {
     });
 
     table.appendChild(tbody);
-    wrapper.appendChild(table);
+    const tableWrapper = document.createElement("div");
+    tableWrapper.className = "comparison-table-wrapper";
+    tableWrapper.appendChild(table);
+    wrapper.appendChild(tableWrapper);
     container.appendChild(wrapper);
 }
 
