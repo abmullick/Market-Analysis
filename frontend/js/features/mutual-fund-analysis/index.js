@@ -4,6 +4,7 @@ import { openFundDetail } from "./fund-detail.js";
 import { renderRiskReturnChart } from "./comparison/risk-return.js";
 import { renderDrawdownChart } from "./comparison/drawdown.js";
 import { renderRollingReturnsChart } from "./comparison/rolling-returns.js";
+import { renderNavHistoryChart } from "./comparison/nav-history.js";
 
 const PRESETS = {
     best_overall: {
@@ -1486,6 +1487,11 @@ async function showComparisonView() {
         rollingSection.className = "comparison-chart-module";
         analysisContainer.appendChild(rollingSection);
         renderRollingReturnsChart(rollingSection, enriched);
+
+        const navSection = document.createElement("div");
+        navSection.className = "comparison-chart-module";
+        analysisContainer.appendChild(navSection);
+        await renderNavHistoryChart(navSection, enriched);
     } catch (error) {
         resultsContainer.innerHTML = `<div class="empty-state"><h3>Comparison failed</h3><p>${error.message}</p></div>`;
     }
