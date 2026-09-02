@@ -1,3 +1,60 @@
+const METRIC_GROUPS = {
+    performance: {
+        label: "Performance",
+        metrics: ["1Y_return", "3Y_cagr", "5Y_cagr", "10Y_cagr"],
+    },
+    riskAdjusted: {
+        label: "Risk-Adjusted",
+        metrics: ["sharpe_ratio", "sortino_ratio"],
+    },
+    risk: {
+        label: "Risk",
+        metrics: ["volatility", "maximum_drawdown", "downside_deviation"],
+    },
+};
+
+function deriveCategorySummary(metrics) {
+    if (!metrics || metrics.length === 0) return [];
+
+    const byMetric = new Map();
+    metrics.forEach(m => {
+        if (m && m.metric) {
+            byMetric.set(m.metric, m);
+        }
+    });
+
+    return Object.entries(METRIC_GROUPS).map(([key, group]) => {
+        const groupMetrics = group.metrics
+            .map(name => byMetric.get(name))
+            .filter(m => m != null);
+
+        const hasInsufficientData = groupMetrics.some(
+            m => m.percentile == null || m.category_count < 2
+        );
+
+        if (hasInsufficientData || groupMetrics.length === 0) {
+            return { group: key, label: group.label, summary: "Not enough data" };
+        }
+
+        const percentiles = groupMetrics.map(m => m.percentile);
+        const minPct = Math.min(...percentiles);
+        const maxPct = Math.max(...percentiles);
+
+        let summary;
+        if (minPct >= 75) {
+            summary = "Strong";
+        } else if (maxPct >= 75) {
+            summary = "Above average";
+        } else if (minPct >= 25) {
+            summary = "Average";
+        } else {
+            summary = "Below average";
+        }
+
+        return { group: key, label: group.label, summary };
+    });
+}
+
 export function renderCategoryAnalysis(container, detail, categoryData) {
     if (!container || !detail || !categoryData) return;
 
@@ -19,6 +76,33 @@ export function renderCategoryAnalysis(container, detail, categoryData) {
         section.appendChild(empty);
         container.appendChild(section);
         return;
+    }
+
+    const summaries = deriveCategorySummary(categoryData.metrics);
+    const hasAnySummary = summaries.some(s => s.summary !== "Not enough data");
+
+    if (hasAnySummary) {
+        const summaryRow = document.createElement("div");
+        summaryRow.className = "category-summary-row";
+
+        summaries.forEach(item => {
+            const card = document.createElement("div");
+            card.className = `category-summary-card category-summary-${item.summary.toLowerCase().replace(/\s+/g, "-")}`;
+
+            const labelEl = document.createElement("div");
+            labelEl.className = "category-summary-label";
+            labelEl.textContent = item.label;
+
+            const valueEl = document.createElement("div");
+            valueEl.className = "category-summary-value";
+            valueEl.textContent = item.summary;
+
+            card.appendChild(labelEl);
+            card.appendChild(valueEl);
+            summaryRow.appendChild(card);
+        });
+
+        section.appendChild(summaryRow);
     }
 
     const table = document.createElement("table");

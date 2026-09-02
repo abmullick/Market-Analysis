@@ -820,16 +820,24 @@ function initRollingChart(dates, returns, period) {
             datasets: [{
                 label: `${period}Y Rolling Return`,
                 data: returns,
-                borderColor: "#2563eb",
-                backgroundColor: "rgba(37, 99, 235, 0.08)",
+                borderColor: "#059669",
+                backgroundColor: "rgba(5, 150, 105, 0.08)",
                 borderWidth: 2,
-                fill: true,
+                fill: false,
                 tension: 0,
                 pointRadius: 0,
                 pointHoverRadius: 5,
-                pointHoverBackgroundColor: "#2563eb",
+                pointHoverBackgroundColor: "#059669",
                 pointHoverBorderColor: "#ffffff",
                 pointHoverBorderWidth: 2,
+                segment: {
+                    borderColor: (ctx) => {
+                        const y0 = ctx.p0?.parsed?.y;
+                        const y1 = ctx.p1?.parsed?.y;
+                        if (y0 == null || y1 == null) return "#94a3b8";
+                        return y0 < 0 || y1 < 0 ? "#dc2626" : "#059669";
+                    },
+                },
             }],
         },
         options: {
@@ -848,10 +856,11 @@ function initRollingChart(dates, returns, period) {
                     bodyFont: { size: 12 },
                     displayColors: false,
                     callbacks: {
-                        title: (items) => items[0]?.label || "",
+                        title: (items) => `${period}Y Rolling Return · ${items[0]?.label || ""}`,
                         label: (context) => {
                             const val = context.parsed.y;
-                            return `${period}Y Rolling Return: ${(val * 100).toFixed(2)}%`;
+                            const sign = val >= 0 ? "+" : "";
+                            return `${period}Y Rolling Return: ${sign}${(val * 100).toFixed(2)}%`;
                         },
                     },
                 },
@@ -864,8 +873,9 @@ function initRollingChart(dates, returns, period) {
                 },
                 y: {
                     title: { display: true, text: `${period}Y Rolling Return`, font: { size: 11, weight: "500" }, color: "#64748b" },
-                    ticks: { callback: (value) => `${(value * 100).toFixed(1)}%`, color: "#64748b", font: { size: 11 } },
+                    ticks: { callback: (value) => `${(value * 100).toFixed(0)}%`, color: "#64748b", font: { size: 11 } },
                     grid: { color: "rgba(15, 23, 42, 0.06)" },
+                    grace: "5%",
                 },
             },
         },
@@ -890,14 +900,14 @@ function initNavChart(navHistory, period) {
             datasets: [{
                 label: "NAV",
                 data: filteredData.navs,
-                borderColor: "#2563eb",
-                backgroundColor: "rgba(37, 99, 235, 0.08)",
+                borderColor: "#0f172a",
+                backgroundColor: "rgba(15, 23, 42, 0.06)",
                 borderWidth: 2,
                 fill: true,
                 tension: 0,
                 pointRadius: 0,
                 pointHoverRadius: 5,
-                pointHoverBackgroundColor: "#2563eb",
+                pointHoverBackgroundColor: "#0f172a",
                 pointHoverBorderColor: "#ffffff",
                 pointHoverBorderWidth: 2,
             }],
@@ -918,7 +928,7 @@ function initNavChart(navHistory, period) {
                     bodyFont: { size: 12 },
                     displayColors: false,
                     callbacks: {
-                        title: (items) => items[0]?.label || "",
+                        title: (items) => `NAV · ${items[0]?.label || ""}`,
                         label: (context) => {
                             const v = context.parsed.y;
                             const series = filteredData.navs;
@@ -928,7 +938,7 @@ function initNavChart(navHistory, period) {
                                 changePct = ((v - series[idx - 1]) / series[idx - 1]) * 100;
                             }
                             const changeLine = changePct != null
-                                ? ` (${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}% vs prior)`
+                                ? ` (${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}% vs prior day)`
                                 : "";
                             return `NAV: ₹${v.toFixed(4)}${changeLine}`;
                         },

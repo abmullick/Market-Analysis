@@ -89,7 +89,7 @@ export function renderDrawdownAnalysis(container, detail, navHistory) {
     const ctx = canvas.getContext("2d");
 
     const maxDdIndex = drawdowns.indexOf(maxDrawdown);
-    const pointColors = drawdowns.map((_, i) => i === maxDdIndex ? "#dc2626" : "#2563eb");
+    const pointColors = drawdowns.map((_, i) => i === maxDdIndex ? "#b91c1c" : "#dc2626");
 
     new Chart(ctx, {
         type: "line",
@@ -98,14 +98,14 @@ export function renderDrawdownAnalysis(container, detail, navHistory) {
             datasets: [{
                 label: "Drawdown %",
                 data: drawdowns,
-                borderColor: "#2563eb",
-                backgroundColor: "rgba(37, 99, 235, 0.08)",
-                borderWidth: 2,
-                fill: true,
+                borderColor: "#dc2626",
+                backgroundColor: "rgba(220, 38, 38, 0.12)",
+                borderWidth: 1.75,
+                fill: { target: { value: 0 }, above: "rgba(220, 38, 38, 0)", below: "rgba(220, 38, 38, 0.12)" },
                 tension: 0,
                 pointRadius: 0,
                 pointHoverRadius: 5,
-                pointHoverBackgroundColor: "#2563eb",
+                pointHoverBackgroundColor: "#b91c1c",
                 pointHoverBorderColor: "#ffffff",
                 pointHoverBorderWidth: 2,
                 pointBackgroundColor: pointColors,
@@ -127,10 +127,10 @@ export function renderDrawdownAnalysis(container, detail, navHistory) {
                     bodyFont: { size: 12 },
                     displayColors: false,
                     callbacks: {
-                        title: (items) => items[0]?.label || "",
+                        title: (items) => `Drawdown · ${items[0]?.label || ""}`,
                         label: (context) => {
                             const dd = context.parsed.y;
-                            const label = dd === maxDrawdown ? " [MAX DRAWDOWN]" : "";
+                            const label = dd === maxDrawdown ? " — MAX DRAWDOWN" : "";
                             return `Drawdown: ${dd.toFixed(2)}%${label}`;
                         },
                     },
@@ -146,6 +146,7 @@ export function renderDrawdownAnalysis(container, detail, navHistory) {
                     title: { display: true, text: "Drawdown (%)", font: { size: 11, weight: "500" }, color: "#64748b" },
                     ticks: { callback: (value) => `${value.toFixed(1)}%`, color: "#64748b", font: { size: 11 } },
                     grid: { color: "rgba(15, 23, 42, 0.06)" },
+                    grace: "5%",
                 },
             },
         },

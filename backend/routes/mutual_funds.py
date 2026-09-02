@@ -176,7 +176,10 @@ async def get_fund_detail(scheme_code: str, response: Response = None) -> FundDe
 
     metadata_service = get_tigzig_metadata()
     metadata = await metadata_service.get_metadata()
-    fund_metadata = metadata_service.lookup(int(scheme_code))
+    try:
+        fund_metadata = metadata.get(int(scheme_code))
+    except (ValueError, TypeError):
+        fund_metadata = None
 
     nav = scheme.nav
     nav_date = scheme.nav_date
@@ -195,10 +198,10 @@ async def get_fund_detail(scheme_code: str, response: Response = None) -> FundDe
     total_aum_cr = None
     total_aum_quarter = None
     total_aum_quarter_end = None
-    if metadata_service:
+    if metadata:
         all_variants = await fetcher.get_scheme_variants(scheme_code)
         total_aum, total_quarter, total_quarter_end = _aggregate_total_aum(
-            metadata_service, scheme_code, all_variants
+            metadata, scheme_code, all_variants
         )
         if total_aum is not None:
             total_aum_cr = total_aum
@@ -425,19 +428,20 @@ def _extract_option(scheme_name: str) -> str | None:
 
 
 def _aggregate_total_aum(
-    metadata_service,
+    metadata: dict[int, dict[str, Any]],
     scheme_code: str,
     all_scheme_codes: list[str] | None = None,
 ) -> tuple[float | None, str | None, str | None]:
     """Aggregate AUM across all plan/option variants of the same underlying scheme.
 
-    Uses the provided list of scheme codes if available (e.g., from ranking
-    candidates), otherwise looks up the variants via the fetcher.
+    Uses the provided metadata dict (loaded once at the top of the request) for
+    in-process lookups so each call within a single request reuses the same
+    already-loaded snapshot rather than going through the global service.
 
     Args:
-        metadata_service: TigZig metadata service instance
-        scheme_code: The representative scheme code
-        all_scheme_codes: Optional list of all scheme codes in the same fund group
+        metadata: In-process metadata snapshot keyed by scheme_code (int).
+        scheme_code: The representative scheme code.
+        all_scheme_codes: Optional list of all scheme codes in the same fund group.
 
     Returns:
         Tuple of (total_aum_cr, quarter, quarter_end)
@@ -459,7 +463,7 @@ def _aggregate_total_aum(
 
     for code in unique_codes:
         try:
-            meta = metadata_service.lookup(int(code))
+            meta = metadata.get(int(code))
         except (ValueError, TypeError):
             meta = None
         if not meta:
@@ -673,14 +677,16 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
         logger.warning("Ranking validation error: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Enrich rankings with metadata (AUM, first NAV date)
+    # Enrich rankings with metadata (AUM, first NAV date) using the in-memory
+    # metadata snapshot already loaded for this request. Avoids repeated
+    # per-fund service-method calls and the int() conversion overhead.
     metadata_service = get_tigzig_metadata()
     metadata = await metadata_service.get_metadata()
     for r in rankings:
         code = r.get("scheme_code")
         if code:
             try:
-                fund_metadata = metadata_service.lookup(int(code))
+                fund_metadata = metadata.get(int(code))
             except (ValueError, TypeError):
                 fund_metadata = None
             if fund_metadata:
@@ -693,7 +699,7 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
 
             all_codes = r.get("_all_scheme_codes")
             total_aum, total_quarter, total_quarter_end = _aggregate_total_aum(
-                metadata_service, code, all_codes
+                metadata, code, all_codes
             )
             if total_aum is not None:
                 r["total_aum_cr"] = total_aum

@@ -820,13 +820,12 @@ class TestTotalAumAggregation:
         """Total AUM should sum Direct + Regular plan AUM."""
         from backend.routes.mutual_funds import _aggregate_total_aum
 
-        metadata_service = MagicMock()
-        metadata_service.lookup = MagicMock(side_effect=lambda code: {
+        metadata = {
             101: {"aaum_cr_quarterly_avg": 50000.0, "aaum_quarter": "Q2 FY24", "aaum_quarter_end": "2024-06-30"},
             102: {"aaum_cr_quarterly_avg": 30000.0, "aaum_quarter": "Q2 FY24", "aaum_quarter_end": "2024-06-30"},
-        }.get(code))
+        }
 
-        total_aum, quarter, quarter_end = _aggregate_total_aum(metadata_service, "101", ["101", "102"])
+        total_aum, quarter, quarter_end = _aggregate_total_aum(metadata, "101", ["101", "102"])
         assert total_aum == pytest.approx(80000.0)
         assert quarter == "Q2 FY24"
         assert quarter_end == "2024-06-30"
@@ -835,77 +834,69 @@ class TestTotalAumAggregation:
         """Total AUM should sum Growth + IDCW option AUM."""
         from backend.routes.mutual_funds import _aggregate_total_aum
 
-        metadata_service = MagicMock()
-        metadata_service.lookup = MagicMock(side_effect=lambda code: {
+        metadata = {
             201: {"aaum_cr_quarterly_avg": 40000.0, "aaum_quarter": "Q2 FY24"},
             202: {"aaum_cr_quarterly_avg": 15000.0, "aaum_quarter": "Q2 FY24"},
-        }.get(code))
+        }
 
-        total_aum, quarter, quarter_end = _aggregate_total_aum(metadata_service, "201", ["201", "202"])
+        total_aum, quarter, quarter_end = _aggregate_total_aum(metadata, "201", ["201", "202"])
         assert total_aum == pytest.approx(55000.0)
 
     def test_different_schemes_not_combined(self):
         """Different underlying schemes should not be combined."""
         from backend.routes.mutual_funds import _aggregate_total_aum
 
-        metadata_service = MagicMock()
-        metadata_service.lookup = MagicMock(side_effect=lambda code: {
+        metadata = {
             301: {"aaum_cr_quarterly_avg": 50000.0, "aaum_quarter": "Q2 FY24"},
             302: {"aaum_cr_quarterly_avg": 30000.0, "aaum_quarter": "Q2 FY24"},
-        }.get(code))
+        }
 
-        total_aum, _, _ = _aggregate_total_aum(metadata_service, "301", ["301"])
+        total_aum, _, _ = _aggregate_total_aum(metadata, "301", ["301"])
         assert total_aum == pytest.approx(50000.0)
 
     def test_missing_aum_values_skipped(self):
         """Schemes without AUM should be skipped, not treated as zero."""
         from backend.routes.mutual_funds import _aggregate_total_aum
 
-        metadata_service = MagicMock()
-        metadata_service.lookup = MagicMock(side_effect=lambda code: {
+        metadata = {
             401: {"aaum_cr_quarterly_avg": 50000.0, "aaum_quarter": "Q2 FY24"},
             402: {"aaum_quarter": "Q2 FY24"},
             403: {"aaum_cr_quarterly_avg": 25000.0, "aaum_quarter": "Q2 FY24"},
-        }.get(code))
+        }
 
-        total_aum, _, _ = _aggregate_total_aum(metadata_service, "401", ["401", "402", "403"])
+        total_aum, _, _ = _aggregate_total_aum(metadata, "401", ["401", "402", "403"])
         assert total_aum == pytest.approx(75000.0)
 
     def test_all_missing_aum_returns_none(self):
         """If no variants have AUM, return None."""
         from backend.routes.mutual_funds import _aggregate_total_aum
 
-        metadata_service = MagicMock()
-        metadata_service.lookup = MagicMock(return_value={"aaum_quarter": "Q2 FY24"})
+        metadata = {501: {"aaum_quarter": "Q2 FY24"}}
 
-        total_aum, _, _ = _aggregate_total_aum(metadata_service, "501", ["501"])
+        total_aum, _, _ = _aggregate_total_aum(metadata, "501", ["501"])
         assert total_aum is None
 
     def test_duplicate_scheme_codes_not_counted_twice(self):
         """Duplicate scheme codes in the list should not double-count."""
         from backend.routes.mutual_funds import _aggregate_total_aum
 
-        metadata_service = MagicMock()
-        metadata_service.lookup = MagicMock(side_effect=lambda code: {
-            601: {"aaum_cr_quarterly_avg": 50000.0, "aaum_quarter": "Q2 FY24"},
-        }.get(code))
+        metadata = {601: {"aaum_cr_quarterly_avg": 50000.0, "aaum_quarter": "Q2 FY24"}}
 
-        total_aum, _, _ = _aggregate_total_aum(metadata_service, "601", ["601", "601", "601"])
+        total_aum, _, _ = _aggregate_total_aum(metadata, "601", ["601", "601", "601"])
         assert total_aum == pytest.approx(50000.0)
 
     def test_parag_parikh_grouping(self):
         """Parag Parikh Flexi Cap Fund variants should aggregate correctly."""
         from backend.routes.mutual_funds import _aggregate_total_aum
 
-        metadata_service = MagicMock()
-        metadata_service.lookup = MagicMock(side_effect=lambda code: {
+        metadata = {
             120718: {"aaum_cr_quarterly_avg": 75000.0, "aaum_quarter": "June-2026", "aaum_quarter_end": "2026-06-30"},
             120719: {"aaum_cr_quarterly_avg": 40000.0, "aaum_quarter": "June-2026", "aaum_quarter_end": "2026-06-30"},
             120720: {"aaum_cr_quarterly_avg": 28388.43, "aaum_quarter": "June-2026", "aaum_quarter_end": "2026-06-30"},
-        }.get(code))
+        }
 
         total_aum, quarter, quarter_end = _aggregate_total_aum(
-            metadata_service, "120718", ["120718", "120719", "120720"]
+            metadata, "120718", ["120718", "120719", "120720"]
         )
         assert total_aum == pytest.approx(143388.43)
         assert quarter == "June-2026"
