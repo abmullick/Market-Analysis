@@ -271,11 +271,22 @@ class MetricsCalculator:
             else:
                 std_r = None
 
+            sorted_returns = sorted(returns)
+            mid = len(sorted_returns) // 2
+            if len(sorted_returns) % 2 == 0:
+                median_r = (sorted_returns[mid - 1] + sorted_returns[mid]) / 2
+            else:
+                median_r = sorted_returns[mid]
+
+            min_r = min(returns)
+
             result[label] = {
                 "windows": len(returns),
                 "positive_pct": positive_pct,
                 "mean_return": mean_r,
                 "std_return": std_r,
+                "median_return": median_r,
+                "min_return": min_r,
             }
 
         return result if has_data else None

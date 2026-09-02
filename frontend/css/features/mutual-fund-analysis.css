@@ -1300,9 +1300,17 @@
     color: var(--color-text);
 }
 
-.comparison-table .metric-value.best {
-    color: var(--color-success);
-    font-weight: 600;
+.comparison-table .metric-na-note {
+    font-size: 0.6875rem;
+    font-weight: 400;
+    color: var(--color-text-light);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.comparison-table .metric-value.na {
+    color: var(--color-text-light);
+    font-style: italic;
 }
 
 .best-indicator {

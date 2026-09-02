@@ -5,6 +5,7 @@ import { renderRiskReturnChart } from "./comparison/risk-return.js";
 import { renderDrawdownChart } from "./comparison/drawdown.js";
 import { renderRollingReturnsChart } from "./comparison/rolling-returns.js";
 import { renderNavHistoryChart } from "./comparison/nav-history.js";
+import { renderPerformanceSummary } from "./comparison/performance-summary.js";
 
 const PRESETS = {
     best_overall: {
@@ -1469,6 +1470,11 @@ async function showComparisonView() {
         resultsContainer.innerHTML = "";
         renderComparisonTable(resultsContainer, enriched);
 
+        const summarySection = document.createElement("div");
+        summarySection.className = "comparison-chart-module";
+        resultsContainer.appendChild(summarySection);
+        await renderPerformanceSummary(summarySection, enriched);
+
         const analysisContainer = document.createElement("div");
         analysisContainer.className = "comparison-analysis-sections";
         resultsContainer.appendChild(analysisContainer);
@@ -1742,13 +1748,41 @@ function renderComparisonTable(container, enrichedFunds) {
         tbody.appendChild(tr);
     });
 
+    tbody.appendChild(sectionHeader("Risk & Risk-Adjusted Performance"));
+
+    const riskAdjustedMetrics = [
+        { key: "volatility", label: "Annualized Volatility", unit: "percent", available: true },
+        { key: "sharpe_ratio", label: "Sharpe Ratio", unit: "ratio", available: true },
+        { key: "sortino_ratio", label: "Sortino Ratio", unit: "ratio", available: true },
+        { key: "maximum_drawdown", label: "Maximum Drawdown", unit: "percent", available: true },
+        { key: "beta", label: "Beta", unit: "ratio", available: false },
+        { key: "alpha", label: "Alpha", unit: "percent", available: false },
+    ];
+
+    riskAdjustedMetrics.forEach(metric => {
+        const values = metric.available
+            ? enrichedFunds.map(f => getMetricValue(f, metric.key))
+            : enrichedFunds.map(() => null);
+        const bestIndices = metric.available ? getBestIndices(values, isHigherBetter(metric.key)) : new Set();
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="metric-label">${metric.label}${metric.available ? "" : ' <span class="metric-na-note">(N/A)</span>'}</td>${values.map((v, i) => {
+            const isBest = bestIndices.has(i) && v != null;
+            const display = formatValue(v, metric.unit);
+            const isNa = v == null;
+            return `<td class="metric-value${isBest ? " best" : ""}${isNa ? " na" : ""}">${display}${isBest ? '<span class="best-indicator">●</span>' : ""}</td>`;
+        }).join("")}`;
+        tbody.appendChild(tr);
+    });
+
     tbody.appendChild(sectionHeader("Consistency"));
 
     const rollingRows = [
         { label: "1Y Positive Rolling Periods (%)", period: "1Y", metric: "positive_pct", unit: "percentage" },
         { label: "3Y Positive Rolling Periods (%)", period: "3Y", metric: "positive_pct", unit: "percentage" },
         { label: "5Y Positive Rolling Periods (%)", period: "5Y", metric: "positive_pct", unit: "percentage" },
-        { label: "Mean Rolling Return", period: "1Y", metric: "mean_return", unit: "percent" },
+        { label: "Mean Rolling Return (1Y)", period: "1Y", metric: "mean_return", unit: "percent" },
+        { label: "Median Rolling Return (1Y)", period: "1Y", metric: "median_return", unit: "percent" },
+        { label: "Worst Rolling Return (1Y)", period: "1Y", metric: "min_return", unit: "percent" },
     ];
 
     rollingRows.forEach(row => {
