@@ -1275,3 +1275,73 @@ class TestDrawdownAnalysis:
         assert drawdowns[3] == 0.0
         assert max_drawdown == pytest.approx(-20.0, abs=1e-6)
         assert current_drawdown == 0.0
+
+    def test_max_drawdown_ignores_zero_nav(self):
+        """Zero NAV records must not produce a 100% drawdown."""
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        nav_records = [
+            NAVRecord(date="2024-01-01", nav=12.0),
+            NAVRecord(date="2024-01-02", nav=12.5),
+            NAVRecord(date="2024-01-03", nav=0.0),
+            NAVRecord(date="2024-01-04", nav=12.2),
+            NAVRecord(date="2024-01-05", nav=11.0),
+        ]
+
+        metrics = MetricsCalculator(scheme_code="123", nav_records=nav_records).calculate()
+        assert metrics.maximum_drawdown is not None
+        assert metrics.maximum_drawdown < 0.15
+        assert metrics.maximum_drawdown == pytest.approx(0.12, abs=0.01)
+
+    def test_max_drawdown_ignores_negative_nav(self):
+        """Negative NAV records must be ignored."""
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        nav_records = [
+            NAVRecord(date="2024-01-01", nav=10.0),
+            NAVRecord(date="2024-01-02", nav=-5.0),
+            NAVRecord(date="2024-01-03", nav=9.0),
+        ]
+
+        metrics = MetricsCalculator(scheme_code="123", nav_records=nav_records).calculate()
+        assert metrics.maximum_drawdown is not None
+        assert metrics.maximum_drawdown == pytest.approx(0.10, abs=1e-6)
+
+    def test_max_drawdown_invalid_first_nav(self):
+        """If the first NAV is zero, the algorithm must not divide by zero."""
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        nav_records = [
+            NAVRecord(date="2024-01-01", nav=0.0),
+            NAVRecord(date="2024-01-02", nav=10.0),
+            NAVRecord(date="2024-01-03", nav=9.0),
+        ]
+
+        metrics = MetricsCalculator(scheme_code="123", nav_records=nav_records).calculate()
+        assert metrics.maximum_drawdown is not None
+        assert metrics.maximum_drawdown == pytest.approx(0.10, abs=1e-6)
+
+    def test_max_drawdown_all_invalid_navs(self):
+        """If all NAVs are zero or negative, return None without raising."""
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        nav_records = [
+            NAVRecord(date="2024-01-01", nav=0.0),
+            NAVRecord(date="2024-01-02", nav=-1.0),
+            NAVRecord(date="2024-01-03", nav=0.0),
+        ]
+
+        metrics = MetricsCalculator(scheme_code="123", nav_records=nav_records).calculate()
+        assert metrics.maximum_drawdown is None
+
+    def test_max_drawdown_single_valid_nav(self):
+        """If only one valid NAV exists, return None."""
+        from backend.services.mutual_funds.calculator import MetricsCalculator
+
+        nav_records = [
+            NAVRecord(date="2024-01-01", nav=0.0),
+            NAVRecord(date="2024-01-02", nav=10.0),
+        ]
+
+        metrics = MetricsCalculator(scheme_code="123", nav_records=nav_records).calculate()
+        assert metrics.maximum_drawdown is None

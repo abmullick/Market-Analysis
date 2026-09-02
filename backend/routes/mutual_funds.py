@@ -510,20 +510,22 @@ def _apply_screening_filters(
             op = f.operator
 
             if field == "amc":
-                value = fund.get("amc") or ""
+                value = (fund.get("amc") or "").lower()
                 if f.values:
                     if op == "in":
-                        if value not in f.values:
+                        if not any(term.lower() in value for term in f.values):
                             passes_all = False
                             break
                     elif op == "not_in":
-                        if value in f.values:
+                        if any(term.lower() in value for term in f.values):
                             passes_all = False
                             break
                 continue
 
             if field == "aum_cr":
-                value = fund_meta.get("aaum_cr_quarterly_avg")
+                all_codes = fund.get("_all_scheme_codes") or [str(code)]
+                total_aum, _, _ = _aggregate_total_aum(metadata, str(code), all_codes)
+                value = total_aum
             elif field == "first_nav_date":
                 value = fund_meta.get("first_date")
             elif field == "scheme_name":
@@ -661,6 +663,12 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
     valid_metrics = [m for m in metrics_list if m is not None]
     skipped_count = fund_count - len(valid_metrics)
 
+    scheme_variants = {}
+    for fund in underlying_funds:
+        code = fund.get("_representative_scheme_code")
+        if code:
+            scheme_variants[str(code)] = fund.get("_all_scheme_codes") or [str(code)]
+
     logger.info(
         "Metrics calculated: %d/%d funds (%.1f%% success) in %.2f seconds",
         len(valid_metrics),
@@ -697,7 +705,7 @@ async def rank_funds(payload: RankingRequest) -> dict[str, Any]:
                 if fund_metadata.get("first_date"):
                     r["first_nav_date"] = fund_metadata["first_date"]
 
-            all_codes = r.get("_all_scheme_codes")
+            all_codes = scheme_variants.get(str(code)) or [str(code)]
             total_aum, total_quarter, total_quarter_end = _aggregate_total_aum(
                 metadata, code, all_codes
             )

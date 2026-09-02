@@ -487,7 +487,9 @@
 
 .screener-filter-input,
 .screener-filter-value,
-.screener-filter-value-max {
+.screener-filter-value-max,
+.screener-filter-date,
+.screener-filter-date-max {
     width: 70px;
     height: 30px;
     padding: 0 6px;
@@ -497,6 +499,11 @@
     font-size: 0.75rem;
     color: var(--color-text);
     background: var(--color-bg);
+}
+
+.screener-filter-date,
+.screener-filter-date-max {
+    width: 140px;
 }
 
 .screener-filter-input {

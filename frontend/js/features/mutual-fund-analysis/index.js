@@ -426,7 +426,7 @@ function buildScreener(container) {
 
             const filter = {
                 field: fieldKey,
-                operator: "gte",
+                operator: field.type === "categorical" ? "in" : "gte",
                 value: field.type === "numeric" ? 0 : "",
                 values: field.type === "categorical" ? [] : undefined,
             };
@@ -469,6 +469,36 @@ function renderScreenerFilters() {
                 filter.values = input.value.split(",").map(v => v.trim()).filter(v => v);
                 updateScreenerResult();
             });
+        } else if (field.type === "date") {
+            row.innerHTML = `
+                <span class="screener-filter-label">${field.label}</span>
+                <select class="screener-filter-op">
+                    ${SCREENER_OPERATORS.map(op => `<option value="${op.key}" ${op.key === filter.operator ? "selected" : ""}>${op.label}</option>`).join("")}
+                </select>
+                <input type="date" class="screener-filter-date" value="${filter.value || ""}">
+                ${filter.operator === "between" ? `<input type="date" class="screener-filter-date-max" value="${filter.value_max || ""}">` : ""}
+                <button type="button" class="screener-filter-remove" data-idx="${idx}">&times;</button>
+            `;
+            const opSelect = row.querySelector(".screener-filter-op");
+            const dateInput = row.querySelector(".screener-filter-date");
+            const dateMaxInput = row.querySelector(".screener-filter-date-max");
+
+            opSelect.addEventListener("change", () => {
+                filter.operator = opSelect.value;
+                renderScreenerFilters();
+            });
+
+            dateInput.addEventListener("change", () => {
+                filter.value = dateInput.value;
+                updateScreenerResult();
+            });
+
+            if (dateMaxInput) {
+                dateMaxInput.addEventListener("change", () => {
+                    filter.value_max = dateMaxInput.value;
+                    updateScreenerResult();
+                });
+            }
         } else {
             row.innerHTML = `
                 <span class="screener-filter-label">${field.label}</span>
@@ -1244,6 +1274,34 @@ function buildScreeningFiltersPayload() {
                 operator: f.operator,
                 values: values,
             });
+        } else if (field.type === "date") {
+            // Date filters: send the ISO date string directly
+            if (!f.value) {
+                // Empty date = no filter, skip
+                continue;
+            }
+
+            if (f.operator === "between") {
+                if (!f.value_max) {
+                    if (row) {
+                        showFilterError(row, "Please enter a max date");
+                    }
+                    return null;
+                }
+                filters.push({
+                    field: f.field,
+                    operator: f.operator,
+                    value: f.value,
+                    value_min: f.value,
+                    value_max: f.value_max,
+                });
+            } else {
+                filters.push({
+                    field: f.field,
+                    operator: f.operator,
+                    value: f.value,
+                });
+            }
         } else {
             // Numeric filters: ensure value is a valid number
             const numValue = parseFloat(f.value);

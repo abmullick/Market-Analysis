@@ -174,11 +174,14 @@ class MetricsCalculator:
         return (annualized_return - self._risk_free_rate) / downside_dev
 
     def _max_drawdown(self, navs: list[NAVRecord]) -> float | None:
-        if len(navs) < 2:
+        positive_navs = [nav for nav in navs if nav.nav > 0]
+
+        if len(positive_navs) < 2:
             return None
-        peak = navs[0].nav
+
+        peak = positive_navs[0].nav
         max_dd = 0.0
-        for nav in navs[1:]:
+        for nav in positive_navs[1:]:
             if nav.nav > peak:
                 peak = nav.nav
             dd = (peak - nav.nav) / peak
