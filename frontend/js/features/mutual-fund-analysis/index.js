@@ -240,10 +240,28 @@ function buildPageHeader() {
     const header = document.createElement("div");
     header.className = "mf-page-header";
     header.innerHTML = `
-        <h1 class="mf-page-title">Mutual Fund Analytics</h1>
-        <p class="mf-page-subtitle">Quantitative fund ranking based on normalized multi-metric scoring</p>
+        <div class="mf-page-header-text">
+            <h1 class="mf-page-title">Mutual Fund Screener</h1>
+            <p class="mf-page-subtitle">Filter, score, and rank mutual funds using normalized multi-metric criteria. Select funds to compare side-by-side or open a fund to view its full research profile.</p>
+        </div>
+        <div class="mf-page-header-stat" id="mf-page-header-stat" hidden>
+            <span class="mf-page-header-stat-value" id="mf-page-header-stat-value">0</span>
+            <span class="mf-page-header-stat-label">funds matching current filters</span>
+        </div>
     `;
     container.insertBefore(header, container.firstChild);
+}
+
+function updateMatchingFundsCount(count) {
+    const stat = document.getElementById("mf-page-header-stat");
+    const numberEl = document.getElementById("mf-page-header-stat-value");
+    if (!stat || !numberEl) return;
+    if (count == null || count === 0) {
+        stat.hidden = true;
+    } else {
+        stat.hidden = false;
+        numberEl.textContent = count.toLocaleString();
+    }
 }
 
 function buildControls() {
@@ -266,37 +284,43 @@ function buildControls() {
 
     try {
         filtersContainer.innerHTML = `
-            <div class="filter-group">
-                <label for="category-trigger">Category</label>
-                <div class="category-picker" id="category-picker">
-                    <button type="button" class="category-picker-trigger" id="category-trigger" aria-haspopup="listbox" aria-expanded="false">
-                        <span class="category-picker-value" id="category-value">All Categories</span>
-                        <span class="category-picker-arrow">
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M3 4.5L6 7.5L9 4.5"/>
-                            </svg>
-                        </span>
-                    </button>
-                    <div class="category-picker-dropdown" id="category-dropdown" role="listbox" hidden>
-                        <div class="category-picker-search">
-                            <svg class="category-picker-search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <circle cx="6" cy="6" r="4.5"/>
-                                <path d="M9.5 9.5L13 13"/>
-                            </svg>
-                            <input type="text" class="category-picker-search-input" id="category-search" placeholder="Search categories..." autocomplete="off">
-                            <button type="button" class="category-picker-search-clear" id="category-search-clear" hidden>
+            <div class="screener-group">
+                <div class="screener-group-heading">
+                    <span class="screener-group-title">Fund</span>
+                    <span class="screener-group-subtitle">Category &amp; AMC</span>
+                </div>
+                <div class="filter-group">
+                    <label for="category-trigger">Category</label>
+                    <div class="category-picker" id="category-picker">
+                        <button type="button" class="category-picker-trigger" id="category-trigger" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="category-picker-value" id="category-value">All Categories</span>
+                            <span class="category-picker-arrow">
                                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M3 3L9 9M9 3L3 9"/>
+                                    <path d="M3 4.5L6 7.5L9 4.5"/>
                                 </svg>
-                            </button>
-                        </div>
-                        <div class="category-picker-actions">
-                            <button type="button" class="category-picker-action" id="category-select-all">Select All</button>
-                            <button type="button" class="category-picker-action" id="category-clear-all">Clear</button>
-                        </div>
-                        <div class="category-picker-list" id="category-list"></div>
-                        <div class="category-picker-footer">
-                            <span class="category-picker-count" id="category-count">0 selected</span>
+                            </span>
+                        </button>
+                        <div class="category-picker-dropdown" id="category-dropdown" role="listbox" hidden>
+                            <div class="category-picker-search">
+                                <svg class="category-picker-search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <circle cx="6" cy="6" r="4.5"/>
+                                    <path d="M9.5 9.5L13 13"/>
+                                </svg>
+                                <input type="text" class="category-picker-search-input" id="category-search" placeholder="Search categories..." autocomplete="off">
+                                <button type="button" class="category-picker-search-clear" id="category-search-clear" hidden>
+                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+                                        <path d="M3 3L9 9M9 3L3 9"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="category-picker-actions">
+                                <button type="button" class="category-picker-action" id="category-select-all">Select All</button>
+                                <button type="button" class="category-picker-action" id="category-clear-all">Clear</button>
+                            </div>
+                            <div class="category-picker-list" id="category-list"></div>
+                            <div class="category-picker-footer">
+                                <span class="category-picker-count" id="category-count">0 selected</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -304,8 +328,13 @@ function buildControls() {
         `;
 
         presetContainer.innerHTML = `
-            <div class="criteria-section-title">Preset</div>
-            <div class="preset-grid" id="preset-grid"></div>
+            <div class="screener-group">
+                <div class="screener-group-heading">
+                    <span class="screener-group-title">Preset</span>
+                    <span class="screener-group-subtitle">Quick weight profiles</span>
+                </div>
+                <div class="preset-grid" id="preset-grid"></div>
+            </div>
         `;
 
         const presetGrid = document.getElementById("preset-grid");
@@ -345,11 +374,17 @@ function buildControls() {
 function buildScreener(container) {
     if (!container) return;
     container.innerHTML = `
-        <div class="screener">
-            <button type="button" class="screener-toggle" id="screener-toggle">
-                <span class="screener-toggle-icon">&#9662;</span>
-                <span class="screener-toggle-label">Fund Screener</span>
+        <div class="screener screener-group">
+            <div class="screener-group-heading screener-group-heading-row">
+                <div>
+                    <span class="screener-group-title">Fund Screener</span>
+                    <span class="screener-group-subtitle">AUM, AMC &amp; inception filters</span>
+                </div>
                 <span class="screener-count" id="screener-count"></span>
+            </div>
+            <button type="button" class="screener-toggle" id="screener-toggle" aria-expanded="false">
+                <span class="screener-toggle-label">${screeningFilters.length > 0 ? "Edit filters" : "Add filter"}</span>
+                <span class="screener-toggle-icon">&#9662;</span>
             </button>
             <div class="screener-body" id="screener-body" hidden>
                 <div class="screener-add">
@@ -880,7 +915,15 @@ function initCombobox({ id, options, onSelect, selectedValue = "" }) {
 }
 
 function buildCriteriaList(container) {
-    container.innerHTML = `<div class="criteria-section-title">Criteria Weights</div><div class="criteria-list" id="criteria-list"></div>`;
+    container.innerHTML = `
+        <div class="screener-group">
+            <div class="screener-group-heading">
+                <span class="screener-group-title">Criteria Weights</span>
+                <span class="screener-group-subtitle">Customize scoring factors for ranking</span>
+            </div>
+            <div class="criteria-list" id="criteria-list"></div>
+        </div>
+    `;
     const list = document.getElementById("criteria-list");
     if (!list) return;
 
@@ -1008,17 +1051,106 @@ function autoRenormalize() {
             if (weightDisplay) weightDisplay.textContent = `0%`;
         });
     }
+
+    refreshMethodologyBox();
+}
+
+function refreshMethodologyBox() {
+    const container = document.getElementById("ranking-methodology");
+    if (container) buildMethodology(container);
+}
+
+const PRESET_GROUPS = {
+    best_overall: [
+        { group: "Performance", weight: 50, criteria: ["1Y_return", "3Y_cagr"] },
+        { group: "Risk-Adjusted", weight: 35, criteria: ["sharpe_ratio", "sortino_ratio"] },
+        { group: "Risk", weight: 0, criteria: [] },
+        { group: "Consistency", weight: 15, criteria: ["consistency"] },
+    ],
+    highest_returns: [
+        { group: "Performance", weight: 100, criteria: ["1Y_return", "3Y_cagr", "5Y_cagr", "10Y_cagr"] },
+        { group: "Risk-Adjusted", weight: 0, criteria: [] },
+        { group: "Risk", weight: 0, criteria: [] },
+        { group: "Consistency", weight: 0, criteria: [] },
+    ],
+    lowest_risk: [
+        { group: "Performance", weight: 0, criteria: [] },
+        { group: "Risk-Adjusted", weight: 20, criteria: ["sharpe_ratio"] },
+        { group: "Risk", weight: 80, criteria: ["volatility", "maximum_drawdown", "downside_deviation"] },
+        { group: "Consistency", weight: 0, criteria: [] },
+    ],
+    best_consistency: [
+        { group: "Performance", weight: 15, criteria: ["3Y_cagr"] },
+        { group: "Risk-Adjusted", weight: 45, criteria: ["sharpe_ratio", "sortino_ratio"] },
+        { group: "Risk", weight: 0, criteria: [] },
+        { group: "Consistency", weight: 40, criteria: ["consistency"] },
+    ],
+};
+
+function getCurrentPresetGroups() {
+    if (PRESET_GROUPS[currentPreset]) {
+        return PRESET_GROUPS[currentPreset];
+    }
+    const criteria = getSelectedCriteria();
+    const grouped = [
+        { group: "Performance", weight: 0, criteria: [] },
+        { group: "Risk-Adjusted", weight: 0, criteria: [] },
+        { group: "Risk", weight: 0, criteria: [] },
+        { group: "Consistency", weight: 0, criteria: [] },
+    ];
+    const bucket = (key) => {
+        if (["1Y_return", "3Y_cagr", "5Y_cagr", "10Y_cagr"].includes(key)) return 0;
+        if (["sharpe_ratio", "sortino_ratio"].includes(key)) return 1;
+        if (["volatility", "maximum_drawdown", "downside_deviation"].includes(key)) return 2;
+        if (key === "consistency") return 3;
+        return null;
+    };
+    const total = criteria.reduce((s, c) => s + c.weight, 0) || 1;
+    criteria.forEach(c => {
+        const idx = bucket(c.name);
+        if (idx == null) return;
+        grouped[idx].weight += (c.weight / total) * 100;
+        grouped[idx].criteria.push(c.name);
+    });
+    grouped.forEach(g => {
+        g.weight = Math.round(g.weight * 10) / 10;
+    });
+    return grouped;
 }
 
 function buildMethodology(container) {
+    const groups = getCurrentPresetGroups();
+    const presetLabel = PRESETS[currentPreset]?.label || currentPreset;
+    const totalActive = groups.reduce((s, g) => s + g.weight, 0);
+
+    const groupsHtml = groups.map(g => {
+        const active = g.weight > 0;
+        const tooltip = g.criteria.length
+            ? `Based on: ${g.criteria.map(c => CRITERIA_META[c]?.label || c).join(", ")}`
+            : `No active criteria in this group for "${presetLabel}" preset.`;
+        return `
+            <div class="ranking-mw-group ${active ? "" : "is-inactive"}">
+                <div class="ranking-mw-group-head">
+                    <span class="ranking-mw-group-name">${g.group}</span>
+                    <span class="ranking-mw-group-weight">${g.weight.toFixed(1)}%</span>
+                </div>
+                <div class="ranking-mw-group-bar"><div class="ranking-mw-group-fill" style="width: ${g.weight}%"></div></div>
+                <div class="ranking-mw-group-hint">${g.criteria.length ? g.criteria.map(c => CRITERIA_META[c]?.label || c).join(" · ") : "Not used in this preset"}</div>
+            </div>
+        `;
+    }).join("");
+
     container.innerHTML = `
-        <h4>How to read the results</h4>
-        <ul>
+        <h4>How ranking works</h4>
+        <p class="ranking-mw-intro">Each fund is scored on up to 10 metrics. The overall score is a weighted blend of the <strong>${presetLabel}</strong> preset (renormalized to 100%).</p>
+        <div class="ranking-mw-groups">${groupsHtml}</div>
+        <ul class="ranking-mw-notes">
             <li><strong>Actual</strong> = the fund's real calculated metric (e.g., 18.00% return, 1.36 Sharpe ratio).</li>
             <li><strong>Score / 100</strong> = normalized ranking score relative to other funds in this category. 100 = best, 0 = worst.</li>
             <li><strong>Overall Score</strong> = weighted combination of individual scores per the selected preset.</li>
             <li>Lower-is-better metrics (volatility, drawdown, downside deviation) are inverted so higher score always means better.</li>
         </ul>
+        <p class="ranking-mw-total">Total active weight: <strong>${totalActive.toFixed(1)}%</strong></p>
     `;
 }
 
@@ -1180,6 +1312,187 @@ function getSelectedCriteria() {
     return criteria;
 }
 
+function toggleCategory(cat) {
+    if (currentCategories.includes(cat)) {
+        currentCategories = currentCategories.filter(c => c !== cat);
+    } else {
+        currentCategories.push(cat);
+    }
+    updateCategoryTriggerAndList();
+}
+
+function renderTop3Strip(top3, categories) {
+    if (!top3 || top3.length === 0) return "";
+    const order = [1, 0, 2];
+    const podiumOrder = order.slice(0, top3.length);
+    const podiumHtml = podiumOrder.map((idx, slot) => {
+        const r = top3[idx];
+        if (!r) return "";
+        const place = idx + 1;
+        const score = r.overall_score != null ? r.overall_score.toFixed(1) : "N/A";
+        const category = r.category || (Array.isArray(categories) ? categories[0] : "") || "";
+        const subline = r.amc ? r.amc : category;
+        return `
+            <div class="top3-card top3-place-${place}">
+                <div class="top3-rank">#${place}</div>
+                <div class="top3-name" data-scheme="${r.scheme_code}" data-name="${encodeURIComponent(r.scheme_name || "")}">${r.scheme_name || "—"}</div>
+                <div class="top3-amc">${subline}</div>
+                <div class="top3-score">
+                    <span class="top3-score-value">${score}</span>
+                    <span class="top3-score-suffix">/ 100</span>
+                </div>
+                <div class="top3-score-label">Overall</div>
+                <button type="button" class="top3-why-btn" data-scheme="${r.scheme_code}">Why?</button>
+            </div>
+        `;
+    }).join("");
+
+    return `
+        <div class="ranking-top3" aria-label="Top 3 ranked funds">
+            <div class="ranking-top3-head">
+                <h4>Top 3 ranked funds</h4>
+                <span class="ranking-top3-sub">Across the current category and filters</span>
+            </div>
+            <div class="ranking-top3-grid top3-grid-${top3.length}">
+                ${podiumHtml}
+            </div>
+        </div>
+    `;
+}
+
+function attachTop3Handlers() {
+    document.querySelectorAll(".top3-name").forEach(el => {
+        el.addEventListener("click", () => {
+            const code = el.dataset.scheme;
+            const name = decodeURIComponent(el.dataset.name || "");
+            if (code) openFundDetail(code, name);
+        });
+    });
+    document.querySelectorAll(".top3-why-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const code = btn.dataset.scheme;
+            const fund = (currentRankings || []).find(r => String(r.scheme_code) === String(code));
+            if (fund) {
+                showFundWhyDialog(fund);
+            }
+        });
+    });
+}
+
+function deriveStrengthsWeaknesses(fund) {
+    const cs = (fund.criteria_scores || []).filter(c => c.score != null && c.weight > 0);
+    if (cs.length === 0) return { strengths: [], weaknesses: [], total: 0, rank: fund.rank, overall: fund.overall_score };
+    const enriched = cs.map(c => ({
+        key: c.criterion,
+        label: CRITERIA_META[c.criterion]?.label || c.criterion,
+        weight: c.weight,
+        score: c.score,
+        contribution: (c.score / 100) * (c.weight / 100) * 100,
+        raw: c.raw_value,
+    }));
+    enriched.sort((a, b) => b.contribution - a.contribution);
+    const strengths = enriched.slice(0, Math.min(2, enriched.length));
+    const weaknesses = enriched.slice(-Math.min(2, enriched.length)).reverse();
+    return {
+        strengths,
+        weaknesses,
+        total: enriched.reduce((s, c) => s + c.contribution, 0),
+        rank: fund.rank,
+        overall: fund.overall_score,
+    };
+}
+
+function formatStrengthsWeaknessesForRow(analysis) {
+    if (!analysis || !analysis.strengths || !analysis.weaknesses) return "";
+    const chip = (item, kind) => `
+        <span class="ranking-sw-chip ranking-sw-chip-${kind}" title="${item.label}: score ${item.score.toFixed(1)}/100">
+            <span class="ranking-sw-chip-dot" aria-hidden="true"></span>
+            <span class="ranking-sw-chip-label">${item.label}</span>
+        </span>
+    `;
+    return `
+        <div class="ranking-sw-row">
+            <div class="ranking-sw-pair ranking-sw-strengths">
+                <span class="ranking-sw-pair-label">Strengths</span>
+                <div class="ranking-sw-pair-chips">${analysis.strengths.map(s => chip(s, "strong")).join("")}</div>
+            </div>
+            <div class="ranking-sw-pair ranking-sw-weaknesses">
+                <span class="ranking-sw-pair-label">Trade-offs</span>
+                <div class="ranking-sw-pair-chips">${analysis.weaknesses.map(w => chip(w, "weak")).join("")}</div>
+            </div>
+        </div>
+    `;
+}
+
+function showFundWhyDialog(fund) {
+    const analysis = deriveStrengthsWeaknesses(fund);
+    const dialog = document.createElement("div");
+    dialog.className = "ranking-why-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-label", "Why this fund ranks here");
+
+    const overall = fund.overall_score != null ? fund.overall_score.toFixed(1) : "N/A";
+    dialog.innerHTML = `
+        <div class="ranking-why-backdrop"></div>
+        <div class="ranking-why-card">
+            <button type="button" class="ranking-why-close" aria-label="Close">×</button>
+            <div class="ranking-why-eyebrow">Rank #${analysis.rank} · Overall ${overall} / 100</div>
+            <h3 class="ranking-why-title">${fund.scheme_name || ""}</h3>
+            <div class="ranking-why-amc">${fund.amc || ""} ${fund.category ? "· " + fund.category : ""}</div>
+
+            <div class="ranking-why-section">
+                <h4>Strengths</h4>
+                <p class="ranking-why-section-help">Highest weighted contribution to the overall score.</p>
+                <ul class="ranking-why-list ranking-why-list-strong">
+                    ${analysis.strengths.map(s => `
+                        <li>
+                            <div class="ranking-why-list-row">
+                                <span class="ranking-why-list-label">${s.label}</span>
+                                <span class="ranking-why-list-value">Score ${s.score.toFixed(1)} · Weight ${s.weight.toFixed(1)}%</span>
+                            </div>
+                            <div class="ranking-why-list-bar"><div class="ranking-why-list-fill ranking-why-list-fill-strong" style="width: ${Math.max(0, Math.min(100, s.score))}%"></div></div>
+                        </li>
+                    `).join("")}
+                </ul>
+            </div>
+
+            <div class="ranking-why-section">
+                <h4>Trade-offs</h4>
+                <p class="ranking-why-section-help">Lowest weighted contribution to the overall score.</p>
+                <ul class="ranking-why-list ranking-why-list-weak">
+                    ${analysis.weaknesses.map(s => `
+                        <li>
+                            <div class="ranking-why-list-row">
+                                <span class="ranking-why-list-label">${s.label}</span>
+                                <span class="ranking-why-list-value">Score ${s.score.toFixed(1)} · Weight ${s.weight.toFixed(1)}%</span>
+                            </div>
+                            <div class="ranking-why-list-bar"><div class="ranking-why-list-fill ranking-why-list-fill-weak" style="width: ${Math.max(0, Math.min(100, s.score))}%"></div></div>
+                        </li>
+                    `).join("")}
+                </ul>
+            </div>
+
+            <div class="ranking-why-disclaimer">These strengths and trade-offs are derived directly from the fund's normalized ranking scores. They are not investment advice.</div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const close = () => {
+        dialog.classList.add("ranking-why-closing");
+        setTimeout(() => dialog.remove(), 160);
+    };
+    dialog.querySelector(".ranking-why-backdrop").addEventListener("click", close);
+    dialog.querySelector(".ranking-why-close").addEventListener("click", close);
+    document.addEventListener("keydown", function onKey(e) {
+        if (e.key === "Escape") {
+            close();
+            document.removeEventListener("keydown", onKey);
+        }
+    });
+}
+
 function renderRankingResults(rankings, categories) {
     currentRankings = rankings;
     filteredRankings = rankings;
@@ -1192,23 +1505,48 @@ function renderRankingResults(rankings, categories) {
         ? (categories.length === 1 ? categories[0] : `${categories.length} categories`)
         : (categories || "Unknown");
 
+    updateMatchingFundsCount(rankings.length);
+
     if (summaryContainer) {
+        const top3 = rankings.filter(r => r.overall_score != null).slice(0, 3);
+        const top3Html = renderTop3Strip(top3, categories);
         summaryContainer.innerHTML = `
             <div class="ranking-summary">
-                <div>
+                <div class="ranking-summary-titles">
                     <h3>${categoryDisplay} Rankings</h3>
-                    <span class="result-meta" id="result-count">${rankings.length} unique funds ranked</span>
+                    <span class="result-meta" id="result-count">${rankings.length} ${rankings.length === 1 ? "fund" : "funds"} ranked</span>
                 </div>
-                <span class="result-meta">Preset: ${PRESETS[currentPreset]?.label || currentPreset}</span>
+                <div class="ranking-summary-meta">
+                    <span class="ranking-meta-item"><span class="ranking-meta-label">Preset</span> <span class="ranking-meta-value">${PRESETS[currentPreset]?.label || currentPreset}</span></span>
+                    <span class="ranking-meta-item"><span class="ranking-meta-label">Sort</span> <span class="ranking-meta-value">Overall Score</span></span>
+                </div>
             </div>
+            <div class="ranking-summary-explanation">
+                <p>Funds are scored on up to 10 metrics across <strong>Performance</strong>, <strong>Risk-Adjusted</strong>, <strong>Risk</strong> and <strong>Consistency</strong>. The <strong>${PRESETS[currentPreset]?.label || currentPreset}</strong> preset determines how each component contributes to the overall score.</p>
+            </div>
+            ${top3Html}
+            <div class="active-filters-bar" id="active-filters-bar" hidden></div>
         `;
+        renderActiveFilters();
+        attachTop3Handlers();
     }
 
     if (!tableContainer) return;
 
     if (!rankings.length) {
-        tableContainer.innerHTML = `<div class="empty-state"><h3>No results</h3><p>No funds found for this category, or insufficient data to calculate metrics.</p></div>`;
+        tableContainer.innerHTML = renderScreenerEmptyState();
         buildResultFilters([]);
+        const clearBtn = tableContainer.querySelector("#empty-clear-categories");
+        if (clearBtn) {
+            clearBtn.addEventListener("click", () => {
+                currentCategories = [];
+                updateCategoryTriggerAndList();
+                screeningFilters = [];
+                renderScreenerFilters();
+                renderActiveFilters();
+                runRanking();
+            });
+        }
         return;
     }
 
@@ -1240,13 +1578,14 @@ function renderRankingResults(rankings, categories) {
     buildResultFilters(rankings);
 
     const columns = [
-        { key: "select", label: "" },
-        { key: "rank", label: "Rank" },
-        { key: "scheme_name", label: "Fund Name" },
+        { key: "select", label: "", width: 36 },
+        { key: "rank", label: "Rank", width: 56 },
+        { key: "scheme_name", label: "Fund", emphasize: true },
+        { key: "category", label: "Category" },
         { key: "amc", label: "AMC" },
-        { key: "scheme_code", label: "Scheme Code" },
-        { key: "nav", label: "Latest NAV" },
-        { key: "overall_score", label: "Overall Score", tooltip: TOOLTIPS.overall_score },
+        { key: "nav", label: "Latest NAV", align: "right" },
+        { key: "overall_score", label: "Overall Score", tooltip: TOOLTIPS.overall_score, emphasize: true },
+        { key: "why", label: "Why" },
         { key: "details", label: "" },
     ];
 
@@ -1254,11 +1593,16 @@ function renderRankingResults(rankings, categories) {
         const score = r.overall_score != null ? r.overall_score.toFixed(1) : "N/A";
         const scoreWidth = r.overall_score != null ? Math.max(0, Math.min(100, r.overall_score)) : 0;
         const nav = r.nav != null ? formatNAV(r.nav) : "N/A";
+        const scoreNum = r.overall_score != null ? r.overall_score : null;
+        const analysis = deriveStrengthsWeaknesses(r);
+        const categoryValue = r.category || (Array.isArray(categories) ? (categories.length === 1 ? categories[0] : categories.join(", ")) : (categories || "—"));
         return {
             rank: index + 1,
+            rank_of: rankings.filter(x => x.overall_score != null).length,
             scheme_code: r.scheme_code || "—",
             scheme_name: r.scheme_name,
             amc: r.amc || "—",
+            category: categoryValue,
             nav: nav,
             nav_raw: r.nav,
             nav_date: r.nav_date || "—",
@@ -1269,6 +1613,8 @@ function renderRankingResults(rankings, categories) {
             first_nav_date: r.first_nav_date || "—",
             overall_score: score,
             score_width: scoreWidth,
+            score_num: scoreNum,
+            analysis: analysis,
             details: r.criteria_scores || [],
             _raw: r,
         };
@@ -1276,17 +1622,20 @@ function renderRankingResults(rankings, categories) {
 
     tableContainer.innerHTML = "";
     const table = document.createElement("table");
-    table.className = "data-table";
+    table.className = "data-table screener-results-table";
 
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
     columns.forEach(col => {
         const th = document.createElement("th");
+        if (col.emphasize) th.classList.add("data-table-th-emphasize");
+        if (col.align === "right") th.classList.add("data-table-th-right");
         if (col.key === "select") {
             th.className = "select-cell";
             const selectAll = document.createElement("input");
             selectAll.type = "checkbox";
             selectAll.className = "compare-select-all";
+            selectAll.setAttribute("aria-label", "Select all funds for comparison");
             selectAll.addEventListener("change", () => {
                 const isChecked = selectAll.checked;
                 if (isChecked) {
@@ -1337,20 +1686,55 @@ function renderRankingResults(rankings, categories) {
         if (row.rank <= 3 && row.rank != null) {
             tr.classList.add("top-rank");
         }
+        if (selectedFunds.has(row.scheme_code)) {
+            tr.classList.add("row-selected");
+        }
         const isSelected = selectedFunds.has(row.scheme_code);
+        const rankClass = row.rank === 1 ? "rank-cell rank-pill rank-pill-1" :
+                          row.rank === 2 ? "rank-cell rank-pill rank-pill-2" :
+                          row.rank === 3 ? "rank-cell rank-pill rank-pill-3" :
+                          "rank-cell rank-pill";
+        const scoreTier = row.score_num == null ? "" :
+                          row.score_num >= 75 ? "score-tier-top" :
+                          row.score_num >= 50 ? "score-tier-mid" :
+                          "score-tier-low";
+        const totalScored = row.rank_of;
+        const contextPct = totalScored > 0 && row.score_num != null
+            ? Math.round(((totalScored - row.rank + 1) / totalScored) * 100)
+            : null;
+        const contextLabel = contextPct == null
+            ? "—"
+            : contextPct >= 80 ? "Top decile"
+            : contextPct >= 60 ? "Upper third"
+            : contextPct >= 40 ? "Mid range"
+            : contextPct >= 20 ? "Lower third"
+            : "Bottom quintile";
+        const contextClass = contextPct == null ? "" :
+                             contextPct >= 60 ? "context-upper" :
+                             contextPct >= 40 ? "context-mid" :
+                             "context-lower";
+        const contextHtml = contextPct != null
+            ? `<div class="rank-context ${contextClass}" title="Position within ${totalScored} ranked funds in current category">
+                    <span class="rank-context-pct">${contextPct}<span class="rank-context-pct-suffix">%</span></span>
+                    <span class="rank-context-label">${contextLabel}</span>
+                </div>`
+            : `<div class="rank-context rank-context-na">—</div>`;
         tr.innerHTML = `
-            <td class="select-cell"><input type="checkbox" class="compare-cb" data-scheme="${row.scheme_code}" ${isSelected ? "checked" : ""}></td>
-            <td class="rank-cell">${row.rank}</td>
-            <td><strong><span class="fund-link" data-scheme="${row.scheme_code}" data-name="${encodeURIComponent(row.scheme_name)}">${row.scheme_name}</span></strong></td>
-            <td class="muted">${row.amc}</td>
-            <td class="muted">${row.scheme_code}</td>
-            <td class="nav-cell">${row.nav}</td>
-            <td class="score-cell">
-                ${row.overall_score !== "N/A" ? `<span class="score-label">Score</span> ${row.overall_score} <span style="font-weight:400;color:var(--color-text-light);font-size:0.8125rem;">/ 100</span>` : "N/A"}
-                <div class="score-bar-bg">
-                    <div class="score-bar-fill" style="width: ${row.score_width}%"></div>
+            <td class="select-cell"><input type="checkbox" class="compare-cb" data-scheme="${row.scheme_code}" ${isSelected ? "checked" : ""} aria-label="Select ${row.scheme_name} for comparison"></td>
+            <td>
+                <div class="rank-cell-stack">
+                    <span class="${rankClass}">${row.rank}</span>
+                    ${contextHtml}
                 </div>
             </td>
+            <td class="fund-name-cell"><span class="fund-link" data-scheme="${row.scheme_code}" data-name="${encodeURIComponent(row.scheme_name)}">${row.scheme_name}</span>${formatStrengthsWeaknessesForRow(row.analysis)}</td>
+            <td class="muted category-cell" title="${row.category}">${row.category}</td>
+            <td class="muted amc-cell">${row.amc}</td>
+            <td class="nav-cell">${row.nav}</td>
+            <td class="score-cell ${scoreTier}">
+                ${row.overall_score !== "N/A" ? `<span class="score-value">${row.overall_score}</span><span class="score-suffix">/ 100</span><div class="score-bar-bg"><div class="score-bar-fill" style="width: ${row.score_width}%"></div></div>` : `<span class="metric-na">N/A</span>`}
+            </td>
+            <td class="why-cell"><button type="button" class="why-btn" data-scheme="${row.scheme_code}" aria-label="Why this fund ranks here">Why?</button></td>
             <td><button class="expand-btn" data-idx="${idx}">Details</button></td>
         `;
         tbody.appendChild(tr);
@@ -1372,6 +1756,15 @@ function renderRankingResults(rankings, categories) {
         });
     });
 
+    table.querySelectorAll(".why-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const code = btn.dataset.scheme;
+            const fund = rankings.find(r => String(r.scheme_code) === String(code));
+            if (fund) showFundWhyDialog(fund);
+        });
+    });
+
     table.querySelectorAll(".compare-cb").forEach(cb => {
         cb.addEventListener("change", () => {
             const scheme = cb.dataset.scheme;
@@ -1385,7 +1778,7 @@ function renderRankingResults(rankings, categories) {
                 selectedFunds.delete(scheme);
             }
             updateComparisonBar();
-            updateSelectAllCheckbox();
+            updateRowCheckboxes();
         });
     });
 
@@ -1415,6 +1808,161 @@ function renderRankingResults(rankings, categories) {
             }
         });
     });
+}
+
+function renderScreenerEmptyState() {
+    const hasCategories = currentCategories.length > 0;
+    const hasScreenerFilters = screeningFilters.length > 0;
+    const hasPreset = currentPreset;
+
+    let explanation = "No funds match the current filter combination.";
+    if (!hasCategories) {
+        explanation = "Select at least one category to see matching funds.";
+    } else if (hasScreenerFilters) {
+        explanation = "The selected screener filters and category combination did not match any fund. Try relaxing a filter.";
+    }
+
+    return `
+        <div class="screener-empty-state">
+            <div class="screener-empty-state-icon" aria-hidden="true">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"/>
+                    <line x1="20" y1="20" x2="16.5" y2="16.5"/>
+                </svg>
+            </div>
+            <h3 class="screener-empty-state-title">No funds match these filters</h3>
+            <p class="screener-empty-state-text">${explanation}</p>
+            <div class="screener-empty-state-actions">
+                <button class="btn-primary btn-small" id="empty-clear-categories" type="button">Clear All Filters</button>
+            </div>
+        </div>
+    `;
+}
+
+function renderActiveFilters() {
+    const bar = document.getElementById("active-filters-bar");
+    if (!bar) return;
+    const chips = [];
+
+    if (currentCategories.length > 0 && !(currentCategories.length === categories.length)) {
+        currentCategories.forEach(cat => {
+            chips.push({
+                key: `cat:${cat}`,
+                label: `Category: ${cat}`,
+                onRemove: () => toggleCategory(cat),
+            });
+        });
+    }
+
+    screeningFilters.forEach((f, idx) => {
+        const field = SCREENER_FIELDS.find(sf => sf.key === f.field);
+        if (!field) return;
+        const op = SCREENER_OPERATORS.find(o => o.key === f.operator);
+        const opLabel = op ? op.label : "=";
+        let valueLabel = "";
+        if (field.type === "categorical") {
+            valueLabel = (f.values && f.values.length) ? f.values.join(", ") : "any";
+        } else if (f.operator === "between") {
+            valueLabel = `${f.value} – ${f.value_max}`;
+        } else {
+            valueLabel = `${f.value}`;
+        }
+        chips.push({
+            key: `screen:${idx}`,
+            label: `${field.label} ${opLabel} ${valueLabel}`,
+            onRemove: () => {
+                screeningFilters.splice(idx, 1);
+                renderScreenerFilters();
+            },
+        });
+    });
+
+    if (chips.length === 0) {
+        bar.hidden = true;
+        bar.innerHTML = "";
+        return;
+    }
+
+    bar.hidden = false;
+    bar.innerHTML = `
+        <div class="active-filters-header">
+            <span class="active-filters-title">Active Filters</span>
+            <button type="button" class="btn-text" id="active-filters-clear">Clear All</button>
+        </div>
+        <div class="active-filters-chips">
+            ${chips.map(chip => `
+                <span class="active-filter-chip" data-key="${chip.key}">
+                    <span class="active-filter-chip-label">${chip.label}</span>
+                    <button type="button" class="active-filter-chip-remove" aria-label="Remove filter" data-key="${chip.key}">×</button>
+                </span>
+            `).join("")}
+        </div>
+    `;
+
+    bar.querySelectorAll(".active-filter-chip-remove").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const key = btn.dataset.key;
+            const chip = chips.find(c => c.key === key);
+            if (chip && chip.onRemove) {
+                chip.onRemove();
+                renderActiveFilters();
+            }
+        });
+    });
+
+    const clearAllBtn = bar.querySelector("#active-filters-clear");
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener("click", () => {
+            currentCategories = [];
+            updateCategoryTriggerAndList();
+            screeningFilters = [];
+            renderScreenerFilters();
+            renderActiveFilters();
+        });
+    }
+}
+
+function updateCategoryTriggerAndList() {
+    const valueEl = document.getElementById("category-value");
+    const countEl = document.getElementById("category-count");
+    const trigger = document.getElementById("category-trigger");
+    if (valueEl) {
+        if (currentCategories.length === 0) {
+            valueEl.textContent = "All Categories";
+            valueEl.classList.remove("has-selection");
+        } else if (currentCategories.length === categories.length) {
+            valueEl.textContent = "All Categories";
+            valueEl.classList.add("has-selection");
+        } else if (currentCategories.length === 1) {
+            valueEl.textContent = currentCategories[0];
+            valueEl.classList.add("has-selection");
+        } else {
+            valueEl.textContent = `${currentCategories.length} categories selected`;
+            valueEl.classList.add("has-selection");
+        }
+    }
+    if (countEl) {
+        countEl.textContent = `${currentCategories.length} selected`;
+    }
+    if (trigger) {
+        trigger.setAttribute("aria-expanded", "false");
+    }
+    const listContainer = document.getElementById("category-list");
+    if (listContainer) {
+        listContainer.querySelectorAll(".category-picker-item").forEach(item => {
+            const v = item.dataset.value;
+            const selected = currentCategories.includes(v);
+            item.classList.toggle("selected", selected);
+            item.setAttribute("aria-selected", selected);
+            const checkbox = item.querySelector(".category-picker-checkbox");
+            if (checkbox) {
+                checkbox.innerHTML = selected
+                    ? '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M11.2 3.8L5.5 9.5 2.8 6.8l-.9.9L5.5 11.3 12.1 4.7l-.9-.9z"/></svg>'
+                    : '';
+            }
+        });
+    }
 }
 
 function updateComparisonBar() {
