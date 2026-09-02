@@ -1460,11 +1460,22 @@ async function showComparisonView() {
             })
         );
 
-        const details = await Promise.all(detailPromises);
+        const categoryAnalysisPromises = selected.map(f =>
+            api.get(`/mutual-funds/${f.scheme_code}/category-analysis`).catch(err => {
+                console.error(`Failed to fetch category analysis for ${f.scheme_code}:`, err);
+                return null;
+            })
+        );
+
+        const [details, categoryAnalyses] = await Promise.all([
+            Promise.all(detailPromises),
+            Promise.all(categoryAnalysisPromises),
+        ]);
 
         const enriched = selected.map((fund, i) => ({
             ...fund,
             _detail: details[i],
+            _categoryAnalysis: categoryAnalyses[i],
         }));
 
         resultsContainer.innerHTML = "";
@@ -1690,6 +1701,101 @@ function renderComparisonTable(container, enrichedFunds) {
         });
         const tr = document.createElement("tr");
         tr.innerHTML = `<td class="metric-label">${row.label}</td>${values.map(v => `<td class="metric-value">${v}</td>`).join("")}`;
+        tbody.appendChild(tr);
+    });
+
+    tbody.appendChild(sectionHeader("Category Context"));
+
+    const getCategoryAnalysis = (f) => f._categoryAnalysis || null;
+
+    const getAveragePercentile = (analysis) => {
+        if (!analysis || !analysis.metrics || analysis.metrics.length === 0) return null;
+        const validPercentiles = analysis.metrics
+            .map(m => m.percentile)
+            .filter(p => p != null);
+        if (validPercentiles.length === 0) return null;
+        return validPercentiles.reduce((sum, p) => sum + p, 0) / validPercentiles.length;
+    };
+
+    const getCategoryCount = (analysis) => {
+        if (!analysis || !analysis.metrics || analysis.metrics.length === 0) return null;
+        const counts = analysis.metrics
+            .map(m => m.category_count)
+            .filter(c => c != null);
+        if (counts.length === 0) return null;
+        return Math.max(...counts);
+    };
+
+    const getEstimatedRank = (avgPercentile, categoryCount) => {
+        if (avgPercentile == null || categoryCount == null) return null;
+        return Math.max(1, Math.min(categoryCount, Math.round((100 - avgPercentile) / 100 * categoryCount) + 1));
+    };
+
+    const allSameCategory = enrichedFunds.length >= 2 &&
+        enrichedFunds.every(f => {
+            const analysis = getCategoryAnalysis(f);
+            return analysis && analysis.category && analysis.category === enrichedFunds[0]._categoryAnalysis?.category;
+        });
+
+    const firstCategory = (() => {
+        const analysis = getCategoryAnalysis(enrichedFunds[0]);
+        return analysis?.category || enrichedFunds[0].category || enrichedFunds[0]._detail?.category || null;
+    })();
+
+    if (allSameCategory && firstCategory) {
+        const noteTr = document.createElement("tr");
+        noteTr.innerHTML = `<td colspan="${enrichedFunds.length + 1}" class="category-context-note">All selected funds belong to the <strong>${firstCategory}</strong> category.</td>`;
+        tbody.appendChild(noteTr);
+    } else if (enrichedFunds.length >= 2) {
+        const noteTr = document.createElement("tr");
+        noteTr.innerHTML = `<td colspan="${enrichedFunds.length + 1}" class="category-context-note">Selected funds belong to different categories. Ranks shown are within each fund's own category.</td>`;
+        tbody.appendChild(noteTr);
+    }
+
+    const categoryContextRows = [
+        {
+            label: "Category",
+            getValue: (f) => {
+                const analysis = getCategoryAnalysis(f);
+                return analysis?.category || f.category || f._detail?.category || null;
+            },
+            format: (v) => v != null ? String(v) : null,
+        },
+        {
+            label: "Category Rank",
+            getValue: (f) => {
+                const analysis = getCategoryAnalysis(f);
+                const avgPercentile = getAveragePercentile(analysis);
+                const categoryCount = getCategoryCount(analysis);
+                return getEstimatedRank(avgPercentile, categoryCount);
+            },
+            format: (v, f) => {
+                if (v == null) return null;
+                const analysis = getCategoryAnalysis(f);
+                const categoryCount = getCategoryCount(analysis);
+                return categoryCount != null ? `${v} / ${categoryCount}` : `${v}`;
+            },
+        },
+        {
+            label: "Category Percentile",
+            getValue: (f) => {
+                const analysis = getCategoryAnalysis(f);
+                return getAveragePercentile(analysis);
+            },
+            format: (v) => v != null ? `${Math.round(v)}th` : null,
+        },
+    ];
+
+    categoryContextRows.forEach(row => {
+        const values = enrichedFunds.map(f => {
+            const raw = row.getValue(f);
+            return row.format(raw, f);
+        });
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="metric-label">${row.label}</td>${values.map(v => {
+            const display = v != null ? v : "Not available";
+            return `<td class="metric-value">${display}</td>`;
+        }).join("")}`;
         tbody.appendChild(tr);
     });
 
