@@ -66,10 +66,37 @@
                         </p>
                     </div>
                     <div class="help-card">
+                        <h4>Top 3 Highlighted Funds</h4>
+                        <p>
+                            The ranking page surfaces the three highest-scoring funds in a dedicated strip above the table.
+                            Each card shows the fund name, AMC, overall score, and a "Why?" button that explains the
+                            strengths and trade-offs behind its rank.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>How Ranking Works</h4>
+                        <p>
+                            The ranking sidebar shows a live "How ranking works" panel. The four metric groups
+                            (Performance, Risk-Adjusted, Risk, Consistency) display their current weights as
+                            bars and a total active weight, derived from the active preset or your custom
+                            criteria.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Why This Fund Ranks Here</h4>
+                        <p>
+                            Every row in the ranking table, the top-3 cards, and the Fund Details page exposes
+                            the underlying component scores. The "Why?" dialog highlights the fund's top
+                            two strengths and bottom two trade-offs, with score and weight for each.
+                            These are derived directly from the fund's normalized ranking scores.
+                        </p>
+                    </div>
+                    <div class="help-card">
                         <h4>Screening & Filters</h4>
                         <p>
                             Apply filters such as AUM, fund age, and plan/option type before ranking.
                             Filters are combined with AND logic and show match counts in the summary.
+                            Active filters appear as removable chips below the summary with a "Clear All" action.
                         </p>
                     </div>
                     <div class="help-card">
@@ -647,16 +674,78 @@
                         </button>
                         <div class="metric-panel">
                             <div class="metric-panel-inner">
-                                <div class="metric-block">
-                                    <h4>What you see</h4>
-                                    <p>Overlaid rolling CAGR time series for the selected window period (1Y, 3Y, or 5Y).</p>
-                                </div>
-                                <div class="metric-block">
-                                    <h4>How to read it</h4>
-                                    <p>Smoother lines indicate more consistent rolling returns. Frequent large swings suggest the fund's performance is volatile over time. Compare the average level and stability across funds.</p>
-                                </div>
+                            <div class="metric-block">
+                                <h4>What you see</h4>
+                                <p>Overlaid rolling CAGR time series for the selected window period (1Y, 3Y, or 5Y).</p>
+                            </div>
+                            <div class="metric-block">
+                                <h4>How to read it</h4>
+                                <p>Smoother lines indicate more consistent rolling returns. Frequent large swings suggest the fund's performance is volatile over time. Compare the average level and stability across funds.</p>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Data Transparency &amp; Freshness</h3>
+                <p class="help-lead">
+                    The application makes every date explicit so that you can judge how current and how comparable
+                    each piece of data is. Dates shown always come from the underlying API; nothing is fabricated.
+                </p>
+                <div class="help-grid">
+                    <div class="help-card">
+                        <h4>Data as of</h4>
+                        <p>
+                            The latest NAV observation date for a fund. On the Ranking page this is the
+                            maximum <code>nav_date</code> across the ranked set; on the Fund Details header
+                            it is the fund's own <code>data_end_date</code>. Displayed as
+                            <strong>DD MMM YYYY</strong>.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>History from / Coverage</h4>
+                        <p>
+                            Fund Details shows a compact history range and data point count (e.g.,
+                            <em>02 Jan 2013 &rarr; 01 Sep 2026 &middot; 3,300 pts</em>) so you can see why a 10Y metric
+                            may exist for one fund but not another.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Calculation Periods</h4>
+                        <p>
+                            Each KPI card on the Fund Details page carries a small period label
+                            (<em>3Y</em>, <em>5Y</em>, <em>Full history</em>). The Performance Summary table
+                            explicitly distinguishes simple 1Y returns from CAGR for longer periods.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Not Available &mdash; Why?</h4>
+                        <p>
+                            "Not available" values are accompanied by a tooltip explaining the reason when
+                            it can be derived from the data: <em>Insufficient history</em>
+                            (fund age shorter than the required period),
+                            <em>Insufficient data points</em> (fewer than 2 NAV records), or
+                            <em>Data unavailable</em> (the provider returned no value).
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Comparison Period</h4>
+                        <p>
+                            A compact strip at the top of the Compare Funds view shows the common
+                            overlapping window across the selected funds
+                            (<em>max(starts) &rarr; min(ends)</em>), with a year-range hint. When the
+                            common period is narrower than the union, a subtle
+                            <em>Some funds have shorter histories</em> pill explains the overlap.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>No Invented Freshness Threshold</h4>
+                        <p>
+                            The application does not define a "data is stale" threshold, so dates are
+                            shown without an arbitrary warning class. A soft green dot next to
+                            "Data as of" simply indicates the record is from the current dataset.
+                        </p>
                     </div>
                 </div>
             </section>
@@ -702,12 +791,22 @@
             </section>
 
             <section class="help-section">
-                <h3>Data Sources & Caching</h3>
+                <h3>Data Sources &amp; Caching</h3>
                 <p>
-                    Market data is sourced from Stoxim (fundamentals), MFAPI (mutual fund NAV and scheme metadata),
-                    and TigZig (pre-computed NAV dataset for faster batch metric calculation).
-                    Category percentile results are cached for 24 hours. Per-fund metrics are cached per lookback window.
+                    Mutual fund data is sourced from <strong>MFAPI</strong> (scheme metadata and on-demand NAV
+                    history) and <strong>TigZig</strong> (a pre-computed batch NAV dataset that supplies
+                    AUM, first NAV date, and per-fund NAV history for the full lookback window). The
+                    <code>CRITERIA_LOOKBACK_YEARS</code> map determines how much history is fetched for
+                    the active criteria.
                 </p>
+                <p>
+                    Caching is layered:
+                </p>
+                <ul>
+                    <li><strong>Per-fund metric cache</strong> keyed by <code>(scheme_code, lookback_years)</code> &mdash; avoids recomputing identical metric payloads.</li>
+                    <li><strong>Category-level cache</strong> for percentile results, refreshed on data source changes.</li>
+                    <li><strong>Default TTL of 24 hours</strong> for category percentile results.</li>
+                </ul>
             </section>
 
             <section class="help-section">

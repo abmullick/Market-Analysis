@@ -84,6 +84,60 @@ class MutualFundFetcher:
         )
         return records
 
+    async def get_or_compute_metrics(
+        self,
+        scheme_code: str,
+        lookback_years: int,
+    ) -> dict[str, Any] | None:
+        """Reuse the existing `metrics_cache` for the given (scheme, lookback).
+
+        - If a non-expired entry exists, return it as-is.
+        - Otherwise fetch NAV history, run `MetricsCalculator`, store the
+          result with the same `metrics_cache.put` mechanism used elsewhere
+          in the application, and return it.
+
+        On any failure during NAV fetch or calculation, returns None and
+        leaves the cache untouched (so a subsequent request can retry).
+        """
+        cached = metrics_cache.get(scheme_code, lookback_years)
+        if cached is not None:
+            logger.info(
+                "CACHE HIT: %s (%d-year lookback)",
+                scheme_code,
+                lookback_years,
+            )
+            return cached
+
+        logger.info(
+            "CACHE MISS: %s (%d-year lookback)",
+            scheme_code,
+            lookback_years,
+        )
+
+        try:
+            navs = await self.get_nav_history(scheme_code, lookback_years=lookback_years)
+        except Exception as e:
+            logger.warning("NAV fetch failed for %s: %s", scheme_code, e)
+            return None
+
+        if len(navs) < 2:
+            logger.warning(
+                "Insufficient NAV data for %s: %d records",
+                scheme_code,
+                len(navs),
+            )
+            return None
+
+        try:
+            calculator = MetricsCalculator(scheme_code=scheme_code, nav_records=navs)
+            metrics = calculator.calculate().model_dump()
+        except Exception as e:
+            logger.warning("Metric calculation failed for %s: %s", scheme_code, e)
+            return None
+
+        metrics_cache.put(scheme_code, lookback_years, metrics)
+        return metrics
+
     async def get_metrics(
         self,
         scheme_code: str,

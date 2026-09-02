@@ -1380,6 +1380,36 @@ function attachTop3Handlers() {
     });
 }
 
+function computeRankingFreshness(rankings) {
+    if (!rankings || !rankings.length) return null;
+    const dates = rankings.map(r => parseDateOnly(r.nav_date)).filter(Boolean);
+    const firstDates = rankings.map(r => parseDateOnly(r.first_nav_date)).filter(Boolean);
+    if (dates.length === 0 && firstDates.length === 0) return null;
+
+    const latestData = dates.length ? new Date(Math.max(...dates.map(d => d.getTime()))) : null;
+    const earliestInception = firstDates.length ? new Date(Math.min(...firstDates.map(d => d.getTime()))) : null;
+    const latestInception = firstDates.length ? new Date(Math.max(...firstDates.map(d => d.getTime()))) : null;
+
+    const latestStr = latestData ? formatDateHumanForComparison(latestData) : null;
+    const earliestInceptionStr = earliestInception ? formatYearOnly(earliestInception) : null;
+    const latestInceptionStr = latestInception ? formatYearOnly(latestInception) : null;
+
+    const tooltipText = [
+        "Based on each fund's latest available NAV record.",
+        "Inception range is the spread between the youngest and oldest fund in this ranking.",
+        "Ranking calculations use the same metrics regardless of how current each fund's NAV record is.",
+    ].join(" ");
+
+    return `
+        <span class="ranking-freshness-dot" aria-hidden="true"></span>
+        ${latestStr ? `<span class="ranking-freshness-item"><span class="ranking-freshness-label">Data as of</span> <span class="ranking-freshness-value">${latestStr}</span></span>` : ""}
+        ${earliestInceptionStr && latestInceptionStr ? `<span class="ranking-freshness-item"><span class="ranking-freshness-label">Fund inception range</span> <span class="ranking-freshness-value">${earliestInceptionStr === latestInceptionStr ? latestInceptionStr : `${earliestInceptionStr} → ${latestInceptionStr}`}</span></span>` : ""}
+        <span class="ranking-freshness-tooltip-trigger" tabindex="0" role="button" aria-label="Data freshness details">ⓘ
+            <span class="ranking-freshness-tooltip-content">${tooltipText}</span>
+        </span>
+    `;
+}
+
 function deriveStrengthsWeaknesses(fund) {
     const cs = (fund.criteria_scores || []).filter(c => c.score != null && c.weight > 0);
     if (cs.length === 0) return { strengths: [], weaknesses: [], total: 0, rank: fund.rank, overall: fund.overall_score };
@@ -1510,6 +1540,7 @@ function renderRankingResults(rankings, categories) {
     if (summaryContainer) {
         const top3 = rankings.filter(r => r.overall_score != null).slice(0, 3);
         const top3Html = renderTop3Strip(top3, categories);
+        const freshness = computeRankingFreshness(rankings);
         summaryContainer.innerHTML = `
             <div class="ranking-summary">
                 <div class="ranking-summary-titles">
@@ -1524,6 +1555,7 @@ function renderRankingResults(rankings, categories) {
             <div class="ranking-summary-explanation">
                 <p>Funds are scored on up to 10 metrics across <strong>Performance</strong>, <strong>Risk-Adjusted</strong>, <strong>Risk</strong> and <strong>Consistency</strong>. The <strong>${PRESETS[currentPreset]?.label || currentPreset}</strong> preset determines how each component contributes to the overall score.</p>
             </div>
+            ${freshness ? `<div class="ranking-freshness-strip">${freshness}</div>` : ""}
             ${top3Html}
             <div class="active-filters-bar" id="active-filters-bar" hidden></div>
         `;
@@ -1990,6 +2022,89 @@ function updateRowCheckboxes() {
     });
 }
 
+function parseDateOnly(s) {
+    if (!s) return null;
+    if (typeof s !== "string") return null;
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) {
+        return new Date(Date.UTC(+iso[1], +iso[2] - 1, +iso[3]));
+    }
+    const dmy = s.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})/);
+    if (dmy) {
+        const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+        const m = months[dmy[2].toLowerCase()];
+        if (m != null) return new Date(Date.UTC(+dmy[3], m, +dmy[1]));
+    }
+    return null;
+}
+
+function formatDateHumanForComparison(d) {
+    if (!(d instanceof Date) || isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+function formatYearOnly(d) {
+    if (!(d instanceof Date) || isNaN(d.getTime())) return null;
+    return String(d.getUTCFullYear());
+}
+
+function computeCommonComparisonPeriod(enrichedFunds) {
+    const starts = [];
+    const ends = [];
+    enrichedFunds.forEach(f => {
+        const d = f._detail || {};
+        const s = parseDateOnly(d.data_start_date || d.first_nav_date);
+        const e = parseDateOnly(d.data_end_date || d.nav_date);
+        if (s) starts.push(s);
+        if (e) ends.push(e);
+    });
+    if (starts.length === 0 || ends.length === 0) return null;
+
+    const commonStart = new Date(Math.max(...starts.map(d => d.getTime())));
+    const commonEnd = new Date(Math.min(...ends.map(d => d.getTime())));
+    if (commonEnd <= commonStart) {
+        return null;
+    }
+
+    const fundsWithFullRange = enrichedFunds.filter(f => {
+        const s = parseDateOnly(f._detail?.data_start_date || f._detail?.first_nav_date);
+        const e = parseDateOnly(f._detail?.data_end_date || f._detail?.nav_date);
+        return s && e && s <= commonStart && e >= commonEnd;
+    }).length;
+
+    const earliest = new Date(Math.min(...starts.map(d => d.getTime())));
+    const latest = new Date(Math.max(...ends.map(d => d.getTime())));
+
+    const commonStartStr = formatDateHumanForComparison(commonStart);
+    const commonEndStr = formatDateHumanForComparison(commonEnd);
+    const earliestStr = formatDateHumanForComparison(earliest);
+    const latestStr = formatDateHumanForComparison(latest);
+    const commonStartYear = formatYearOnly(commonStart);
+    const commonEndYear = formatYearOnly(commonEnd);
+
+    const truncated = (earliestStr !== commonStartStr) || (latestStr !== commonEndStr);
+    const tip = truncated
+        ? `Common overlapping period used for comparable calculations. Individual fund histories: ${earliestStr} → ${latestStr}.`
+        : "Common period used for comparable calculations across selected funds.";
+
+    return `
+        <span class="comparison-period-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="10" height="9" rx="1.5"/>
+                <line x1="2" y1="6" x2="12" y2="6"/>
+                <line x1="5" y1="1" x2="5" y2="3.5"/>
+                <line x1="9" y1="1" x2="9" y2="3.5"/>
+            </svg>
+        </span>
+        <span class="comparison-period-label">Comparison period</span>
+        <span class="comparison-period-value">${commonStartStr} – ${commonEndStr} <span class="comparison-period-years">(${commonStartYear} → ${commonEndYear})</span></span>
+        <span class="comparison-period-tooltip-trigger" tabindex="0" role="button" aria-label="Period details">ⓘ
+            <span class="comparison-period-tooltip-content">${tip} ${fundsWithFullRange}/${enrichedFunds.length} funds cover the full common period.</span>
+        </span>
+        ${truncated ? `<span class="comparison-period-note">Some funds have shorter histories</span>` : ""}
+    `;
+}
+
 async function showComparisonView() {
     if (selectedFunds.size < MIN_COMPARE) return;
     isComparisonView = true;
@@ -2206,6 +2321,7 @@ function renderComparisonTable(container, enrichedFunds) {
 
     const header = document.createElement("div");
     header.className = "comparison-header";
+    const periodInfo = computeCommonComparisonPeriod(enrichedFunds);
     header.innerHTML = `
         <div class="comparison-header-top">
             <button class="btn-back" id="back-to-rankings">← Back to Rankings</button>
@@ -2214,6 +2330,7 @@ function renderComparisonTable(container, enrichedFunds) {
                 <p class="comparison-subtitle">${enrichedFunds.length} funds selected for side-by-side analysis</p>
             </div>
         </div>
+        ${periodInfo ? `<div class="comparison-period-strip">${periodInfo}</div>` : ""}
     `;
     wrapper.appendChild(header);
 

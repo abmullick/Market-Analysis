@@ -1,4 +1,4 @@
-import { api } from "../../../core/api.js";
+import { fetchNavHistory } from "../../../core/nav-history-cache.js";
 
 const ROWS = [
     { key: "one_year_return", label: "1Y Return", type: "simple", higherBetter: true, unit: "percent" },
@@ -47,12 +47,10 @@ export async function renderPerformanceSummary(container, enrichedFunds) {
 
 async function fetchInceptionDataForAll(enrichedFunds) {
     const promises = enrichedFunds.map(f =>
-        api
-            .get(`/mutual-funds/${f.scheme_code}/nav-history?years=10`)
-            .catch(err => {
-                console.error(`Failed to fetch NAV history for ${f.scheme_code}:`, err);
-                return null;
-            })
+        fetchNavHistory(f.scheme_code, 10).catch(err => {
+            console.error(`Failed to fetch NAV history for ${f.scheme_code}:`, err);
+            return null;
+        })
     );
     return await Promise.all(promises);
 }

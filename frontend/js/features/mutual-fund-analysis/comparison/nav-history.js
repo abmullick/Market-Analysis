@@ -1,4 +1,5 @@
 import { api } from "../../../core/api.js";
+import { fetchNavHistory } from "../../../core/nav-history-cache.js";
 
 const COLORS = [
     "#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed",
@@ -64,12 +65,10 @@ export async function renderNavHistoryChart(container, enrichedFunds) {
 
 async function fetchNavHistoryForAll(enrichedFunds) {
     const promises = enrichedFunds.map(f =>
-        api
-            .get(`/mutual-funds/${f.scheme_code}/nav-history?years=10`)
-            .catch(err => {
-                console.error(`Failed to fetch NAV history for ${f.scheme_code}:`, err);
-                return null;
-            })
+        fetchNavHistory(f.scheme_code, 10).catch(err => {
+            console.error(`Failed to fetch NAV history for ${f.scheme_code}:`, err);
+            return null;
+        })
     );
     return await Promise.all(promises);
 }

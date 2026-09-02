@@ -3,8 +3,7 @@ import os
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-
-from fastapi import HTTPException
+from fastapi.responses import Response
 
 from backend.config.settings import Settings
 from backend.models.mutual_fund import (
@@ -149,8 +148,10 @@ async def get_metrics(scheme_code: str) -> dict[str, Any]:
 
 
 @router.get("/{scheme_code}/detail", response_model=FundDetailResponse)
-async def get_fund_detail(scheme_code: str) -> FundDetailResponse:
+async def get_fund_detail(scheme_code: str, response: Response = None) -> FundDetailResponse:
     """Get comprehensive fund detail including metrics, metadata, and allocation."""
+    if response is not None:
+        response.headers["Cache-Control"] = "private, max-age=300"
     try:
         scheme = await fetcher.get_scheme(scheme_code)
     except MfapiError as e:
@@ -166,21 +167,12 @@ async def get_fund_detail(scheme_code: str) -> FundDetailResponse:
         "maximum_drawdown", "downside_deviation", "consistency",
     ])
 
-    cached = metrics_cache.get(scheme_code, lookback_years)
-    if cached is not None:
-        metrics = cached
-    else:
-        try:
-            navs = await fetcher.get_nav_history(scheme_code, lookback_years=lookback_years)
-        except MfapiError as e:
-            logger.error("MFAPI failure for detail/%s: %s", scheme_code, e)
-            raise HTTPException(status_code=502, detail=str(e))
-        except Exception as e:
-            logger.error("Unexpected error for detail/%s: %s", scheme_code, e)
-            raise HTTPException(status_code=500, detail=f"Failed to fetch fund details: {str(e)}")
-        calculator = MetricsCalculator(scheme_code=scheme_code, nav_records=navs)
-        metrics = calculator.calculate().model_dump()
-        metrics_cache.put(scheme_code, lookback_years, metrics)
+    metrics = await fetcher.get_or_compute_metrics(scheme_code, lookback_years)
+    if metrics is None:
+        raise HTTPException(
+            status_code=502,
+            detail="Insufficient data to compute fund metrics",
+        )
 
     metadata_service = get_tigzig_metadata()
     metadata = await metadata_service.get_metadata()
@@ -355,8 +347,10 @@ async def get_category_analysis(scheme_code: str) -> CategoryAnalysisResponse:
 
 
 @router.get("/{scheme_code}/nav-history", response_model=NAVHistoryResponse)
-async def get_nav_history_chart(scheme_code: str, years: int = 10) -> NAVHistoryResponse:
+async def get_nav_history_chart(scheme_code: str, years: int = 10, response: Response = None) -> NAVHistoryResponse:
     """Get NAV history for charting."""
+    if response is not None:
+        response.headers["Cache-Control"] = "private, max-age=300"
     try:
         scheme = await fetcher.get_scheme(scheme_code)
         navs = await fetcher.get_nav_history(scheme_code, lookback_years=years)

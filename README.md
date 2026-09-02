@@ -22,7 +22,7 @@ External Providers (Stoxim, Groq, MFAPI, TigZig)
 
 - **Stock Selection** — Identify stocks using fundamental criteria and ranking strategies.
 - **Portfolio Analysis** — Upload/import a portfolio and analyze existing holdings.
-- **Mutual Fund Analysis** — Rank mutual funds by normalized multi-metric scoring, compare funds side-by-side, inspect fund details with NAV history, rolling returns, category-relative percentile analysis, and drawdown analysis.
+- **Mutual Fund Analysis** — Rank mutual funds by normalized multi-metric scoring, compare funds side-by-side, inspect fund details with NAV history, rolling returns, category-relative percentile analysis, drawdown analysis, and a rich ranking page with top-3 highlights, per-fund strengths/trade-offs, and a transparent "How ranking works" methodology breakdown.
 
 ### Key Principles
 
@@ -54,11 +54,15 @@ Market-Analysis/
 │   │   │   ├── filters.js
 │   │   │   ├── modal.js
 │   │   │   └── loading.js
-│   │   ├── features/               # Feature-specific logic
-│   │   │   ├── stock-selection/
-│   │   │   ├── portfolio-analysis/
-│   │   │   ├── mutual-fund-analysis/
-│   │   │   └── home/
+│       │   ├── features/               # Feature-specific logic
+│       │   │   ├── stock-selection/
+│       │   │   ├── portfolio-analysis/
+│       │   │   ├── mutual-fund-analysis/  # Ranking page + fund-detail modal + comparison
+│       │   │   │   ├── index.js          # Ranking page entry, controls, table, top-3, why-dialog
+│       │   │   │   ├── fund-detail.js    # Fund Details modal (sections, KPIs, N/A treatment)
+│       │   │   │   ├── comparison/       # Compare Funds sub-modules (identity, KPI, chart, drawdown, rolling returns, performance summary, NAV history)
+│       │   │   │   └── fund-detail/      # Fund Details sub-modules (drawdown chart, holdings, category analysis)
+│       │   │   └── home/
 │   │   └── pages/                  # Page initialization
 │   │       ├── stocks.js
 │   │       ├── portfolio.js
@@ -93,9 +97,12 @@ Market-Analysis/
 │   │   │   └── analysis.py
 │   │   ├── mutual_funds/           # Mutual Fund Analysis module
 │   │   │   ├── fetcher.py
-│   │   │   ├── calculator.py
-│   │   │   ├── ranking.py
-│   │   │   ├── cache.py
+│   │   │   ├── calculator.py       # NAV → metrics (CAGR, vol, drawdown, etc.)
+│   │   │   ├── ranking.py          # RankingEngine + CRITERIA / LABELS / lookback
+│   │   │   ├── lookback.py         # CRITERIA_LOOKBACK_YEARS map
+│   │   │   ├── fund_grouper.py     # Variant grouping & ranking candidate selection
+│   │   │   ├── analysis.py         # Category-relative percentile analysis
+│   │   │   ├── cache.py            # Per-fund metric & category cache
 │   │   │   ├── normalizer.py
 │   │   │   └── category_normalizer.py
 │   │   └── ai/                     # AI insight service
@@ -331,17 +338,66 @@ To replace Stoxim or Groq:
 
 ## Mutual Fund Analysis Features
 
-- **Fund Ranking**: Rank funds by normalized multi-metric scoring across 1Y/3Y/5Y/10Y returns, Sharpe, Sortino, volatility, drawdown, downside deviation, and rolling consistency.
-- **Category-Relative Analysis**: View percentile ranks and ordinal position within the fund's category for every metric.
-- **Fund Comparison**: Select multiple funds and compare metrics, risk-return profiles, drawdowns, and rolling returns side-by-side.
-- **Fund Details Modal**: Inspect NAV history, performance metrics, rolling returns chart, drawdown analysis, asset allocation, top holdings, and category-relative positioning.
-- **Screening & Presets**: Apply AUM, age, and other filters; use built-in presets (Best Overall, Highest Returns, Lowest Risk, Best Consistency) or custom criteria weights.
-- **Caching**: 24-hour category-level cache for percentile calculations and per-fund metric cache to minimize recalculation.
+### Ranking Methodology
+- **Multi-metric scoring** across 10 normalized metrics grouped into four buckets: Performance (1Y/3Y/5Y/10Y CAGR + 1Y return), Risk-Adjusted (Sharpe, Sortino), Risk (annualized volatility, maximum drawdown, downside deviation), and Consistency (1Y rolling-return positive percentage).
+- Per-metric min/max normalization within the current category, with lower-is-better metrics (volatility, drawdown, downside) inverted so higher always means better.
+- **`CRITERIA_LOOKBACK_YEARS`** (`backend/services/mutual_funds/lookback.py`) — canonical lookback window per criterion (1Y → 1 year, 5Y → 5 years, etc.). The fund detail endpoint fetches NAV for `max(lookback) + 90-day buffer`.
+- **Built-in presets** (`frontend/js/features/mutual-fund-analysis/index.js` `PRESETS`): Best Overall, Highest Returns, Lowest Risk, Best Consistency, and Custom.
+- **Auto-renormalization** of weights to sum to 100% — the RankingEngine never returns a sub-100% weighted overall score.
+- **Per-fund component scores** (`criteria_scores[].score` & `criteria_scores[].weight`) are returned by `/api/mutual-funds/rank` and are the basis for the in-UI "Why this fund ranks here" dialog (top-2 strengths, bottom-2 trade-offs).
+
+### Pages
+- **Ranking Page** (`mutual-funds.html`)
+  - Category multi-select + AUM / AMC / first-NAV-date screening filters.
+  - Preset selector, custom criteria-weight editor, screening toggle.
+  - "How ranking works" sidebar panel that shows the four groups with live weight bars and total active weight, sourced from the active preset (or computed from Custom criteria).
+  - Header: title + description + `N funds matching current filters` count pill.
+  - **Top 3 strip** — highlighted podium cards (#1 with a subtle green wash, #2/#3 side-by-side), each with a "Why?" dialog.
+  - **Summary explanation** explaining which metric groups contribute to the active preset.
+  - **Active filter chips bar** — removable pills for each selected category and screener filter, with a "Clear All" action.
+  - **Ranking table** — rank pill (green/amber for top 3), category-context indicator (top decile / upper third / mid / lower third / bottom quintile), per-row strengths/trade-offs chips, and a "Why?" column opening a per-fund detail dialog.
+  - **Data freshness strip** below the summary — "Data as of DD MMM YYYY" (max of all `nav_date` in the ranked set) and "Fund inception range" with tooltip.
+  - **Empty state** — dashed-border card with "Clear All Filters" CTA that resets categories and screener filters and re-runs the ranking.
+- **Fund Details Modal**
+  - Identity badges (AMC, category, plan, option), inception / fund age / history / data points.
+  - **Data-status strip** — "Data as of" (from `data_end_date`), "History from" (from `data_start_date`), "Coverage" (range + data points), with a soft green dot.
+  - "At a Glance" KPI cards (3Y/5Y CAGR, Volatility, Sharpe, Sortino, Max Drawdown) — each shows its period label (3Y / 5Y / Full history) and explains "Not available" via a tooltip when fund age < required period or data points < 2.
+  - Performance Summary table (1Y / 3Y / 5Y / 10Y / Since-Inception) with the same N/A reason treatment.
+  - Historical NAV chart with period toggle, Risk & Risk-Adjusted section, Drawdown subsection, Rolling Returns with 1Y/3Y/5Y controls and "Insufficient history" state, Category-relative percentile table, Portfolio (asset allocation + top holdings), and Fund Details metadata grid.
+- **Compare Funds** (`showComparisonView` in `index.js`)
+  - Header with a compact **Comparison period** strip — `DD MMM YYYY – DD MMM YYYY (YYYY → YYYY)` computed as the *intersection* of the selected funds' histories (`max(starts)` to `min(ends)`).
+  - Amber "Some funds have shorter histories" pill when the common period is narrower than the union, with a tooltip explaining the overlap.
+  - Identity grid, F1/F2/F3 legend chips, KPI cards, full metric comparison table, drawdown / rolling returns / NAV history / risk-return modules.
+  - Existing compare-checkbox selection (max 5) and `Compare Funds` action bar preserved.
+
+### Transparency & Data Freshness
+- **"Data as of" / "History from"** indicators on the Ranking page summary, Fund Details header, and Comparison header — every date is sourced from existing API fields (`data_end_date`, `data_start_date`, `nav_date`, `first_nav_date`).
+- **N/A treatment** distinguishes between "Insufficient history" (fund age < required years), "Insufficient data points", and "Data unavailable" using only data already returned by the API.
+- **Calculation periods** are made explicit via per-KPI period labels and the `How ranking works` methodology panel — no new formulas or lookback logic introduced.
+- **Common comparison period** is computed and shown to make it obvious when funds have different available histories; no calculation change.
+- No freshness threshold is invented — dates are shown without an arbitrary "stale" classification, per the constraint to avoid guessing.
+
+### Caching & Data
+- **Per-fund metric cache** keyed by `(scheme_code, lookback_years)` — `backend/services/mutual_funds/cache.py`.
+- **Category-level cache** for percentile calculations, refreshed on data source changes.
+- **24-hour category-level cache** for percentile calculations and per-fund metric cache to minimize recalculation.
+- **TigZig** metadata dataset supplies AUM, first NAV date, and other fund-level attributes that enrich the ranking payload.
+
+## Recent Enhancements
+
+These were added on top of the existing architecture without changing any calculation, ranking, or API behaviour:
+
+- **Ranking Page Polish** — Visual and transparency refinements to the Mutual Fund Ranking page only: top-3 podium strip, "How ranking works" methodology panel, per-fund strengths/trade-offs chips, "Why this fund ranks here" dialog, category-context indicator, active filter chips bar, and a richer summary header. Same scores, same order, same API contract.
+- **Compare Funds Polish** — F1/F2/F3 legend chips, identity card per fund, KPI cards with best-value highlighting, sticky metric label, and a Comparison period strip showing the common `max(starts) → min(ends)` overlap across selected funds.
+- **Fund Details Polish** — Restructured into 8 sections (Identity, At a Glance, Performance, NAV, Risk & Risk-Adjusted, Rolling Returns, Portfolio, Fund Details) with consistent typography, spacing, and semantic colors. No new analytics or metrics added.
+- **Screener Polish** — Sidebar section grouping (Fund / Preset / Criteria / Screener), active filter chips with "Clear All" action, and improved empty state.
+- **Data Transparency & Freshness** — Compact "Data as of" / "History from" / "Coverage" indicators on the Ranking summary, Fund Details header, and Comparison header. Calculation periods made explicit on each KPI card. "Not available" treatment now distinguishes "Insufficient history" from "Data unavailable" using only data already returned by the API. The application defines no freshness threshold, so dates are shown without an arbitrary "stale" label.
+- **Backend additions** — `backend/services/mutual_funds/lookback.py` (`CRITERIA_LOOKBACK_YEARS`) and `backend/services/mutual_funds/fund_grouper.py` (variant grouping + ranking-candidate selection) were added; the public API contract is unchanged.
 
 ## Notes
 
 - No database is used yet; data flows from providers through cache to rankings.
 - Authentication is not implemented yet.
 - No portfolio management persistence yet.
-- Service modules currently expose placeholder interfaces and raise `NotImplementedError` until real integrations are added.
+- The Mutual Fund Analysis service layer is fully implemented (`fetcher`, `calculator`, `ranking`, `analysis`, `cache`, `lookback`, `fund_grouper`). The Stock Selection and Portfolio Analysis service modules continue to evolve.
 - Python runtime is pinned to 3.12 via `.python-version` for deployment compatibility.

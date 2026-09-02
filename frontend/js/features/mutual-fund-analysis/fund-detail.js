@@ -1,4 +1,5 @@
 import { api } from "../../core/api.js";
+import { fetchNavHistory } from "../../core/nav-history-cache.js";
 import { showLoading, hideLoading } from "../../components/loading.js";
 import { renderDrawdownAnalysis } from "./fund-detail/drawdown.js";
 import { renderCategoryAnalysis } from "./fund-detail/category/category-analysis.js";
@@ -20,7 +21,7 @@ export async function openFundDetail(schemeCode, schemeName) {
     try {
         const [detail, navHistory, categoryAnalysis] = await Promise.all([
             api.get(`/mutual-funds/${schemeCode}/detail`),
-            api.get(`/mutual-funds/${schemeCode}/nav-history?years=10`),
+            fetchNavHistory(schemeCode, 10),
             api.get(`/mutual-funds/${schemeCode}/category-analysis`).catch(() => null),
         ]);
 
@@ -150,16 +151,16 @@ function createFundIdentitySection(detail, schemeCode) {
 
     const inception = detail.first_nav_date || "Not available";
     const fundAge = detail.fund_age_years != null ? `${detail.fund_age_years.toFixed(1)} years` : "Not available";
-    const dataRange = (detail.data_start_date && detail.data_end_date)
-        ? `${detail.data_start_date} – ${detail.data_end_date}`
-        : "Not available";
     const dataPoints = detail.data_points != null ? `${detail.data_points.toLocaleString()} points` : null;
+    const historyRange = formatHistoryRange(detail.data_start_date, detail.data_end_date);
 
     const metaItems = [
         { label: "Inception", value: inception },
         { label: "Fund Age", value: fundAge },
-        { label: "Data Range", value: dataRange },
     ];
+    if (historyRange) {
+        metaItems.push({ label: "History", value: historyRange });
+    }
     if (dataPoints) {
         metaItems.push({ label: "Data Points", value: dataPoints });
     }
@@ -179,7 +180,91 @@ function createFundIdentitySection(detail, schemeCode) {
     });
     section.appendChild(metaRow);
 
+    section.appendChild(createDataStatusStrip(detail));
+
     return section;
+}
+
+function createDataStatusStrip(detail) {
+    const strip = document.createElement("div");
+    strip.className = "fund-data-status";
+
+    const asOf = detail.data_end_date || detail.nav_date;
+    const historyStart = detail.data_start_date || detail.first_nav_date;
+    const total = (detail.data_end_date && detail.data_start_date)
+        ? formatHistoryRange(detail.data_start_date, detail.data_end_date)
+        : null;
+
+    if (asOf) {
+        const asOfEl = document.createElement("span");
+        asOfEl.className = "fund-data-status-item fund-data-status-asof";
+        asOfEl.innerHTML = `
+            <span class="fund-data-status-dot" aria-hidden="true"></span>
+            <span class="fund-data-status-label">Data as of</span>
+            <span class="fund-data-status-value">${formatDateHuman(asOf)}</span>
+        `;
+        strip.appendChild(asOfEl);
+    }
+
+    if (historyStart) {
+        const histEl = document.createElement("span");
+        histEl.className = "fund-data-status-item";
+        histEl.innerHTML = `
+            <span class="fund-data-status-label">History from</span>
+            <span class="fund-data-status-value">${formatDateHuman(historyStart)}</span>
+        `;
+        strip.appendChild(histEl);
+    }
+
+    if (total && detail.data_points != null) {
+        const covEl = document.createElement("span");
+        covEl.className = "fund-data-status-item fund-data-status-coverage";
+        covEl.innerHTML = `
+            <span class="fund-data-status-label">Coverage</span>
+            <span class="fund-data-status-value">${total} · ${detail.data_points.toLocaleString()} pts</span>
+        `;
+        strip.appendChild(covEl);
+    }
+
+    if (!strip.children.length) return strip;
+    return strip;
+}
+
+function formatDateHuman(value) {
+    if (value == null) return null;
+    if (typeof value !== "string") return String(value);
+    const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+        const d = new Date(Date.UTC(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3]));
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+        }
+    }
+    const dmyMatch = value.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})/);
+    if (dmyMatch) {
+        return value;
+    }
+    return value;
+}
+
+function formatHistoryRange(startISO, endISO) {
+    const s = formatDateHuman(startISO);
+    const e = formatDateHuman(endISO);
+    if (s && e) {
+        const sShort = formatYearRange(s);
+        const eShort = formatYearRange(e);
+        return `${sShort} → ${eShort}`;
+    }
+    return null;
+}
+
+function formatYearRange(dateStr) {
+    if (!dateStr) return dateStr;
+    const m = dateStr.match(/(\d{4})/);
+    if (!m) return dateStr;
+    const year = m[1];
+    if (dateStr.length <= 4) return year;
+    return `${dateStr.split(" ")[0].replace(/^\d{2}\s/, "")} ${year}`;
 }
 
 function createKpiSection(detail) {
@@ -188,9 +273,12 @@ function createKpiSection(detail) {
 
     const heading = document.createElement("div");
     heading.className = "fund-section-heading";
+    const historySubtitle = (detail.data_start_date && detail.data_end_date)
+        ? `Key performance and risk-adjusted metrics from the fund's history (${formatHistoryRange(detail.data_start_date, detail.data_end_date)}).`
+        : "Key performance and risk-adjusted metrics from the fund's history.";
     heading.innerHTML = `
         <h3 class="fund-section-title">At a Glance</h3>
-        <p class="fund-section-subtitle">Key performance and risk-adjusted metrics from the fund's history.</p>
+        <p class="fund-section-subtitle">${historySubtitle}</p>
     `;
     section.appendChild(heading);
 
@@ -198,12 +286,12 @@ function createKpiSection(detail) {
     grid.className = "fund-kpi-grid";
 
     const kpis = [
-        { key: "3y", label: "3Y CAGR", value: detail.three_year_cagr, kind: "cagr-positive" },
-        { key: "5y", label: "5Y CAGR", value: detail.five_year_cagr, kind: "cagr-positive" },
-        { key: "vol", label: "Volatility", value: detail.annualized_volatility, kind: "risk" },
-        { key: "sharpe", label: "Sharpe Ratio", value: detail.sharpe_ratio, kind: "ratio-positive" },
-        { key: "sortino", label: "Sortino Ratio", value: detail.sortino_ratio, kind: "ratio-positive" },
-        { key: "mdd", label: "Max Drawdown", value: detail.maximum_drawdown, kind: "risk" },
+        { key: "3y", label: "3Y CAGR", value: detail.three_year_cagr, kind: "cagr-positive", period: "3Y", minYears: 3 },
+        { key: "5y", label: "5Y CAGR", value: detail.five_year_cagr, kind: "cagr-positive", period: "5Y", minYears: 5 },
+        { key: "vol", label: "Volatility", value: detail.annualized_volatility, kind: "risk", period: "Full history" },
+        { key: "sharpe", label: "Sharpe Ratio", value: detail.sharpe_ratio, kind: "ratio-positive", period: "Full history" },
+        { key: "sortino", label: "Sortino Ratio", value: detail.sortino_ratio, kind: "ratio-positive", period: "Full history" },
+        { key: "mdd", label: "Max Drawdown", value: detail.maximum_drawdown, kind: "risk", period: "Full history" },
     ];
 
     kpis.forEach(kpi => {
@@ -217,30 +305,55 @@ function createKpiSection(detail) {
         const valueEl = document.createElement("div");
         valueEl.className = "fund-kpi-value";
         if (kpi.value == null) {
+            const reason = explainMissingMetric(kpi, detail);
             valueEl.textContent = "Not available";
             valueEl.classList.add("fund-kpi-na");
-        } else if (kpi.kind === "cagr-positive" || kpi.kind === "risk") {
-            const pct = kpi.value * 100;
-            valueEl.textContent = `${pct >= 0 ? "" : ""}${pct.toFixed(2)}%`;
-            if (kpi.kind === "cagr-positive") {
-                valueEl.classList.add(pct >= 0 ? "fund-kpi-positive" : "fund-kpi-negative");
-            } else {
-                valueEl.classList.add("fund-kpi-risk-neutral");
+            if (reason) {
+                valueEl.title = reason.full;
+                valueEl.setAttribute("data-missing-reason", reason.short);
             }
         } else {
-            valueEl.textContent = kpi.value.toFixed(2);
-            if (kpi.value > 1) valueEl.classList.add("fund-kpi-positive");
-            else if (kpi.value > 0) valueEl.classList.add("fund-kpi-amber");
-            else valueEl.classList.add("fund-kpi-negative");
+            valueEl.textContent = formatKpiValue(kpi.key, kpi.value);
         }
+
+        const periodEl = document.createElement("div");
+        periodEl.className = "fund-kpi-period";
+        periodEl.textContent = kpi.period;
 
         card.appendChild(labelEl);
         card.appendChild(valueEl);
+        card.appendChild(periodEl);
         grid.appendChild(card);
     });
 
     section.appendChild(grid);
     return section;
+}
+
+function explainMissingMetric(kpi, detail) {
+    if (kpi.minYears != null) {
+        const years = detail.fund_age_years;
+        if (years != null && years < kpi.minYears) {
+            return {
+                short: `Fund age ${years.toFixed(1)}y < ${kpi.minYears}y required`,
+                full: `Not available — fund has ${years.toFixed(1)} years of history, but ${kpi.minYears}-year calculation needs at least ${kpi.minYears} years of data.`,
+            };
+        }
+    }
+    if (detail.data_points != null && detail.data_points < 2) {
+        return { short: "Insufficient data points", full: "Insufficient data points to calculate this metric." };
+    }
+    return { short: "Data unavailable", full: "Data is unavailable for this metric." };
+}
+
+function formatKpiValue(key, value) {
+    if (key === "3y" || key === "5y") {
+        return `${(value * 100).toFixed(2)}%`;
+    }
+    if (key === "vol" || key === "mdd") {
+        return `${(value * 100).toFixed(2)}%`;
+    }
+    return value.toFixed(2);
 }
 
 function createPerformanceSummarySection(detail, navHistory) {
@@ -273,11 +386,11 @@ function createPerformanceSummarySection(detail, navHistory) {
     const sinceInceptionCagr = computeSinceInceptionCagr(detail, navHistory);
 
     const rows = [
-        { period: "1Y", kind: "Simple Return", value: detail.one_year_return, kindClass: "perf-kind-simple" },
-        { period: "3Y", kind: "CAGR", value: detail.three_year_cagr, kindClass: "perf-kind-cagr" },
-        { period: "5Y", kind: "CAGR", value: detail.five_year_cagr, kindClass: "perf-kind-cagr" },
-        { period: "10Y", kind: "CAGR", value: detail.ten_year_cagr, kindClass: "perf-kind-cagr" },
-        { period: "Since Inception", kind: "CAGR", value: sinceInceptionCagr, kindClass: "perf-kind-cagr" },
+        { period: "1Y", kind: "Simple Return", value: detail.one_year_return, kindClass: "perf-kind-simple", minYears: 1 },
+        { period: "3Y", kind: "CAGR", value: detail.three_year_cagr, kindClass: "perf-kind-cagr", minYears: 3 },
+        { period: "5Y", kind: "CAGR", value: detail.five_year_cagr, kindClass: "perf-kind-cagr", minYears: 5 },
+        { period: "10Y", kind: "CAGR", value: detail.ten_year_cagr, kindClass: "perf-kind-cagr", minYears: 10 },
+        { period: "Since Inception", kind: "CAGR", value: sinceInceptionCagr, kindClass: "perf-kind-cagr", minYears: 0 },
     ];
 
     rows.forEach(row => {
@@ -297,6 +410,11 @@ function createPerformanceSummarySection(detail, navHistory) {
         if (row.value == null) {
             valueCell.textContent = "Not available";
             valueCell.classList.add("fund-perf-na");
+            const reason = explainMissingMetric({ minYears: row.minYears }, detail);
+            if (reason) {
+                valueCell.title = reason.full;
+                valueCell.setAttribute("data-missing-reason", reason.short);
+            }
         } else {
             const pct = row.value * 100;
             valueCell.textContent = `${pct.toFixed(2)}%`;
