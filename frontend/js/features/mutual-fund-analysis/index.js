@@ -119,21 +119,22 @@ const CRITERIA_META = {
 };
 
 const CRITERIA_HELP = {
-    "1Y_return": "The fund's return over the past year. Higher is generally better.",
-    "3Y_cagr": "The annualized return over three years. Higher is generally better.",
-    "5Y_cagr": "The annualized return over five years. Higher is generally better.",
-    "10Y_cagr": "The annualized return over ten years. Higher is generally better.",
-    sharpe_ratio: "Measures return relative to volatility/risk. Higher generally means better risk-adjusted returns.",
-    sortino_ratio: "Measures return relative to downside risk. Higher generally means better downside-risk-adjusted returns.",
-    volatility: "Measures how much returns fluctuate. Lower generally means more stable returns.",
-    maximum_drawdown: "The largest peak-to-trough decline in the fund's NAV history. A smaller drawdown is generally better.",
-    downside_deviation: "Measures the variability of negative/downside returns. Lower generally indicates less downside variability.",
-    consistency: "Percentage of 1-year rolling windows with positive returns. Higher means more consistently positive returns.",
+    "1Y_return": "Measures the fund's return over the most recent 1-year period. Higher is better.",
+    "3Y_cagr": "Measures the fund's annualized return over 3 years. Higher is better.",
+    "5Y_cagr": "Measures the fund's annualized return over 5 years. Higher is better.",
+    "10Y_cagr": "Measures the fund's annualized return over 10 years. Higher is better.",
+    sharpe_ratio: "Measures return relative to overall volatility. Higher generally indicates better risk-adjusted performance.",
+    sortino_ratio: "Measures return relative to downside volatility. Higher generally indicates better risk-adjusted performance.",
+    volatility: "Measures how much the fund's returns fluctuate. Lower volatility generally means lower variability.",
+    maximum_drawdown: "Measures the largest decline from a previous peak. Lower drawdown generally means lower downside risk.",
+    downside_deviation: "Measures the volatility of negative returns. Lower downside deviation generally indicates lower downside variability.",
+    consistency: "Measures how consistently the fund has produced positive rolling returns. Higher consistency means positive returns occurred more consistently across the measured periods.",
 };
 
 const TOOLTIPS = {
     score: "Normalized ranking score from 0 to 100, based on this fund's metric value relative to all other eligible funds in the selected category.",
     overall_score: "Weighted combination of all selected metric scores (0–100), according to the active preset weights. Higher means better overall ranking.",
+    weight: "Controls how much influence this metric has on the overall ranking score. A higher weight gives this metric more influence. A weight of 0 excludes it from the ranking.",
 };
 
 const FILTER_META = {
@@ -202,6 +203,20 @@ const SCREENER_OPERATORS = [
     { key: "lte", label: "≤" },
     { key: "between", label: "Between" },
 ];
+
+const SCREENER_FIELD_HELP = {
+    amc: "Enter one or more AMC names separated by commas. Matching is case-insensitive and substring-based. For example, 'SBI, Axis' matches AMC names containing either SBI or Axis.",
+    aum_cr: "Filters funds based on their total Assets Under Management (AUM).",
+    first_nav_date: "Filters funds based on the start of their available NAV history. Useful for finding funds with a longer track record.",
+};
+
+function _screenerFieldLabel(field) {
+    const help = SCREENER_FIELD_HELP[field.key];
+    if (help) {
+        return `${field.label}<span class="tooltip-trigger" tabindex="0" role="button" aria-label="More information"><span class="tooltip-content">${help}</span>ⓘ</span>`;
+    }
+    return field.label;
+}
 
 const COMPARE_METRICS = [
     { key: "1Y_return", label: "1Y Return", unit: "percent", higherBetter: true },
@@ -395,6 +410,7 @@ function buildScreener(container) {
                 </div>
                 <span class="screener-count" id="screener-count"></span>
             </div>
+            <div class="screener-group-help">Filter funds before ranking. Use these filters to define which funds are included in the ranking.</div>
             <button type="button" class="screener-toggle" id="screener-toggle" aria-expanded="false">
                 <span class="screener-toggle-label">${screeningFilters.length > 0 ? "Edit filters" : "Add filter"}</span>
                 <span class="screener-toggle-icon">&#9662;</span>
@@ -481,7 +497,7 @@ function renderScreenerFilters() {
 
         if (field.type === "categorical") {
             row.innerHTML = `
-                <span class="screener-filter-label">${field.label}</span>
+                <span class="screener-filter-label">${_screenerFieldLabel(field)}</span>
                 <input type="text" class="screener-filter-input" placeholder="Enter values separated by commas" value="${(filter.values || []).join(", ")}">
                 <button type="button" class="screener-filter-remove" data-idx="${idx}">&times;</button>
             `;
@@ -492,7 +508,7 @@ function renderScreenerFilters() {
             });
         } else if (field.type === "date") {
             row.innerHTML = `
-                <span class="screener-filter-label">${field.label}</span>
+                <span class="screener-filter-label">${_screenerFieldLabel(field)}</span>
                 <select class="screener-filter-op">
                     ${SCREENER_OPERATORS.map(op => `<option value="${op.key}" ${op.key === filter.operator ? "selected" : ""}>${op.label}</option>`).join("")}
                 </select>
@@ -522,7 +538,7 @@ function renderScreenerFilters() {
             }
         } else {
             row.innerHTML = `
-                <span class="screener-filter-label">${field.label}</span>
+                <span class="screener-filter-label">${_screenerFieldLabel(field)}</span>
                 <select class="screener-filter-op">
                     ${SCREENER_OPERATORS.map(op => `<option value="${op.key}" ${op.key === filter.operator ? "selected" : ""}>${op.label}</option>`).join("")}
                 </select>
@@ -969,7 +985,7 @@ function buildCriteriaList(container) {
     container.innerHTML = `
         <div class="screener-group">
             <div class="screener-group-heading">
-                <span class="screener-group-title">Criteria Weights</span>
+                <span class="screener-group-title">Criteria Weights <span class="tooltip-trigger" tabindex="0" role="button" aria-label="How weights work"><span class="tooltip-content">${TOOLTIPS.weight}</span>ⓘ</span></span>
                 <span class="screener-group-subtitle">Customize scoring factors for ranking</span>
             </div>
             <div class="criteria-list" id="criteria-list"></div>
@@ -1781,12 +1797,15 @@ function renderRankingResults(rankings, categories) {
             e.stopPropagation();
             const isVisible = content.style.opacity === "1";
             document.querySelectorAll(".tooltip-content").forEach(t => {
-                t.style.opacity = "0";
-                t.style.visibility = "hidden";
+                t.style.removeProperty("opacity");
+                t.style.removeProperty("visibility");
+                t.style.removeProperty("top");
+                t.style.removeProperty("left");
             });
             if (!isVisible) {
                 content.style.opacity = "1";
                 content.style.visibility = "visible";
+                positionTooltip(trigger);
             }
         });
     });
@@ -2975,12 +2994,15 @@ function renderFilteredTable(rankings) {
             e.stopPropagation();
             const isVisible = content.style.opacity === "1";
             document.querySelectorAll(".tooltip-content").forEach(t => {
-                t.style.opacity = "0";
-                t.style.visibility = "hidden";
+                t.style.removeProperty("opacity");
+                t.style.removeProperty("visibility");
+                t.style.removeProperty("top");
+                t.style.removeProperty("left");
             });
             if (!isVisible) {
                 content.style.opacity = "1";
                 content.style.visibility = "visible";
+                positionTooltip(trigger);
             }
         });
     });
@@ -3169,12 +3191,15 @@ function renderDetailContent(container, criteriaScores, meta = {}) {
             e.stopPropagation();
             const isVisible = content.style.opacity === "1";
             document.querySelectorAll(".tooltip-content").forEach(t => {
-                t.style.opacity = "0";
-                t.style.visibility = "hidden";
+                t.style.removeProperty("opacity");
+                t.style.removeProperty("visibility");
+                t.style.removeProperty("top");
+                t.style.removeProperty("left");
             });
             if (!isVisible) {
                 content.style.opacity = "1";
                 content.style.visibility = "visible";
+                positionTooltip(trigger);
             }
         });
     });
@@ -3212,11 +3237,39 @@ function formatRawValue(criterion, value) {
     }
 }
 
+function positionTooltip(trigger) {
+    const content = trigger.querySelector(".tooltip-content");
+    if (!content) return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const contentRect = content.getBoundingClientRect();
+
+    const viewportWidth = window.innerWidth;
+    const contentWidth = contentRect.width || 260;
+
+    let left = triggerRect.left + (triggerRect.width / 2) - (contentWidth / 2);
+    left = Math.max(8, Math.min(left, viewportWidth - contentWidth - 8));
+
+    const top = triggerRect.bottom;
+
+    content.style.setProperty("top", `${top}px`);
+    content.style.setProperty("left", `${left}px`);
+}
+
+document.addEventListener("mouseover", (e) => {
+    const trigger = e.target.closest(".tooltip-trigger");
+    if (trigger) {
+        positionTooltip(trigger);
+    }
+});
+
 document.addEventListener("click", (e) => {
     if (!e.target.closest(".tooltip-trigger")) {
         document.querySelectorAll(".tooltip-content").forEach(t => {
-            t.style.opacity = "0";
-            t.style.visibility = "hidden";
+            t.style.removeProperty("opacity");
+            t.style.removeProperty("visibility");
+            t.style.removeProperty("top");
+            t.style.removeProperty("left");
         });
     }
 });
