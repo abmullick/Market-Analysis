@@ -66,7 +66,7 @@ class MutualFundFetcher:
                 result = await self.get_nav_history_tigzig(scheme_code, lookback_years)
                 if result:
                     return result
-                logger.info(f"TigZig returned no data for {scheme_code}, falling back to MFAPI")
+                logger.debug(f"TigZig returned no data for {scheme_code}, falling back to MFAPI")
             except Exception as e:
                 logger.warning(f"TigZig query failed for {scheme_code}: {e}, falling back to MFAPI")
 
@@ -76,7 +76,7 @@ class MutualFundFetcher:
         except MfapiError as e:
             raise MfapiError(f"Failed to fetch NAV history for scheme {scheme_code}: {e}") from e
         records = normalize_nav_history(raw)
-        logger.info(
+        logger.debug(
             "NAV history for %s: %d records (lookback=%s years)",
             scheme_code,
             len(records),
@@ -271,7 +271,7 @@ class MutualFundFetcher:
                         rows = chunk_nav_data.get(code, [])
                         if rows:
                             dates = [r["date"] for r in rows]
-                            logger.info(
+                            logger.debug(
                                 f"  Scheme {code}: {len(rows)} rows, "
                                 f"first={min(dates)}, last={max(dates)}"
                             )
@@ -291,7 +291,7 @@ class MutualFundFetcher:
                             nav_records = await self.get_nav_history(str(code), lookback_years=lookback_years)
                             if len(nav_records) >= 2:
                                 nav_data = [{"date": r.date, "nav": r.nav} for r in nav_records]
-                                logger.info("MFAPI fallback returned %d NAV records for %s", len(nav_data), code)
+                                logger.debug("MFAPI fallback returned %d NAV records for %s", len(nav_data), code)
                         except Exception as e:
                             logger.warning("MFAPI fallback failed for %s (%s): %s", fund_name, code, e)
 

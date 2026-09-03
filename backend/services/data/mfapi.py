@@ -39,7 +39,7 @@ class MfapiClient:
             params["endDate"] = end_date.strftime("%d-%m-%Y")
 
         param_str = f" start={params.get('startDate')} end={params.get('endDate')}" if params else ""
-        logger.info("Fetching MF NAV history: %s%s", scheme_code, param_str)
+        logger.debug("Fetching MF NAV history: %s%s", scheme_code, param_str)
 
         max_retries = 2
         overall_timeout = 45.0
@@ -49,7 +49,7 @@ class MfapiClient:
                 try:
                     async with httpx.AsyncClient() as client:
                         response = await client.get(url, params=params, timeout=20.0)
-                        logger.info(
+                        logger.debug(
                             "MFAPI response for %s: status=%d size=%d",
                             scheme_code, response.status_code, len(response.content)
                         )
@@ -74,7 +74,7 @@ class MfapiClient:
         try:
             data = await asyncio.wait_for(_fetch_with_retries(), timeout=overall_timeout)
             nav_records = data.get("data", [])
-            logger.info(
+            logger.debug(
                 "MFAPI NAV records for %s: %d records, first=%s, last=%s",
                 scheme_code,
                 len(nav_records),
