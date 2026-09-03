@@ -118,6 +118,19 @@ const CRITERIA_META = {
     },
 };
 
+const CRITERIA_HELP = {
+    "1Y_return": "The fund's return over the past year. Higher is generally better.",
+    "3Y_cagr": "The annualized return over three years. Higher is generally better.",
+    "5Y_cagr": "The annualized return over five years. Higher is generally better.",
+    "10Y_cagr": "The annualized return over ten years. Higher is generally better.",
+    sharpe_ratio: "Measures return relative to volatility/risk. Higher generally means better risk-adjusted returns.",
+    sortino_ratio: "Measures return relative to downside risk. Higher generally means better downside-risk-adjusted returns.",
+    volatility: "Measures how much returns fluctuate. Lower generally means more stable returns.",
+    maximum_drawdown: "The largest peak-to-trough decline in the fund's NAV history. A smaller drawdown is generally better.",
+    downside_deviation: "Measures the variability of negative/downside returns. Lower generally indicates less downside variability.",
+    consistency: "Percentage of 1-year rolling windows with positive returns. Higher means more consistently positive returns.",
+};
+
 const TOOLTIPS = {
     score: "Normalized ranking score from 0 to 100, based on this fund's metric value relative to all other eligible funds in the selected category.",
     overall_score: "Weighted combination of all selected metric scores (0–100), according to the active preset weights. Higher means better overall ranking.",
@@ -387,6 +400,14 @@ function buildScreener(container) {
                 <span class="screener-toggle-icon">&#9662;</span>
             </button>
             <div class="screener-body" id="screener-body" hidden>
+                <div class="screener-help">
+                    <div class="screener-help-title">How to use these filters</div>
+                    <ul>
+                        <li><strong>AUM</strong> — Filters funds by total Assets Under Management. Example: AUM &ge; &#8377;20,000 Cr includes only funds with at least &#8377;20,000 Cr in total AUM.</li>
+                        <li><strong>First NAV Date</strong> — Filters by the earliest available NAV date. Useful for finding funds with a longer history. Example: First NAV Date &ge; 2015 includes funds whose NAV history begins on or after 2015.</li>
+                        <li><strong>AMC</strong> — Enter multiple AMC names separated by commas. Matching is case-insensitive and substring-based. Example: "SBI, Axis" matches AMC names containing "SBI" or "Axis".</li>
+                    </ul>
+                </div>
                 <div class="screener-add">
                     <select id="screener-field" class="screener-select">
                         ${SCREENER_FIELDS.map(f => `<option value="${f.key}">${f.label}</option>`).join("")}
@@ -965,7 +986,7 @@ function buildCriteriaList(container) {
         item.innerHTML = `
             <div class="criterion-header">
                 <input type="checkbox" id="cb-${key}" checked>
-                <label for="cb-${key}">${meta.label}</label>
+                <label for="cb-${key}">${meta.label}${CRITERIA_HELP[key] ? `<span class="tooltip-trigger" tabindex="0" role="button" aria-label="More information"><span class="tooltip-content">${CRITERIA_HELP[key]}</span>ⓘ</span>` : ""}</label>
                 <span class="weight-value" id="weight-${key}">0%</span>
             </div>
             <div class="criterion-weight">
