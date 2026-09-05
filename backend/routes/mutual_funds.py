@@ -1,9 +1,12 @@
 import asyncio
 import os
-from typing import Any
+import json
+import copy
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from backend.config.settings import Settings
 from backend.models.mutual_fund import (
@@ -24,6 +27,8 @@ from backend.services.mutual_funds.ranking import RankingEngine
 from backend.services.mutual_funds.category_normalizer import normalize_category
 from backend.services.mutual_funds.cache import metrics_cache
 from backend.services.mutual_funds.cache import get_category_analysis as get_cached_category_analysis, put_category_analysis as cache_put_category_analysis
+from backend.services.mutual_funds.insight_payload import build_mutual_fund_insight_context
+from backend.services.ai.groq import AIInsightService, InsightResponse
 from backend.services.mutual_funds.calculator import MetricsCalculator
 from backend.services.data.tigzig import get_tigzig_dataset, get_tigzig_metadata, initialize_tigzig, _get_memory_mb
 from backend.services.data.mfapi import MfapiError
@@ -32,6 +37,25 @@ from backend.utils.logging import logger
 router = APIRouter()
 settings = Settings()
 fetcher = MutualFundFetcher(settings=settings)
+
+
+class MutualFundInsightsRequest(BaseModel):
+    """Bounded context submitted by the Fund Details AI action."""
+
+    selected_fund: dict[str, Any]
+    ranking: dict[str, Any]
+    user_preferences: dict[str, Any]
+    category_analysis: dict[str, Any] | None = None
+    peers: list[dict[str, Any]] | None = None
+
+
+class MutualFundRankingInsightsRequest(BaseModel):
+    """Bounded context submitted by the ranking-level AI action."""
+
+    ranking_configuration: dict[str, Any]
+    ranking_summary: dict[str, Any]
+    top_funds: list[dict[str, Any]]
+    bottom_funds: list[dict[str, Any]] | None = None
 
 
 @router.on_event("startup")
@@ -249,6 +273,69 @@ async def get_fund_detail(scheme_code: str, response: Response = None) -> FundDe
         data_start_date=metrics.get("data_start_date"),
         data_end_date=metrics.get("data_end_date"),
     )
+
+
+@router.post("/{scheme_code}/insights", response_model=InsightResponse)
+async def generate_mutual_fund_insights(
+    scheme_code: str,
+    payload: MutualFundInsightsRequest,
+) -> InsightResponse:
+    """Interpret the bounded Fund Details context with the configured AI service."""
+    if not scheme_code.isdigit():
+        raise HTTPException(status_code=404, detail="Fund not found")
+
+    try:
+        fund_detail = await get_fund_detail(scheme_code)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to fetch fund detail for insights %s: %s", scheme_code, exc)
+        raise HTTPException(status_code=500, detail="Failed to load fund details") from exc
+
+    try:
+        category_analysis = await get_category_analysis(scheme_code)
+    except Exception as exc:
+        logger.warning("Category analysis unavailable for insights %s: %s", scheme_code, exc)
+        category_analysis = None
+
+    # Validate the existing deterministic sources through the shared builder.
+    # The frontend context remains the AI payload so it is not expanded here.
+    build_mutual_fund_insight_context(
+        fund_detail=fund_detail,
+        category_analysis=category_analysis,
+        user_preferences=payload.user_preferences,
+    )
+
+    try:
+        return await AIInsightService(settings).generate_insights(
+            data=payload.model_dump(exclude_unset=True),
+            context="fund_analysis",
+        )
+    except RuntimeError as exc:
+        logger.error("AI service unavailable for mutual fund %s: %s", scheme_code, exc)
+        raise HTTPException(status_code=503, detail="The AI service is temporarily unavailable") from exc
+    except Exception as exc:
+        logger.error("Mutual fund insight generation failed for %s: %s", scheme_code, exc)
+        raise HTTPException(status_code=503, detail="The AI service is temporarily unavailable") from exc
+
+
+@router.post("/ranking-insights", response_model=InsightResponse)
+async def generate_mutual_fund_ranking_insights(
+    payload: MutualFundRankingInsightsRequest,
+) -> InsightResponse:
+    """Interpret the bounded deterministic ranking context with the AI service."""
+    try:
+        return await AIInsightService(settings).generate_insights(
+            data=payload.model_dump(exclude_unset=True),
+            context="ranking_summary",
+            focus="holistic interpretation of the supplied ranking drivers, trade-offs, risks, and opportunities",
+        )
+    except RuntimeError as exc:
+        logger.error("AI service unavailable for mutual fund ranking insights: %s", exc)
+        raise HTTPException(status_code=503, detail="The AI service is temporarily unavailable") from exc
+    except Exception as exc:
+        logger.error("Mutual fund ranking insight generation failed: %s", exc)
+        raise HTTPException(status_code=503, detail="The AI service is temporarily unavailable") from exc
 
 
 @router.get("/{scheme_code}/category-analysis", response_model=CategoryAnalysisResponse)

@@ -1,6 +1,9 @@
 import { api } from "../../core/api.js";
 import { fetchNavHistory } from "../../core/nav-history-cache.js";
 import { showLoading, hideLoading } from "../../components/loading.js";
+import { buildFundAIContext } from "./ai-context.js";
+import { requestFundAIInsights } from "./ai-request.js";
+import { renderInsightError, renderInsightLoading, renderInsightResponse } from "./ai-response.js";
 import { renderDrawdownAnalysis } from "./fund-detail/drawdown.js";
 import { renderCategoryAnalysis } from "./fund-detail/category/category-analysis.js";
 
@@ -10,7 +13,7 @@ let lastFocusedElement = null;
 let escapeHandler = null;
 let backdropHandler = null;
 
-export async function openFundDetail(schemeCode, schemeName) {
+export async function openFundDetail(schemeCode, schemeName, rankingContext = null) {
     const modalContainer = document.getElementById("fund-detail-modal");
     if (!modalContainer) return;
 
@@ -26,14 +29,14 @@ export async function openFundDetail(schemeCode, schemeName) {
         ]);
 
         hideLoading(modalContainer);
-        renderFundModal(detail, navHistory, schemeCode, categoryAnalysis);
+        renderFundModal(detail, navHistory, schemeCode, categoryAnalysis, rankingContext);
     } catch (error) {
         hideLoading(modalContainer);
         renderErrorModal(error, schemeCode, schemeName);
     }
 }
 
-function renderFundModal(detail, navHistory, schemeCode, categoryAnalysis) {
+function renderFundModal(detail, navHistory, schemeCode, categoryAnalysis, rankingContext) {
     const modalContainer = document.getElementById("fund-detail-modal");
     if (!modalContainer) return;
 
@@ -63,11 +66,15 @@ function renderFundModal(detail, navHistory, schemeCode, categoryAnalysis) {
     closeBtn.addEventListener("click", closeFundDetail);
     header.appendChild(closeBtn);
 
+    const aiInsights = createAIInsightsSection(detail, schemeCode, categoryAnalysis, rankingContext);
+    header.insertBefore(aiInsights.button, closeBtn);
+
     const content = document.createElement("div");
     content.className = "fund-detail-content";
 
     content.appendChild(createFundIdentitySection(detail, schemeCode));
     content.appendChild(createKpiSection(detail));
+    content.appendChild(aiInsights.section);
     content.appendChild(createPerformanceSummarySection(detail, navHistory));
     content.appendChild(createChartSection(detail, navHistory));
 
@@ -121,6 +128,74 @@ function renderFundModal(detail, navHistory, schemeCode, categoryAnalysis) {
     setTimeout(() => {
         initNavChart(navHistory, "10Y");
     }, 100);
+}
+
+function createAIInsightsSection(detail, schemeCode, categoryAnalysis, rankingContext) {
+    const section = document.createElement("section");
+    section.className = "fund-detail-section fund-ai-insights-section";
+
+    const heading = document.createElement("div");
+    heading.className = "fund-section-heading";
+    const title = document.createElement("h3");
+    title.className = "fund-section-title";
+    title.textContent = "AI Insights";
+    heading.appendChild(title);
+    const subtitle = document.createElement("p");
+    subtitle.className = "fund-section-subtitle";
+    subtitle.textContent = rankingContext?.rankingConfiguration
+        ? "Based on your current ranking criteria."
+        : "Request a concise interpretation of this fund.";
+    heading.appendChild(subtitle);
+    section.appendChild(heading);
+
+    const status = document.createElement("p");
+    status.className = "fund-ai-insights-status";
+    status.setAttribute("aria-live", "polite");
+    status.textContent = "Click AI Insights to generate an interpretation.";
+    section.appendChild(status);
+
+    const result = document.createElement("div");
+    result.className = "fund-ai-insights-result";
+    section.appendChild(result);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ai-action ai-action-compact fund-ai-insights-button";
+    button.textContent = "✨ AI Insights";
+    let isRequesting = false;
+
+    const requestInsights = async () => {
+        if (isRequesting) return;
+        isRequesting = true;
+        button.disabled = true;
+        status.textContent = "Generating AI Insights...";
+        renderInsightLoading(result);
+
+        try {
+            const response = await requestFundAIInsights({
+                apiClient: api,
+                buildContext: buildFundAIContext,
+                schemeCode,
+                detail,
+                categoryAnalysis,
+                ranking: rankingContext?.ranking,
+                rankingConfiguration: rankingContext?.rankingConfiguration,
+                peers: rankingContext?.peers,
+            });
+            renderInsightResponse(result, response);
+            status.textContent = "AI Insights generated from the current analysis.";
+        } catch (error) {
+            renderInsightError(result, requestInsights);
+            status.textContent = "AI Insights could not be generated.";
+        } finally {
+            isRequesting = false;
+            button.disabled = false;
+        }
+    };
+
+    button.addEventListener("click", requestInsights);
+
+    return { button, section };
 }
 
 function createFundIdentitySection(detail, schemeCode) {

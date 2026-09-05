@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="/css/layout.css">
     <link rel="stylesheet" href="/css/components.css">
     <link rel="stylesheet" href="/css/features/mutual-fund-analysis.css">
+    <link rel="stylesheet" href="/css/features/feedback.css">
 </head>
 <body>
     <header class="site-header">
@@ -817,6 +818,49 @@
                     Stock Selection, Portfolio Analysis, and Mutual Fund Analysis are isolated modules.
                     AI insights are provided via Groq and are interpretation-only; they do not compute scores or fetch data.
                 </p>
+            </section>
+            <nav class="help-anchor-nav" aria-label="Help page sections">
+                <a href="#about">About</a>
+                <a href="#contact">Contact</a>
+                <a href="#feedback">Feedback</a>
+            </nav>
+
+            <section id="about" class="help-section">
+                <h2>About</h2>
+                <p>
+                    Market Analysis is a quantitative analysis platform for Indian markets with tools for Stock Analysis,
+                    Portfolio Analysis, and Mutual Fund Analysis.
+                </p>
+                <p>
+                    Financial calculations, metrics, and rankings are produced by deterministic application logic and
+                    reproducible formulas. AI Insights interpret the application's existing data and calculations; they do
+                    not independently calculate financial metrics, replace the ranking engine, or generate the underlying
+                    financial calculations.
+                </p>
+                <p>
+                    Results are intended for research, educational, and planning purposes only. They are not personalized
+                    financial, tax, or investment advice.
+                </p>
+            </section>
+
+            <section id="contact" class="help-section">
+                <h2>Contact</h2>
+                <p><strong>Product Owner:</strong> Abhisek Basu Mullick</p>
+                <p>
+                    For questions, bug reports, feature requests, or general contact, email
+                    <a href="mailto:abmullick@gmail.com">abmullick@gmail.com</a>.
+                </p>
+            </section>
+
+            <section id="feedback" class="help-section">
+                <h2>Feedback</h2>
+                <p>Tell us what would make Market Analysis more useful. Your email client will open with the message prepared for sending.</p>
+                <form id="feedback-form" class="feedback-form">
+                    <label for="feedback-message">Your feedback</label>
+                    <textarea id="feedback-message" name="feedback" rows="6" placeholder="Share a question, bug report, or feature request."></textarea>
+                    <p id="feedback-error" class="feedback-error" role="alert" hidden></p>
+                    <button type="submit" class="btn btn-primary">Send Email</button>
+                </form>
             </section>
         </div>
     </main>

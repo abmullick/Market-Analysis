@@ -6,6 +6,9 @@ import { renderDrawdownChart } from "./comparison/drawdown.js";
 import { renderRollingReturnsChart } from "./comparison/rolling-returns.js";
 import { renderNavHistoryChart } from "./comparison/nav-history.js";
 import { renderPerformanceSummary } from "./comparison/performance-summary.js";
+import { buildRankingAIContext } from "./ranking-ai-context.js";
+import { requestRankingAIInsights } from "./ranking-ai-request.js";
+import { renderRankingAIError, renderRankingAILoading, renderRankingAIResponse } from "./ranking-ai-response.js";
 
 const PRESETS = {
     best_overall: {
@@ -186,6 +189,8 @@ let filteredRankings = [];
 let selectedFunds = new Set();
 let isComparisonView = false;
 let screeningFilters = [];
+let lastRankingConfiguration = null;
+let lastRankingAIContext = null;
 
 const MAX_COMPARE = 5;
 const MIN_COMPARE = 2;
@@ -1239,6 +1244,7 @@ async function runRanking() {
 
     showLoading(resultsContainer, "Generating rankings...");
     if (summaryContainer) summaryContainer.innerHTML = "";
+    lastRankingAIContext = null;
 
     try {
         // Build and validate screening filters
@@ -1265,6 +1271,24 @@ async function runRanking() {
         });
 
         hideLoading(resultsContainer);
+        lastRankingConfiguration = {
+            categories: [...currentCategories],
+            screening_filters: filters.map(filter => ({ ...filter })),
+            criteria: criteria.map(criterion => ({ ...criterion })),
+            auto_renormalize: true,
+        };
+        try {
+            lastRankingAIContext = buildRankingAIContext({
+                rankingConfiguration: lastRankingConfiguration,
+                rankings: response.rankings,
+                metadata: {
+                    eligible_funds: response.meta?.underlying_funds,
+                    matching_funds: response.meta?.screened_matching,
+                },
+            });
+        } catch (contextError) {
+            console.error("Unable to prepare ranking AI context:", contextError);
+        }
         renderRankingResults(response.rankings, response.category || currentCategories);
 
         if (response.meta?.screened_matching != null) {
@@ -1407,6 +1431,62 @@ function getSelectedCriteria() {
     return criteria;
 }
 
+export function getRankingContext() {
+    if (!lastRankingConfiguration) return null;
+
+    return {
+        categories: [...lastRankingConfiguration.categories],
+        screening_filters: lastRankingConfiguration.screening_filters.map(filter => ({ ...filter })),
+        criteria: lastRankingConfiguration.criteria.map(criterion => ({ ...criterion })),
+        auto_renormalize: lastRankingConfiguration.auto_renormalize,
+    };
+}
+
+export function getSelectedFundRankingContext(schemeCode) {
+    const selected = currentRankings.find(fund => String(fund.scheme_code) === String(schemeCode));
+    if (!selected) return null;
+
+    const ranking = {
+        rank: selected.rank,
+        total_funds: currentRankings.filter(fund => fund.overall_score != null).length,
+        percentile: selected.percentile,
+        overall_score: selected.overall_score,
+        criteria_scores: Array.isArray(selected.criteria_scores)
+            ? selected.criteria_scores.map(score => ({
+                criterion: score.criterion,
+                weight: score.weight,
+                score: score.score,
+                raw_value: score.raw_value,
+            }))
+            : [],
+    };
+
+    const selectedRank = selected.rank;
+    const peers = currentRankings
+        .filter(fund => fund !== selected && fund.overall_score != null)
+        .sort((left, right) => {
+            if (selectedRank == null || left.rank == null || right.rank == null) return 0;
+            return Math.abs(left.rank - selectedRank) - Math.abs(right.rank - selectedRank);
+        })
+        .slice(0, 5)
+        .map(fund => ({
+            rank: fund.rank,
+            name: fund.scheme_name,
+            score: fund.overall_score,
+        }));
+
+    return { ranking, peers };
+}
+
+function getFundAIRequestContext(schemeCode) {
+    const selectedFund = getSelectedFundRankingContext(schemeCode);
+    return {
+        ranking: selectedFund?.ranking || null,
+        peers: selectedFund?.peers || [],
+        rankingConfiguration: getRankingContext(),
+    };
+}
+
 function toggleCategory(cat) {
     if (currentCategories.includes(cat)) {
         currentCategories = currentCategories.filter(c => c !== cat);
@@ -1460,7 +1540,7 @@ function attachTop3Handlers() {
         el.addEventListener("click", () => {
             const code = el.dataset.scheme;
             const name = decodeURIComponent(el.dataset.name || "");
-            if (code) openFundDetail(code, name);
+            if (code) openFundDetail(code, name, getFundAIRequestContext(code));
         });
     });
     document.querySelectorAll(".top3-why-btn").forEach(btn => {
@@ -1473,6 +1553,47 @@ function attachTop3Handlers() {
             }
         });
     });
+}
+
+function attachRankingAIInsights(summaryContainer) {
+    if (!summaryContainer || !lastRankingAIContext) return;
+
+    const meta = summaryContainer.querySelector(".ranking-summary-meta");
+    if (!meta) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ai-action ai-action-compact";
+    button.textContent = "✨ AI Ranking Insights";
+    button.setAttribute("aria-label", "Generate AI Ranking Insights");
+    meta.appendChild(button);
+
+    const result = document.createElement("div");
+    result.className = "ranking-ai-module";
+    summaryContainer.appendChild(result);
+
+    let isRequesting = false;
+    const requestInsights = async () => {
+        if (isRequesting) return;
+        isRequesting = true;
+        button.disabled = true;
+        renderRankingAILoading(result);
+
+        try {
+            const response = await requestRankingAIInsights({
+                apiClient: api,
+                context: lastRankingAIContext,
+            });
+            renderRankingAIResponse(result, response);
+        } catch (error) {
+            renderRankingAIError(result, requestInsights);
+        } finally {
+            isRequesting = false;
+            button.disabled = false;
+        }
+    };
+
+    button.addEventListener("click", requestInsights);
 }
 
 function computeRankingFreshness(rankings) {
@@ -1656,6 +1777,7 @@ function renderRankingResults(rankings, categories) {
         `;
         renderActiveFilters();
         attachTop3Handlers();
+        attachRankingAIInsights(summaryContainer);
     }
 
     if (!tableContainer) return;
@@ -1882,7 +2004,7 @@ function renderRankingResults(rankings, categories) {
         link.addEventListener("click", () => {
             const schemeCode = link.dataset.scheme;
             const schemeName = decodeURIComponent(link.dataset.name);
-            openFundDetail(schemeCode, schemeName);
+            openFundDetail(schemeCode, schemeName, getFundAIRequestContext(schemeCode));
         });
     });
 
@@ -2758,7 +2880,7 @@ function renderComparisonTable(container, enrichedFunds) {
         link.addEventListener("click", () => {
             const schemeCode = link.dataset.scheme;
             const schemeName = decodeURIComponent(link.dataset.name);
-            openFundDetail(schemeCode, schemeName);
+            openFundDetail(schemeCode, schemeName, getFundAIRequestContext(schemeCode));
         });
     });
 }
@@ -3045,7 +3167,7 @@ function renderFilteredTable(rankings) {
         link.addEventListener("click", () => {
             const schemeCode = link.dataset.scheme;
             const schemeName = decodeURIComponent(link.dataset.name);
-            openFundDetail(schemeCode, schemeName);
+            openFundDetail(schemeCode, schemeName, getFundAIRequestContext(schemeCode));
         });
     });
     table.querySelectorAll(".compare-cb").forEach(cb => {

@@ -1,0 +1,40 @@
+.feedback-form {
+    max-width: 700px;
+}
+
+.feedback-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.feedback-form textarea {
+    width: 100%;
+    min-height: 140px;
+    padding: 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.feedback-form .feedback-error {
+    color: #d32f2f;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.feedback-form button.btn-primary {
+    width: auto;
+    min-width: 120px;
+    padding: 0.5rem 1.5rem;
+    margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+    .feedback-form textarea {
+        width: 100%;
+    }
+}

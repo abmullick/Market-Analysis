@@ -1,0 +1,28 @@
+/home/abmul/spark_venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:184: UserWarning: Field name "name" shadows an attribute in parent "Operation"; 
+  warnings.warn(
+/home/abmul/spark_venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:184: UserWarning: Field name "metadata" shadows an attribute in parent "Operation"; 
+  warnings.warn(
+/home/abmul/spark_venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:184: UserWarning: Field name "done" shadows an attribute in parent "Operation"; 
+  warnings.warn(
+/home/abmul/spark_venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:184: UserWarning: Field name "error" shadows an attribute in parent "Operation"; 
+  warnings.warn(
+INFO:     Will watch for changes in these directories: ['/home/abmul/projects/Market-Analysis']
+INFO:     Uvicorn running on http://0.0.0.0:20090 (Press CTRL+C to quit)
+INFO:     Started reloader process [355232] using StatReload
+/home/abmul/spark_venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:184: UserWarning: Field name "name" shadows an attribute in parent "Operation"; 
+  warnings.warn(
+/home/abmul/spark_venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:184: UserWarning: Field name "metadata" shadows an attribute in parent "Operation"; 
+  warnings.warn(
+/home/abmul/spark_venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:184: UserWarning: Field name "done" shadows an attribute in parent "Operation"; 
+  warnings.warn(
+/home/abmul/spark_venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:184: UserWarning: Field name "error" shadows an attribute in parent "Operation"; 
+  warnings.warn(
+INFO:     Started server process [355253]
+INFO:     Waiting for application startup.
+[2026-09-05 13:45:08,443] INFO - market_analysis - Starting up mutual fund service... (memory: 158.8 MB)
+[2026-09-05 13:45:08,444] WARNING - market_analysis - TigZig dataset not found - will download on first ranking request
+[2026-09-05 13:45:08,444] INFO - market_analysis - Startup complete (memory: 158.8 -> 158.8 MB)
+INFO:     Application startup complete.
+INFO:     127.0.0.1:35472 - "GET /help.html HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42456 - "GET /help.html HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55654 - "GET /help.html HTTP/1.1" 200 OK

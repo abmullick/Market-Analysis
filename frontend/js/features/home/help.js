@@ -19,4 +19,25 @@ export function initHelp() {
             }
         });
     });
+
+    const feedbackForm = document.getElementById("feedback-form");
+    const feedbackInput = document.getElementById("feedback-message");
+    const feedbackError = document.getElementById("feedback-error");
+    if (!feedbackForm || !feedbackInput || !feedbackError) return;
+
+    feedbackForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const message = feedbackInput.value.trim();
+        if (!message) {
+            feedbackError.textContent = "Please enter feedback before opening your email client.";
+            feedbackError.removeAttribute("hidden");
+            feedbackInput.focus();
+            return;
+        }
+
+        feedbackError.setAttribute("hidden", "");
+        const subject = encodeURIComponent("Market Analysis Feedback");
+        const body = encodeURIComponent(message);
+        window.location.href = `mailto:abmullick@gmail.com?subject=${subject}&body=${body}`;
+    });
 }

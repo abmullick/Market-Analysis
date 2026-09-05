@@ -22,16 +22,26 @@ External Providers (Stoxim, Groq, MFAPI, TigZig)
 
 - **Stock Selection** — Identify stocks using fundamental criteria and ranking strategies.
 - **Portfolio Analysis** — Upload/import a portfolio and analyze existing holdings.
-- **Mutual Fund Analysis** — Rank mutual funds by normalized multi-metric scoring, compare funds side-by-side, inspect fund details with NAV history, rolling returns, category-relative percentile analysis, drawdown analysis, and a rich ranking page with top-3 highlights, per-fund strengths/trade-offs, and a transparent "How ranking works" methodology breakdown.
+- **Mutual Fund Analysis** — Rank mutual funds by normalized multi-metric scoring, compare funds side-by-side, inspect fund details with NAV history, rolling returns, category-relative percentile analysis, drawdown analysis, and a rich ranking page with top-3 highlights, per-fund strengths/trade-offs, holistic AI Ranking Insights, and a transparent "How ranking works" methodology breakdown.
 
 ### Key Principles
 
-- **Data-provider abstraction**: Stoxim integration is isolated in `backend/services/data/`; other providers can be swapped in later.
 - **AI-provider abstraction**: Groq integration is isolated in `backend/services/ai/`; other LLM providers can be swapped in later.
 - **Deterministic scoring**: Numerical rankings are calculated independently of AI in `backend/services/stocks/` and `backend/services/mutual_funds/`.
 - **No hardcoded secrets**: All configuration comes from environment variables via `backend/config/settings.py`.
 - **Dependency direction**: Frontend → Routes → Services → Models → External Providers. Never reversed.
 - **Module isolation**: Stock Selection, Portfolio Analysis, and Mutual Fund Analysis do not depend on each other's business logic.
+
+### AI Insights
+- AI actions are interpretation-only. The deterministic ranking engine remains authoritative for metrics, scores, ranks, percentiles, screening, and weighting.
+- **Fund Insights** uses `POST /api/mutual-funds/{scheme_code}/insights` and is available from Fund Details.
+- **Ranking Insights** uses `POST /api/mutual-funds/ranking-insights` and interprets the whole currently displayed ranking.
+- Both actions require an explicit click. Opening Fund Details, running a ranking, loading results, or changing controls does not trigger an AI request.
+- Ranking Insights snapshots the exact configuration from the last successful ranking request: categories, screening filters, criteria, weights, and `auto_renormalize`.
+- Ranking AI input is compact and allowlisted: at most 10 top funds and 5 bottom funds, with no full ranking list, NAV history, raw rolling-return series, complete holdings, or full fund-detail objects.
+- Ranking AI context targets 12 KB and has a 16 KB serialized hard maximum. Optional ranking evidence is reduced before the request; essential configuration is never silently dropped.
+- Responses are structured and rendered as interpretation, drivers/key points, trade-offs/risks, opportunities, and recommendations. AI does not recalculate or alter deterministic results.
+- Provider configuration uses `GROQ_API_KEY` and optional `GROQ_MODEL`, defaulting to `openai/gpt-oss-120b`. Provider credentials are server-side only.
 
 ## Directory Structure
 
@@ -60,6 +70,9 @@ Market-Analysis/
 │       │   │   ├── mutual-fund-analysis/  # Ranking page + fund-detail modal + comparison
 │       │   │   │   ├── index.js          # Ranking page entry, controls, table, top-3, why-dialog
 │       │   │   │   ├── fund-detail.js    # Fund Details modal (sections, KPIs, N/A treatment)
+│       │   │   │   ├── ranking-ai-context.js  # Bounded ranking-level AI context
+│       │   │   │   ├── ranking-ai-request.js  # Ranking Insights API request
+│       │   │   │   ├── ranking-ai-response.js # Ranking Insights presentation
 │       │   │   │   ├── comparison/       # Compare Funds sub-modules (identity, KPI, chart, drawdown, rolling returns, performance summary, NAV history)
 │       │   │   │   └── fund-detail/      # Fund Details sub-modules (drawdown chart, holdings, category analysis)
 │       │   │   └── home/
@@ -151,6 +164,7 @@ cp .env.example .env
 Required variables:
 - `STOXIM_API_KEY` — Stoxim API key
 - `GROQ_API_KEY` — Groq API key
+- `GROQ_MODEL` — optional Groq model override; defaults to `openai/gpt-oss-120b`
 - `APP_ENV` — Application environment (default: `development`)
 - `APP_PORT` — Server port (default: `20090`)
 - `APP_DEBUG` — Debug mode (default: `true`)
@@ -356,6 +370,7 @@ To replace Stoxim or Groq:
   - **Summary explanation** explaining which metric groups contribute to the active preset.
   - **Active filter chips bar** — removable pills for each selected category and screener filter, with a "Clear All" action.
   - **Ranking table** — rank pill (green/amber for top 3), category-context indicator (top decile / upper third / mid / lower third / bottom quintile), per-row strengths/trade-offs chips, and a "Why?" column opening a per-fund detail dialog.
+  - **AI Ranking Insights** — an explicit summary action that interprets the currently displayed ranking, its exact successful configuration, the top 10 funds, and a bounded bottom-five sample. It does not run automatically when ranking results load or when controls change.
   - **Data freshness strip** below the summary — "Data as of DD MMM YYYY" (max of all `nav_date` in the ranked set) and "Fund inception range" with tooltip.
   - **Empty state** — dashed-border card with "Clear All Filters" CTA that resets categories and screener filters and re-runs the ranking.
 - **Fund Details Modal**
@@ -364,6 +379,7 @@ To replace Stoxim or Groq:
   - "At a Glance" KPI cards (3Y/5Y CAGR, Volatility, Sharpe, Sortino, Max Drawdown) — each shows its period label (3Y / 5Y / Full history) and explains "Not available" via a tooltip when fund age < required period or data points < 2.
   - Performance Summary table (1Y / 3Y / 5Y / 10Y / Since-Inception) with the same N/A reason treatment.
   - Historical NAV chart with period toggle, Risk & Risk-Adjusted section, Drawdown subsection, Rolling Returns with 1Y/3Y/5Y controls and "Insufficient history" state, Category-relative percentile table, Portfolio (asset allocation + top holdings), and Fund Details metadata grid.
+  - **AI Insights** — an explicit action that interprets the selected fund using its deterministic metrics, ranking evidence, category analysis, and the exact ranking configuration that produced the displayed result.
 - **Compare Funds** (`showComparisonView` in `index.js`)
   - Header with a compact **Comparison period** strip — `DD MMM YYYY – DD MMM YYYY (YYYY → YYYY)` computed as the *intersection* of the selected funds' histories (`max(starts)` to `min(ends)`).
   - Amber "Some funds have shorter histories" pill when the common period is narrower than the union, with a tooltip explaining the overlap.
