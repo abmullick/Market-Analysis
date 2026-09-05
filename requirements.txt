@@ -14,3 +14,4 @@ pytest-asyncio==1.4.0
 python-multipart==0.0.32
 requests==2.33.1
 groq==1.7.0
+google-genai==2.20.0
