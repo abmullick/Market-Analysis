@@ -168,6 +168,7 @@ function createAIInsightsSection(detail, schemeCode, categoryAnalysis, rankingCo
         if (isRequesting) return;
         isRequesting = true;
         button.disabled = true;
+        button.innerHTML = '<span class="loading-spinner"></span> Generating...';
         status.textContent = "Generating AI Insights...";
         renderInsightLoading(result);
 
@@ -189,6 +190,7 @@ function createAIInsightsSection(detail, schemeCode, categoryAnalysis, rankingCo
             status.textContent = "AI Insights could not be generated.";
         } finally {
             isRequesting = false;
+            button.innerHTML = "✨ AI Insights";
             button.disabled = false;
         }
     };
