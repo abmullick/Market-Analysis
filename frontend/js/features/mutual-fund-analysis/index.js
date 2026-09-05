@@ -1577,6 +1577,7 @@ function attachRankingAIInsights(summaryContainer) {
         if (isRequesting) return;
         isRequesting = true;
         button.disabled = true;
+        button.innerHTML = '<span class="loading-spinner"></span> Generating...';
         renderRankingAILoading(result);
 
         try {
@@ -1589,6 +1590,7 @@ function attachRankingAIInsights(summaryContainer) {
             renderRankingAIError(result, requestInsights);
         } finally {
             isRequesting = false;
+            button.innerHTML = "✨ AI Ranking Insights";
             button.disabled = false;
         }
     };
