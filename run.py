@@ -51,6 +51,11 @@ async def read_mutual_funds():
 async def read_help():
     return FileResponse("frontend/html/help.html")
 
+
+@app.get("/favicon.ico")
+async def favicon():
+    return FileResponse("static/images/favicon.ico", media_type="image/x-icon")
+
 # Serve static assets
 app.mount("/css", StaticFiles(directory="frontend/css"), name="css")
 app.mount("/js", StaticFiles(directory="frontend/js"), name="js")
