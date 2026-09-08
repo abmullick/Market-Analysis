@@ -5165,3 +5165,34 @@ body.modal-open {
         padding: 16px;
     }
 }
+
+/* "Sort by" bar above the ranking results table.
+   Changing the sort only re-renders the already-fetched in-memory results. */
+.ranking-sort-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+
+.ranking-sort-bar-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text-light, inherit);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ranking-sort-bar select {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    padding: 6px 8px;
+    font-size: 0.875rem;
+    cursor: pointer;
+}

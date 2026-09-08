@@ -1741,9 +1741,144 @@ function showFundWhyDialog(fund) {
     });
 }
 
+// ---------------------------------------------------------------------------
+// Client-side sorting of the ranking results.
+//
+// Sorting is performed purely locally against the result set already fetched
+// by the ranking operation. Changing the sort never triggers an API request,
+// source lookup, or ranking recalculation — the original array stored in
+// `currentRankings` is never mutated; a sorted copy is rendered instead.
+// ---------------------------------------------------------------------------
+
+let rankingSort = { key: "rank", direction: "asc" };
+
+// Sortable field configuration. Each entry maps a UI option to a value getter
+// operating on a raw ranking result item. `criterion: true` fields read their
+// value from the item's `criteria_scores[].raw_value` (data already present in
+// the ranking response — no extra fetches). Adding a new sortable metric later
+// only requires one new entry here.
+const RANKING_SORT_FIELDS = [
+    { key: "rank", label: "Overall Rank", direction: "asc" },
+    { key: "overall_score", label: "Ranking Score", direction: "desc" },
+    { key: "1Y_return", label: "1Y Return", criterion: true, direction: "desc" },
+    { key: "3Y_cagr", label: "3Y CAGR", criterion: true, direction: "desc" },
+    { key: "5Y_cagr", label: "5Y CAGR", criterion: true, direction: "desc" },
+    { key: "10Y_cagr", label: "10Y CAGR", criterion: true, direction: "desc" },
+    { key: "sharpe_ratio", label: "Sharpe Ratio", criterion: true, direction: "desc" },
+    { key: "sortino_ratio", label: "Sortino Ratio", criterion: true, direction: "desc" },
+    { key: "volatility", label: "Volatility", criterion: true, direction: "asc" },
+    { key: "maximum_drawdown", label: "Max Drawdown", criterion: true, direction: "asc" },
+    { key: "downside_deviation", label: "Downside Deviation", criterion: true, direction: "asc" },
+    { key: "consistency", label: "Consistency", criterion: true, direction: "desc" },
+    { key: "nav", label: "Latest NAV", direction: "desc" },
+    { key: "aum_cr", label: "AUM (₹ Cr)", direction: "desc" },
+];
+
+function getRankingSortValue(item, field) {
+    if (!item) return null;
+    let value;
+    if (field.criterion) {
+        const entry = (item.criteria_scores || []).find(c => c.criterion === field.key);
+        value = entry ? entry.raw_value : null;
+    } else {
+        value = item[field.key];
+    }
+    if (value == null || value === "") return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+}
+
+function isRankingSortFieldAvailable(items, field) {
+    return items.some(item => getRankingSortValue(item, field) != null);
+}
+
+// Returns a sorted COPY of the result array. Items without a value for the
+// selected field are placed at the bottom regardless of direction; ties are
+// broken by original overall rank so the ranking order stays stable.
+function sortRankingView(items) {
+    const field = RANKING_SORT_FIELDS.find(f => f.key === rankingSort.key);
+    if (!field || field.key === "rank") {
+        // Default state: original ranking order as returned by the backend
+        // (Overall Rank ascending, unranked funds last).
+        return items.slice();
+    }
+    const dir = rankingSort.direction === "asc" ? 1 : -1;
+    return items.slice().sort((a, b) => {
+        const av = getRankingSortValue(a, field);
+        const bv = getRankingSortValue(b, field);
+        if (av == null && bv == null) return (a.rank ?? Infinity) - (b.rank ?? Infinity);
+        if (av == null) return 1;   // missing values always at the bottom
+        if (bv == null) return -1;
+        if (av !== bv) return (av - bv) * dir;
+        return (a.rank ?? Infinity) - (b.rank ?? Infinity);
+    });
+}
+
+function getRankingSortLabel() {
+    const field = RANKING_SORT_FIELDS.find(f => f.key === rankingSort.key);
+    if (!field || field.key === "rank") return "Overall Rank";
+    return `${field.label} (${rankingSort.direction === "asc" ? "Asc" : "Desc"})`;
+}
+
+function updateRankingSortMeta() {
+    const meta = document.getElementById("ranking-sort-meta");
+    if (meta) meta.textContent = getRankingSortLabel();
+}
+
+// Renders (or refreshes) the "Sort by" bar above the ranking table. Changing a
+// select only re-renders the table from the in-memory result set via `rebuild`.
+function attachRankingSortBar(container, rebuild) {
+    if (!container) return;
+    const source = currentRankings || [];
+    if (!source.length) return;
+
+    let bar = container.querySelector(".ranking-sort-bar");
+    if (!bar) {
+        bar = document.createElement("div");
+        bar.className = "ranking-sort-bar";
+        container.prepend(bar);
+    }
+
+    // Only expose fields that actually exist in the current result data.
+    const available = RANKING_SORT_FIELDS.filter(f =>
+        f.key === "rank" || isRankingSortFieldAvailable(source, f));
+
+    bar.innerHTML = `
+        <span class="ranking-sort-bar-label">Sort by</span>
+        <select class="ranking-sort-field" aria-label="Sort results by">
+            ${available.map(f => `<option value="${f.key}">${f.label}</option>`).join("")}
+        </select>
+        <select class="ranking-sort-direction" aria-label="Sort direction">
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+        </select>
+    `;
+
+    const fieldSelect = bar.querySelector(".ranking-sort-field");
+    const dirSelect = bar.querySelector(".ranking-sort-direction");
+    fieldSelect.value = rankingSort.key;
+    dirSelect.value = rankingSort.direction;
+
+    const applySort = () => {
+        rankingSort = { key: fieldSelect.value, direction: dirSelect.value };
+        updateRankingSortMeta();
+        // Pure local re-render of the already-fetched result set: no fetch,
+        // no API call, no ranking recalculation — just a re-sorted copy.
+        rebuild();
+    };
+    fieldSelect.addEventListener("change", () => {
+        const field = RANKING_SORT_FIELDS.find(f => f.key === fieldSelect.value);
+        if (field) dirSelect.value = field.direction;
+        applySort();
+    });
+    dirSelect.addEventListener("change", applySort);
+}
+
 function renderRankingResults(rankings, categories) {
     currentRankings = rankings;
     filteredRankings = rankings;
+    // A new result set resets the local view back to the original ranking order.
+    rankingSort = { key: "rank", direction: "asc" };
 
     const summaryContainer = document.getElementById("ranking-summary");
     const tableContainer = document.getElementById("ranking-table-container");
@@ -1767,7 +1902,7 @@ function renderRankingResults(rankings, categories) {
                 </div>
                 <div class="ranking-summary-meta">
                     <span class="ranking-meta-item"><span class="ranking-meta-label">Preset</span> <span class="ranking-meta-value">${PRESETS[currentPreset]?.label || currentPreset}</span></span>
-                    <span class="ranking-meta-item"><span class="ranking-meta-label">Sort</span> <span class="ranking-meta-value">Overall Score</span></span>
+                    <span class="ranking-meta-item"><span class="ranking-meta-label">Sort</span> <span class="ranking-meta-value" id="ranking-sort-meta">Overall Rank</span></span>
                 </div>
             </div>
             <div class="ranking-summary-explanation">
@@ -1779,6 +1914,7 @@ function renderRankingResults(rankings, categories) {
         `;
         renderActiveFilters();
         attachTop3Handlers();
+        updateRankingSortMeta();
         attachRankingAIInsights(summaryContainer);
     }
 
@@ -1828,6 +1964,13 @@ function renderRankingResults(rankings, categories) {
 
     buildResultFilters(rankings);
 
+    buildRankingResultsTable(tableContainer, sortRankingView(rankings), categories);
+}
+
+// Builds the ranking results table (plus the "Sort by" bar above it) from an
+// already-fetched, in-memory rankings array. This function never fetches any
+// data; it only renders what it is given.
+function buildRankingResultsTable(tableContainer, rankings, categories) {
     const columns = [
         { key: "select", label: "", width: 36 },
         { key: "rank", label: "Rank", width: 56 },
@@ -1848,7 +1991,7 @@ function renderRankingResults(rankings, categories) {
         const analysis = deriveStrengthsWeaknesses(r);
         const categoryValue = r.category || (Array.isArray(categories) ? (categories.length === 1 ? categories[0] : categories.join(", ")) : (categories || "—"));
         return {
-            rank: index + 1,
+            rank: r.rank != null ? r.rank : index + 1,
             rank_of: rankings.filter(x => x.overall_score != null).length,
             scheme_code: r.scheme_code || "—",
             scheme_name: r.scheme_name,
@@ -1872,6 +2015,13 @@ function renderRankingResults(rankings, categories) {
     });
 
     tableContainer.innerHTML = "";
+    // "Sort by" control — re-renders this table locally from currentRankings.
+    attachRankingSortBar(tableContainer, () => {
+        const tc = document.getElementById("ranking-table-container");
+        if (!tc) return;
+        tc.innerHTML = "";
+        buildRankingResultsTable(tc, sortRankingView(currentRankings), currentCategories);
+    });
     const table = document.createElement("table");
     table.className = "data-table screener-results-table";
 
@@ -3039,6 +3189,9 @@ function renderFilteredTable(rankings) {
         return;
     }
 
+    // Local sort of the already-fetched (and filtered) in-memory results —
+    // no fetching, no API call, no recalculation. Original ranks preserved.
+    rankings = sortRankingView(rankings);
     const columns = [
         { key: "select", label: "" },
         { key: "rank", label: "Rank" },
@@ -3055,7 +3208,7 @@ function renderFilteredTable(rankings) {
         const scoreWidth = r.overall_score != null ? Math.max(0, Math.min(100, r.overall_score)) : 0;
         const nav = r.nav != null ? formatNAV(r.nav) : "N/A";
         return {
-            rank: index + 1,
+            rank: r.rank != null ? r.rank : index + 1,
             scheme_code: r.scheme_code || "—",
             scheme_name: r.scheme_name,
             amc: r.amc || "—",
@@ -3162,6 +3315,8 @@ function renderFilteredTable(rankings) {
         tbody.appendChild(detailTr);
     });
     table.appendChild(tbody);
+    tableContainer.innerHTML = "";
+    attachRankingSortBar(tableContainer, () => renderFilteredTable(filteredRankings));
     tableContainer.appendChild(table);
 
 
