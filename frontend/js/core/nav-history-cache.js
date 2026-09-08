@@ -13,6 +13,11 @@
 const cache = new Map();
 const inflight = new Map();
 
+// Very small browser-side cap: evict oldest entries (FIFO) so memory stays
+// bounded during long sessions. Only responses the user explicitly requested
+// are ever stored, and only in the browser.
+const MAX_CACHE_ENTRIES = 25;
+
 function makeKey(schemeCode, years) {
     return `${schemeCode}:${years}`;
 }
@@ -28,10 +33,16 @@ export async function fetchNavHistory(schemeCode, years = 10) {
         return inflight.get(key);
     }
 
-    const apiModule = await import("./api.js");
-    const promise = apiModule.api
-        .get(`/mutual-funds/${schemeCode}/nav-history?years=${years}`)
+    // Register the in-flight promise synchronously (before any await) so that
+    // concurrent callers reuse it instead of issuing duplicate HTTP requests.
+    const promise = import("./api.js")
+        .then((apiModule) =>
+            apiModule.api.get(`/mutual-funds/${schemeCode}/nav-history?years=${years}`))
         .then((data) => {
+            while (cache.size >= MAX_CACHE_ENTRIES) {
+                const oldest = cache.keys().next().value;
+                cache.delete(oldest);
+            }
             cache.set(key, data);
             inflight.delete(key);
             return data;
