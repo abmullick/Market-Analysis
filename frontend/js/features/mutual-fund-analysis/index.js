@@ -2952,7 +2952,7 @@ function renderComparisonTable(container, enrichedFunds) {
         tbody.appendChild(tr);
     });
 
-    tbody.appendChild(sectionHeader("Risk"));
+    tbody.appendChild(sectionHeader("Risk & Risk-Adjusted Performance"));
 
     const riskMetrics = [
         { key: "volatility", label: "Annualized Volatility", unit: "percent" },
@@ -2969,32 +2969,6 @@ function renderComparisonTable(container, enrichedFunds) {
         tr.innerHTML = `<td class="metric-label">${metric.label}</td>${values.map((v, i) => {
             const isBest = bestIndices.has(i) && v != null;
             return `<td class="metric-value${isBest ? " best" : ""}">${formatValue(v, metric.unit)}${isBest ? '<span class="best-indicator">●</span>' : ""}</td>`;
-        }).join("")}`;
-        tbody.appendChild(tr);
-    });
-
-    tbody.appendChild(sectionHeader("Risk & Risk-Adjusted Performance"));
-
-    const riskAdjustedMetrics = [
-        { key: "volatility", label: "Annualized Volatility", unit: "percent", available: true },
-        { key: "sharpe_ratio", label: "Sharpe Ratio", unit: "ratio", available: true },
-        { key: "sortino_ratio", label: "Sortino Ratio", unit: "ratio", available: true },
-        { key: "maximum_drawdown", label: "Maximum Drawdown", unit: "percent", available: true },
-        { key: "beta", label: "Beta", unit: "ratio", available: false },
-        { key: "alpha", label: "Alpha", unit: "percent", available: false },
-    ];
-
-    riskAdjustedMetrics.forEach(metric => {
-        const values = metric.available
-            ? enrichedFunds.map(f => getMetricValue(f, metric.key))
-            : enrichedFunds.map(() => null);
-        const bestIndices = metric.available ? getBestIndices(values, isHigherBetter(metric.key)) : new Set();
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td class="metric-label">${metric.label}${metric.available ? "" : ' <span class="metric-na-note">(N/A)</span>'}</td>${values.map((v, i) => {
-            const isBest = bestIndices.has(i) && v != null;
-            const display = formatValue(v, metric.unit);
-            const isNa = v == null;
-            return `<td class="metric-value${isBest ? " best" : ""}${isNa ? " na" : ""}">${display}${isBest ? '<span class="best-indicator">●</span>' : ""}</td>`;
         }).join("")}`;
         tbody.appendChild(tr);
     });
