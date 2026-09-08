@@ -103,7 +103,11 @@ async def list_schemes(category: str | None = None) -> dict[str, Any]:
 
 
 @router.get("/categories")
-async def list_categories() -> dict[str, Any]:
+async def list_categories(response: Response = None) -> dict[str, Any]:
+    # Global, read-only reference data, identical for all users. Safe for
+    # short-lived browser-local reuse (no server-side response caching).
+    if response is not None:
+        response.headers["Cache-Control"] = "private, max-age=300"
     schemes = await fetcher.get_all_schemes()
     # Normalize categories and get unique canonical categories
     canonical_categories = set()
@@ -345,6 +349,28 @@ async def get_category_analysis(scheme_code: str) -> CategoryAnalysisResponse:
     Returns percentile ranks for the selected fund against its category peers
     for all available metrics.
     """
+    # Lightweight pre-check: the category-analysis cache is keyed by category,
+    # which is available from the cheap (cached) scheme lookup. Only on a cache
+    # miss do we pay for the full fund-detail computation (metrics, metadata,
+    # AUM aggregation) needed to compute peer percentiles.
+    try:
+        scheme = await fetcher.get_scheme(scheme_code)
+    except Exception as e:
+        logger.error("Failed to fetch fund detail for category analysis %s: %s", scheme_code, e)
+        raise HTTPException(status_code=502, detail=f"Failed to fetch fund detail: {str(e)}")
+
+    precheck_category = scheme.category
+    if precheck_category:
+        normalized_precheck = normalize_category(precheck_category)
+        cached = get_cached_category_analysis(normalized_precheck)
+        if cached:
+            return CategoryAnalysisResponse(
+                scheme_code=scheme_code,
+                scheme_name=scheme.scheme_name,
+                category=precheck_category,
+                metrics=[CategoryMetricPercentile(**m) for m in cached.get("metrics", [])],
+            )
+
     try:
         detail = await get_fund_detail(scheme_code)
     except Exception as e:
