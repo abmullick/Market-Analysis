@@ -30,10 +30,20 @@ import bisect
 import math
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import requests
+
+# Optional transport for the Yahoo ^SP500TR request. Yahoo's edge responds
+# HTTP 429 to generic Python-requests/curl TLS fingerprints (independent of
+# headers, cookies, hostname, or the requested range), so the chart request
+# prefers curl_cffi's Chrome impersonation when the package is installed;
+# plain `requests` remains a fallback. The package is free and needs no key.
+try:
+    from curl_cffi import requests as _curl_requests
+except ImportError:  # pragma: no cover - only when curl_cffi is absent
+    _curl_requests = None
 
 from backend.models.portfolio import BenchmarkData, PortfolioSeriesPoint
 from backend.utils.logging import logger
@@ -62,7 +72,16 @@ NIFTY_INDEX_NAME = "NIFTY 50"
 # S&P 500 Total Return - Yahoo Finance chart API. ^SP500TR is the Total Return
 # series (not the price-only ^GSPC).
 SP500_YAHOO_SYMBOL = "^SP500TR"
-YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/%5ESP500TR"
+YAHOO_CHART_PATH = "/v8/finance/chart/%5ESP500TR"
+# Yahoo Edge rate-limits (HTTP 429) non-browser TLS fingerprints regardless of
+# headers/cookies/hostname, so the request goes through curl_cffi's Chrome
+# impersonation when available. At most one attempt per host (query1 then
+# query2), with no sleeps and no same-host retries.
+YAHOO_HOSTS = (
+    "https://query1.finance.yahoo.com",
+    "https://query2.finance.yahoo.com",
+)
+YAHOO_IMPERSONATE = "chrome"
 YAHOO_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -260,6 +279,43 @@ def fetch_nifty50_tri(from_date: str, to_date: str) -> dict[str, float]:
     return _fetch_cached(cache_key, _fetch, "NIFTY 50 TRI")
 
 
+def _yahoo_chart_json(params: dict[str, Any]) -> dict[str, Any]:
+    """Fetch the ^SP500TR Yahoo chart payload (query1, then query2 once).
+
+    Uses curl_cffi's Chrome impersonation when installed — Yahoo's edge
+    returns HTTP 429 to generic Python-requests/curl TLS fingerprints even
+    with browser headers and cookies. There are no sleeps and no same-host
+    retries: at most one attempt per host per call; failures fall into the
+    negative cache handled by ``_fetch_cached``.
+    """
+    last_error: Optional[Exception] = None
+    for host in YAHOO_HOSTS:
+        try:
+            if _curl_requests is not None:
+                response = _curl_requests.get(
+                    host + YAHOO_CHART_PATH,
+                    params=params,
+                    headers=YAHOO_HEADERS,
+                    impersonate=YAHOO_IMPERSONATE,
+                    timeout=_TIMEOUT,
+                )
+            else:
+                response = requests.get(
+                    host + YAHOO_CHART_PATH,
+                    params=params,
+                    headers=YAHOO_HEADERS,
+                    timeout=_TIMEOUT,
+                )
+            response.raise_for_status()
+            return response.json()
+        except Exception as exc:
+            last_error = exc
+            logger.warning("Yahoo chart request failed (%s): %s", host, exc)
+    raise BenchmarkProviderError(
+        f"Yahoo chart request failed: {last_error}"
+    ) from last_error
+
+
 def fetch_sp500_total_return(from_date: str, to_date: str) -> dict[str, float]:
     """S&P 500 Total Return Index (USD), daily, Yahoo Finance ticker ^SP500TR.
 
@@ -270,19 +326,26 @@ def fetch_sp500_total_return(from_date: str, to_date: str) -> dict[str, float]:
     cache_key = f"sp500_tr:{from_date}:{to_date}"
 
     def _fetch() -> dict[str, float]:
-        period1 = int(datetime.strptime(from_date, "%Y-%m-%d").timestamp())
-        period2 = int(datetime.strptime(to_date, "%Y-%m-%d").timestamp())
+        # UTC epoch bounds. Yahoo treats period2 as exclusive, so extend by
+        # one day to include `to_date`'s session (the next day's session
+        # starts later than to_date+1 00:00 UTC and stays excluded).
+        period1 = int(
+            datetime.strptime(from_date, "%Y-%m-%d")
+            .replace(tzinfo=timezone.utc)
+            .timestamp()
+        )
+        period2 = int(
+            (datetime.strptime(to_date, "%Y-%m-%d") + timedelta(days=1))
+            .replace(tzinfo=timezone.utc)
+            .timestamp()
+        )
         params = {
             "period1": period1,
             "period2": period2,
             "interval": "1d",
             "events": "history",
         }
-        response = requests.get(
-            YAHOO_CHART_URL, headers=YAHOO_HEADERS, params=params, timeout=_TIMEOUT
-        )
-        response.raise_for_status()
-        data = response.json()
+        data = _yahoo_chart_json(params)
 
         try:
             result = (data.get("chart") or {}).get("result") or []

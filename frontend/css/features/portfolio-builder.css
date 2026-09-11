@@ -909,3 +909,64 @@
         font-size: 0.78rem;
     }
 }
+
+/* ------------------------------------------------------------------------
+   "What to Expect" preview (Coming Soon pages: Stock Portfolio Builder,
+   Stock Analysis). Informational previews only — no interactive elements.
+   Shares the panel design language (tokens, radius, borders) above.
+   ------------------------------------------------------------------------ */
+.pb-preview-section {
+    margin-top: 20px;
+}
+
+.pb-preview-heading {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-bottom: 4px;
+}
+
+.pb-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.pb-preview-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+}
+
+.pb-preview-card h3 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    line-height: 1.4;
+    margin-bottom: 3px;
+}
+
+.pb-preview-card p {
+    font-size: 0.8125rem;
+    color: var(--color-text-light);
+    line-height: 1.55;
+    margin: 0;
+}
+
+@media (max-width: 980px) {
+    .pb-preview-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .pb-preview-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pb-preview-card {
+        padding: 10px 12px;
+    }
+}

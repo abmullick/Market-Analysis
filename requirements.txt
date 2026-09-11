@@ -12,5 +12,8 @@ pytest==9.1.1
 pytest-asyncio==1.4.0
 python-multipart==0.0.32
 requests==2.33.1
+# Chrome TLS impersonation for the Yahoo ^SP500TR benchmark request
+# (Yahoo returns HTTP 429 to generic Python/curl TLS fingerprints).
+curl_cffi==0.16.3
 groq==1.7.0
 google-genai==2.20.0

@@ -1,6 +1,6 @@
 # Market Analysis
 
-Modular Indian stock-market analysis platform with four product areas: Stock Analysis, Stock Portfolio Builder (coming soon), Mutual Fund Analysis, and Mutual Fund Portfolio Builder.
+Modular Indian stock-market analysis platform with four product areas: Stock Analysis (coming soon), Stock Portfolio Builder (coming soon), Mutual Fund Analysis, and Mutual Fund Portfolio Builder.
 
 ## Architecture
 
@@ -20,8 +20,8 @@ External Providers (Stoxim, Groq, MFAPI, TigZig)
 
 ### Product Modules
 
-- **Stock Analysis** — Screen and rank Indian stocks using fundamental criteria and deterministic scoring strategies.
-- **Stock Portfolio Builder** — Coming soon. Stock portfolio construction and analysis is planned for a later phase.
+- **Stock Analysis** — Coming soon. The Stock Analysis page is a placeholder for detailed individual-stock analysis (price & performance, fundamental analysis, financial ratios, valuation analysis, risk & volatility, peer comparison). Intended to answer how good an individual company/stock is. Not currently available for analysis or calculations.
+- **Stock Portfolio Builder** — Coming soon. Stock portfolio construction and analysis is planned for a later phase (portfolio construction, portfolio performance, risk & volatility, diversification & concentration, benchmark comparison, portfolio insights). Intended to answer how good a collection of stocks is as a portfolio.
 - **Mutual Fund Analysis** — Rank mutual funds by normalized multi-metric scoring, compare funds side-by-side, inspect fund details with NAV history, rolling returns, category-relative percentile analysis, drawdown analysis, and a rich ranking page with top-3 highlights, per-fund strengths/trade-offs, holistic AI Ranking Insights, and a transparent "How ranking works" methodology breakdown.
 - **Mutual Fund Portfolio Builder** — Select 2–10 mutual funds, assign allocations that total exactly 100%, run portfolio-level analysis, and review the additive Portfolio Health Score (0–100) with five weighted components and a history-based confidence tier.
 
@@ -205,6 +205,8 @@ pytest tests/
 
 ### Stock Analysis
 Owns screening criteria, scoring, ranking, and selection strategies. Consumes normalized fundamental data and produces ranked stock lists. Independent from portfolio analysis and mutual fund logic.
+
+**Status:** The Stock Analysis page is a "Coming Soon" placeholder for detailed individual-stock analysis (price & performance, fundamental analysis, financial ratios, valuation analysis, risk & volatility, peer comparison). No stock-analysis results or metrics are currently surfaced in the application UI.
 
 **Allowed to depend on:**
 - `backend/services/data/` (fundamental data)
@@ -476,5 +478,6 @@ These were added on top of the existing architecture without changing any calcul
 - No portfolio management persistence yet.
 - The Mutual Fund Analysis service layer is fully implemented (`fetcher`, `calculator`, `ranking`, `analysis`, `cache`, `lookback`, `fund_grouper`). The Mutual Fund Portfolio Builder service layer (`mf_analysis.py`, `health_score.py`) is implemented; the Stock Analysis and Stock Portfolio Builder modules continue to evolve.
 - Stock Portfolio Builder is a placeholder ("Coming Soon") while the feature is developed.
+- Stock Analysis is a placeholder ("Coming Soon") for detailed individual-stock analysis; the feature is not currently available for analysis or calculations, and no stock-analysis results or metrics are provided by the application.
 - Future planned capabilities — Portfolio X-Ray / holdings analysis (stock overlap, sector overlap, security-level diversification, market-cap look-through) — are not currently implemented and are not part of the Health Score.
 - Python runtime is pinned to 3.12 via `.python-version` for deployment compatibility.

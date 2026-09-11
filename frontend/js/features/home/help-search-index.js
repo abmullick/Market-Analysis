@@ -371,27 +371,19 @@ export const HELP_SEARCH_INDEX = [
 
     // ── Other sections ────────────────────────────────────────────────
     {
-        id: "stock-screening",
+        id: "stock-analysis-coming-soon",
         type: "card",
-        heading: "Screening",
+        heading: "Coming Soon",
         sectionHeading: "Stock Analysis",
-        keywords: ["stocks", "screening", "market cap", "sector", "pe ratio", "pb ratio", "roe", "debt-to-equity", "fundamental"],
-        aliases: ["stock screener", "stock filters"],
-    },
-    {
-        id: "stock-ranking",
-        type: "card",
-        heading: "Ranking",
-        sectionHeading: "Stock Analysis",
-        keywords: ["stocks", "ranking", "scoring", "strategies", "deterministic"],
-        aliases: ["stock ranking", "stock strategies"],
+        keywords: ["stock analysis", "coming soon", "placeholder", "planned", "future", "individual stock", "price performance", "fundamental analysis", "financial ratios", "valuation", "risk", "volatility", "peer comparison"],
+        aliases: ["stock analysis", "when is stock analysis available", "deep dive stock analysis"],
     },
     {
         id: "stock-pb-coming-soon",
         type: "card",
         heading: "Coming Soon",
         sectionHeading: "Stock Portfolio Builder",
-        keywords: ["stock portfolio", "coming soon", "placeholder", "planned", "future"],
+        keywords: ["stock portfolio", "coming soon", "placeholder", "planned", "future", "portfolio construction", "diversification", "concentration", "benchmark comparison", "portfolio insights"],
         aliases: ["stock portfolio builder", "when is stock portfolio builder available"],
     },
     {
