@@ -132,10 +132,19 @@ def calculate_portfolio_analysis(
     contributing = [f for f in funds if float(f["allocation"]) > 0]
     zero_weight = [f for f in funds if float(f["allocation"]) == 0]
 
-    warnings = [
-        f"{f['scheme_code'].strip()}: 0% allocation — excluded from portfolio calculations."
-        for f in zero_weight
-    ]
+    # Zero-allocation funds are excluded from all calculations; the warning
+    # names the fund when its scheme name is known (the route enriches fund
+    # dicts with "scheme_name" before this point) and never exposes a bare,
+    # unexplained scheme code.
+    warnings = []
+    for f in zero_weight:
+        name = str(f.get("scheme_name") or "").strip()
+        if name:
+            warnings.append(
+                f"{name}: 0% allocation — excluded from portfolio calculations."
+            )
+        else:
+            warnings.append("0% allocation — excluded from portfolio calculations.")
 
     if not contributing:
         raise PortfolioAnalysisError(

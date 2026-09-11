@@ -247,7 +247,37 @@ class TestDateAlignment:
             ]
         )
         assert result.metrics.observations == DAYS
-        assert [w for w in result.warnings if "Z" in w]
+        # The zero-allocation fund is reported, but the raw scheme code is
+        # never exposed unexplained: without a known fund name the warning
+        # carries no identifier at all.
+        zero_warnings = [
+            w for w in result.warnings if "excluded from portfolio calculations" in w
+        ]
+        assert zero_warnings
+        assert all("Z" not in w for w in zero_warnings)
+        z = next(f for f in result.funds if f.scheme_code == "Z")
+        assert z.contributes is False
+
+    def test_zero_weight_warning_uses_fund_name_when_available(self):
+        # When the route enrichment has supplied a scheme_name, the warning
+        # names the fund instead of the scheme code.
+        result = calculate_portfolio_analysis(
+            [
+                {"scheme_code": "A", "allocation": 60, "navs": growing_navs(DAYS)},
+                {"scheme_code": "B", "allocation": 40, "navs": constant_navs(DAYS)},
+                {
+                    "scheme_code": "Z",
+                    "allocation": 0,
+                    "scheme_name": "Zero Alpha Fund",
+                    "navs": constant_navs(3),
+                },
+            ]
+        )
+        zero_warnings = [
+            w for w in result.warnings if "excluded from portfolio calculations" in w
+        ]
+        assert any(w.startswith("Zero Alpha Fund:") for w in zero_warnings)
+        assert not any("Z:" in w for w in zero_warnings)
         z = next(f for f in result.funds if f.scheme_code == "Z")
         assert z.contributes is False
 
@@ -324,6 +354,17 @@ class TestDateAlignment:
 
 
 class TestEndpoint:
+    @pytest.fixture(autouse=True)
+    def _no_live_benchmarks(self, monkeypatch):
+        # Keep route tests network-free: the benchmark comparison is verified
+        # separately in tests/portfolio/test_benchmarks.py (with stubbed
+        # providers). Here it is simply disabled.
+        from backend.routes import portfolio as portfolio_route
+
+        monkeypatch.setattr(
+            portfolio_route, "build_benchmark_data", lambda series: None
+        )
+
     @pytest.fixture
     def client(self, monkeypatch):
         from fastapi import FastAPI

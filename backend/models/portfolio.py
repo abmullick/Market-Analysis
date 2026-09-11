@@ -81,6 +81,45 @@ class PortfolioAnalysisResult(BaseModel):
     rolling_consistency: Optional[dict[str, Any]] = None
     # Additive Phase 3A Health Score (None → not computed).
     health_score: Optional["HealthScoreData"] = None
+    # Additive Phase 2E Portfolio-vs-Benchmark comparison (None → not computed).
+    benchmark_data: Optional["BenchmarkData"] = None
+
+
+# ---------------------------------------------------------------------------
+# Portfolio vs Benchmark comparison (Phase 2E) — additive response metadata
+# ---------------------------------------------------------------------------
+
+
+class BenchmarkData(BaseModel):
+    """Benchmark comparison for the portfolio growth chart.
+
+    All available series are rebased to 100 at ``common_start``. ``dates`` is
+    the sorted set of valid published dates common to the portfolio and each
+    available benchmark; the parallel value arrays (``portfolio``,
+    ``nifty50_tri``, ``sp500_total_return_inr``) are aligned to ``dates``.
+
+    CAGRs are computed over the same common comparison period the chart shows.
+    Outperformance = portfolio CAGR − benchmark CAGR. ``sp500_total_return_inr``
+    is the S&P 500 Total Return series converted into INR using the ECB/Frankfurter
+    USD/INR reference rate (no price-only or synthetic series are ever used).
+    """
+
+    available: bool = False
+    nifty50_tri_available: bool = False
+    sp500_available: bool = False
+    common_start: Optional[str] = None
+    common_end: Optional[str] = None
+    observations: int = 0
+    dates: list[str] = []
+    portfolio: list[float] = []
+    nifty50_tri: list[float] = []
+    sp500_total_return_inr: list[float] = []
+    portfolio_cagr: Optional[float] = None
+    nifty50_tri_cagr: Optional[float] = None
+    sp500_total_return_cagr: Optional[float] = None
+    nifty50_outperformance: Optional[float] = None
+    sp500_outperformance: Optional[float] = None
+    warnings: list[str] = []
 
 
 # ---------------------------------------------------------------------------

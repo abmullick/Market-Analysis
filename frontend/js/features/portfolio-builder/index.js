@@ -363,11 +363,14 @@ function renderAnalysis(result) {
     const grid = $('pb-metric-grid');
     if (grid) grid.innerHTML = buildMetricCards(metrics);
 
+    const bd = result && result.benchmark_data ? result.benchmark_data : null;
+
     setAnalysisView('results');
-    renderGrowthChart(series);
+    renderGrowthChart(series, bd);
+    renderBenchmarkComparison(bd);
 }
 
-function renderGrowthChart(series) {
+function renderGrowthChart(series, bd) {
     if (typeof Chart === 'undefined') return;
     const canvas = $('pb-growth-chart');
     if (!canvas) return;
@@ -377,60 +380,188 @@ function renderGrowthChart(series) {
         growthChart = null;
     }
 
+    const useB = bd && bd.available && Array.isArray(bd.dates)
+        && bd.dates.length > 1 && Array.isArray(bd.portfolio);
+    const niftyOk = useB && bd.nifty50_tri_available && Array.isArray(bd.nifty50_tri);
+    const spOk = useB && bd.sp500_available && Array.isArray(bd.sp500_total_return_inr);
+    const labels = useB ? bd.dates : series.map((p) => p.date);
+
+    const mk = (label, data, color) => ({
+        label: label,
+        data: data,
+        borderColor: color,
+        borderWidth: 1.75,
+        fill: false,
+        tension: 0,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: color,
+        pointHoverBorderColor: '#ffffff',
+        pointHoverBorderWidth: 2,
+    });
+
+    const datasets = [];
+    datasets.push(mk('Portfolio', useB ? bd.portfolio : series.map((p) => p.value), BENCHMARK_COLORS.portfolio));
+    if (niftyOk) datasets.push(mk('NIFTY 50 TRI', bd.nifty50_tri, BENCHMARK_COLORS.nifty));
+    if (spOk) datasets.push(mk('S&P 500 Total Return', bd.sp500_total_return_inr, BENCHMARK_COLORS.sp500));
+
+    const fmt = (v) => v.toFixed(2);
+    const signed = (v) => (v >= 0 ? '+' : '\u2212') + Math.abs(v).toFixed(2) + '%';
+
     growthChart = new Chart(ctx, {
         type: 'line',
-        data: {
-            labels: series.map((p) => p.date),
-            datasets: [{
-                label: 'Portfolio Growth',
-                data: series.map((p) => p.value),
-                borderColor: '#0f172a',
-                backgroundColor: 'rgba(15, 23, 42, 0.06)',
-                borderWidth: 1.75,
-                fill: false,
-                tension: 0,
-                pointRadius: 0,
-                pointHoverRadius: 5,
-                pointHoverBackgroundColor: '#0f172a',
-                pointHoverBorderColor: '#ffffff',
-                pointHoverBorderWidth: 2,
-            }],
-        },
+        data: { labels: labels, datasets: datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { intersect: false, mode: 'index' },
             plugins: {
-                legend: { display: false },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, font: { size: 11 }, color: '#64748b' },
+                },
                 tooltip: {
                     backgroundColor: 'rgba(15, 23, 42, 0.95)',
                     padding: 10,
                     titleFont: { size: 12, weight: '600' },
                     bodyFont: { size: 12 },
-                    displayColors: false,
+                    displayColors: true,
                     callbacks: {
-                        title: (items) => 'Portfolio \u00b7 ' + (items[0] && items[0].label ? items[0].label : ''),
-                        label: (context) => 'Growth: ' + Number(context.parsed.y).toFixed(2),
+                        title: (items) => (items && items[0] && items[0].label ? items[0].label : ''),
+                        label: (c) => (c.dataset.label || 'Series') + ': ' + fmt(Number(c.parsed.y)),
+                        afterBody: (items) => {
+                            if (!bd || !useB) return null;
+                            const i = items && items.length ? items[0].index : -1;
+                            const out = [];
+                            const pf = bd.portfolio && bd.portfolio[i];
+                            const ny = bd.nifty50_tri && bd.nifty50_tri[i];
+                            const sp = bd.sp500_total_return_inr && bd.sp500_total_return_inr[i];
+                            if (typeof pf === 'number' && typeof ny === 'number') {
+                                out.push('Portfolio vs NIFTY 50: ' + signed(pf - ny));
+                            }
+                            if (typeof pf === 'number' && typeof sp === 'number') {
+                                out.push('Portfolio vs S&P 500: ' + signed(pf - sp));
+                            }
+                            return out.length ? out : null;
+                        },
                     },
                 },
             },
             scales: {
-                x: {
-                    title: { display: true, text: 'Date', font: { size: 11, weight: '500' }, color: '#64748b' },
-                    ticks: { maxTicksLimit: 8, color: '#64748b', font: { size: 11 } },
-                    grid: { color: 'rgba(15, 23, 42, 0.04)' },
-                },
-                y: {
-                    title: { display: true, text: 'Growth (base 100)', font: { size: 11, weight: '500' }, color: '#64748b' },
-                    ticks: { color: '#64748b', font: { size: 11 } },
-                    grid: { color: 'rgba(15, 23, 42, 0.06)' },
-                    grace: '5%',
-                },
+                x: { title: { display: true, text: 'Date', font: { size: 11, weight: '500' }, color: '#64748b' }, ticks: { maxTicksLimit: 8, color: '#64748b', font: { size: 11 } }, grid: { color: 'rgba(15, 23, 42, 0.04)' } },
+                y: { title: { display: true, text: 'Growth (base 100)', font: { size: 11, weight: '500' }, color: '#64748b' }, ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: 'rgba(15, 23, 42, 0.06)' }, grace: '5%' },
             },
         },
     });
 }
 
+// Distinguishable, light/dark-safe line colors for the three comparison series.
+const BENCHMARK_COLORS = {
+    portfolio: '#2563eb', // blue-600
+    nifty: '#f59e0b',     // amber-500
+    sp500: '#16a34a',     // green-600
+};
+
+// Percentage-point formatter for benchmark OUTPERFORMANCE only.
+// Backend outperformance is a fraction of annual rates (e.g. 0.015656 =
+// portfolio CAGR 0.13394 − benchmark CAGR 0.11829); display it as
+// "+1.57 pp". Zero renders unsigned ("0.00 pp"). Used solely by the
+// benchmark comparison blocks — generic % formatters elsewhere are untouched.
+function formatSignedPp(v) {
+    if (v == null || !Number.isFinite(v)) return 'N/A';
+    const pp = v * 100;
+    if (pp === 0) return '0.00 pp';
+    return (pp > 0 ? '+' : '-') + Math.abs(pp).toFixed(2) + ' pp';
+}
+
+// Fraction (e.g. 0.1363) -> "13.63%".
+function formatMetricPctFrac(v) {
+    if (v == null || !Number.isFinite(v)) return 'N/A';
+    return (v * 100).toFixed(2) + '%';
+}
+
+// ---------------------------------------------------------------------------
+// Portfolio vs Benchmark comparison (Phase 2E)
+// Compact section directly under the growth chart.
+// ---------------------------------------------------------------------------
+
+function renderBenchmarkComparison(bd) {
+    const el = $('pb-benchmark-comparison');
+    if (!el) return;
+    const ok = bd && bd.available;
+    const niftyOk = ok && bd.nifty50_tri_available;
+    const spOk = ok && bd.sp500_available;
+    if (!ok) {
+        el.classList.add('hidden');
+        return;
+    }
+
+    const parts = [];
+    parts.push('<div class="pb-benchmark-section-title">Benchmark Comparison</div>');
+    if (bd.common_start && bd.common_end) {
+        parts.push('<div class="pb-benchmark-period">' + bd.common_start + ' \u2013 ' + bd.common_end
+            + ' \u00b7 ' + bd.observations + ' common observations</div>');
+    }
+
+    if (niftyOk) {
+        parts.push(benchmarkBlock('Portfolio vs NIFTY 50', 'NIFTY 50 TRI CAGR',
+            bd.portfolio_cagr, bd.nifty50_tri_cagr, bd.nifty50_outperformance));
+    }
+
+    // The S&P block is ALWAYS rendered when the comparison is available:
+    // real values when S&P data exists, a clean unavailable state otherwise
+    // (never silently removed, never fake/zero values, never raw provider,
+    // HTTP or retry details).
+    const spWarnings = (Array.isArray(bd.warnings) ? bd.warnings : [])
+        .filter((w) => typeof w === 'string' && /S&P 500/i.test(w));
+    if (spOk) {
+        parts.push(benchmarkBlock('Portfolio vs S&P 500', 'S&P 500 Total Return CAGR',
+            bd.portfolio_cagr, bd.sp500_total_return_cagr, bd.sp500_outperformance));
+    } else {
+        parts.push(spUnavailableBlock(spWarnings[0]));
+    }
+
+    // Show remaining (non-S&P) warnings once; the S&P explanation, when
+    // displayed inside its block, is not repeated here.
+    const otherWarnings = (Array.isArray(bd.warnings) ? bd.warnings : [])
+        .filter((w) => typeof w === 'string' && w !== spWarnings[0]);
+    if (otherWarnings.length) {
+        parts.push('<div class="pb-benchmark-note">' + escapeHtml(otherWarnings.join(' ')) + '</div>');
+    }
+
+    el.innerHTML = parts.join('');
+    el.classList.remove('hidden');
+}
+
+// Compact, user-facing S&P 500 unavailable state. Uses the backend's already-
+// sanitized explanation when present; falls back to a neutral sentence. No
+// HTTP status, attempt counter, endpoint name or exception text is shown.
+function spUnavailableBlock(sanitizedReason) {
+    const msg = sanitizedReason || 'S&P 500 Total Return temporarily unavailable.';
+    return ''
+        + '<div class="pb-benchmark-block pb-benchmark-unavailable">'
+        + '<div class="pb-benchmark-title">' + escapeHtml('Portfolio vs S&P 500') + '</div>'
+        + '<div class="pb-benchmark-note">' + escapeHtml(msg) + '</div>'
+        + '</div>';
+}
+
+function benchmarkBlock(title, benchCagrLabel, portfolioCagr, benchmarkCagr, outperformance) {
+    const outCls = (outperformance != null && outperformance < 0)
+        ? 'pb-benchmark-negative' : 'pb-benchmark-positive';
+    return ''
+        + '<div class="pb-benchmark-block">'
+        + '<div class="pb-benchmark-title">' + escapeHtml(title) + '</div>'
+        + '<div class="pb-benchmark-grid">'
+        + '<div class="pb-benchmark-item"><span class="pb-benchmark-item-label">Portfolio CAGR</span>'
+        + '<span class="pb-benchmark-item-value">' + formatMetricPctFrac(portfolioCagr) + '</span></div>'
+        + '<div class="pb-benchmark-item"><span class="pb-benchmark-item-label">' + escapeHtml(benchCagrLabel) + '</span>'
+        + '<span class="pb-benchmark-item-value">' + formatMetricPctFrac(benchmarkCagr) + '</span></div>'
+        + '<div class="pb-benchmark-item ' + outCls + '"><span class="pb-benchmark-item-label">Outperformance</span>'
+        + '<span class="pb-benchmark-item-value">' + formatSignedPp(outperformance) + '</span></div>'
+        + '</div>'
+        + '</div>';
+}
 function render() {
     const panel = $('pb-panel');
     const empty = $('pb-empty');

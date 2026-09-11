@@ -1,5 +1,7 @@
 from typing import Any
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 
 from backend.config.settings import Settings
@@ -10,6 +12,7 @@ from backend.services.portfolio.mf_analysis import (
     calculate_portfolio_analysis,
     validate_allocations,
 )
+from backend.services.data.benchmarks import build_benchmark_data
 from backend.services.data.tigzig import get_tigzig_dataset
 from backend.utils.logging import logger
 
@@ -47,6 +50,9 @@ async def _enrich_with_scheme_metadata(
             continue
         fund["amc"] = s.amc or None
         fund["category"] = s.category or None
+        # Scheme name is used for user-facing warnings (e.g. zero-allocation
+        # exclusions) instead of an unexplained scheme code.
+        fund["scheme_name"] = s.scheme_name
         fund["is_stale"] = _is_scheme_stale(s, schemes)
 
 
@@ -131,7 +137,20 @@ async def analyze_mutual_fund_portfolio(request: PortfolioAnalysisRequest) -> Po
         # Health Score Fund Mix + legacy-confidence components can run.
         await _enrich_with_scheme_metadata(fetcher, funds_with_navs)
 
-        return calculate_portfolio_analysis(funds_with_navs)
+        result = calculate_portfolio_analysis(funds_with_navs)
+
+        # Additive Portfolio-vs-Benchmark comparison (Phase 2E). Runs off the
+        # portfolio growth series; a failure only downgrades the comparison and
+        # never breaks the existing portfolio analysis.
+        try:
+            result.benchmark_data = await asyncio.to_thread(
+                build_benchmark_data, result.series
+            )
+        except Exception as e:
+            logger.warning("Portfolio benchmark comparison failed: %s", e)
+            result.benchmark_data = None
+
+        return result
     except PortfolioAnalysisError as e:
         logger.info("Portfolio analysis rejected (%s): %s", e.code, e.message)
         raise HTTPException(status_code=400, detail={"code": e.code, "message": e.message})
