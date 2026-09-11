@@ -1157,3 +1157,24 @@
         padding: 5px 4px;
     }
 }
+
+/* ------------------------------------------------------------------------
+   Drawdown & Recovery (additive analysis)
+   Reuses pb-rc-* title/chips/table/note classes; adds only the chart
+   container. Chart colors reuse the app's semantic red-500 convention.
+   ------------------------------------------------------------------------ */
+#pb-drawdown-recovery {
+    margin-top: 16px;
+}
+
+.pb-dd-chart-container {
+    position: relative;
+    height: 220px;
+    margin-bottom: 12px;
+}
+
+@media (max-width: 640px) {
+    .pb-dd-chart-container {
+        height: 160px;
+    }
+}

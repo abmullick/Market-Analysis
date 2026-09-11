@@ -368,6 +368,7 @@ function renderAnalysis(result) {
     setAnalysisView('results');
     renderGrowthChart(series, bd);
     renderBenchmarkComparison(bd);
+    renderDrawdownRecovery(result);
     renderReturnContribution(result);
 }
 
@@ -662,6 +663,145 @@ function renderReturnContribution(result) {
     el.classList.remove('hidden');
 }
 
+// ---------------------------------------------------------------------------
+// Drawdown & Recovery (additive analysis)
+// Renders the backend-derived drawdown episodes from the existing portfolio
+// growth series. The chart recomputes drawdown(t) = value/runningPeak - 1 in
+// the browser from result.series — the same series and running-peak
+// convention the backend maximum drawdown uses; no second data source.
+// ---------------------------------------------------------------------------
+
+function destroyDrawdownChart() {
+    if (drawdownChart) {
+        drawdownChart.destroy();
+        drawdownChart = null;
+    }
+}
+
+function renderDrawdownRecovery(result) {
+    const el = $('pb-drawdown-recovery');
+    if (!el) return;
+    const dd = result && result.drawdown_recovery;
+    const series = result && Array.isArray(result.series) ? result.series : null;
+    if (!dd || !series || series.length < 2) {
+        destroyDrawdownChart();
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    const parts = [];
+    parts.push('<div class="pb-rc-title">Drawdown &amp; Recovery</div>');
+    parts.push('<div class="pb-rc-subtitle">See the portfolio\'s major declines and how long it took to recover from them.</div>');
+
+    // Summary chips. Maximum Drawdown reconciles with the existing metric
+    // (backend derives it from the same growth series).
+    const chips = [];
+    chips.push('<div class="pb-rc-chip"><span class="pb-rc-chip-label">Maximum Drawdown</span>'
+        + '<span class="pb-rc-chip-value pb-rc-neg">' + formatSignedPercent(dd.maximum_drawdown) + '</span></div>');
+    chips.push('<div class="pb-rc-chip"><span class="pb-rc-chip-label">Longest Recovery</span>'
+        + '<span class="pb-rc-chip-value">' + (dd.longest_recovery_days != null ? dd.longest_recovery_days + ' days' : '\u2014') + '</span></div>');
+    const currentCls = (dd.current_drawdown != null && dd.current_drawdown < 0) ? 'pb-rc-neg' : '';
+    chips.push('<div class="pb-rc-chip"><span class="pb-rc-chip-label">Current Drawdown</span>'
+        + '<span class="pb-rc-chip-value ' + currentCls + '">' + formatSignedPercent(dd.current_drawdown)
+        + ' \u00b7 ' + escapeHtml(dd.current_status || '') + '</span></div>');
+    parts.push('<div class="pb-rc-summary">' + chips.join('') + '</div>');
+
+    parts.push('<div class="pb-dd-chart-container" id="pb-dd-chart-container"></div>');
+
+    // Episode table: most severe first (backend order). Ongoing episodes
+    // show Recovery = "Ongoing" and Recovery Time = "—".
+    const rows = (Array.isArray(dd.episodes) ? dd.episodes : []).map(function (ep) {
+        const status = ep.is_ongoing ? 'Ongoing' : 'Completed';
+        const recoveryDate = ep.is_ongoing ? 'Ongoing' : (ep.recovery_date || '\u2014');
+        const recoveryTime = ep.is_ongoing ? '\u2014' : (ep.recovery_duration_days != null ? ep.recovery_duration_days + ' days' : '\u2014');
+        const cls = ep.drawdown < 0 ? 'pb-rc-neg' : '';
+        return ''
+            + '<tr>'
+            + '<td>' + escapeHtml(status) + '</td>'
+            + '<td>' + escapeHtml(ep.peak_date) + '</td>'
+            + '<td>' + escapeHtml(ep.trough_date) + '</td>'
+            + '<td>' + escapeHtml(recoveryDate) + '</td>'
+            + '<td class="' + cls + '">' + formatSignedPercent(ep.drawdown) + '</td>'
+            + '<td>' + escapeHtml(recoveryTime) + '</td>'
+            + '</tr>';
+    }).join('');
+    parts.push(
+        '<table class="pb-rc-table">'
+        + '<thead><tr><th>Status</th><th>Peak</th><th>Trough</th><th>Recovery</th><th>Drawdown</th><th>Recovery Time</th></tr></thead>'
+        + '<tbody>' + (rows || '<tr><td colspan="6">No significant drawdown episodes in this period.</td></tr>') + '</tbody>'
+        + '</table>'
+    );
+
+    parts.push('<div class="pb-rc-note">'
+        + 'Drawdown measures the decline from a previous portfolio high. Recovery is the time required to return to that previous high.</div>');
+
+    destroyDrawdownChart();
+    el.innerHTML = parts.join('');
+    el.classList.remove('hidden');
+    renderDrawdownChart(series);
+}
+
+function renderDrawdownChart(series) {
+    // Drawdown chart: drawdown(t) = value(t)/runningPeak(t) - 1 over the
+    // portfolio growth series (same series and convention as the backend
+    // maximum drawdown). Uses Chart.js (already loaded for the growth chart).
+    if (typeof Chart === 'undefined') return;
+    const container = $('pb-dd-chart-container');
+    if (!container) return;
+    const canvas = document.createElement('canvas');
+    container.appendChild(canvas);
+
+    let peak = series[0].value;
+    const ddData = series.map(function (p) {
+        if (p.value > peak) peak = p.value;
+        return (p.value / peak - 1) * 100;
+    });
+
+    drawdownChart = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: series.map(function (p) { return p.date; }),
+            datasets: [{
+                label: 'Drawdown',
+                data: ddData,
+                borderColor: '#ef4444',                     // app's semantic red-500
+                backgroundColor: 'rgba(239, 68, 68, 0.12)', // translucent red-500 area
+                fill: 'origin',
+                borderWidth: 1.5,
+                tension: 0,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                pointHoverBackgroundColor: '#ef4444',
+                pointHoverBorderColor: '#ffffff',
+                pointHoverBorderWidth: 2,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    padding: 10,
+                    titleFont: { size: 12, weight: '600' },
+                    bodyFont: { size: 12 },
+                    callbacks: {
+                        title: function (items) { return items && items[0] ? items[0].label : ''; },
+                        label: function (c) { return 'Drawdown: ' + Number(c.parsed.y).toFixed(2) + '%'; },
+                    },
+                },
+            },
+            scales: {
+                x: { title: { display: true, text: 'Date', font: { size: 11, weight: '500' }, color: '#64748b' }, ticks: { maxTicksLimit: 8, color: '#64748b', font: { size: 11 } }, grid: { color: 'rgba(15, 23, 42, 0.04)' } },
+                y: { title: { display: true, text: 'Drawdown (%)', font: { size: 11, weight: '500' }, color: '#64748b' }, ticks: { color: '#64748b', font: { size: 11 }, callback: function (v) { return v + '%'; } }, grid: { color: 'rgba(15, 23, 42, 0.06)' }, suggestedMin: -1 },
+            },
+        },
+    });
+}
+
 function render() {
     const panel = $('pb-panel');
     const empty = $('pb-empty');
@@ -707,6 +847,7 @@ function initPortfolioBuilder() {
 // ---------------------------------------------------------------------------
 
 let growthChart = null;   // Chart.js instance, destroyed before re-render
+let drawdownChart = null; // Chart.js instance for the Drawdown & Recovery chart
 let analyzing = false;    // guards against double-submit
 let lastHealthScore = null; // latest HealthScoreData from backend (single source of truth)
 

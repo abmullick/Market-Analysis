@@ -19,10 +19,12 @@ Approved methodology (Phase 2C):
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 from backend.models.mutual_fund import NAVRecord
 from backend.models.portfolio import (
+    DrawdownEpisode,
+    DrawdownRecoveryData,
     FundReturnContribution,
     PortfolioFundResult,
     PortfolioMetricsData,
@@ -38,6 +40,14 @@ MIN_FUNDS = 2
 MAX_FUNDS = 10
 ALLOCATION_TOLERANCE = 0.005  # allocations are 2-decimal percentages
 MIN_COMMON_OBSERVATIONS = 30  # minimum usable common history (observations)
+
+# Drawdown & Recovery (additive). Transparent display thresholds: episodes
+# shallower than 2% are not shown (small noise dips), and at most the top 5
+# episodes by absolute drawdown magnitude are displayed. The summary Maximum
+# Drawdown is computed over ALL episodes regardless of the display threshold,
+# so it always reconciles with metrics.maximum_drawdown.
+DRAWDOWN_EPISODE_THRESHOLD = 0.02
+MAX_DISPLAYED_EPISODES = 5
 
 
 class PortfolioAnalysisError(Exception):
@@ -101,6 +111,114 @@ def validate_allocations(funds: list[dict[str, Any]]) -> None:
             "allocation_total",
             f"Allocations must total exactly 100% (got {round(total, 4)}%).",
         )
+
+
+def _calendar_days(start_date: str, end_date: str) -> int:
+    """Elapsed calendar days between two ISO dates (YYYY-MM-DD)."""
+    return (datetime.strptime(end_date, "%Y-%m-%d") - datetime.strptime(start_date, "%Y-%m-%d")).days
+
+
+def calculate_drawdown_recovery(growth: list[NAVRecord]) -> Optional[DrawdownRecoveryData]:
+    """Derive Drawdown & Recovery episodes from the existing growth series.
+
+    Reuses the exact cumulative growth series already produced by the
+    portfolio engine (the same series ``MetricsCalculator._max_drawdown``
+    consumes). No additional NAV data is fetched and no second return
+    calculation is performed. Methodology:
+
+        drawdown(t) = value(t) / running_peak(t) - 1
+
+    An episode begins when the portfolio moves below its previous running
+    peak and ends when it reaches or exceeds that peak (consistent with the
+    existing maximum-drawdown convention). Durations are calendar-day
+    differences: decline = peak -> trough, recovery = trough -> recovery,
+    total = peak -> recovery. An episode still underwater at the last
+    observation is ``is_ongoing`` with recovery fields = None; the current
+    drawdown and status are evaluated at the last observation.
+
+    Returns ``None`` for an empty or single-observation series.
+    """
+    if not growth or len(growth) < 2:
+        return None
+
+    peak_idx = 0
+    peak_value = growth[0].nav
+    episode: dict[str, Any] | None = None
+    episodes: list[DrawdownEpisode] = []
+
+    for i, rec in enumerate(growth):
+        value = rec.nav
+        if value >= peak_value:
+            # At/above the previous running peak: recover any open episode
+            # (first observation at or above the previous peak), then make a
+            # new high.
+            if episode is not None:
+                episodes.append(
+                    DrawdownEpisode(
+                        peak_date=episode["peak_date"],
+                        trough_date=episode["trough_date"],
+                        recovery_date=rec.date,
+                        drawdown=episode["trough_value"] / episode["peak_value"] - 1,
+                        decline_duration_days=_calendar_days(episode["peak_date"], episode["trough_date"]),
+                        recovery_duration_days=_calendar_days(episode["trough_date"], rec.date),
+                        total_duration_days=_calendar_days(episode["peak_date"], rec.date),
+                        is_ongoing=False,
+                    )
+                )
+                episode = None
+            peak_value = value
+            peak_idx = i
+            continue
+        # Below the running peak: open the episode on the first such
+        # observation; otherwise track the deepest trough seen so far.
+        if episode is None:
+            episode = {
+                "peak_date": growth[peak_idx].date,
+                "peak_value": peak_value,
+                "trough_date": rec.date,
+                "trough_value": value,
+            }
+        elif value < episode["trough_value"]:
+            episode["trough_date"] = rec.date
+            episode["trough_value"] = value
+
+    if episode is not None:
+        # Ongoing: not recovered by the end of the analysis period.
+        episodes.append(
+            DrawdownEpisode(
+                peak_date=episode["peak_date"],
+                trough_date=episode["trough_date"],
+                recovery_date=None,
+                drawdown=episode["trough_value"] / episode["peak_value"] - 1,
+                decline_duration_days=_calendar_days(episode["peak_date"], episode["trough_date"]),
+                recovery_duration_days=None,
+                total_duration_days=None,
+                is_ongoing=True,
+            )
+        )
+
+    # Summary metrics. The deepest episode reconciles with the existing
+    # metrics.maximum_drawdown (same running-peak series; see model docstring).
+    deepest = min((e.drawdown for e in episodes), default=0.0)
+    last_value = growth[-1].nav
+    current_drawdown = last_value / peak_value - 1  # <= 0; 0 at a new high
+    completed = [e for e in episodes if not e.is_ongoing]
+    longest_recovery = max((e.recovery_duration_days for e in completed), default=None)
+
+    # Display selection: only meaningful episodes (>= threshold), top 5 by
+    # absolute magnitude, most severe first. Filtering is display-only — the
+    # summary maximum drawdown uses ALL episodes.
+    displayed = [e for e in episodes if -e.drawdown >= DRAWDOWN_EPISODE_THRESHOLD]
+    displayed.sort(key=lambda e: e.drawdown)
+    displayed = displayed[:MAX_DISPLAYED_EPISODES]
+
+    return DrawdownRecoveryData(
+        maximum_drawdown=deepest,
+        current_drawdown=current_drawdown,
+        current_status="At a new high" if current_drawdown >= 0 else "Still recovering",
+        longest_recovery_days=longest_recovery,
+        episodes=displayed,
+    )
 
 
 def calculate_portfolio_analysis(
@@ -354,6 +472,9 @@ def calculate_portfolio_analysis(
         warnings=warnings,
         rolling_consistency=rolling_consistency,
         return_contribution=return_contribution,
+        # Additive Drawdown & Recovery: same growth series as the existing
+        # Maximum Drawdown metric (see calculate_drawdown_recovery).
+        drawdown_recovery=calculate_drawdown_recovery(growth),
     )
     analysis_result.health_score = calculate_health_score(analysis_result)
 

@@ -403,6 +403,14 @@ export const HELP_SEARCH_INDEX = [
         aliases: ["portfolio allocation", "portfolio analysis"],
     },
     {
+        id: "pb-drawdown-recovery",
+        type: "card",
+        heading: "Drawdown & Recovery",
+        sectionHeading: "Mutual Fund Portfolio Builder",
+        keywords: ["drawdown", "recovery", "maximum drawdown", "drawdown episodes", "peak", "trough", "decline", "how long to recover", "loss duration"],
+        aliases: ["what is drawdown", "how long did recovery take", "portfolio declines", "ongoing drawdown"],
+    },
+    {
         id: "pb-return-contribution",
         type: "card",
         heading: "Return Contribution",

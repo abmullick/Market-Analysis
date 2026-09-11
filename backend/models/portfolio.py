@@ -116,6 +116,47 @@ class ReturnContributionData(BaseModel):
     reconciliation_difference: float = 0.0
 
 
+class DrawdownEpisode(BaseModel):
+    """A single drawdown episode on the portfolio growth series.
+
+    An episode begins when the portfolio moves below its previous running
+    peak and ends (recovers) when it reaches or exceeds that peak — the same
+    running-peak convention as the existing maximum-drawdown calculation.
+
+    ``drawdown`` is a negative decimal (trough/peak − 1, e.g. ``-0.235`` =
+    −23.5%). Durations are calendar-day differences (elapsed time, not the
+    number of trading observations). Ongoing episodes (never recovered by
+    the last observation) carry ``recovery_date``, ``recovery_duration_days``
+    and ``total_duration_days`` = None and ``is_ongoing`` = True.
+    """
+
+    peak_date: str
+    trough_date: str
+    recovery_date: Optional[str] = None
+    drawdown: float
+    decline_duration_days: int
+    recovery_duration_days: Optional[int] = None
+    total_duration_days: Optional[int] = None
+    is_ongoing: bool = False
+
+
+class DrawdownRecoveryData(BaseModel):
+    """Additive Drawdown & Recovery analysis on the portfolio growth series.
+
+    Pure derivation from the existing portfolio growth series (no additional
+    NAV data, no second return calculation). ``maximum_drawdown`` is the
+    deepest episode as a negative decimal and reconciles to the existing
+    ``metrics.maximum_drawdown`` (which is reported as a positive magnitude):
+    ``maximum_drawdown == -metrics.maximum_drawdown`` up to float rounding.
+    """
+
+    maximum_drawdown: Optional[float] = None
+    current_drawdown: Optional[float] = None
+    current_status: Optional[str] = None
+    longest_recovery_days: Optional[int] = None
+    episodes: list[DrawdownEpisode] = []
+
+
 class PortfolioAnalysisResult(BaseModel):
     funds: list[PortfolioFundResult]
     metrics: PortfolioMetricsData
@@ -131,6 +172,9 @@ class PortfolioAnalysisResult(BaseModel):
     # Additive Return Contribution (performance attribution); always populated
     # on a successful analysis. Purely derived from the existing pipeline.
     return_contribution: Optional[ReturnContributionData] = None
+    # Additive Drawdown & Recovery analysis; derived from the existing growth
+    # series. None only when the series itself is unusable.
+    drawdown_recovery: Optional["DrawdownRecoveryData"] = None
 
 
 # ---------------------------------------------------------------------------

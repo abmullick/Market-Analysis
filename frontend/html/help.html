@@ -171,6 +171,27 @@
                         </p>
                     </div>
                     <div class="help-card">
+                        <h4>Drawdown &amp; Recovery</h4>
+                        <p>
+                            <strong>Drawdown</strong> measures the decline from a previous portfolio high:
+                            drawdown(t) = value(t) / running-peak(t) &minus; 1 on the portfolio&rsquo;s growth series
+                            (the same series and convention used by the existing Maximum Drawdown metric).
+                            <strong>Maximum Drawdown</strong> is the deepest such decline over the analysis period.
+                            A <strong>drawdown episode</strong> begins when the portfolio moves below its previous
+                            high and ends when it reaches or exceeds that high again. For each episode the section
+                            shows the peak date, trough date, recovery date, magnitude, and durations measured in
+                            <strong>calendar days</strong> (elapsed time, not the number of trading observations).
+                            An episode still below its previous high at the end of the analysis period is marked
+                            <strong>Ongoing</strong>: no recovery date is claimed, and the Current Drawdown plus
+                            status (Still recovering / At a new high) reflect the last observation. Recovery can
+                            take much longer than the decline itself because regaining a peak requires recovering
+                            the full percentage loss while the base is smaller. Episodes shallower than 2% are not
+                            listed, and at most the five deepest episodes are shown; the summary Maximum Drawdown
+                            always covers all episodes and reconciles with the existing metric. This analysis does
+                            not affect the Portfolio Health Score.
+                        </p>
+                    </div>
+                    <div class="help-card">
                         <h4>Portfolio Health Score</h4>
                         <p>
                             The Health Score is a 0&ndash;100 portfolio-level diagnostic, not a prediction of future
