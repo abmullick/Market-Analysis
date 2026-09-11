@@ -1157,6 +1157,135 @@
         padding: 5px 4px;
     }
 }
+/* ------------------------------------------------------------------------
+   Drawdown & Recovery (additive analysis)
+   Reuses pb-rc-* title/chips/table/note classes; adds only the chart
+   container. Chart colors reuse the app's semantic red-500 convention.
+   ------------------------------------------------------------------------ */
+#pb-drawdown-recovery {
+    margin-top: 16px;
+}
+
+.pb-dd-chart-container {
+    position: relative;
+    height: 220px;
+    margin-bottom: 12px;
+}
+
+@media (max-width: 640px) {
+    .pb-dd-chart-container {
+        height: 160px;
+    }
+}
+
+/* ------------------------------------------------------------------------
+   Rolling Performance & Consistency (additive analysis)
+   Reuses pb-rc-* title/subtitle/note classes; adds period selector,
+   chart container, summary card, stats grid, and insight text.
+   ------------------------------------------------------------------------ */
+#pb-rolling-performance {
+    margin-top: 16px;
+}
+
+.pb-rp-selector {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.pb-rp-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-text-light);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.pb-rp-btn:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.pb-rp-active {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
+.pb-rp-chart-container {
+    position: relative;
+    height: 220px;
+    margin-bottom: 12px;
+}
+
+.pb-rp-summary {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+}
+
+.pb-rp-summary-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-bottom: 10px;
+}
+
+.pb-rp-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px 16px;
+}
+
+.pb-rp-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pb-rp-stat-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-light);
+}
+
+.pb-rp-stat-value {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.pb-rp-insight {
+    font-size: 0.8125rem;
+    color: var(--color-text-light);
+    background: var(--color-bg);
+    border-left: 3px solid var(--color-primary);
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+@media (max-width: 640px) {
+    .pb-rp-chart-container {
+        height: 160px;
+    }
+
+    .pb-rp-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .pb-rp-selector {
+        flex-wrap: wrap;
+    }
+}
 
 /* ------------------------------------------------------------------------
    Drawdown & Recovery (additive analysis)

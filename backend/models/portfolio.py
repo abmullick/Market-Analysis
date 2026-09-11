@@ -157,6 +157,56 @@ class DrawdownRecoveryData(BaseModel):
     episodes: list[DrawdownEpisode] = []
 
 
+class RollingWindowSummary(BaseModel):
+    """Summary statistics for one rolling-return window.
+
+    Mirrors the output of ``MetricsCalculator.get_rolling_returns_series`` so
+    the same underlying calculation serves both the Health Score consistency
+    logic and the Rolling Performance UI. All CAGR values are decimals; the
+    UI formats them as percentages.
+    """
+
+    count: int
+    avg: float
+    median: float
+    min: float
+    max: float
+    positive_pct: float
+    std_dev: Optional[float] = None
+
+
+class RollingWindowResult(BaseModel):
+    """Rolling-return result for a single window length (1Y, 3Y, or 5Y).
+
+    ``insufficient_history`` is True when the portfolio has too few
+    observations to form even one rolling window for this length; in that
+    case ``summary`` is None and the UI shows "Insufficient history".
+    """
+
+    window_years: int
+    dates: list[str] = []
+    returns: list[float] = []
+    summary: Optional[RollingWindowSummary] = None
+    insufficient_history: bool = False
+
+
+class RollingPerformanceData(BaseModel):
+    """Additive Rolling Performance & Consistency analysis.
+
+    Each window reuses the existing ``MetricsCalculator.get_rolling_returns_series``
+    against the SAME portfolio growth series used by every other section — no
+    new NAV fetches, no second return calculation, no interpolation. Windows
+    are omitted (None) only when their data cannot be computed; the overall
+    ``portfolio_cagr`` comes from the existing ``metrics.cagr`` so the two never
+    disagree.
+    """
+
+    portfolio_cagr: Optional[float] = None
+    one_year: Optional[RollingWindowResult] = None
+    three_year: Optional[RollingWindowResult] = None
+    five_year: Optional[RollingWindowResult] = None
+
+
 class PortfolioAnalysisResult(BaseModel):
     funds: list[PortfolioFundResult]
     metrics: PortfolioMetricsData
@@ -175,6 +225,10 @@ class PortfolioAnalysisResult(BaseModel):
     # Additive Drawdown & Recovery analysis; derived from the existing growth
     # series. None only when the series itself is unusable.
     drawdown_recovery: Optional["DrawdownRecoveryData"] = None
+    # Additive Rolling Performance & Consistency. Each window reuses the existing
+    # MetricsCalculator.get_rolling_returns_series on the same portfolio growth
+    # series. None only when the series itself is unusable.
+    rolling_performance: Optional[RollingPerformanceData] = None
 
 
 # ---------------------------------------------------------------------------

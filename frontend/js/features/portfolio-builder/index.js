@@ -368,6 +368,7 @@ function renderAnalysis(result) {
     setAnalysisView('results');
     renderGrowthChart(series, bd);
     renderBenchmarkComparison(bd);
+    renderRollingPerformance(result);
     renderDrawdownRecovery(result);
     renderReturnContribution(result);
 }
@@ -1203,6 +1204,178 @@ function renderHealthScore(healthScore) {
                 toggleWhyPanel(btn, panel, function () { return componentExplanationHtml(key); });
             });
         })(compBtns[bi]);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Rolling Performance & Consistency (additive analysis)
+// Renders rolling 1Y/3Y/5Y CAGR from the backend-derived rolling_performance
+// data, which reuses MetricsCalculator.get_rolling_returns_series on the SAME
+// portfolio growth series as every other section. One rolling-CAGR series is
+// shown at a time via a period selector. No new data or calculation engine.
+// ---------------------------------------------------------------------------
+
+let rollingChart = null;
+
+function destroyRollingChart() {
+    if (rollingChart) {
+        rollingChart.destroy();
+        rollingChart = null;
+    }
+}
+
+function _rollingInsight(positivePct) {
+    if (positivePct == null || !Number.isFinite(positivePct)) return null;
+    if (positivePct >= 90) return 'Most historical rolling periods were positive.';
+    if (positivePct >= 50) return 'Historical rolling returns were positive in a majority of periods, but losses occurred in some periods.';
+    return 'Historical rolling returns were positive in fewer than half of the measured periods.';
+}
+
+function _formatStatPct(v) {
+    if (v == null || !Number.isFinite(v)) return 'N/A';
+    return formatSignedPercent(v);
+}
+
+function _renderRpSummary(win) {
+    const s = win.data.summary;
+    const rows = [
+        { label: 'Median CAGR', value: _formatStatPct(s.median) },
+        { label: 'Average CAGR', value: _formatStatPct(s.avg) },
+        { label: 'Best Period', value: _formatStatPct(s.max) },
+        { label: 'Worst Period', value: _formatStatPct(s.min) },
+        { label: 'Positive Periods', value: (s.positive_pct != null && Number.isFinite(s.positive_pct)) ? s.positive_pct.toFixed(0) + '%' : 'N/A' },
+        { label: 'Observations', value: String(s.count) },
+    ];
+    const items = rows.map(function (r) {
+        return '<div class="pb-rp-stat"><span class="pb-rp-stat-label">' + escapeHtml(r.label) + '</span>'
+            + '<span class="pb-rp-stat-value">' + escapeHtml(r.value) + '</span></div>';
+    }).join('');
+    return '<div class="pb-rp-summary"><div class="pb-rp-summary-title">' + escapeHtml(win.label) + ' Rolling Returns</div>'
+        + '<div class="pb-rp-stats">' + items + '</div></div>';
+}
+
+function _renderRollingChartCanvas(winData) {
+    const canvas = $('pb-rolling-chart');
+    if (!canvas || !winData || !Array.isArray(winData.dates) || !Array.isArray(winData.returns)) return;
+    destroyRollingChart();
+    const labels = winData.dates;
+    const dataPct = winData.returns.map(function (r) { return +(r * 100).toFixed(4); });
+    rollingChart = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: { labels: labels, datasets: [{
+            label: 'Rolling CAGR (%)', data: dataPct, borderColor: '#2563eb',
+            backgroundColor: 'rgba(37,99,235,0.12)', fill: true, tension: 0.2,
+            pointRadius: 0, pointHitRadius: 6, borderWidth: 2,
+        }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: false }, tooltip: { callbacks: {
+                title: function (items) { return items[0] ? ('Date: ' + items[0].label) : ''; },
+                label: function (item) {
+                    const v = item.parsed.y;
+                    const sign = v >= 0 ? '+' : '\u2212';
+                    return 'Rolling CAGR: ' + sign + Math.abs(v).toFixed(2) + '%';
+                },
+            } } },
+            scales: {
+                x: { ticks: { maxTicksLimit: 6, color: '#6b7280', font: { size: 10 } }, grid: { display: false } },
+                y: { ticks: { color: '#6b7280', font: { size: 10 }, callback: function (v) { return (v >= 0 ? '+' : '') + v + '%'; } }, grid: { color: '#e5e7eb' } },
+            },
+        },
+    });
+}
+
+function renderRollingPerformance(result) {
+    const el = $('pb-rolling-performance');
+    if (!el) return;
+    const rp = result && result.rolling_performance;
+
+    destroyRollingChart();
+
+    if (!rp || (!rp.one_year && !rp.three_year && !rp.five_year)) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    const windows = [
+        { key: 'one_year', years: 1, label: '1 Year', data: rp.one_year },
+        { key: 'three_year', years: 3, label: '3 Years', data: rp.three_year },
+        { key: 'five_year', years: 5, label: '5 Years', data: rp.five_year },
+    ];
+    const available = windows.filter(function (w) { return w.data && !w.data.insufficient_history && w.data.summary; });
+    if (!available.length) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    const parts = [];
+    parts.push('<div class="pb-rc-title">Rolling Performance</div>');
+    parts.push('<div class="pb-rc-subtitle">See how consistently this portfolio has generated returns across different rolling periods.</div>');
+
+    if (rp.portfolio_cagr != null && Number.isFinite(rp.portfolio_cagr)) {
+        parts.push('<div class="pb-rc-note" style="margin-bottom:10px">'
+            + '<strong>Portfolio CAGR</strong> &mdash; the annualized return over the entire selected analysis period: '
+            + formatSignedPercent(rp.portfolio_cagr) + '. '
+            + '<strong>Rolling CAGR</strong> &mdash; the annualized return measured across many overlapping historical windows.</div>');
+    }
+
+    const buttons = available.map(function (w, idx) {
+        const cls = idx === 0 ? 'pb-rp-btn pb-rp-active' : 'pb-rp-btn';
+        return '<button type="button" class="' + cls + '" data-years="' + w.years + '">' + w.label + '</button>';
+    }).join('');
+    parts.push('<div class="pb-rp-selector">' + buttons + '</div>');
+    parts.push('<div class="pb-rp-chart-container"><canvas id="pb-rolling-chart"></canvas></div>');
+    parts.push(_renderRpSummary(available[0]));
+
+    const insight = available[0].data.summary ? _rollingInsight(available[0].data.summary.positive_pct) : null;
+    if (insight) parts.push('<div class="pb-rp-insight">' + escapeHtml(insight) + '</div>');
+
+    parts.push('<div class="pb-rc-note">'
+        + 'Rolling returns are calculated from the portfolio\'s existing daily-return methodology over the common analysis period. '
+        + 'Each point is the annualized return over the preceding window. '
+        + 'Historical rolling performance does not predict future returns.</div>');
+
+    el.innerHTML = parts.join('');
+    el.classList.remove('hidden');
+
+    _renderRollingChartCanvas(available[0].data);
+
+    const selector = el.querySelector('.pb-rp-selector');
+    if (selector) {
+        selector.addEventListener('click', function (ev) {
+            const btn = ev.target.closest('.pb-rp-btn');
+            if (!btn) return;
+            const years = parseInt(btn.getAttribute('data-years'), 10);
+            const win = windows.find(function (w) { return w.years === years; });
+            if (!win || !win.data || win.data.insufficient_history || !win.data.summary) return;
+
+            const allBtns = selector.querySelectorAll('.pb-rp-btn');
+            for (let i = 0; i < allBtns.length; i++) {
+                allBtns[i].classList.toggle('pb-rp-active', allBtns[i] === btn);
+            }
+
+            const existingSummary = el.querySelector('.pb-rp-summary');
+            const existingInsight = el.querySelector('.pb-rp-insight');
+            if (existingSummary) existingSummary.remove();
+            if (existingInsight) existingInsight.remove();
+
+            const insertRef = el.querySelector('.pb-rc-note');
+            const summaryNode = document.createElement('div');
+            summaryNode.innerHTML = _renderRpSummary(win);
+            const newInsight = _rollingInsight(win.data.summary.positive_pct);
+            const insightNode = document.createElement('div');
+            insightNode.className = 'pb-rp-insight';
+            if (newInsight) insightNode.textContent = newInsight;
+
+            if (insertRef && insertRef.parentNode) {
+                if (newInsight) insertRef.parentNode.insertBefore(insightNode, insertRef);
+                insertRef.parentNode.insertBefore(summaryNode.firstElementChild, newInsight ? insightNode : insertRef);
+            }
+            _renderRollingChartCanvas(win.data);
+        });
     }
 }
 

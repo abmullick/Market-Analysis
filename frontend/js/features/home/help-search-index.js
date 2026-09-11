@@ -411,6 +411,14 @@ export const HELP_SEARCH_INDEX = [
         aliases: ["what is drawdown", "how long did recovery take", "portfolio declines", "ongoing drawdown"],
     },
     {
+        id: "pb-rolling-performance",
+        type: "card",
+        heading: "Rolling Performance",
+        sectionHeading: "Mutual Fund Portfolio Builder",
+        keywords: ["rolling return", "rolling CAGR", "rolling performance", "consistency", "rolling returns", "1 year rolling return", "3 year rolling return", "5 year rolling return", "average rolling CAGR", "median rolling CAGR", "best rolling period", "worst rolling period", "positive rolling periods", "rolling window"],
+        aliases: ["rolling returns", "historical rolling performance", "rolling CAGR", "consistency of returns", "how consistent are returns"],
+    },
+    {
         id: "pb-return-contribution",
         type: "card",
         heading: "Return Contribution",

@@ -31,6 +31,9 @@ from backend.models.portfolio import (
     PortfolioAnalysisResult,
     PortfolioSeriesPoint,
     ReturnContributionData,
+    RollingPerformanceData,
+    RollingWindowResult,
+    RollingWindowSummary,
 )
 from backend.services.mutual_funds.calculator import MetricsCalculator
 from backend.services.portfolio.health_score import calculate_health_score
@@ -433,6 +436,54 @@ def calculate_portfolio_analysis(
         reconciliation_difference=total_contribution - total_return,
     )
 
+    # --- Rolling Performance & Consistency ----------------------------------
+    # Reuse the existing MetricsCalculator.get_rolling_returns_series on the
+    # SAME portfolio growth series already built above. That method already
+    # computes annualized CAGR for every eligible rolling observation using the
+    # same date-alignment convention as the rolling-consistency/Health Score
+    # calculation (closest published observation not later than the target start
+    # date, no interpolation, no forward fill). Calling it here does NOT alter
+    # the Health Score — the Health Score continues to use
+    # ``_rolling_consistency`` unchanged. We only read more of the same
+    # underlying series (per-window dates + full summary) for the UI.
+    rolling_performance: Optional[RollingPerformanceData] = None
+    try:
+        rp_1y = calculator.get_rolling_returns_series(1)
+        rp_3y = calculator.get_rolling_returns_series(3)
+        rp_5y = calculator.get_rolling_returns_series(5)
+
+        def _to_window(result: dict, years: int) -> RollingWindowResult:
+            s = result.get("summary")
+            return RollingWindowResult(
+                window_years=years,
+                dates=list(result.get("dates") or []),
+                returns=list(result.get("returns") or []),
+                summary=(
+                    RollingWindowSummary(
+                        count=s["count"],
+                        avg=s["avg"],
+                        median=s["median"],
+                        min=s["min"],
+                        max=s["max"],
+                        positive_pct=s["positive_pct"],
+                        std_dev=s.get("std_dev"),
+                    )
+                    if s is not None
+                    else None
+                ),
+                insufficient_history=bool(result.get("insufficient_history")),
+            )
+
+        rolling_performance = RollingPerformanceData(
+            portfolio_cagr=cagr,
+            one_year=_to_window(rp_1y, 1),
+            three_year=_to_window(rp_3y, 3),
+            five_year=_to_window(rp_5y, 5),
+        )
+    except Exception as e:  # noqa: BLE001 — never fail the whole analysis
+        logger.warning("Rolling performance calculation skipped: %s", e)
+        rolling_performance = None
+
     fund_results = []
     for f in funds:
         code = f["scheme_code"].strip()
@@ -475,6 +526,9 @@ def calculate_portfolio_analysis(
         # Additive Drawdown & Recovery: same growth series as the existing
         # Maximum Drawdown metric (see calculate_drawdown_recovery).
         drawdown_recovery=calculate_drawdown_recovery(growth),
+        # Additive Rolling Performance & Consistency: reuses the same
+        # calculator/growth series as every other section. None only on error.
+        rolling_performance=rolling_performance,
     )
     analysis_result.health_score = calculate_health_score(analysis_result)
 
