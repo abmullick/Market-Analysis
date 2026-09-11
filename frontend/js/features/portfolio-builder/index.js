@@ -368,6 +368,7 @@ function renderAnalysis(result) {
     setAnalysisView('results');
     renderGrowthChart(series, bd);
     renderBenchmarkComparison(bd);
+    renderReturnContribution(result);
 }
 
 function renderGrowthChart(series, bd) {
@@ -562,11 +563,109 @@ function benchmarkBlock(title, benchCagrLabel, portfolioCagr, benchmarkCagr, out
         + '</div>'
         + '</div>';
 }
+// ---------------------------------------------------------------------------
+// Return Contribution (additive performance attribution)
+// Renders the backend-computed per-fund contributions to the portfolio's
+// total return. No calculations are duplicated in JavaScript: the backend
+// derives contributions inside the existing daily-return pipeline and they
+// reconcile to the portfolio's total return (see Help & Methodology).
+// ---------------------------------------------------------------------------
+
+// Signed percent for a fraction: 0.214 -> "+21.40%", -0.085 -> "\u22128.50%".
+function formatSignedPercent(v) {
+    if (v == null || !Number.isFinite(v)) return 'N/A';
+    const pct = v * 100;
+    if (pct === 0) return '0.00%';
+    return (pct > 0 ? '+' : '\u2212') + Math.abs(pct).toFixed(2) + '%';
+}
+
+function renderReturnContribution(result) {
+    const el = $('pb-return-contribution');
+    if (!el) return;
+    const rc = result && result.return_contribution;
+    const items = rc && Array.isArray(rc.contributions) ? rc.contributions : [];
+    if (!items.length) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    // Backend sorts by contribution descending (largest positive first,
+    // negative contributors last); render in that order.
+    const maxAbs = Math.max.apply(null, items.map(function (i) { return Math.abs(i.contribution); })) || 1;
+    const top = items[0];
+    const bottom = items[items.length - 1];
+
+    const parts = [];
+    parts.push('<div class="pb-rc-title">Return Contribution</div>');
+    parts.push('<div class="pb-rc-subtitle">See how each fund contributed to the portfolio\'s overall return.</div>');
+
+    // Deterministic summary chips (no AI commentary). "Largest Drag" only
+    // when a fund actually detracted from performance.
+    const chips = [];
+    if (top && top.contribution > 0) {
+        chips.push('<div class="pb-rc-chip"><span class="pb-rc-chip-label">Top Contributor</span>'
+            + '<span class="pb-rc-chip-value pb-rc-pos">' + escapeHtml(top.scheme_name || top.scheme_code)
+            + ' \u00b7 ' + formatSignedPp(top.contribution) + '</span></div>');
+    }
+    if (bottom && bottom.contribution < 0) {
+        chips.push('<div class="pb-rc-chip"><span class="pb-rc-chip-label">Largest Drag</span>'
+            + '<span class="pb-rc-chip-value pb-rc-neg">' + escapeHtml(bottom.scheme_name || bottom.scheme_code)
+            + ' \u00b7 ' + formatSignedPp(bottom.contribution) + '</span></div>');
+    }
+    if (chips.length) parts.push('<div class="pb-rc-summary">' + chips.join('') + '</div>');
+
+    // Compact horizontal bars, proportional to |contribution|; positive and
+    // negative are visually distinguishable via the app's semantic colors.
+    const bars = items.map(function (it) {
+        const cls = it.contribution >= 0 ? 'pb-rc-pos' : 'pb-rc-neg';
+        const width = Math.max((Math.abs(it.contribution) / maxAbs) * 100, 1.5);
+        const name = it.scheme_name || it.scheme_code;
+        return ''
+            + '<div class="pb-rc-row">'
+            + '<div class="pb-rc-label" title="' + escapeAttr(name) + '">'
+            + '<span class="pb-rc-name">' + escapeHtml(name) + '</span>'
+            + (it.scheme_name ? '<span class="pb-rc-code">' + escapeHtml(it.scheme_code) + '</span>' : '')
+            + '</div>'
+            + '<div class="pb-rc-track"><div class="pb-rc-bar ' + cls + '" style="width:' + width.toFixed(2) + '%"></div></div>'
+            + '<div class="pb-rc-value ' + cls + '">' + formatSignedPp(it.contribution) + '</div>'
+            + '</div>';
+    }).join('');
+    parts.push('<div class="pb-rc-bars">' + bars + '</div>');
+
+    // Compact table. Fund names are primary; scheme codes stay secondary.
+    const rows = items.map(function (it) {
+        const cls = it.contribution >= 0 ? 'pb-rc-pos' : 'pb-rc-neg';
+        const name = it.scheme_name || it.scheme_code;
+        return ''
+            + '<tr>'
+            + '<td class="pb-rc-fund-cell"><span class="pb-rc-name">' + escapeHtml(name) + '</span>'
+            + (it.scheme_name ? '<span class="pb-rc-code">' + escapeHtml(it.scheme_code) + '</span>' : '')
+            + '</td>'
+            + '<td>' + formatPct(it.allocation) + '</td>'
+            + '<td>' + formatSignedPercent(it.fund_return) + '</td>'
+            + '<td class="' + cls + '">' + formatSignedPp(it.contribution) + '</td>'
+            + '</tr>';
+    }).join('');
+    parts.push(
+        '<table class="pb-rc-table">'
+        + '<thead><tr><th>Fund</th><th>Allocation</th><th>Fund Return</th><th>Contribution</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody>'
+        + '</table>'
+    );
+
+    parts.push('<div class="pb-rc-note">'
+        + 'Contributions are derived from each fund\'s target allocation and daily returns over the portfolio\'s common analysis period. '
+        + 'Sorted largest positive contribution first; they reconcile to the portfolio\'s overall return within rounding tolerance.</div>');
+
+    el.innerHTML = parts.join('');
+    el.classList.remove('hidden');
+}
+
 function render() {
     const panel = $('pb-panel');
     const empty = $('pb-empty');
     const countEl = $('pb-count');
-
     if (!state.funds.length) {
         if (panel) panel.classList.add('hidden');
         if (empty) empty.classList.remove('hidden');

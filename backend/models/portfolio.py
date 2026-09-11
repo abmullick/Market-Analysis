@@ -71,6 +71,51 @@ class PortfolioMetricsData(BaseModel):
     years: Optional[float] = None
 
 
+class FundReturnContribution(BaseModel):
+    """Single fund's contribution to the portfolio's total return.
+
+    ``contribution`` is a decimal expressed in portfolio-return percentage
+    points (e.g. ``0.0524`` = +5.24 pp). It is derived from the existing
+    constant-target-weight, daily-rebalanced portfolio methodology:
+
+        contribution_i = sum_t w_i * r_i(t) * V(t-1)
+
+    where ``V(t-1)`` is the portfolio's cumulative growth factor just before
+    day ``t``. Contributions are therefore additive and reconcile exactly to
+    the portfolio's total return over the common analysis period. They are
+    intentionally NOT ``allocation x fund total return`` (which ignores
+    compounding and daily rebalancing).
+
+    ``contribution_percentage`` is the fund's share of the total positive
+    contribution (for positive contributors) or of the total negative
+    contribution (for negative contributors). It is ``None`` when that
+    denominator is zero or undefined — never fabricated.
+    """
+
+    scheme_code: str
+    scheme_name: Optional[str] = None
+    allocation: float
+    fund_return: float
+    contribution: float
+    contribution_percentage: Optional[float] = None
+
+
+class ReturnContributionData(BaseModel):
+    """Additive Return Contribution (performance attribution) section.
+
+    Computed inside the existing portfolio daily-return pipeline using only
+    data already available there (common dates, target weights, fund daily
+    returns, cumulative growth factor). ``total_contribution`` equals the
+    portfolio's total return up to float rounding; the residual is reported
+    in ``reconciliation_difference``.
+    """
+
+    contributions: list[FundReturnContribution] = []
+    total_contribution: float = 0.0
+    portfolio_return: Optional[float] = None
+    reconciliation_difference: float = 0.0
+
+
 class PortfolioAnalysisResult(BaseModel):
     funds: list[PortfolioFundResult]
     metrics: PortfolioMetricsData
@@ -83,6 +128,9 @@ class PortfolioAnalysisResult(BaseModel):
     health_score: Optional["HealthScoreData"] = None
     # Additive Phase 2E Portfolio-vs-Benchmark comparison (None → not computed).
     benchmark_data: Optional["BenchmarkData"] = None
+    # Additive Return Contribution (performance attribution); always populated
+    # on a successful analysis. Purely derived from the existing pipeline.
+    return_contribution: Optional[ReturnContributionData] = None
 
 
 # ---------------------------------------------------------------------------

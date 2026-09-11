@@ -23,10 +23,12 @@ from typing import Any
 
 from backend.models.mutual_fund import NAVRecord
 from backend.models.portfolio import (
+    FundReturnContribution,
     PortfolioFundResult,
     PortfolioMetricsData,
     PortfolioAnalysisResult,
     PortfolioSeriesPoint,
+    ReturnContributionData,
 )
 from backend.services.mutual_funds.calculator import MetricsCalculator
 from backend.services.portfolio.health_score import calculate_health_score
@@ -190,7 +192,26 @@ def calculate_portfolio_analysis(
     }
 
     # --- Weighted daily returns (constant target weights, rebalanced) ------
+    # The same loop accumulates each fund's Return Contribution (additive
+    # performance attribution). Methodology — consistent with this module's
+    # constant-target-weight, daily-rebalanced portfolio construction:
+    #
+    #     fund_daily_contribution(i, t) = w_i * r_i(t) * V(t-1)
+    #
+    # where w_i is the fund's constant target weight, r_i(t) its daily return
+    # over the common dates, and V(t-1) the portfolio's cumulative growth
+    # factor just before day t (V(0) = 1). Because the portfolio daily return
+    # is R_p(t) = sum_i w_i * r_i(t), the contributions telescope exactly:
+    #
+    #     sum_i contribution_i = sum_t R_p(t) * V(t-1) = V(T) - 1
+    #
+    # i.e. the sum of fund contributions equals the portfolio's total return
+    # over the common analysis period (up to float rounding). This is
+    # intentionally NOT "allocation x fund total return": that shortcut
+    # ignores compounding and daily rebalancing and would not reconcile.
     daily_returns: list[tuple[str, float]] = []
+    growth_factor = 1.0  # cumulative portfolio growth factor V(t-1), base 1
+    contributions: dict[str, float] = {code: 0.0 for code in weights}
     for prev_date, date in zip(common_dates, common_dates[1:]):
         weighted = 0.0
         for code, weight in weights.items():
@@ -200,8 +221,11 @@ def calculate_portfolio_analysis(
                     "invalid_nav_data",
                     f"Non-positive NAV for {code} on {prev_date}.",
                 )
-            weighted += weight * (nav_by_date[code][date] / prev_nav - 1)
+            fund_daily = nav_by_date[code][date] / prev_nav - 1
+            weighted += weight * fund_daily
+            contributions[code] += weight * fund_daily * growth_factor
         daily_returns.append((date, weighted))
+        growth_factor *= 1.0 + weighted
 
     # --- Portfolio growth series (base 100) --------------------------------
     start_date = common_dates[0]
@@ -238,6 +262,57 @@ def calculate_portfolio_analysis(
         end_date=growth[-1].date,
         observations=len(common_dates),
         years=years,
+    )
+
+    # --- Return Contribution (additive performance attribution) ------------
+    # Built entirely from data already computed above: same common dates,
+    # same target weights, same daily returns, same growth factor. No
+    # additional NAV fetches and no second date-alignment implementation.
+    # Zero-allocation funds are excluded, consistent with their exclusion
+    # from all portfolio calculations (a warning already names them).
+    positive_total = sum(c for c in contributions.values() if c > 0)
+    negative_total = sum(c for c in contributions.values() if c < 0)
+    scheme_names = {
+        f["scheme_code"].strip(): (str(f.get("scheme_name") or "").strip() or None)
+        for f in funds
+    }
+    contribution_entries: list[FundReturnContribution] = []
+    for f in contributing:
+        code = f["scheme_code"].strip()
+        fund_navs = nav_by_date[code]
+        # Fund return over the same common analysis period (standalone — NOT
+        # the same quantity as its contribution to the portfolio return).
+        fund_return = fund_navs[common_dates[-1]] / fund_navs[common_dates[0]] - 1
+        c = contributions[code]
+        # Share of the total positive (or total negative) contribution, only
+        # when that denominator is meaningful; None otherwise — never a
+        # fabricated percentage (e.g. all-flat portfolios).
+        if c > 0 and positive_total > 0:
+            share = c / positive_total
+        elif c < 0 and negative_total < 0:
+            share = c / abs(negative_total)
+        else:
+            share = None
+        contribution_entries.append(
+            FundReturnContribution(
+                scheme_code=code,
+                scheme_name=scheme_names.get(code),
+                allocation=float(f["allocation"]),
+                fund_return=fund_return,
+                contribution=c,
+                contribution_percentage=share,
+            )
+        )
+    # Largest positive contributors first, negative contributors last —
+    # descending by contribution makes the ordering obvious and stable.
+    contribution_entries.sort(key=lambda e: e.contribution, reverse=True)
+    total_contribution = sum(contributions.values())
+    return_contribution = ReturnContributionData(
+        contributions=contribution_entries,
+        total_contribution=total_contribution,
+        portfolio_return=total_return,
+        # Zero by construction (telescoping sum); reports float-rounding noise.
+        reconciliation_difference=total_contribution - total_return,
     )
 
     fund_results = []
@@ -278,6 +353,7 @@ def calculate_portfolio_analysis(
         series=[PortfolioSeriesPoint(date=n.date, value=n.nav) for n in growth],
         warnings=warnings,
         rolling_consistency=rolling_consistency,
+        return_contribution=return_contribution,
     )
     analysis_result.health_score = calculate_health_score(analysis_result)
 

@@ -403,6 +403,14 @@ export const HELP_SEARCH_INDEX = [
         aliases: ["portfolio allocation", "portfolio analysis"],
     },
     {
+        id: "pb-return-contribution",
+        type: "card",
+        heading: "Return Contribution",
+        sectionHeading: "Mutual Fund Portfolio Builder",
+        keywords: ["return contribution", "attribution", "performance attribution", "contribution", "which funds contributed", "percentage points", "drag", "top contributor"],
+        aliases: ["what is return contribution", "which fund contributed most", "fund contribution to portfolio return"],
+    },
+    {
         id: "data-sources-caching",
         type: "section",
         heading: "Data Sources & Caching",

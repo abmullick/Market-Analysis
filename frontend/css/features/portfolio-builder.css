@@ -970,3 +970,190 @@
         padding: 10px 12px;
     }
 }
+
+/* ------------------------------------------------------------------------
+   Return Contribution (additive performance attribution)
+   Compact bars + table under the benchmark comparison. Follows the
+   benchmark section's design language (surface card, semantic colors).
+   ------------------------------------------------------------------------ */
+#pb-return-contribution {
+    margin-top: 16px;
+}
+
+.pb-rc-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-bottom: 4px;
+}
+
+.pb-rc-subtitle {
+    font-size: 0.75rem;
+    color: var(--color-text-light);
+    margin-bottom: 10px;
+}
+
+.pb-rc-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.pb-rc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    padding: 6px 10px;
+    font-size: 0.75rem;
+}
+
+.pb-rc-chip-label {
+    color: var(--color-text-light);
+    font-weight: 600;
+}
+
+.pb-rc-chip-value {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.pb-rc-pos {
+    color: var(--color-green-600, #16a34a);
+}
+
+.pb-rc-neg {
+    color: var(--color-red-600);
+}
+
+.pb-rc-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.pb-rc-row {
+    display: grid;
+    grid-template-columns: minmax(140px, 260px) 1fr 84px;
+    align-items: center;
+    gap: 10px;
+}
+
+.pb-rc-label {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+}
+
+.pb-rc-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pb-rc-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.6875rem;
+    color: var(--color-slate-400);
+}
+
+.pb-rc-track {
+    height: 10px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+}
+
+.pb-rc-bar {
+    height: 100%;
+    border-radius: var(--radius-pill);
+    min-width: 2px;
+}
+
+.pb-rc-bar.pb-rc-pos {
+    background: var(--color-green-500, #10b981);
+}
+
+.pb-rc-bar.pb-rc-neg {
+    background: var(--color-red-500);
+}
+
+.pb-rc-value {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.pb-rc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    margin-bottom: 10px;
+}
+
+.pb-rc-table th,
+.pb-rc-table td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.pb-rc-table th {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-light);
+}
+
+.pb-rc-table th:nth-child(n + 2),
+.pb-rc-table td:nth-child(n + 2) {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.pb-rc-fund-cell {
+    min-width: 0;
+    max-width: 320px;
+}
+
+.pb-rc-fund-cell .pb-rc-name {
+    display: block;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.pb-rc-fund-cell .pb-rc-code {
+    display: block;
+}
+
+.pb-rc-note {
+    font-size: 0.75rem;
+    color: var(--color-text-light);
+}
+
+@media (max-width: 640px) {
+    .pb-rc-row {
+        grid-template-columns: minmax(110px, 1fr) 1fr 76px;
+        gap: 8px;
+    }
+
+    .pb-rc-table {
+        font-size: 0.75rem;
+    }
+
+    .pb-rc-table th,
+    .pb-rc-table td {
+        padding: 5px 4px;
+    }
+}
