@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Portfolio Builder | Market Analysis</title>
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/features/portfolio-builder.css">
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-left">
+            <img src="/static/images/m_analysis.png" alt="Market Analysis" class="logo">
+            <h1>Stock Portfolio Builder</h1>
+        </div>
+        <nav id="main-nav"></nav>
+    </header>
+    <main class="container">
+        <div class="page-header">
+            <div id="stock-portfolio-builder-content">
+                <div class="pb-page-header-text">
+                    <h1 class="mf-page-title">Stock Portfolio Builder</h1>
+                    <p class="mf-page-subtitle">Build and analyze your stock portfolio.</p>
+                </div>
+                <div class="pb-stage">
+                    <section class="pb-panel">
+                        <div class="pb-panel-header">
+                            <h2 class="pb-panel-title">Coming Soon</h2>
+                        </div>
+                        <p>Stock Portfolio Builder is coming soon.</p>
+                        <p class="pb-page-note">Stock portfolio construction and analysis functionality will arrive in a later phase.</p>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </main>
+    <a href="/help.html" class="help-link" title="Help & Methodology">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <span>Help & Methodology</span>
+    </a>
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p>
+        </div>
+    </footer>
+    <script type="module" src="/js/core/config.js"></script>
+    <script type="module" src="/js/core/navigation.js"></script>
+    <script type="module">
+        import { initNavigation } from '/js/core/navigation.js';
+        initNavigation();
+    </script>
+</body>
+</html>

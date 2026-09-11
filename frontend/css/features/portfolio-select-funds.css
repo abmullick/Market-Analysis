@@ -1,0 +1,568 @@
+/* ============================================
+   Portfolio Select Funds - Page Styles
+   Reuses tokens from base.css, layout.css, components.css
+   ============================================ */
+
+/* Page header text */
+.pfs-page-header-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.pfs-page-header-text .mf-page-title {
+    margin-bottom: 4px;
+}
+
+.pfs-page-header-text .mf-page-subtitle {
+    color: var(--color-text-light);
+    max-width: 60ch;
+}
+
+/* Search bar */
+.pfs-search-section {
+    margin-bottom: 24px;
+}
+
+.pfs-search-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 0 16px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pfs-search-bar:focus-within {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+}
+
+.pfs-search-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--color-text-light);
+    flex-shrink: 0;
+    margin-right: 12px;
+}
+
+.pfs-search-input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        padding: 14px 0;
+        font-size: 1rem;
+        font-family: var(--font-family);
+        color: var(--color-text);
+        outline: none;
+        min-width: 0;
+    }
+
+    .pfs-search-input::placeholder {
+        color: var(--color-text-light);
+    }
+
+    /* Filter dropdowns */
+    .pfs-filter-select {
+        margin-left: 12px;
+        padding: 8px 12px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: var(--color-surface);
+        color: var(--color-text);
+        font-size: 0.875rem;
+        font-family: var(--font-family);
+        min-width: 80px;
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .pfs-filter-select:focus {
+        border-color: var(--color-accent);
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+
+    .pfs-filter-select:hover {
+        border-color: var(--color-border);
+    }
+
+    .pfs-search-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-light);
+    cursor: pointer;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+
+.pfs-search-clear:hover {
+    background: var(--color-bg);
+    color: var(--color-primary);
+}
+
+.pfs-search-clear svg {
+    width: 16px;
+    height: 16px;
+}
+
+.pfs-search-status {
+    margin-top: 8px;
+    font-size: 0.875rem;
+    color: var(--color-text-light);
+    min-height: 1.2em;
+}
+
+.pfs-search-status-inline {
+    font-size: 0.875rem;
+    color: var(--color-success);
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    background: var(--color-green-50);
+    border: 1px solid var(--color-green-100);
+    border-radius: var(--radius-sm);
+}
+
+.pfs-results-section {
+    margin-bottom: 24px;
+}
+
+/* Empty state */
+.pfs-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 24px;
+    text-align: center;
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+}
+
+.pfs-empty-icon {
+    width: 48px;
+    height: 48px;
+    color: var(--color-text-light);
+    margin-bottom: 16px;
+}
+
+.pfs-empty-state h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-bottom: 8px;
+}
+
+.pfs-empty-state p {
+    color: var(--color-text-light);
+    max-width: 360px;
+    line-height: 1.6;
+}
+
+/* Layout */
+.pfs-layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 24px;
+    align-items: start;
+    padding-top: 24px;
+    max-width: min(1440px, 94vw);
+}
+
+.pfs-main {
+    min-width: 0;
+}
+
+.pfs-sidebar {
+    position: sticky;
+    top: 80px;
+}
+
+.pfs-sidebar h2 {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 12px;
+}
+
+/* Selected funds section */
+.pfs-selected-section {
+    margin-bottom: 16px;
+}
+
+.pfs-selected-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--color-text-light);
+    font-size: 0.875rem;
+    background: var(--color-surface);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.pfs-selected-empty-hint {
+    font-size: 0.75rem;
+    color: var(--color-slate-400);
+    margin-top: 4px;
+}
+
+.pfs-selected-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pfs-selected-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 10px;
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+}
+
+.pfs-selected-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.pfs-selected-item-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pfs-selected-item-meta {
+    font-size: 0.75rem;
+    color: var(--color-text-light);
+}
+
+.pfs-selected-item-code {
+    font-size: 0.75rem;
+    color: var(--color-text-light);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    flex-shrink: 0;
+}
+
+.pfs-btn-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-light);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.pfs-btn-remove:hover {
+    background: var(--color-red-50);
+    color: var(--color-red-600);
+}
+
+.pfs-btn-remove svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Continue section */
+.pfs-continue-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--color-border);
+}
+
+.pfs-continue-btn {
+    display: inline-flex;
+}
+
+.pfs-continue-hint {
+    margin-top: 8px;
+    font-size: 0.8125rem;
+    color: var(--color-text-light);
+}
+
+.pfs-continue-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Fund list */
+.pfs-fund-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+}
+
+.pfs-fund-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 14px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pfs-fund-card:hover {
+    border-color: var(--color-border);
+    box-shadow: var(--btn-shadow);
+}
+
+.pfs-fund-card.selected {
+    border-color: var(--color-success);
+    background: var(--color-green-50);
+}
+
+.pfs-fund-info {
+    min-width: 0;
+}
+
+.pfs-fund-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    line-height: 1.35;
+    margin-bottom: 6px;
+    overflow-wrap: break-word;
+}
+
+/* Legacy/retired scheme badge — AMFI-reported stale NAV date (Phase 2D.4). */
+.pfs-fund-legacy-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 3px 8px;
+    border-radius: var(--radius-sm, 4px);
+    background: var(--color-amber-100);
+    color: var(--color-gold-700);
+    border: 1px solid var(--color-gold-600);
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.pfs-fund-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 0.8125rem;
+    color: var(--color-text-light);
+}
+
+.pfs-fund-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pfs-fund-meta-label {
+    color: var(--color-text-light);
+    font-weight: 500;
+}
+
+.pfs-fund-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Add button */
+.pfs-btn-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: var(--font-family);
+    background: var(--color-primary);
+    color: #ffffff;
+    border: 1px solid transparent;
+    cursor: pointer;
+    box-shadow: var(--btn-shadow);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+}
+
+.pfs-btn-add:hover {
+    background: var(--color-primary-light);
+    transform: translateY(-1px);
+    box-shadow: var(--btn-shadow-hover);
+}
+
+.pfs-btn-add:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: var(--btn-shadow-active);
+    transition: all 0.1s ease;
+}
+
+.pfs-btn-add:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.25), var(--btn-shadow);
+}
+
+.pfs-btn-add:disabled,
+.pfs-btn-add.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    animation: none;
+    box-shadow: none;
+    transform: none;
+}
+
+.pfs-btn-add.added {
+    background: var(--color-success);
+    animation: none;
+}
+
+.pfs-btn-add.added:hover {
+    background: var(--color-green-600);
+}
+
+.pfs-btn-add svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* View details button */
+.pfs-btn-view {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: var(--font-family);
+    color: var(--color-accent);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+}
+
+.pfs-btn-view:hover {
+    background: var(--color-bg);
+    border-color: var(--color-border);
+    transform: translateY(-1px);
+    box-shadow: var(--btn-shadow);
+}
+
+.pfs-btn-view svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Loading & Error */
+.pfs-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    color: var(--color-text-light);
+    font-size: 0.875rem;
+}
+
+.pfs-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: pfs-spin 0.7s linear infinite;
+    margin-right: 8px;
+}
+
+@keyframes pfs-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.pfs-error {
+    padding: 12px 16px;
+    background: var(--color-red-50);
+    border: 1px solid var(--color-red-100);
+    border-radius: var(--radius-md);
+    color: var(--color-red-700);
+    font-size: 0.875rem;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .pfs-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .pfs-sidebar {
+        position: static;
+    }
+
+    .pfs-continue-section {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .pfs-continue-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 640px) {
+    .pfs-fund-card {
+        align-items: stretch;
+    }
+
+    .pfs-fund-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .pfs-fund-meta {
+        font-size: 0.75rem;
+        gap: 8px;
+    }
+
+    .pfs-fund-name {
+        font-size: 0.9375rem;
+    }
+}

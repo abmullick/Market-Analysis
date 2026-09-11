@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Funds | Portfolio Builder | Market Analysis</title>
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/features/mutual-fund-analysis.css">
+    <link rel="stylesheet" href="/css/features/portfolio-select-funds.css">
+    <script src="/static/vendor/chart.umd.min.js"></script>
+</head>
+<body data-page="portfolio-select-funds">
+    <header class="site-header">
+        <div class="header-left">
+            <img src="/static/images/m_analysis.png" alt="Market Analysis" class="logo">
+            <h1>Select Funds</h1>
+        </div>
+        <nav id="main-nav"></nav>
+    </header>
+    <main class="container">
+        <div class="page-header">
+            <div id="portfolio-select-funds-content">
+                <div class="pfs-page-header-text">
+                    <h1 class="mf-page-title">Select Funds</h1>
+                    <p class="mf-page-subtitle">Search and select the mutual funds you want to include in your portfolio.</p>
+                </div>
+                <div class="pfs-layout">
+                    <aside class="ranking-controls pfs-sidebar">
+                        <h2>Selected Funds <span id="pfs-selected-count"></span></h2>
+                        <div id="pfs-selected-empty" class="pfs-selected-empty">
+                            No funds selected yet.
+                            <div class="pfs-selected-empty-hint">Search results will appear here once you add funds.</div>
+                        </div>
+                        <div id="pfs-selected-section" class="pfs-selected-section hidden">
+                            <ul id="pfs-selected-list" class="pfs-selected-list"></ul>
+                        </div>
+                        <div id="pfs-continue-section" class="pfs-continue-section hidden">
+                            <a href="/portfolio-builder.html" class="btn btn-primary pfs-continue-btn" id="pfs-continue-btn" aria-disabled="true">
+                                Continue to Portfolio Builder
+                            </a>
+                            <p id="pfs-continue-hint" class="pfs-continue-hint">Select at least one fund to continue.</p>
+                        </div>
+                    </aside>
+                    <section class="ranking-results pfs-main">
+<div class="pfs-search-section">
+                <div class="pfs-search-bar">
+                    <svg class="pfs-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="search" id="pfs-search-input" class="pfs-search-input" placeholder="Search funds by name, scheme code, or AMC..." autocomplete="off" aria-label="Search mutual funds">
+                    <select id="pfs-fund-age-filter" class="pfs-filter-select" aria-label="Fund age filter">
+                        <option value="any" selected>Any age</option>
+                        <option value="1">1+ years</option>
+                        <option value="3">3+ years</option>
+                        <option value="5">5+ years</option>
+                        <option value="10">10+ years</option>
+                    </select>
+                    <select id="pfs-fund-status-filter" class="pfs-filter-select" aria-label="Fund status filter">
+                        <option value="all" selected>All</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                    <button id="pfs-search-clear" class="pfs-search-clear hidden" type="button" aria-label="Clear search">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                            <div id="pfs-search-status" class="pfs-search-status hidden" aria-live="polite"></div>
+                        </div>
+                        <div id="pfs-results-section" class="pfs-results-section" aria-live="polite"></div>
+                    </section>
+                </div>
+            </div>
+        </div>
+        <a href="help.html" class="help-link" title="Help &amp; Methodology">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span>Help &amp; Methodology</span>
+        </a>
+    </main>
+    <div id="fund-detail-modal" class="modal-container"></div>
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p>
+        </div>
+    </footer>
+    <script type="module" src="/js/core/config.js"></script>
+    <script type="module" src="/js/core/navigation.js"></script>
+    <script type="module" src="/js/core/utils.js"></script>
+    <script type="module" src="/js/components/modal.js"></script>
+    <script type="module" src="/js/components/loading.js"></script>
+    <script type="module" src="/js/features/portfolio-select-funds/index.js"></script>
+    <script type="module">
+        import { initNavigation } from '/js/core/navigation.js';
+        initNavigation();
+    </script>
+</body>
+</html>

@@ -145,12 +145,14 @@ def test_fetcher_get_nav_history(fetcher):
 def test_fetcher_search_schemes(fetcher):
     import asyncio
 
-    mock_raw = [
-        {"scheme_code": "1", "scheme_name": "Fund A", "amc": "AMC A", "category": "Equity"},
-        {"scheme_code": "2", "scheme_name": "Fund B", "amc": "AMC B", "category": "Debt"},
+    # Search now runs against the cached AMFI universe (get_all_schemes),
+    # not MFAPI /mf/search.
+    universe = [
+        MutualFund(scheme_code="1", scheme_name="Fund A", amc="AMC A", category="Equity"),
+        MutualFund(scheme_code="2", scheme_name="Fund B", amc="AMC B", category="Debt"),
     ]
-    with patch.object(fetcher.mfapi, "search_schemes", new_callable=AsyncMock, return_value=mock_raw):
-        results = asyncio.run(fetcher.search_schemes("test"))
+    with patch.object(fetcher, "get_all_schemes", new_callable=AsyncMock, return_value=universe):
+        results = asyncio.run(fetcher.search_schemes("fund"))
         assert len(results) == 2
         assert results[0].scheme_name == "Fund A"
 

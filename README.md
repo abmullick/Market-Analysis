@@ -1,6 +1,6 @@
 # Market Analysis
 
-Modular Indian stock-market analysis platform with three product areas: Stock Selection, Portfolio Analysis, and Mutual Fund Analysis.
+Modular Indian stock-market analysis platform with four product areas: Stock Analysis, Stock Portfolio Builder (coming soon), Mutual Fund Analysis, and Mutual Fund Portfolio Builder.
 
 ## Architecture
 
@@ -20,9 +20,10 @@ External Providers (Stoxim, Groq, MFAPI, TigZig)
 
 ### Product Modules
 
-- **Stock Selection** — Identify stocks using fundamental criteria and ranking strategies.
-- **Portfolio Analysis** — Upload/import a portfolio and analyze existing holdings.
+- **Stock Analysis** — Screen and rank Indian stocks using fundamental criteria and deterministic scoring strategies.
+- **Stock Portfolio Builder** — Coming soon. Stock portfolio construction and analysis is planned for a later phase.
 - **Mutual Fund Analysis** — Rank mutual funds by normalized multi-metric scoring, compare funds side-by-side, inspect fund details with NAV history, rolling returns, category-relative percentile analysis, drawdown analysis, and a rich ranking page with top-3 highlights, per-fund strengths/trade-offs, holistic AI Ranking Insights, and a transparent "How ranking works" methodology breakdown.
+- **Mutual Fund Portfolio Builder** — Select 2–10 mutual funds, assign allocations that total exactly 100%, run portfolio-level analysis, and review the additive Portfolio Health Score (0–100) with five weighted components and a history-based confidence tier.
 
 ### Key Principles
 
@@ -30,7 +31,7 @@ External Providers (Stoxim, Groq, MFAPI, TigZig)
 - **Deterministic scoring**: Numerical rankings are calculated independently of AI in `backend/services/stocks/` and `backend/services/mutual_funds/`.
 - **No hardcoded secrets**: All configuration comes from environment variables via `backend/config/settings.py`.
 - **Dependency direction**: Frontend → Routes → Services → Models → External Providers. Never reversed.
-- **Module isolation**: Stock Selection, Portfolio Analysis, and Mutual Fund Analysis do not depend on each other's business logic.
+- **Module isolation**: Stock Analysis, Mutual Fund Portfolio Builder, and Mutual Fund Analysis do not depend on each other's business logic.
 
 ### AI Insights
 - AI actions are interpretation-only. The deterministic ranking engine remains authoritative for metrics, scores, ranks, percentiles, screening, and weighting.
@@ -52,7 +53,11 @@ Market-Analysis/
 │   │   ├── index.html
 │   │   ├── stocks.html
 │   │   ├── portfolio.html
-│   │   └── mutual-funds.html
+│   │   ├── mutual-funds.html
+│   │   ├── portfolio-select-funds.html
+│   │   ├── portfolio-builder.html
+│   │   ├── stock-portfolio-builder.html
+│   │   └── help.html
 │   ├── js/
 │   │   ├── core/                   # API client, config, navigation, utilities
 │   │   │   ├── api.js
@@ -64,18 +69,24 @@ Market-Analysis/
 │   │   │   ├── filters.js
 │   │   │   ├── modal.js
 │   │   │   └── loading.js
-│       │   ├── features/               # Feature-specific logic
-│       │   │   ├── stock-selection/
-│       │   │   ├── portfolio-analysis/
-│       │   │   ├── mutual-fund-analysis/  # Ranking page + fund-detail modal + comparison
-│       │   │   │   ├── index.js          # Ranking page entry, controls, table, top-3, why-dialog
-│       │   │   │   ├── fund-detail.js    # Fund Details modal (sections, KPIs, N/A treatment)
-│       │   │   │   ├── ranking-ai-context.js  # Bounded ranking-level AI context
-│       │   │   │   ├── ranking-ai-request.js  # Ranking Insights API request
-│       │   │   │   ├── ranking-ai-response.js # Ranking Insights presentation
-│       │   │   │   ├── comparison/       # Compare Funds sub-modules (identity, KPI, chart, drawdown, rolling returns, performance summary, NAV history)
-│       │   │   │   └── fund-detail/      # Fund Details sub-modules (drawdown chart, holdings, category analysis)
-│       │   │   └── home/
+│   │   ├── features/               # Feature-specific logic
+│   │   │   ├── stock-analysis/
+│   │   │   ├── portfolio-builder/           # MF Portfolio Builder allocation UI
+│   │   │   │   └── index.js
+│   │   │   ├── portfolio-select-funds/      # MF fund search & selection
+│   │   │   │   └── index.js
+│   │   │   ├── mutual-fund-analysis/        # Ranking page + fund-detail modal + comparison
+│   │   │   │   ├── index.js                 # Ranking page entry, controls, table, top-3, why-dialog
+│   │   │   │   ├── fund-detail.js           # Fund Details modal (sections, KPIs, N/A treatment)
+│   │   │   │   ├── ranking-ai-context.js    # Bounded ranking-level AI context
+│   │   │   │   ├── ranking-ai-request.js    # Ranking Insights API request
+│   │   │   │   ├── ranking-ai-response.js   # Ranking Insights presentation
+│   │   │   │   ├── comparison/              # Compare Funds sub-modules (identity, KPI, chart, drawdown, rolling returns, performance summary, NAV history)
+│   │   │   │   └── fund-detail/             # Fund Details sub-modules (drawdown chart, holdings, category analysis)
+│   │   │   └── home/                        # Home page + Help search
+│   │   │       ├── index.js
+│   │   │       ├── help.js
+│   │   │       └── help-search-index.js
 │   │   └── pages/                  # Page initialization
 │   │       ├── stocks.js
 │   │       ├── portfolio.js
@@ -85,9 +96,12 @@ Market-Analysis/
 │       ├── layout.css
 │       ├── components.css
 │       └── features/
-│           ├── stock-selection.css
+│           ├── stock-analysis.css
 │           ├── portfolio-analysis.css
+│           ├── portfolio-builder.css
+│           ├── portfolio-select-funds.css
 │           ├── mutual-fund-analysis.css
+│           ├── help-search.css
 │           └── home.css
 │
 ├── backend/
@@ -103,11 +117,11 @@ Market-Analysis/
 │   │   │   ├── fundamentals.py
 │   │   │   ├── mfapi.py
 │   │   │   └── tigzig.py
-│   │   ├── stocks/                 # Stock Selection module
+│   │   ├── stocks/                 # Stock Analysis module
 │   │   │   └── screener.py
-│   │   ├── portfolio/              # Portfolio Analysis module
-│   │   │   ├── parser.py
-│   │   │   └── analysis.py
+│   │   ├── portfolio/              # Mutual Fund Portfolio Builder module
+│   │   │   ├── mf_analysis.py     # Portfolio-level analysis + Health Score
+│   │   │   └── health_score.py     # 0-100 Health Score (additive, no NAV fetching)
 │   │   ├── mutual_funds/           # Mutual Fund Analysis module
 │   │   │   ├── fetcher.py
 │   │   │   ├── calculator.py       # NAV → metrics (CAGR, vol, drawdown, etc.)
@@ -123,7 +137,7 @@ Market-Analysis/
 │   ├── models/                     # Data models
 │   │   ├── stock.py
 │   │   ├── fundamentals.py
-│   │   └── portfolio.py
+│   │   └── portfolio.py            # PortfolioAnalysisResult + HealthScoreData
 │   ├── utils/                      # Logging, validation
 │   │   ├── logging.py
 │   │   └── validation.py
@@ -136,8 +150,8 @@ Market-Analysis/
 │   └── raw/                        # Raw data from providers
 │
 ├── tests/
-│   ├── stocks/                     # Stock Selection tests
-│   ├── portfolio/                  # Portfolio Analysis tests
+│   ├── stocks/                     # Stock Analysis tests
+│   ├── portfolio/                  # Mutual Fund Portfolio Builder tests (analysis + health score)
 │   ├── mutual_funds/               # Mutual Fund Analysis tests
 │   ├── ai/                         # AI service tests
 │   └── data/                       # Data provider tests
@@ -189,7 +203,7 @@ pytest tests/
 
 ## Module Responsibilities
 
-### Stock Selection
+### Stock Analysis
 Owns screening criteria, scoring, ranking, and selection strategies. Consumes normalized fundamental data and produces ranked stock lists. Independent from portfolio analysis and mutual fund logic.
 
 **Allowed to depend on:**
@@ -200,16 +214,8 @@ Owns screening criteria, scoring, ranking, and selection strategies. Consumes no
 - `backend/services/portfolio/`
 - `backend/services/mutual_funds/`
 
-### Portfolio Analysis
-Owns portfolio upload, parsing, holdings, portfolio weights, holding-level analysis, and portfolio-level analysis. Has its own analysis layer separate from Stock Selection.
-
-**Allowed to depend on:**
-- `backend/services/data/` (fundamental data)
-- `backend/services/ai/` (insights only, not analysis)
-
-**Must NOT depend on:**
-- `backend/services/stocks/`
-- `backend/services/mutual_funds/`
+### Stock Portfolio Builder
+Coming soon. Placeholder page in the navigation; no backend service yet. When implemented, it will own stock portfolio construction, allocation, and portfolio-level analysis.
 
 ### Mutual Fund Analysis
 Owns fund-specific analysis including metric calculation from NAV history, category-relative percentile ranking, multi-fund comparison, fund detail modal with rolling returns and drawdown analysis, and screening/preset workflows.
@@ -221,6 +227,17 @@ Owns fund-specific analysis including metric calculation from NAV history, categ
 **Must NOT depend on:**
 - `backend/services/stocks/`
 - `backend/services/portfolio/`
+
+### Mutual Fund Portfolio Builder
+Owns client-side fund selection and allocation state, the portfolio-level analysis request, and rendering of portfolio metrics and the additive Health Score. Backend logic lives in `backend/services/portfolio/` (`mf_analysis.py`, `health_score.py`); frontend logic lives in `frontend/js/features/portfolio-builder/` and `frontend/js/features/portfolio-select-funds/`.
+
+**Allowed to depend on:**
+- `backend/services/data/` (NAV history, AMFI universe metadata)
+- `backend/services/ai/` (insights only, not scoring)
+
+**Must NOT depend on:**
+- `backend/services/stocks/`
+- `backend/services/mutual_funds/`
 
 ### Shared Data Layer
 Owns market/company/fundamental data retrieval, normalization, and caching. Provides `FundamentalDataProvider` abstraction with Stoxim implementation and `MutualFundFetcher` abstraction with MFAPI/TigZig implementations. Product modules depend on this layer, not on providers directly.
@@ -251,35 +268,37 @@ Never create reverse dependencies. For example:
 
 ### 2. Module Isolation
 Product modules must remain isolated:
-- **Stock Selection** must not import from **Portfolio Analysis**
-- **Portfolio Analysis** must not import from **Stock Selection**
+- **Stock Analysis** must not import from **Mutual Fund Portfolio Builder**
+- **Mutual Fund Portfolio Builder** must not import from **Stock Analysis**
 - **Mutual Fund Analysis** must not import from either product module
-- All three may share `backend/services/data/` and `backend/services/ai/`
+- All four may share `backend/services/data/` and `backend/services/ai/`
 
 ### 3. Frontend Structure
 - **`core/`** — Application-wide infrastructure only (`api.js`, `config.js`, `navigation.js`, `utils.js`). Never put feature-specific business logic here.
 - **`components/`** — Reusable UI components (`table.js`, `filters.js`, `modal.js`, `loading.js`). Keep them generic.
 - **`features/`** — Feature-specific logic. Each product area gets its own directory:
-  - `stock-selection/`
-  - `portfolio-analysis/`
-  - `mutual-fund-analysis/`
-  - `home/`
+  - `stock-selection/` — Stock Analysis
+  - `portfolio-analysis/` — Legacy stock portfolio analysis
+  - `portfolio-builder/` — Mutual Fund Portfolio Builder allocation UI
+  - `portfolio-select-funds/` — Mutual Fund Portfolio Builder fund search & selection
+  - `mutual-fund-analysis/` — Mutual Fund Analysis (ranking + fund detail + comparison)
+  - `home/` — Home page + Help search
 - **`pages/`** — Page initialization only. Coordinates features and components for a single page.
 - **`css/features/`** — Feature-specific styles. Do not put feature styles in `base.css` or `layout.css`.
 
 ### 4. Backend Structure
 - **`routes/`** — Thin HTTP handlers. Validate input, call services, return responses. No business logic.
 - **`services/data/`** — Provider implementations and normalization. Everything else depends on this, never the reverse.
-- **`services/stocks/`** — Stock Selection business logic.
-- **`services/portfolio/`** — Portfolio Analysis business logic.
+- **`services/stocks/`** — Stock Analysis business logic.
+- **`services/portfolio/`** — Mutual Fund Portfolio Builder business logic (portfolio analysis + Health Score).
 - **`services/mutual_funds/`** — Mutual Fund Analysis business logic.
 - **`services/ai/`** — AI provider abstraction and prompt construction.
 - **`models/`** — Pure data structures (Pydantic models). No business logic.
 - **`utils/`** — Shared utilities (logging, validation). No feature-specific code.
 
 ### 5. Data Ownership
-- **Stock Selection** owns: screening criteria, scoring, ranking, selection strategies
-- **Portfolio Analysis** owns: portfolio upload, parsing, holdings, weights, holding-level analysis, portfolio-level analysis
+- **Stock Analysis** owns: screening criteria, scoring, ranking, selection strategies
+- **Mutual Fund Portfolio Builder** owns: fund selection, allocation, portfolio-level analysis, Health Score
 - **Mutual Fund Analysis** owns: fund-specific analysis
 - **Shared data layer** owns: data retrieval, normalization, caching
 - **AI layer** owns: prompt construction, provider communication, structured response handling
@@ -311,7 +330,7 @@ Product modules must remain isolated:
 
 ### 9. Adding New Features
 When adding a new feature:
-1. Determine which product module it belongs to (Stock Selection, Portfolio Analysis, or Mutual Fund Analysis)
+1. Determine which product module it belongs to (Stock Analysis, Stock Portfolio Builder, Mutual Fund Analysis, or Mutual Fund Portfolio Builder)
 2. Place backend code in the appropriate `backend/services/<module>/` subdirectory
 3. Place frontend code in the appropriate `frontend/js/features/<module>/` directory
 4. Place tests in the corresponding `tests/<module>/` directory
@@ -399,6 +418,45 @@ To replace Stoxim or Groq:
 - **24-hour category-level cache** for percentile calculations and per-fund metric cache to minimize recalculation.
 - **TigZig** metadata dataset supplies AUM, first NAV date, and other fund-level attributes that enrich the ranking payload.
 
+## Mutual Fund Portfolio Builder
+
+### Workflow
+1. Search and select 2–10 mutual funds from the full AMFI universe (`/portfolio-select-funds.html`).
+2. Add funds to the portfolio; selections persist in `sessionStorage` for the browser session.
+3. Assign an allocation percentage (0–100, up to two decimals) to each fund.
+4. Ensure the total allocation equals exactly 100% before the analysis button is enabled.
+5. Run the portfolio analysis (`POST /api/portfolio/mutual-fund-analysis`).
+6. Review portfolio-level metrics and the growth chart.
+7. Review the Portfolio Health Score.
+
+### Portfolio Analysis Methodology
+- Individual fund daily returns are combined using the selected portfolio weights (constant target weights, periodic rebalancing assumption).
+- The analysis uses the common dates shared by all contributing funds — the intersection of published NAV dates, with no interpolation or forward-filling.
+- Zero-weight funds remain visible in the result but do not contribute to the portfolio calculation.
+- The resulting portfolio return series (base 100) drives portfolio-level CAGR, annualized volatility, maximum drawdown, Sharpe and Sortino calculations, all computed with the same primitives used for single-fund metrics.
+
+### Portfolio Health Score
+A 0–100 portfolio-level diagnostic, not a prediction of future returns. It blends five components with fixed base weights:
+
+| Component | Weight | Basis |
+|---|---|---|
+| Return Quality | 25% | Portfolio CAGR contribution plus rolling-return consistency and stability across 1Y/3Y/5Y windows |
+| Downside Risk | 25% | Maximum drawdown depth and downside deviation relative to overall volatility |
+| Risk-Adjusted Return | 20% | Portfolio Sortino ratio |
+| Allocation Concentration | 20% | Herfindahl-Hirschman Index over fund weights; more evenly distributed allocations score better |
+| Fund Mix | 10% | Portfolio-level diversification proxy based on category spread and AMC spread (blended 60/40) |
+
+**Confidence classification** (based on common portfolio history):
+- **High** — >= 5 years
+- **Good** — >= 3 and < 5 years
+- **Limited** — >= 1 and < 3 years
+- **Low** — < 1 year (score withheld entirely)
+
+**Edge cases handled:**
+- Single-fund portfolios score 0 on Allocation Concentration and Fund Mix.
+- Unavailable components are excluded and the remaining available component weights are re-normalized.
+- Legacy schemes (AMFI-reported NAV publication lagging the universe's newest NAV by more than 14 days) cap confidence at Limited, even when history is otherwise long enough.
+
 ## Recent Enhancements
 
 These were added on top of the existing architecture without changing any calculation, ranking, or API behaviour:
@@ -409,11 +467,14 @@ These were added on top of the existing architecture without changing any calcul
 - **Screener Polish** — Sidebar section grouping (Fund / Preset / Criteria / Screener), active filter chips with "Clear All" action, and improved empty state.
 - **Data Transparency & Freshness** — Compact "Data as of" / "History from" / "Coverage" indicators on the Ranking summary, Fund Details header, and Comparison header. Calculation periods made explicit on each KPI card. "Not available" treatment now distinguishes "Insufficient history" from "Data unavailable" using only data already returned by the API. The application defines no freshness threshold, so dates are shown without an arbitrary "stale" label.
 - **Backend additions** — `backend/services/mutual_funds/lookback.py` (`CRITERIA_LOOKBACK_YEARS`) and `backend/services/mutual_funds/fund_grouper.py` (variant grouping + ranking-candidate selection) were added; the public API contract is unchanged.
+- **Mutual Fund Portfolio Builder** — New product area with fund selection (`/portfolio-select-funds.html`), allocation UI (`/portfolio-builder.html`), portfolio-level analysis (`POST /api/portfolio/mutual-fund-analysis`), and the additive Portfolio Health Score (`backend/services/portfolio/health_score.py`). No portfolio state is persisted server-side; selections and allocations live in `sessionStorage`.
 
 ## Notes
 
 - No database is used yet; data flows from providers through cache to rankings.
 - Authentication is not implemented yet.
 - No portfolio management persistence yet.
-- The Mutual Fund Analysis service layer is fully implemented (`fetcher`, `calculator`, `ranking`, `analysis`, `cache`, `lookback`, `fund_grouper`). The Stock Selection and Portfolio Analysis service modules continue to evolve.
+- The Mutual Fund Analysis service layer is fully implemented (`fetcher`, `calculator`, `ranking`, `analysis`, `cache`, `lookback`, `fund_grouper`). The Mutual Fund Portfolio Builder service layer (`mf_analysis.py`, `health_score.py`) is implemented; the Stock Analysis and Stock Portfolio Builder modules continue to evolve.
+- Stock Portfolio Builder is a placeholder ("Coming Soon") while the feature is developed.
+- Future planned capabilities — Portfolio X-Ray / holdings analysis (stock overlap, sector overlap, security-level diversification, market-cap look-through) — are not currently implemented and are not part of the Health Score.
 - Python runtime is pinned to 3.12 via `.python-version` for deployment compatibility.

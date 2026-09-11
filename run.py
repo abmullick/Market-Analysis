@@ -42,6 +42,21 @@ async def read_portfolio():
     return FileResponse("frontend/html/portfolio.html")
 
 
+@app.get("/stock-portfolio-builder.html")
+async def read_stock_portfolio_builder():
+    return FileResponse("frontend/html/stock-portfolio-builder.html")
+
+
+@app.get("/portfolio-builder.html")
+async def read_portfolio_builder():
+    return FileResponse("frontend/html/portfolio-builder.html")
+
+
+@app.get("/portfolio-select-funds.html")
+async def read_portfolio_select_funds():
+    return FileResponse("frontend/html/portfolio-select-funds.html")
+
+
 @app.get("/mutual-funds.html")
 async def read_mutual_funds():
     return FileResponse("frontend/html/mutual-funds.html")

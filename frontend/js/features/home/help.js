@@ -10,6 +10,10 @@ const SUGGESTED_QUESTIONS = [
     "How does fund ranking work?",
     "How are percentile ranks calculated?",
     "How fresh is the data?",
+    "What is Portfolio Health Score?",
+    "How is portfolio health calculated?",
+    "How does portfolio analysis work?",
+    "What is Fund Mix?",
 ];
 
 function buildSearchUI() {

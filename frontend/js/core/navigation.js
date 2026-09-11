@@ -7,9 +7,10 @@ export function initNavigation() {
 
     nav.innerHTML = `
         <a href="/" class="${isActive("/") ? "active" : ""}">Home</a>
-        <a href="/stocks.html" class="${isActive("/stocks.html") ? "active" : ""}">Stock Selection</a>
-        <a href="/portfolio.html" class="${isActive("/portfolio.html") ? "active" : ""}">Portfolio Analysis</a>
         <a href="/mutual-funds.html" class="${isActive("/mutual-funds.html") ? "active" : ""}">Mutual Fund Analysis</a>
+        <a href="/portfolio-builder.html" class="${isActive("/portfolio-builder.html") ? "active" : ""}">Mutual Fund Portfolio Builder</a>
+        <a href="/stocks.html" class="${isActive("/stocks.html") ? "active" : ""}">Stock Analysis</a>
+        <a href="/stock-portfolio-builder.html" class="${isActive("/stock-portfolio-builder.html") ? "active" : ""}">Stock Portfolio Builder</a>
         <a href="/help.html" class="${isActive("/help.html") ? "active" : ""}">Help</a>
     `;
 }

@@ -115,6 +115,142 @@
             </section>
 
             <section class="help-section">
+                <h3 id="portfolio-builder">Mutual Fund Portfolio Builder</h3>
+                <div class="help-grid">
+                    <div class="help-card">
+                        <h4>Build Workflow</h4>
+                        <p>
+                            1. Search and select mutual funds from the full AMFI universe.<br>
+                            2. Add multiple funds to your portfolio (2 to 10 funds).<br>
+                            3. Remove funds or change selections at any time; selections persist in your
+                            browser session.<br>
+                            4. Assign an allocation percentage to each fund.<br>
+                            5. Ensure the total allocation equals exactly 100%.<br>
+                            6. Run the portfolio analysis.<br>
+                            7. Review portfolio-level performance and risk metrics.<br>
+                            8. Review the Portfolio Health Score.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Allocation Rules</h4>
+                        <p>
+                            Each allocation is a percentage from 0 to 100 with up to two decimal places. The total across
+                            all funds must equal exactly 100% before the analysis button is enabled. Funds with 0%
+                            allocation are kept visible in the result but do not contribute to the portfolio
+                            calculation. A minimum of two contributing funds is required to run the analysis.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Portfolio Analysis Methodology</h4>
+                        <p>
+                            The analysis combines your selected funds and their portfolio weights rather than treating
+                            each fund independently. Individual fund daily returns are combined using the selected
+                            weights over the common dates shared by all contributing funds — the intersection of
+                            their published NAV dates, with no interpolation or forward-filling. Zero-weight funds do
+                            not contribute. The resulting portfolio return series (base 100) drives portfolio-level
+                            CAGR, annualized volatility, maximum drawdown, Sharpe and Sortino calculations, all
+                            computed with the same primitives used for single-fund metrics.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Portfolio Health Score</h4>
+                        <p>
+                            The Health Score is a 0&ndash;100 portfolio-level diagnostic, not a prediction of future
+                            returns. It blends five components: Return Quality (25%), Downside Risk (25%),
+                            Risk-Adjusted Return (20%), Allocation Concentration (20%), and Fund Mix (10%).
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Health Score Components</h4>
+                        <p>
+                            <strong>Return Quality (25%)</strong> &mdash; portfolio CAGR contribution plus rolling-return
+                            consistency and stability across 1Y/3Y/5Y windows.<br>
+                            <strong>Downside Risk (25%)</strong> &mdash; maximum drawdown depth and downside deviation
+                            relative to overall volatility.<br>
+                            <strong>Risk-Adjusted Return (20%)</strong> &mdash; the portfolio Sortino ratio.<br>
+                            <strong>Allocation Concentration (20%)</strong> &mdash; a Herfindahl-Hirschman Index (HHI)
+                            over fund weights; more evenly distributed allocations score better.<br>
+                            <strong>Fund Mix (10%)</strong> &mdash; a portfolio-level diversification proxy based on
+                            category spread and AMC spread (blended 60/40).
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Health Score Confidence</h4>
+                        <p>
+                            The score is classified by how much common portfolio history is available:
+                            <strong>High</strong> (&ge; 5 years), <strong>Good</strong> (&ge; 3 and &lt; 5 years),
+                            <strong>Limited</strong> (&ge; 1 and &lt; 3 years), and <strong>Low</strong> (&lt; 1 year).
+                            When the available history is less than one year, the score is withheld entirely and the
+                            portfolio shows an insufficient-history notice instead.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Health Score Edge Cases</h4>
+                        <p>
+                            <strong>Single-fund portfolios</strong> score 0 on Allocation Concentration and Fund Mix,
+                            since those components require at least two funds.<br>
+                            <strong>Unavailable components</strong> are excluded and the remaining available component
+                            weights are re-normalized, so a partial score is still shown when some data is missing.<br>
+                            <strong>Legacy schemes</strong> (funds whose AMFI-reported NAV publication lags the newest
+                            NAV in the universe by more than 14 days) cap confidence at <em>Limited</em> even when the
+                            history is otherwise long enough for a higher tier.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Fund Details &amp; Scheme Variants</h3>
+                <div class="help-grid">
+                    <div class="help-card">
+                        <h4>Fund Details Modal</h4>
+                        <p>
+                            Open any fund to inspect identity badges (AMC, category, plan, option), inception and fund
+                            age, 1Y/3Y/5Y/10Y returns, Sharpe/Sortino ratios, annualized volatility, maximum drawdown,
+                            downside deviation, rolling-return consistency, category-relative percentile analysis,
+                            drawdown charts, historical NAV, asset allocation and top holdings.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Scheme Variants</h4>
+                        <p>
+                            A mutual fund family can have multiple scheme variants that share the same underlying
+                            portfolio but differ in how they are sold and how returns are credited. The Fund Details
+                            modal shows two labels:
+                            <strong>Plan</strong> (&ldquo;Direct&rdquo; or &ldquo;Regular&rdquo;) and
+                            <strong>Option</strong> (&ldquo;Growth&rdquo; or &ldquo;IDCW&rdquo;).
+                            The underlying scheme code identifies the specific variant, so each variant is analyzed
+                            independently from its own NAV history.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Legacy Schemes</h3>
+                <div class="help-grid">
+                    <div class="help-card">
+                        <h4>What &ldquo;Legacy&rdquo; Means</h4>
+                        <p>
+                            A Legacy designation means the fund&rsquo;s AMFI-reported last NAV publication date lags
+                            the newest NAV date in the AMFI universe by more than 14 days. It is an AMFI-reported
+                            lifecycle signal, not an inference from NAV-history length. A Legacy designation does not
+                            automatically mean the historical data is invalid.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Impact on Analysis</h4>
+                        <p>
+                            Legacy schemes appear in search results after current schemes, so they are distinguishable.
+                            In the Portfolio Builder, a contributing Legacy fund caps the Health Score confidence at
+                            <em>Limited</em>, even when the common history is otherwise long enough for a higher tier.
+                            Fund Details and ranking continue to use whatever NAV history is available for the scheme.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
                 <h3>Metrics Reference</h3>
                 <p class="help-lead">
                     Every number shown in Ranking, Fund Details, and Category-Relative Analysis comes from these building blocks.
@@ -754,7 +890,7 @@
             </section>
 
             <section class="help-section">
-                <h3>Stock Selection</h3>
+                <h3>Stock Analysis</h3>
                 <div class="help-grid">
                     <div class="help-card">
                         <h4>Screening</h4>
@@ -774,7 +910,20 @@
             </section>
 
             <section class="help-section">
-                <h3>Portfolio Analysis</h3>
+                <h3>Stock Portfolio Builder</h3>
+                <div class="help-grid">
+                    <div class="help-card">
+                        <h4>Coming Soon</h4>
+                        <p>
+                            Stock portfolio construction and analysis functionality is planned for a later phase.
+                            The page is available in the navigation as a placeholder while the feature is developed.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Legacy Stock Portfolio Analysis</h3>
                 <div class="help-grid">
                     <div class="help-card">
                         <h4>Upload & Parse</h4>
@@ -788,6 +937,28 @@
                         <p>
                             View portfolio weights, sector allocation, and holding-level metrics.
                             Identify concentration risks and diversification gaps.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="help-section">
+                <h3>Future / Planned</h3>
+                <div class="help-grid">
+                    <div class="help-card">
+                        <h4>Stock Portfolio Builder</h4>
+                        <p>
+                            Stock portfolio construction and analysis is planned for a later phase. The page is available
+                            in the navigation as a placeholder while the feature is developed.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Portfolio X-Ray</h4>
+                        <p>
+                            Future capabilities may include look-through analysis of the underlying stocks and sectors
+                            held by each mutual fund, including stock overlap, sector overlap, security-level
+                            diversification, and market-cap exposure. These are not currently part of the Health Score
+                            and are not available in the application today.
                         </p>
                     </div>
                 </div>
@@ -816,7 +987,7 @@
                 <h3>Architecture</h3>
                 <p>
                     The platform follows a layered architecture: Frontend → FastAPI Routes → Services → Models → External Providers.
-                    Stock Selection, Portfolio Analysis, and Mutual Fund Analysis are isolated modules.
+                    Stock Analysis, Stock Portfolio Builder, Mutual Fund Analysis, and Mutual Fund Portfolio Builder are isolated modules.
                     AI insights are provided via Groq and are interpretation-only; they do not compute scores or fetch data.
                 </p>
             </section>
@@ -830,7 +1001,7 @@
                 <h2>About</h2>
                 <p>
                     Market Analysis is a quantitative analysis platform for Indian markets with tools for Stock Analysis,
-                    Portfolio Analysis, and Mutual Fund Analysis.
+                    Stock Portfolio Builder (coming soon), Mutual Fund Analysis, and Mutual Fund Portfolio Builder.
                 </p>
                 <p>
                     Financial calculations, metrics, and rankings are produced by deterministic application logic and

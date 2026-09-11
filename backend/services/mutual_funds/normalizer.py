@@ -55,12 +55,16 @@ def _normalize_date(date_str: str) -> str | None:
 
 
 def normalize_search_result(raw: dict[str, Any]) -> SchemeSearchResult:
+    # Accept both snake_case (internal/test fixtures) and camelCase (MFAPI live
+    # /mf/search responses: {"schemeCode": ..., "schemeName": ...}).
+    # Live MFAPI search returns ONLY code + name; amc/category are optional and
+    # default to "" (model updated to Optional) so search never 500s.
     return SchemeSearchResult(
-        scheme_code=str(raw.get("scheme_code", "")),
-        scheme_name=raw.get("scheme_name", ""),
-        amc=raw.get("amc", ""),
-        category=raw.get("category", ""),
-        sub_category=raw.get("sub_category"),
+        scheme_code=str(raw.get("scheme_code", raw.get("schemeCode", ""))),
+        scheme_name=raw.get("scheme_name", raw.get("schemeName", "")),
+        amc=raw.get("amc", raw.get("fund_house", "")) or "",
+        category=raw.get("category", raw.get("scheme_category", "")) or "",
+        sub_category=raw.get("sub_category", raw.get("scheme_type")),
     )
 
 

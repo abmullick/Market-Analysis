@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mutual Fund Portfolio Builder | Market Analysis</title>
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/features/portfolio-builder.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-left">
+            <img src="/static/images/m_analysis.png" alt="Market Analysis" class="logo">
+            <h1>Mutual Fund Portfolio Builder</h1>
+        </div>
+        <nav id="main-nav"></nav>
+    </header>
+    <main class="container">
+        <div class="page-header">
+            <div id="portfolio-builder-content">
+                <div class="pb-page-header-text">
+                    <h1 class="mf-page-title">Mutual Fund Portfolio Builder</h1>
+                    <p class="mf-page-subtitle">Build and analyze your mutual fund portfolio.</p>
+                    <p class="pb-page-note">Includes a Portfolio Health Score after analysis.</p>
+                </div>
+                <div class="pb-stage" id="pb-stage">
+                    <div id="pb-empty" class="pb-empty hidden">
+                        <p>No funds selected yet.</p>
+                        <p class="pb-empty-hint">Choose the mutual funds you want to include in your portfolio, then set an allocation for each.</p>
+                        <a href="/portfolio-select-funds.html" class="btn btn-primary">Select Funds</a>
+                    </div>
+                    <section id="pb-panel" class="pb-panel hidden">
+                        <div class="pb-panel-header">
+                            <h2 class="pb-panel-title">Portfolio Allocation</h2>
+                            <span id="pb-count" class="pb-count"></span>
+                        </div>
+                        <ul id="pb-fund-list" class="pb-fund-list"></ul>
+                        <div class="pb-total-row">
+                            <span class="pb-total-label">Total allocation</span>
+                            <span class="pb-total-value" id="pb-total-value">0%</span>
+                            <span class="pb-total-status" id="pb-total-status"></span>
+                        </div>
+                        <div class="pb-actions">
+                            <a href="/portfolio-select-funds.html" class="btn btn-primary">Select Funds</a>
+                            <button type="button" class="btn btn-primary" id="pb-continue-btn" disabled>Continue</button>
+                        </div>
+                        <p id="pb-next-stage" class="pb-next-stage" hidden>Allocation set to 100% and stored. Portfolio Health analysis and the next stage arrive in a later phase.</p>
+                    </section>
+                    <section id="pb-analysis" class="pb-analysis hidden" aria-live="polite">
+                        <div class="pb-panel-header">
+                            <h2 class="pb-panel-title">Portfolio Analysis</h2>
+                            <span id="pb-analysis-period" class="pb-count"></span>
+                        </div>
+                        <p id="pb-analysis-warnings" class="pb-analysis-warnings hidden"></p>
+                        <div id="pb-history-warning" class="pb-history-warning hidden" role="status"></div>
+                        <div id="pb-analysis-loading" class="pb-analysis-loading hidden">
+                            <span class="pb-spinner" aria-hidden="true"></span>
+                            <span>Calculating portfolio analysis&hellip;</span>
+                        </div>
+                        <div id="pb-analysis-error" class="pb-analysis-error hidden" role="alert"></div>
+                        <div id="pb-analysis-results" class="hidden">
+                            <div id="pb-health-score" class="pb-health-score hidden"></div>
+                            <div id="pb-metric-grid" class="pb-metric-grid"></div>
+                            <div class="pb-chart-container">
+                                <canvas id="pb-growth-chart"></canvas>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </main>
+    <a href="/help.html" class="help-link" title="Help & Methodology">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <span>Help & Methodology</span>
+    </a>
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p>
+        </div>
+    </footer>
+    <script type="module" src="/js/core/config.js"></script>
+    <script type="module" src="/js/core/navigation.js"></script>
+    <script type="module" src="/js/core/utils.js"></script>
+    <script type="module" src="/js/features/portfolio-builder/index.js"></script>
+    <script type="module">
+        import { initNavigation } from '/js/core/navigation.js';
+        initNavigation();
+    </script>
+</body>
+</html>

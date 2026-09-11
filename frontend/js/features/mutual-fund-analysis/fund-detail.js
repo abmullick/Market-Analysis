@@ -76,7 +76,8 @@ function renderFundModal(detail, navHistory, schemeCode, categoryAnalysis, ranki
     content.appendChild(createKpiSection(detail));
     content.appendChild(aiInsights.section);
     content.appendChild(createPerformanceSummarySection(detail, navHistory));
-    content.appendChild(createChartSection(detail, navHistory));
+    const chartSection = createChartSection(detail, navHistory);
+    content.appendChild(chartSection);
 
     const riskSection = document.createElement("div");
     riskSection.className = "fund-detail-section fund-risk-section";
@@ -125,9 +126,7 @@ function renderFundModal(detail, navHistory, schemeCode, categoryAnalysis, ranki
         closeBtn.focus();
     });
 
-    setTimeout(() => {
-        initNavChart(navHistory, "10Y");
-    }, 100);
+    initNavChart(navHistory, "10Y", chartSection.querySelector("#nav-history-chart"));
 }
 
 function createAIInsightsSection(detail, schemeCode, categoryAnalysis, rankingContext) {
@@ -846,9 +845,7 @@ async function loadRollingReturns(schemeCode, years, section) {
         canvas.id = "rolling-returns-chart";
         chartContainer.appendChild(canvas);
 
-        requestAnimationFrame(() => {
-            initRollingChart(response.dates, response.returns, years);
-        });
+        initRollingChart(response.dates, response.returns, years, canvas);
     } catch (error) {
         summaryEl.innerHTML = "";
         chartContainer.innerHTML = `
@@ -881,8 +878,8 @@ function renderRollingReturnsSummary(summary, period, container) {
     `).join("");
 }
 
-function initRollingChart(dates, returns, period) {
-    const canvas = document.getElementById("rolling-returns-chart");
+function initRollingChart(dates, returns, period, chartCanvas = document.getElementById("rolling-returns-chart")) {
+    const canvas = chartCanvas;
     if (!canvas || typeof Chart === "undefined") return;
 
     if (rollingChart) {
@@ -959,8 +956,8 @@ function initRollingChart(dates, returns, period) {
     });
 }
 
-function initNavChart(navHistory, period) {
-    const canvas = document.getElementById("nav-history-chart");
+function initNavChart(navHistory, period, chartCanvas = document.getElementById("nav-history-chart")) {
+    const canvas = chartCanvas;
     if (!canvas || typeof Chart === "undefined") return;
 
     if (navChart) {

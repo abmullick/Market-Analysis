@@ -92,63 +92,63 @@ export function renderDrawdownAnalysis(container, detail, navHistory) {
     const pointColors = drawdowns.map((_, i) => i === maxDdIndex ? "#b91c1c" : "#dc2626");
 
     new Chart(ctx, {
-        type: "line",
-        data: {
-            labels: dates,
-            datasets: [{
-                label: "Drawdown %",
-                data: drawdowns,
-                borderColor: "#dc2626",
-                backgroundColor: "rgba(220, 38, 38, 0.12)",
-                borderWidth: 1.75,
-                fill: { target: { value: 0 }, above: "rgba(220, 38, 38, 0)", below: "rgba(220, 38, 38, 0.12)" },
-                tension: 0,
-                pointRadius: 0,
-                pointHoverRadius: 5,
-                pointHoverBackgroundColor: "#b91c1c",
-                pointHoverBorderColor: "#ffffff",
-                pointHoverBorderWidth: 2,
-                pointBackgroundColor: pointColors,
-            }],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: "index",
+            type: "line",
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: "Drawdown %",
+                    data: drawdowns,
+                    borderColor: "#dc2626",
+                    backgroundColor: "rgba(220, 38, 38, 0.12)",
+                    borderWidth: 1.75,
+                    fill: { target: { value: 0 }, above: "rgba(220, 38, 38, 0)", below: "rgba(220, 38, 38, 0.12)" },
+                    tension: 0,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: "#b91c1c",
+                    pointHoverBorderColor: "#ffffff",
+                    pointHoverBorderWidth: 2,
+                    pointBackgroundColor: pointColors,
+                }],
             },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: "rgba(15, 23, 42, 0.95)",
-                    padding: 10,
-                    titleFont: { size: 12, weight: "600" },
-                    bodyFont: { size: 12 },
-                    displayColors: false,
-                    callbacks: {
-                        title: (items) => `Drawdown · ${items[0]?.label || ""}`,
-                        label: (context) => {
-                            const dd = context.parsed.y;
-                            const label = dd === maxDrawdown ? " — MAX DRAWDOWN" : "";
-                            return `Drawdown: ${dd.toFixed(2)}%${label}`;
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: "index",
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: "rgba(15, 23, 42, 0.95)",
+                        padding: 10,
+                        titleFont: { size: 12, weight: "600" },
+                        bodyFont: { size: 12 },
+                        displayColors: false,
+                        callbacks: {
+                            title: (items) => `Drawdown · ${items[0]?.label || ""}`,
+                            label: (context) => {
+                                const dd = context.parsed.y;
+                                const label = dd === maxDrawdown ? " — MAX DRAWDOWN" : "";
+                                return `Drawdown: ${dd.toFixed(2)}%${label}`;
+                            },
                         },
                     },
                 },
-            },
-            scales: {
-                x: {
-                    title: { display: true, text: "Date", font: { size: 11, weight: "500" }, color: "#64748b" },
-                    ticks: { maxTicksLimit: 8, color: "#64748b", font: { size: 11 } },
-                    grid: { color: "rgba(15, 23, 42, 0.04)" },
+                scales: {
+                    x: {
+                        title: { display: true, text: "Date", font: { size: 11, weight: "500" }, color: "#64748b" },
+                        ticks: { maxTicksLimit: 8, color: "#64748b", font: { size: 11 } },
+                        grid: { color: "rgba(15, 23, 42, 0.04)" },
+                    },
+                    y: {
+                        title: { display: true, text: "Drawdown (%)", font: { size: 11, weight: "500" }, color: "#64748b" },
+                        ticks: { callback: (value) => `${value.toFixed(1)}%`, color: "#64748b", font: { size: 11 } },
+                        grid: { color: "rgba(15, 23, 42, 0.06)" },
+                        grace: "5%",
+                    },
                 },
-                y: {
-                    title: { display: true, text: "Drawdown (%)", font: { size: 11, weight: "500" }, color: "#64748b" },
-                    ticks: { callback: (value) => `${value.toFixed(1)}%`, color: "#64748b", font: { size: 11 } },
-                    grid: { color: "rgba(15, 23, 42, 0.06)" },
-                    grace: "5%",
-                },
             },
-        },
     });
 }

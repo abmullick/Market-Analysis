@@ -18,6 +18,7 @@ class MutualFund(BaseModel):
     fund_manager: Optional[str] = None
     asset_allocation: Optional[dict[str, float]] = None
     top_holdings: Optional[list[dict[str, Any]]] = None
+    first_nav_date: Optional[str] = None
 
 
 class NAVRecord(BaseModel):
@@ -28,9 +29,20 @@ class NAVRecord(BaseModel):
 class SchemeSearchResult(BaseModel):
     scheme_code: str
     scheme_name: str
-    amc: str
-    category: str
+    # Live MFAPI /mf/search returns only code + name; amc/category may be
+    # absent. Keep them optional with "" default for backward compatibility.
+    amc: Optional[str] = ""
+    category: Optional[str] = ""
     sub_category: Optional[str] = None
+    # Lifecycle signal from the AMFI universe: the date AMFI last published a
+    # NAV for this scheme, and whether that date lags well behind the newest
+    # NAV date in the universe (stale/retired scheme). Additive fields.
+    nav_date: Optional[str] = None
+    is_stale: bool = False
+    # First NAV date from TigZig metadata for fund age calculation
+    first_nav_date: Optional[str] = None
+    # Active status derived from AMFI publication status (not stale = active)
+    is_active: bool = True
 
 
 class FundMetrics(BaseModel):

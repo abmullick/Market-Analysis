@@ -54,6 +54,34 @@
     box-shadow: 0 4px 16px rgba(16, 185, 129, 0.2);
 }
 
+.card-portfolio-builder {
+    border-color: rgba(139, 92, 246, 0.25);
+}
+
+.card-portfolio-builder:hover {
+    box-shadow: 0 20px 40px rgba(139, 92, 246, 0.12);
+    border-color: rgba(139, 92, 246, 0.4);
+}
+
+.card-portfolio-builder .card-icon {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.card-portfolio-builder .btn-portfolio-builder {
+    background: #ffffff;
+    color: #5b21b6;
+    border-color: #8b5cf6;
+    background-image: linear-gradient(135deg, rgba(139, 92, 246, 0.06), rgba(139, 92, 246, 0.02));
+    background-size: 200% 200%;
+    animation: pulse-gradient 3s ease infinite;
+}
+
+.card-portfolio-builder .btn-portfolio-builder:hover {
+    background-image: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(139, 92, 246, 0.04));
+    border-color: #7c3aed;
+    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.2);
+}
+
 .hero-brand {
     width: 180px;
     height: auto;
@@ -85,4 +113,32 @@
     .product-owner {
         font-size: 0.625rem;
     }
+}
+
+.card-stock-builder {
+    border-color: rgba(245, 158, 11, 0.25);
+}
+
+.card-stock-builder:hover {
+    box-shadow: 0 20px 40px rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+.card-stock-builder .card-icon {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.card-stock-builder .btn-stock-builder {
+    background: #ffffff;
+    color: #92400e;
+    border-color: #f59e0b;
+    background-image: linear-gradient(135deg, rgba(245, 158, 11, 0.06), rgba(245, 158, 11, 0.02));
+    background-size: 200% 200%;
+    animation: pulse-gradient 3s ease infinite;
+}
+
+.card-stock-builder .btn-stock-builder:hover {
+    background-image: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.04));
+    border-color: #d97706;
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.2);
 }

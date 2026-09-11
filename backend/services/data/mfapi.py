@@ -87,10 +87,17 @@ class MfapiClient:
 
     async def search_schemes(self, query: str) -> list[dict[str, Any]]:
         url = f"{self.base_url}/mf/search"
-        params = {"query": query}
+        params = {"q": query}
         logger.info("Searching MF schemes: %s", query)
         async with httpx.AsyncClient() as client:
             response = await client.get(url, params=params, timeout=15.0)
             response.raise_for_status()
             data = response.json()
-            return data.get("schemes", [])
+            # MFAPI /mf/search returns a bare JSON list:
+            # [{"schemeCode": ..., "schemeName": ...}, ...]
+            if isinstance(data, list):
+                return data
+            if isinstance(data, dict):
+                schemes = data.get("schemes", [])
+                return schemes if isinstance(schemes, list) else []
+            return []

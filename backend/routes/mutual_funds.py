@@ -118,11 +118,34 @@ async def list_categories(response: Response = None) -> dict[str, Any]:
 
 
 @router.get("/search")
-async def search_schemes(q: str) -> dict[str, Any]:
+async def search_schemes(
+    q: str,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Search the full AMFI scheme universe.
+
+    Matches scheme name, AMC, category and scheme code. `limit`/`offset`
+    paginate large result sets; `total` reports the full match count.
+    """
     if not q:
         raise HTTPException(status_code=400, detail="Query parameter 'q' is required.")
-    results = await fetcher.search_schemes(q)
-    return {"query": q, "count": len(results), "results": [r.model_dump() for r in results]}
+    if limit < 1 or limit > 5000:
+        raise HTTPException(status_code=400, detail="Parameter 'limit' must be between 1 and 5000.")
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="Parameter 'offset' must not be negative.")
+
+    # get_all_schemes() loads/caches the AMFI universe once; the search itself
+    # is a pure in-memory filter (no NAV/metric/detail requests).
+    all_matches = await fetcher.search_schemes(q, limit=100_000, offset=0)
+    total = len(all_matches)
+    page = all_matches[offset:offset + limit]
+    return {
+        "query": q,
+        "count": len(page),
+        "results": [r.model_dump() for r in page],
+        "total": total,
+    }
 
 
 @router.get("/{scheme_code}", response_model=MutualFund)

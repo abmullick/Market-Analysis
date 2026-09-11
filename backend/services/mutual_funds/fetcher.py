@@ -14,12 +14,11 @@ from backend.services.mutual_funds.lookback import (
 from backend.services.mutual_funds.normalizer import (
     normalize_nav_history,
     normalize_scheme,
-    normalize_search_result,
 )
 from backend.utils.logging import logger
 
 
-from backend.services.data.tigzig import get_tigzig_dataset, TigZigDatasetError
+from backend.services.data.tigzig import get_tigzig_dataset, get_tigzig_metadata, TigZigDatasetError
 from backend.services.mutual_funds.calculator import MetricsCalculator
 from backend.services.mutual_funds.fund_grouper import (
     FundGrouper,
@@ -340,9 +339,108 @@ class MutualFundFetcher:
 
         return results
 
-    async def search_schemes(self, query: str) -> list[SchemeSearchResult]:
-        raw_list = await self.mfapi.search_schemes(query)
-        return [normalize_search_result(item) for item in raw_list]
+    async def search_schemes(
+        self,
+        query: str,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[SchemeSearchResult]:
+        """Search the full cached AMFI scheme universe.
+
+        Matches against scheme name, AMC, category and scheme code so any
+        scheme in the universe is findable (unlike MFAPI /mf/search, which
+        caps results at 15). The universe is loaded/cached once via
+        get_all_schemes(); no NAV/metric requests are made.
+        """
+        q = (query or "").strip().lower()
+        if not q:
+            return []
+
+        schemes = await self.get_all_schemes()
+
+        # Lifecycle signal: AMFI reports the date each scheme last published a
+        # NAV. Schemes whose last NAV lags well behind the newest NAV date in
+        # the universe are stale/retired (e.g. legacy codes AMFI keeps listed
+        # with their final NAV). This is AMFI-reported data, not an inference
+        # from NAV-history length. A 14-day grace window absorbs weekends,
+        # holidays and delayed publications.
+        newest_nav_date: datetime | None = None
+        for s in schemes:
+            if s.nav_date:
+                try:
+                    d = datetime.strptime(s.nav_date, "%d-%b-%Y")
+                    if newest_nav_date is None or d > newest_nav_date:
+                        newest_nav_date = d
+                except ValueError:
+                    continue
+
+        def _is_stale(nav_date: str | None) -> bool:
+            if nav_date is None or newest_nav_date is None:
+                return False
+            try:
+                d = datetime.strptime(nav_date, "%d-%b-%Y")
+            except ValueError:
+                return False
+            return (newest_nav_date - d).days > 14
+
+        terms = q.split()
+        
+        # Load TigZig metadata ONCE before iterating over matching schemes.
+        # Previously this was called inside the loop for every matching scheme,
+        # which caused issues with process-local caching and silent exception
+        # swallowing. Now we fetch once and reuse for all schemes.
+        tigzig_meta: dict[int, dict[str, Any]] | None = None
+        metadata_fetch_error: str | None = None
+        try:
+            tigzig_meta = await get_tigzig_metadata().get_metadata()
+            logger.debug("TigZig metadata loaded for search: %d schemes", len(tigzig_meta))
+        except Exception as e:
+            metadata_fetch_error = f"TigZig metadata fetch failed: {type(e).__name__}: {e}"
+            logger.warning(metadata_fetch_error)
+            # Continue without metadata - schemes will have first_nav_date=None
+        
+        matches: list[SchemeSearchResult] = []
+        for s in schemes:
+            haystack = " ".join(
+                part for part in (s.scheme_name, s.amc or "", s.category or "", s.scheme_code)
+                if part
+            ).lower()
+            if all(term in haystack for term in terms):
+                # Get first_nav_date from pre-loaded TigZig metadata
+                first_nav_date = None
+                if tigzig_meta is not None:
+                    try:
+                        code_int = int(s.scheme_code)
+                        if code_int in tigzig_meta:
+                            first_nav_date = tigzig_meta[code_int].get("first_date")
+                    except (ValueError, TypeError) as e:
+                        # Per-scheme conversion/lookup error - log but continue
+                        # This handles invalid scheme_code values gracefully
+                        logger.debug(
+                            "TigZig metadata lookup failed for scheme %s: %s",
+                            s.scheme_code, e
+                        )
+                        first_nav_date = None
+                else:
+                    # Metadata fetch failed earlier - all schemes get first_nav_date=None
+                    # This is already logged above
+                    pass
+                
+                matches.append(SchemeSearchResult(
+                    scheme_code=s.scheme_code,
+                    scheme_name=s.scheme_name,
+                    amc=s.amc or "",
+                    category=s.category or "",
+                    sub_category=s.sub_category,
+                    nav_date=s.nav_date,
+                    is_stale=_is_stale(s.nav_date),
+                    first_nav_date=first_nav_date,
+                    is_active=not _is_stale(s.nav_date),
+                ))
+
+        # Current schemes first; stale/retired schemes follow, distinguishable.
+        matches.sort(key=lambda r: (r.is_stale, (r.scheme_name or "").lower()))
+        return matches[max(0, offset):max(0, offset) + max(0, limit)]
 
     async def get_all_schemes(self) -> list[MutualFund]:
         cached, expires = self._schemes_cache.get("all", (None, 0))
