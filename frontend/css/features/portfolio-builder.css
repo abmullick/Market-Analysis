@@ -237,25 +237,285 @@
     padding: 10px 12px;
 }
 
-/* Empty state */
+/* ====================================================================
+   Landing / initial state — the polished experience shown before any
+   funds are selected (the #pb-empty element the JS toggles). Everything
+   is page-scoped under .pb-landing* so neither the allocation panel nor
+   the analysis layout is affected.
+   ==================================================================== */
+
+/* The JS-toggle wrapper carries no visual box of its own. */
 .pb-empty {
-    max-width: 480px;
-    padding: 40px 24px;
+    margin: 0;
+}
+
+/* The landing sits in a centred, slightly wider column. */
+.pb-landing {
+    max-width: 1160px;
+    margin: 0 auto;
+}
+
+/* Hero supporting description (lives in the page header). */
+.pb-landing-description {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--color-text);
+    max-width: 72ch;
+    margin-top: 4px;
+}
+
+/* --- 3-step portfolio-building flow --- */
+.pb-landing-flow {
+    margin-top: 36px;
+}
+
+.pb-landing-steps {
+    display: grid;
+    grid-template-columns: 1fr 44px 1fr 44px 1fr;
+    align-items: stretch;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.pb-landing-step {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px 20px 18px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--btn-shadow);
+}
+
+.pb-landing-step-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pb-landing-step-num {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-pill);
+    background: var(--color-primary);
+    color: #ffffff;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.03em;
+}
+
+.pb-landing-step-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    background: var(--color-slate-100);
+    border: 1px solid var(--color-border);
+    color: var(--color-accent, #0ea5e9);
+}
+
+.pb-landing-step-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.pb-landing-step-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin: 0;
+}
+
+.pb-landing-step-desc {
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: var(--color-text-light);
+    margin: 0;
+}
+
+.pb-landing-step-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-slate-400);
+}
+
+.pb-landing-step-connector svg {
+    width: 22px;
+    height: 22px;
+}
+
+/* --- Primary action panel --- */
+.pb-landing-cta {
+    margin: 36px auto 0;
+    max-width: 640px;
     text-align: center;
     background: var(--color-surface);
-    border: 2px dashed var(--color-border);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-accent, #0ea5e9);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--btn-shadow);
+    padding: 30px 36px;
+}
+
+.pb-landing-cta-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
     border-radius: var(--radius-md);
+    background: var(--color-slate-100);
+    border: 1px solid var(--color-border);
+    color: var(--color-accent, #0ea5e9);
 }
 
-.pb-empty p {
-    color: var(--color-text-light);
+.pb-landing-cta-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.pb-landing-cta-title {
+    margin: 14px 0 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    letter-spacing: -0.01em;
+}
+
+.pb-landing-cta-text {
+    margin: 10px auto 22px;
+    max-width: 52ch;
+    font-size: 0.9375rem;
     line-height: 1.6;
+    color: var(--color-text);
 }
 
-.pb-empty-hint {
-    margin-top: 6px;
-    margin-bottom: 20px;
-    font-size: 0.875rem;
+/* Page-scoped primary button so the landing CTA matches the application's
+   navy primary buttons without touching shared styles (this page does not
+   load mutual-fund-analysis.css, where the app-level .btn-primary lives). */
+.pb-landing-cta .btn {
+    width: auto;
+    min-width: 160px;
+    background: var(--color-primary);
+    color: #ffffff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.pb-landing-cta .btn:hover {
+    background: var(--color-primary-light);
+}
+
+/* --- What you can analyze --- */
+.pb-landing-features {
+    margin-top: 48px;
+}
+
+.pb-landing-features-title {
+    margin: 0 0 20px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    letter-spacing: -0.01em;
+    text-align: center;
+}
+
+.pb-landing-feature-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.pb-landing-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 18px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--btn-shadow);
+}
+
+.pb-landing-feature-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    background: var(--color-slate-100);
+    border: 1px solid var(--color-border);
+    color: var(--color-accent, #0ea5e9);
+}
+
+.pb-landing-feature-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.pb-landing-feature-text {
+    min-width: 0;
+    flex: 1;
+}
+
+.pb-landing-feature-text h3 {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin: 0;
+}
+
+.pb-landing-feature-text p {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--color-text-light);
+    margin: 6px 0 0;
+}
+
+/* --- Responsive: stack the 3-step flow; tighten spacing on small taps --- */
+@media (max-width: 960px) {
+    .pb-landing-steps {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .pb-landing-step-connector {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .pb-landing-cta {
+        padding: 24px 20px;
+    }
+
+    .pb-landing-flow,
+    .pb-landing-cta,
+    .pb-landing-features {
+        margin-top: 28px;
+    }
+
+    .pb-landing-features-title {
+        margin-bottom: 16px;
+    }
 }
 
 /* Responsive */
@@ -628,42 +888,46 @@
     font-size: 0.9375rem;
 }
 
-/* Chevron button - clearly visible, accent-colored control */
+/* Chevron button — prominent circular primary control. The unified section
+   rules further down apply the identical treatment to all seven headers;
+   this legacy block stays aligned for the dynamic Health Score header. */
 .pb-health-caret-button {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 38px;
-    height: 38px;
+    width: 42px;
+    height: 42px;
     margin-left: auto;
-    color: var(--color-accent, #0ea5e9);
-    background: #f0f9ff;
-    border: 1px solid #bae6fd;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
     flex-shrink: 0;
+    color: #ffffff;
+    background: var(--color-primary);
+    border: none;
+    border-radius: 50%;
+    box-shadow: var(--btn-shadow);
+    cursor: pointer;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .pb-health-caret-button:hover {
-    background: #e0f2fe;
-    border-color: #7dd3fc;
-}
-
-.pb-health-caret-button:hover .pb-health-caret {
-    color: #0284c7;
+    background: var(--color-primary-light);
+    box-shadow: var(--btn-shadow-hover);
 }
 
 .pb-health-caret-button:focus {
-    outline: 2px solid var(--color-accent, #0ea5e9);
+    outline: 3px solid var(--color-accent, #0ea5e9);
     outline-offset: 2px;
 }
 
 .pb-health-caret {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     color: inherit;
     transition: transform 0.2s ease;
+}
+
+.pb-health-caret path {
+    stroke: currentColor;
+    stroke-width: 3;
 }
 
 .pb-health-card.is-open .pb-health-caret {
@@ -1310,107 +1574,277 @@
 
 
 /* ========================================
-   Collapsible Section Styles (reuses Health Score pattern)
+   Unified analysis section cards — ONE reusable header pattern.
+   All seven sections share height, border, radius, accent,
+   padding, alignment, icon/KPI/separator/chevron treatment.
    ======================================== */
 
 .pb-section-card {
     margin-top: 16px;
-}
-
-.pb-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 16px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    border-left: 4px solid var(--color-accent, #0ea5e9);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--btn-shadow);
+    overflow: hidden;
+}
+
+/* Header: horizontal KPI summary card */
+.pb-section-header,
+.pb-health-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 78px;
+    padding: 14px 16px 14px 18px;
+    background: var(--color-surface);
+    border: none;
+    border-radius: 0;
     cursor: pointer;
-    transition: border-color 0.15s ease;
+    transition: background-color 0.15s ease;
+    box-shadow: none;
 }
 
-.pb-section-header:hover {
-    border-color: var(--color-text-light);
+.pb-section-header:hover,
+.pb-health-header:hover {
+    background: var(--color-slate-100);
+    border-color: inherit;
 }
 
-.pb-section-header:focus-within {
-    border-color: var(--color-accent, #0ea5e9);
-    box-shadow: 0 0 0 2px var(--color-accent-light, #bae6fd);
+/* The unified header gets its accent from the card wrapper's border-left
+   (pb-section-card), matching the six static sections. Suppress the legacy
+   per-header pseudo-accent so all seven headers look identical. */
+.pb-section-header.pb-health-header::before {
+    content: none;
 }
 
-.pb-section-header-left {
+.pb-section-header:focus-visible {
+    outline: 2px solid var(--color-accent, #0ea5e9);
+    outline-offset: -2px;
+}
+
+.pb-health-header:focus {
+    box-shadow: none;
+}
+
+.pb-health-header-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 1 310px;
+    min-width: 230px;
+    max-width: 340px;
+}
+
+.pb-section-icon.pb-health-icon,
+.pb-health-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    background: var(--color-slate-100);
+    border: 1px solid var(--color-border);
+    color: var(--color-accent, #0ea5e9);
+}
+
+.pb-section-icon.pb-health-icon svg,
+.pb-health-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.pb-section-titlewrap.pb-health-summary-label,
+.pb-health-header-main .pb-health-summary-label {
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
-    flex: 1;
+    text-align: left;
+    background: none;
+    padding: 0;
 }
 
-.pb-section-title {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--color-primary);
-    line-height: 1.4;
-}
-
-.pb-section-subtitle {
+.pb-section-titlewrap small,
+.pb-health-header-main .pb-health-summary-label small {
     font-size: 0.75rem;
+    font-weight: 400;
     color: var(--color-text-light);
     line-height: 1.4;
+    white-space: normal;
 }
 
-.pb-section-header-right {
+/* CENTER: KPI area occupies middle/right, consistently aligned */
+.pb-section-kpis,
+.pb-health-summary-values {
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-end;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-left: auto;
+    flex-wrap: nowrap;
+}
+
+.pb-hkpi {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    min-width: 92px;
+    max-width: 190px;
+    padding: 2px 16px;
+    text-align: center;
+    border-left: 1px solid var(--color-border);
+}
+
+.pb-hkpi:first-child {
+    border-left: none;
+}
+
+.pb-hkpi__value {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--color-primary);
+    white-space: nowrap;
+}
+
+/* Denominator (e.g. "/ 100" after the Health Score value) stays muted. */
+.pb-hkpi__denom {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-text-light);
+}
+
+/* Confidence tier badge inside a KPI value stays prominent. */
+.pb-hkpi__value .confidence-tier {
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+
+.pb-hkpi__value.is-positive { color: var(--color-positive); }
+.pb-hkpi__value.is-negative { color: var(--color-negative); }
+.pb-hkpi__value.is-muted {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text-light);
+    white-space: normal;
+}
+
+.pb-hkpi__label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--color-text-light);
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.pb-hkpi__sub {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    line-height: 1.3;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pb-section-controls,
+.pb-health-header-right {
     display: flex;
     align-items: center;
-    flex-shrink: 0;
+    gap: 8px;
+    flex: 0 0 auto;
+    min-width: 44px;
+    justify-content: flex-end;
 }
 
-.pb-section-caret-btn {
+/* Chevron control — prominent circular primary-blue button shared by all
+   seven analysis section headers (and the dynamic Health Score header).
+   White chevron on the app's existing primary blue; the chevron still
+   rotates via .is-open (collapsible behavior unchanged). */
+.pb-section-caret-btn,
+.pb-health-caret-button {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 42px;
+    height: 42px;
     padding: 0;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    color: var(--color-text);
+    border: none;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #ffffff;
+    box-shadow: var(--btn-shadow);
     cursor: pointer;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    flex-shrink: 0;
 }
 
-.pb-section-caret-btn:hover {
-    background: var(--color-bg);
-    border-color: var(--color-text-light);
+.pb-section-caret-btn:hover,
+.pb-health-caret-button:hover {
+    background: var(--color-primary-light);
+    box-shadow: var(--btn-shadow-hover);
 }
 
-.pb-section-caret-btn:focus {
-    outline: 2px solid var(--color-accent, #0ea5e9);
+.pb-section-caret-btn:focus,
+.pb-health-caret-button:focus {
+    outline: 3px solid var(--color-accent, #0ea5e9);
     outline-offset: 2px;
 }
 
-.pb-section-caret {
-    width: 18px;
-    height: 18px;
+.pb-section-caret,
+.pb-health-caret {
+    width: 20px;
+    height: 20px;
+    color: inherit;
     transition: transform 0.2s ease;
 }
 
-.pb-section-card.is-open .pb-section-caret {
+/* Bolden the chevron stroke without touching the shared SVG markup. */
+.pb-section-caret path,
+.pb-health-caret path {
+    stroke: currentColor;
+    stroke-width: 3;
+}
+
+.pb-section-card.is-open .pb-section-caret,
+.pb-section-card.is-open .pb-health-caret,
+.pb-health-card.is-open .pb-section-caret,
+.pb-health-card.is-open .pb-health-caret {
     transform: rotate(180deg);
 }
 
-.pb-section-content {
+/* Slightly smaller circular control on small screens. */
+@media (max-width: 640px) {
+    .pb-section-caret-btn,
+    .pb-health-caret-button {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+.pb-section-content,
+.pb-health-content {
+    display: none;
     padding: 16px;
-    border: 1px solid var(--color-border);
-    border-top: none;
-    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    border-top: 1px solid var(--color-border);
     background: var(--color-surface);
 }
 
-.pb-section-card.is-open .pb-section-content {
-    /* Content visible when open */
+.pb-section-content.hidden,
+.pb-health-content.hidden { display: none !important; }
+
+.pb-section-card.is-open .pb-section-content,
+.pb-section-card.is-open .pb-health-content,
+.pb-health-card.is-open .pb-section-content,
+.pb-health-card.is-open .pb-health-content {
+    display: block;
 }
 
 /* Preserve existing pb-health-card styles for Health Score section */
@@ -1418,31 +1852,39 @@
     /* Inherits all pb-section-card styles */
 }
 
-/* Ensure Health Score retains its unique header treatment */
-.pb-health-card .pb-section-header {
-    /* Can override if needed */
+/* Tablet: allow KPIs to wrap without overlapping titles */
+@media (max-width: 900px) {
+    .pb-section-header,
+    .pb-health-header { flex-wrap: wrap; row-gap: 10px; }
+    .pb-health-header-main { flex: 1 1 220px; min-width: 200px; max-width: none; }
+    .pb-section-kpis,
+    .pb-health-summary-values { flex: 1 1 100%; justify-content: flex-start; flex-wrap: wrap; order: 3; margin-left: 48px; }
+    .pb-hkpi { padding: 4px 14px 4px 0; margin-right: 14px; border-left: none; border-right: 1px solid var(--color-border); min-width: 0; align-items: flex-start; text-align: left; }
+    .pb-hkpi:last-child { border-right: none; margin-right: 0; }
+    .pb-section-controls,
+    .pb-health-header-right { margin-left: auto; }
 }
 
 /* Mobile responsive */
 @media (max-width: 640px) {
-    .pb-section-header {
+    .pb-section-header,
+    .pb-health-header {
         padding: 12px 14px;
-        flex-wrap: wrap;
+        min-height: 0;
     }
-    
-    .pb-section-header-left {
+
+    .pb-health-header-main {
         flex: 1 1 100%;
+        min-width: 0;
     }
-    
-    .pb-section-title {
-        font-size: 0.875rem;
-    }
-    
-    .pb-section-subtitle {
-        font-size: 0.7rem;
-    }
-    
-    .pb-section-content {
+
+    .pb-section-kpis,
+    .pb-health-summary-values { margin-left: 0; }
+    .pb-hkpi__value { font-size: 0.9375rem; }
+    .pb-hkpi__sub { max-width: 110px; }
+
+    .pb-section-content,
+    .pb-health-content {
         padding: 12px;
     }
 }

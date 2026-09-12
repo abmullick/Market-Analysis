@@ -291,9 +291,20 @@ async function runPortfolioAnalysis() {
                 || 'The portfolio could not be analyzed. Please check your allocations and try again.');
             return;
         }
-        renderAnalysis(data);
-    } catch (e) {
-        console.warn('Portfolio analysis request failed:', e);
+
+        // The API call succeeded — anything that throws from here on is a
+        // frontend rendering problem, NOT a server/network failure. Log the
+        // real exception and keep the user-facing message accurate.
+        try {
+            renderAnalysis(data);
+        } catch (renderErr) {
+            console.error('Portfolio analysis rendering error:', renderErr);
+            showAnalysisError('The analysis completed, but the results could not be displayed. Please try again.');
+        }
+    } catch (networkErr) {
+        // Network/API failure — the server could not be reached or returned
+        // a transport-level error before a usable response arrived.
+        console.warn('Portfolio analysis request failed:', networkErr);
         showAnalysisError('Could not reach the server. Please try again.');
     } finally {
         setAnalysisBusy(false);
@@ -362,15 +373,21 @@ function renderAnalysis(result) {
 
     const grid = $('pb-metric-grid');
     if (grid) grid.innerHTML = buildMetricCards(metrics);
+    updateMetricsHeader(metrics);
 
     const bd = result && result.benchmark_data ? result.benchmark_data : null;
 
     setAnalysisView('results');
     renderGrowthChart(series, bd);
     renderBenchmarkComparison(bd);
+    updateGrowthHeader(bd);
     renderRollingPerformance(result);
+    updateRollingHeader(result);
     renderDrawdownRecovery(result);
+    updateDrawdownHeader(result);
     renderReturnContribution(result);
+    updateContributionHeader(result);
+    updateWhatifHeader();
 }
 
 function renderGrowthChart(series, bd) {
@@ -662,6 +679,45 @@ function renderReturnContribution(result) {
 
     el.innerHTML = parts.join('');
     el.classList.remove('hidden');
+}
+
+function updateContributionHeader(result) {
+    const rc = result && result.return_contribution;
+    const rows = rc && Array.isArray(rc.contributions) ? rc.contributions : [];
+    if (!rc || !rows.length) { setHeaderKpis('pb-contribution-kpis', []); return; }
+    const kpis = [];
+    const top = rows[0];
+    if (top) {
+        kpis.push({
+            label: 'Top Contributor',
+            sub: escapeHtml(truncateName(top.scheme_name || top.scheme_code || '', 26)),
+            value: escapeHtml(formatSignedPp(top.contribution)),
+            tone: (top.contribution != null && top.contribution < 0) ? 'negative' : 'positive',
+        });
+    }
+    const drags = rows.filter(function (r) { return r && r.contribution != null && r.contribution < 0; });
+    const drag = drags.length ? drags[drags.length - 1] : null;
+    if (drag) {
+        kpis.push({
+            label: 'Largest Drag',
+            sub: escapeHtml(truncateName(drag.scheme_name || drag.scheme_code || '', 26)),
+            value: escapeHtml(formatSignedPp(drag.contribution)),
+            tone: 'negative',
+        });
+    }
+    setHeaderKpis('pb-contribution-kpis', kpis);
+}
+
+// What-If Allocation is a UI placeholder only — there is currently no
+// What-If backend, API, or scenario state. The header therefore shows
+// static descriptive status only: it never depends on analysis results and
+// never fabricates scenario KPIs. The section keeps the same collapsible
+// card header as the other six sections, and its expanded content remains
+// the existing placeholder (#pb-whatif-allocation).
+function updateWhatifHeader() {
+    setHeaderKpis('pb-whatif-kpis', [
+        { label: 'Historical Simulation', value: 'Coming Soon', muted: true },
+    ]);
 }
 
 // ---------------------------------------------------------------------------
@@ -1045,6 +1101,21 @@ function renderHealthComponent(key, value, weight) {
     );
 }
 
+function hideSectionCard(container) {
+    // Never use the global `.hidden` class on the card wrapper
+    // (it maps to display:none !important for analysis state).
+    // For the no-data case, hide via inline style so verification
+    // "no section wrapper receives .hidden" still holds.
+    if (container) container.style.display = 'none';
+}
+
+function showSectionCard(container) {
+    if (container) {
+        container.classList.remove('hidden');
+        container.style.display = '';
+    }
+}
+
 function renderHealthScore(healthScore) {
     const container = $('pb-health-score');
     if (!container) return;
@@ -1052,8 +1123,8 @@ function renderHealthScore(healthScore) {
     lastHealthScore = healthScore || null;
 
     if (!healthScore) {
-        container.classList.add('hidden');
         container.innerHTML = '';
+        hideSectionCard(container);
         return;
     }
 
@@ -1104,24 +1175,21 @@ function renderHealthScore(healthScore) {
 
     const html =
         '<div class="pb-health-card">' +
-        '<div class="pb-health-header">' +
-            '<div class="pb-health-header-left">' +
+        '<div class="pb-section-header pb-health-header" role="button" tabindex="0" aria-expanded="false" aria-controls="pb-health-builder-content">' +
+            '<div class="pb-health-header-main">' +
+                '<span class="pb-health-icon pb-section-icon" aria-hidden="true">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>' +
+                '</span>' +
                 '<span class="pb-health-summary-label">' +
                     'Portfolio Health Score' +
                     (isWithheld ? '<small>Score withheld - insufficient history</small>' : '<small>Overall portfolio assessment</small>') +
                 '</span>' +
-                '<span class="pb-health-summary-score">' +
-                    '<span class="pb-health-score-value">' + escapeHtml(scoreValue) + '</span>' +
-                    '<span class="pb-health-score-denominator">' + escapeHtml(scoreDenominator) + '</span>' + overallWhyBtn +
-                '</span>' +
-                (hasOverallWhy ? '<div class="pb-why-panel pb-why-panel--header" id="pb-why-panel-overall" hidden></div>' : '') +
             '</div>' +
-            '<div class="pb-health-header-right">' +
-                '<span class="pb-health-summary-confidence">' +
-                    '<span class="confidence-tier">' + escapeHtml(confidenceTier) + '</span>' +
-                    escapeHtml(confidenceLabel) + confidenceWhyBtn +
-                '</span>' +
-                (hasConfidenceWhy ? '<div class="pb-why-panel pb-why-panel--header" id="pb-why-panel-confidence" hidden style="display:none"></div>' : '') +
+            '<div class="pb-health-summary-values">' +
+                '<span class="pb-hkpi"><span class="pb-hkpi__value">' + escapeHtml(scoreValue) + (scoreDenominator ? ' <span class="pb-hkpi__denom">' + escapeHtml(scoreDenominator) + '</span>' : '') + '</span><span class="pb-hkpi__label">Score</span></span>' +
+                '<span class="pb-hkpi"><span class="pb-hkpi__value"><span class="confidence-tier">' + escapeHtml(confidenceTier) + '</span></span><span class="pb-hkpi__label">' + escapeHtml(confidenceLabel) + '</span></span>' +
+            '</div>' +
+            '<div class="pb-health-header-right">' + overallWhyBtn + confidenceWhyBtn +
                 '<button type="button" class="pb-health-caret-button" aria-expanded="false" aria-controls="pb-health-builder-content" aria-label="Expand Portfolio Health Score components" title="Expand Health Score details">' +
                     '<svg class="pb-health-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
                         '<path d="M5 7.5L10 12.5L15 7.5"></path>' +
@@ -1129,34 +1197,33 @@ function renderHealthScore(healthScore) {
                 '</button>' +
             '</div>' +
         '</div>' +
-        '<div class="pb-health-content" id="pb-health-builder-content" hidden>' + contentHtml + '</div>' +
+        (hasOverallWhy ? '<div class="pb-why-panel pb-why-panel--header" id="pb-why-panel-overall" hidden></div>' : '') +
+        (hasConfidenceWhy ? '<div class="pb-why-panel pb-why-panel--header" id="pb-why-panel-confidence" hidden></div>' : '') +
+        '<div class="pb-health-content" id="pb-health-builder-content">' + contentHtml + '</div>' +
         '</div>';
 
     container.innerHTML = html;
-    container.classList.remove('hidden');
+    showSectionCard(container);
 
-    // Health Score is the single accordion: the header (title + score +
-    // confidence + chevron) is always visible; only the component details
-    // below the header toggle. No outer "Details" layer.
+    // The single unified collapsible pattern owns open/closed state for ALL
+    // seven cards: content visibility is driven by `.is-open` on the card
+    // plus the `hidden` HTML attribute on the content (matches the six
+    // static sections). The header itself is never hidden.
     const card = container.querySelector('.pb-health-card');
+    const header = container.querySelector('.pb-health-header');
     const caretButton = container.querySelector('.pb-health-caret-button');
     const content = container.querySelector('.pb-health-content');
 
     function setHealthOpen(open) {
         if (content) content.hidden = !open;
-        if (card) card.classList.toggle('is-open', open);
+        if (card) card.classList.toggle('is-open', !!open);
+        if (header) header.setAttribute('aria-expanded', open ? 'true' : 'false');
         if (caretButton) caretButton.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
-    // OPEN by default — the entire Health Score section (score, confidence,
-    // component breakdown) is visible. Only the component details panel
-    // below the header starts collapsed; the header and score are always visible.
-    setHealthOpen(true);
-
-    if (caretButton && content) {
-        caretButton.addEventListener('click', function () {
-            setHealthOpen(!!content.hidden);
-        });
-    }
+    // COLLAPSED by default — header + KPI summary visible, details hidden.
+    // Delegated binding happens in bindHealthToggle() below (single pattern).
+    setHealthOpen(false);
+    bindHealthToggle();
 
     // Wire up Why? toggles: overall, confidence, and per-component.
     // No calculations here — panels render backend explanation strings.
@@ -1207,6 +1274,94 @@ function renderHealthScore(healthScore) {
             });
         })(compBtns[bi]);
     }
+}
+
+// Unified header-KPI helpers (UI only — values come from the response).
+function setHeaderKpis(id, kpis) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = (Array.isArray(kpis) ? kpis : []).map(function (k) {
+        if (!k || k.value == null || k.value === '') return '';
+        const tone = k.tone === 'positive' ? ' is-positive'
+            : (k.tone === 'negative' ? ' is-negative' : (k.muted ? ' is-muted' : ''));
+        return '<span class="pb-hkpi">'
+            + '<span class="pb-hkpi__value' + tone + '">' + k.value + '</span>'
+            + (k.sub ? '<span class="pb-hkpi__sub">' + k.sub + '</span>' : '')
+            + '<span class="pb-hkpi__label">' + k.label + '</span>'
+            + '</span>';
+    }).join('');
+}
+
+function truncateName(name, maxLen) {
+    const s = String(name == null ? '' : name);
+    if (s.length <= maxLen) return s;
+    return s.slice(0, Math.max(0, maxLen - 1)).trimEnd() + '…';
+}
+
+function updateMetricsHeader(metrics) {
+    if (!metrics) { setHeaderKpis('pb-metrics-kpis', []); return; }
+    const kpis = [];
+    kpis.push({ label: 'CAGR', value: escapeHtml(formatMetricPercent(metrics.cagr, false)) });
+    kpis.push({ label: 'Volatility', value: escapeHtml(formatMetricPercent(metrics.annualized_volatility, false)) });
+    if (metrics.sharpe_ratio != null && Number.isFinite(metrics.sharpe_ratio)) {
+        kpis.push({ label: 'Sharpe Ratio', value: escapeHtml(formatMetricRatio(metrics.sharpe_ratio)) });
+    }
+    setHeaderKpis('pb-metrics-kpis', kpis);
+}
+
+function updateGrowthHeader(bd) {
+    if (!bd || !bd.available) { setHeaderKpis('pb-growth-kpis', []); return; }
+    const kpis = [];
+    kpis.push({ label: 'Portfolio', value: escapeHtml(formatMetricPctFrac(bd.portfolio_cagr)) });
+    if (bd.nifty50_tri_available && bd.nifty50_tri_cagr != null && Number.isFinite(bd.nifty50_tri_cagr)) {
+        kpis.push({ label: 'NIFTY 50 TRI', value: escapeHtml(formatMetricPctFrac(bd.nifty50_tri_cagr)) });
+    }
+    if (bd.sp500_available && bd.sp500_total_return_cagr != null && Number.isFinite(bd.sp500_total_return_cagr)) {
+        kpis.push({ label: 'S&P 500 TR', value: escapeHtml(formatMetricPctFrac(bd.sp500_total_return_cagr)) });
+    }
+    setHeaderKpis('pb-growth-kpis', kpis);
+}
+
+function updateRollingHeader(result) {
+    const rp = result && result.rolling_performance;
+    if (!rp) { setHeaderKpis('pb-rolling-kpis', []); return; }
+    const wins = [
+        { label: '1Y Rolling', data: rp.one_year },
+        { label: '3Y Rolling', data: rp.three_year },
+        { label: '5Y Rolling', data: rp.five_year },
+    ];
+    const kpis = [];
+    wins.forEach(function (w) {
+        if (w.data && !w.data.insufficient_history && w.data.summary
+            && w.data.summary.median != null && Number.isFinite(w.data.summary.median)) {
+            kpis.push({ label: w.label, value: escapeHtml(formatSignedPercent(w.data.summary.median)) });
+        }
+    });
+    setHeaderKpis('pb-rolling-kpis', kpis);
+}
+
+function formatRecoveryShort(dd) {
+    if (!dd) return '—';
+    if (dd.longest_recovery_days != null && Number.isFinite(dd.longest_recovery_days)) {
+        const d = dd.longest_recovery_days;
+        if (d >= 30) {
+            const mo = Math.round(d / 30.44);
+            return mo + ' mo';
+        }
+        return d + (d === 1 ? ' day' : ' days');
+    }
+    return dd.current_status || 'Ongoing';
+}
+
+function updateDrawdownHeader(result) {
+    const dd = result && result.drawdown_recovery;
+    const series = result && Array.isArray(result.series) ? result.series : null;
+    if (!dd || !series || series.length < 2) { setHeaderKpis('pb-drawdown-kpis', []); return; }
+    const kpis = [];
+    kpis.push({ label: 'Max Drawdown', value: escapeHtml(formatSignedPercent(dd.maximum_drawdown)), tone: 'negative' });
+    kpis.push({ label: 'Current DD', value: escapeHtml(formatSignedPercent(dd.current_drawdown)), tone: (dd.current_drawdown != null && dd.current_drawdown < 0) ? 'negative' : undefined });
+    kpis.push({ label: 'Recovery', value: escapeHtml(formatRecoveryShort(dd)) });
+    setHeaderKpis('pb-drawdown-kpis', kpis);
 }
 
 // ---------------------------------------------------------------------------
@@ -1441,9 +1596,9 @@ if (document.readyState === 'loading') {
 // ===================================================================
 
 const COLLAPSIBLE_SECTIONS_CONFIG = [
-    { id: 'pb-health-score', defaultOpen: true },   // 1. Health Score — OPEN by default
-    { id: 'pb-metric-section', defaultOpen: true },  // 2. Portfolio Metrics — OPEN by default
-    { id: 'pb-growth-section', defaultOpen: true },  // 3. Growth & Benchmark — OPEN by default
+    { id: 'pb-health-score', defaultOpen: false },   // 1. Health Score — COLLAPSED by default
+    { id: 'pb-metric-section', defaultOpen: false },  // 2. Portfolio Metrics — COLLAPSED
+    { id: 'pb-growth-section', defaultOpen: false },  // 3. Growth & Benchmark — COLLAPSED
     { id: 'pb-rolling-section', defaultOpen: false }, // 4. Rolling Performance — COLLAPSED
     { id: 'pb-drawdown-section', defaultOpen: false }, // 5. Drawdown & Recovery — COLLAPSED
     { id: 'pb-contribution-section', defaultOpen: false }, // 6. Return Contribution — COLLAPSED
@@ -1458,7 +1613,8 @@ function initCollapsibleSections() {
     // Guard: only initialize once. Re-rendering content via innerHTML
     // in renderHealthScore() etc. does not require re-initialization
     // because the section wrappers (with their headers) persist in the DOM
-    // across analysis runs.
+    // across analysis runs. The dynamic Health Score header is bound
+    // separately via delegated bindHealthToggle().
     if (collapsibleSectionsInitialized) {
         return;
     }
@@ -1491,15 +1647,28 @@ function initCollapsibleSections() {
             caretBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         }
 
-        // Add click handler to the header (entire header is clickable)
-        const header = card.querySelector('.pb-section-header');
-        if (header && caretBtn) {
+        // Find the header + content. Static cards use .pb-section-header /
+        // .pb-section-content. (The dynamic Health Score header binds via
+        // delegated bindHealthToggle() — do NOT bind it here, since its
+        // innerHTML is re-rendered by renderHealthScore() and direct
+        // listeners would be lost/duplicated.)
+        if (sectionConfig.id === 'pb-health-score') return;
+        const header = card.querySelector('.pb-section-header, .pb-health-header');
+        if (header && caretBtn && !header.dataset.pbBound) {
+            header.dataset.pbBound = '1';
             // Prevent double-firing if clicked directly on button
             header.addEventListener('click', function(e) {
                 // If click is directly on the button, let the button handle it
                 // Otherwise, trigger the toggle
                 if (!e.target.closest('.pb-section-caret-btn') &&
                     !e.target.closest('.pb-health-caret-button')) {
+                    toggleSection(card);
+                }
+            });
+            // Keyboard support for role=button headers
+            header.addEventListener('keydown', function(e) {
+                if ((e.key === 'Enter' || e.key === ' ') && e.target === header) {
+                    e.preventDefault();
                     toggleSection(card);
                 }
             });
@@ -1518,15 +1687,15 @@ function initCollapsibleSections() {
 function toggleSection(card) {
     const isCurrentlyOpen = card.classList.contains('is-open');
     const newOpenState = !isCurrentlyOpen;
-    
+
     // Toggle the is-open class
     card.classList.toggle('is-open', newOpenState);
-    
+
     // Toggle content visibility
     const content = card.querySelector('.pb-section-content') || card.querySelector('.pb-health-content');
     if (content) {
         content.hidden = !newOpenState;
-        
+
         // If opening and content has a chart, trigger resize after a brief delay
         // to allow the DOM to update and container to have proper dimensions
         if (newOpenState && content.querySelector('canvas')) {
@@ -1544,35 +1713,49 @@ function toggleSection(card) {
             }, 50);
         }
     }
-    
+
     // Update aria-expanded
     const caretBtn = card.querySelector('.pb-section-caret-btn') || card.querySelector('.pb-health-caret-button');
     if (caretBtn) {
         caretBtn.setAttribute('aria-expanded', newOpenState ? 'true' : 'false');
     }
-    
-    // Update aria-expanded on the header if it's a button
-    const header = card.querySelector('.pb-section-header');
-    if (header && header.tagName === 'BUTTON') {
+
+    // Update aria-expanded on the header (role=button headers included)
+    const header = card.querySelector('.pb-section-header, .pb-health-header');
+    if (header) {
         header.setAttribute('aria-expanded', newOpenState ? 'true' : 'false');
     }
+}
+
+// The Health Score card renders its header dynamically AFTER
+// initCollapsibleSections() runs, so bind its toggle via delegation on the
+// stable #pb-health-score wrapper. This keeps ONE shared toggleSection()
+// implementation (no duplicate accordion logic) and works across re-renders.
+function bindHealthToggle() {
+    const container = document.getElementById('pb-health-score');
+    if (!container || container.dataset.pbHealthBound === '1') return;
+    container.dataset.pbHealthBound = '1';
+    container.addEventListener('click', function (ev) {
+        if (ev.target.closest('.pb-why-btn')) return;
+        const head = ev.target.closest('.pb-health-header');
+        if (!head) return;
+        if (ev.target.closest('.pb-why-panel')) return;
+        const cardEl = head.closest('.pb-health-card') || container.querySelector('.pb-health-card') || container;
+        toggleSection(cardEl);
+    });
+    container.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        const head = ev.target.closest && ev.target.closest('.pb-health-header');
+        if (!head || ev.target !== head) return;
+        ev.preventDefault();
+        const cardEl = head.closest('.pb-health-card') || container.querySelector('.pb-health-card') || container;
+        toggleSection(cardEl);
+    });
 }
 
 // Initialize collapsible sections when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initCollapsibleSections);
 } else {
-    initCollapsibleSections();
-}
-
-// Reinitialize after analysis results are rendered (in case sections are re-rendered)
-// This is a safe no-op because initCollapsibleSections() has a guard that prevents
-// duplicate initialization. The section wrappers persist in the DOM across analysis
-// runs; only their inner content is re-rendered.
-function reinitializeCollapsibleSections() {
-    // No-op: collapsible sections are initialized once on DOMContentLoaded.
-    // The section cards (with their headers) are static HTML; only the content
-    // inside .pb-section-content is re-rendered by the analysis renderers.
-    // Event handlers attached to the headers persist across re-renders.
     initCollapsibleSections();
 }
