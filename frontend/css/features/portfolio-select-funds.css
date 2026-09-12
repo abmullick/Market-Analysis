@@ -566,3 +566,147 @@
         font-size: 0.9375rem;
     }
 }
+
+/* ===================================================================
+   Progress indicator (shared — same tokens as portfolio-builder.css)
+   =================================================================== */
+
+.pfs-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: 0 auto 12px;
+    max-width: 480px;
+}
+
+.pfs-progress .pb-progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+
+.pfs-progress .pb-progress-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1;
+    background: var(--color-slate-100);
+    border: 1.5px solid var(--color-slate-300);
+    color: var(--color-text-light);
+    flex-shrink: 0;
+}
+
+.pfs-progress .pb-progress-step--active .pb-progress-num {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+}
+
+.pfs-progress .pb-progress-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-text-light);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.pfs-progress .pb-progress-step--active .pb-progress-label {
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.pfs-progress .pb-progress-connector {
+    flex: 0 0 24px;
+    height: 1px;
+    background: var(--color-slate-200);
+    min-width: 24px;
+}
+
+.pfs-step-label {
+    margin: 0 0 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-light);
+    text-align: center;
+}
+
+/* ===================================================================
+   Selected funds panel hierarchy
+   The section label (SELECTED FUNDS) is secondary; the count is
+   primary. Fund name is the strongest element; scheme code is
+   secondary metadata and must not compete visually.
+   =================================================================== */
+
+.pfs-sidebar-label {
+    margin: 0 0 2px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-light);
+}
+
+.pfs-sidebar h2 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin: 0 0 12px;
+}
+
+.pfs-selected-item-name {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text);
+    line-height: 1.4;
+    overflow-wrap: break-word;
+}
+
+.pfs-selected-item-meta {
+    display: block;
+    font-size: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--color-slate-400);
+    margin-top: 2px;
+}
+
+.pfs-selected-item-info {
+    min-width: 0;
+    flex: 1;
+}
+
+/* ===================================================================
+   Responsive: progress indicator collapses gracefully
+   =================================================================== */
+
+@media (max-width: 640px) {
+    .pfs-progress {
+        flex-wrap: wrap;
+        gap: 8px 0;
+        margin-bottom: 8px;
+    }
+
+    .pfs-progress .pb-progress-connector {
+        flex: 0 0 12px;
+        min-width: 12px;
+    }
+
+    .pfs-progress .pb-progress-label {
+        font-size: 0.75rem;
+    }
+
+    .pfs-step-label {
+        font-size: 0.6875rem;
+    }
+}

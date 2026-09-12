@@ -1307,3 +1307,142 @@
         height: 160px;
     }
 }
+
+
+/* ========================================
+   Collapsible Section Styles (reuses Health Score pattern)
+   ======================================== */
+
+.pb-section-card {
+    margin-top: 16px;
+}
+
+.pb-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+}
+
+.pb-section-header:hover {
+    border-color: var(--color-text-light);
+}
+
+.pb-section-header:focus-within {
+    border-color: var(--color-accent, #0ea5e9);
+    box-shadow: 0 0 0 2px var(--color-accent-light, #bae6fd);
+}
+
+.pb-section-header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.pb-section-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    line-height: 1.4;
+}
+
+.pb-section-subtitle {
+    font-size: 0.75rem;
+    color: var(--color-text-light);
+    line-height: 1.4;
+}
+
+.pb-section-header-right {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.pb-section-caret-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.pb-section-caret-btn:hover {
+    background: var(--color-bg);
+    border-color: var(--color-text-light);
+}
+
+.pb-section-caret-btn:focus {
+    outline: 2px solid var(--color-accent, #0ea5e9);
+    outline-offset: 2px;
+}
+
+.pb-section-caret {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.2s ease;
+}
+
+.pb-section-card.is-open .pb-section-caret {
+    transform: rotate(180deg);
+}
+
+.pb-section-content {
+    padding: 16px;
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    background: var(--color-surface);
+}
+
+.pb-section-card.is-open .pb-section-content {
+    /* Content visible when open */
+}
+
+/* Preserve existing pb-health-card styles for Health Score section */
+.pb-health-card.pb-section-card {
+    /* Inherits all pb-section-card styles */
+}
+
+/* Ensure Health Score retains its unique header treatment */
+.pb-health-card .pb-section-header {
+    /* Can override if needed */
+}
+
+/* Mobile responsive */
+@media (max-width: 640px) {
+    .pb-section-header {
+        padding: 12px 14px;
+        flex-wrap: wrap;
+    }
+    
+    .pb-section-header-left {
+        flex: 1 1 100%;
+    }
+    
+    .pb-section-title {
+        font-size: 0.875rem;
+    }
+    
+    .pb-section-subtitle {
+        font-size: 0.7rem;
+    }
+    
+    .pb-section-content {
+        padding: 12px;
+    }
+}

@@ -1147,8 +1147,10 @@ function renderHealthScore(healthScore) {
         if (card) card.classList.toggle('is-open', open);
         if (caretButton) caretButton.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
-    // Collapsed by default; header remains visible.
-    setHealthOpen(false);
+    // OPEN by default — the entire Health Score section (score, confidence,
+    // component breakdown) is visible. Only the component details panel
+    // below the header starts collapsed; the header and score are always visible.
+    setHealthOpen(true);
 
     if (caretButton && content) {
         caretButton.addEventListener('click', function () {
@@ -1419,4 +1421,158 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initPortfolioBuilder);
 } else {
     initPortfolioBuilder();
+}
+
+
+// ===================================================================
+// Collapsible section toggle logic (reuses Health Score pattern)
+// All sections use the same interaction model as pb-health-card.
+// Chart.js instances are preserved; only visibility changes.
+//
+// CRITICAL: Section VISIBILITY (card wrapper being in DOM and visible)
+// is SEPARATE from section EXPANDED/COLLAPSED STATE (content hidden).
+//
+// - A collapsed section: card wrapper is VISIBLE, header visible,
+//   but .pb-section-content has the `hidden` attribute.
+// - The card wrapper MUST NEVER receive the analysis-level `.hidden`
+//   class (which maps to `display: none !important` in components.css).
+//   That class is reserved for loading/error/results state management
+//   via setAnalysisView().
+// ===================================================================
+
+const COLLAPSIBLE_SECTIONS_CONFIG = [
+    { id: 'pb-health-score', defaultOpen: true },   // 1. Health Score — OPEN by default
+    { id: 'pb-metric-section', defaultOpen: true },  // 2. Portfolio Metrics — OPEN by default
+    { id: 'pb-growth-section', defaultOpen: true },  // 3. Growth & Benchmark — OPEN by default
+    { id: 'pb-rolling-section', defaultOpen: false }, // 4. Rolling Performance — COLLAPSED
+    { id: 'pb-drawdown-section', defaultOpen: false }, // 5. Drawdown & Recovery — COLLAPSED
+    { id: 'pb-contribution-section', defaultOpen: false }, // 6. Return Contribution — COLLAPSED
+    { id: 'pb-whatif-section', defaultOpen: false },  // 7. What-If Allocation — COLLAPSED
+];
+
+// Track whether collapsible sections have been initialized to avoid
+// duplicate event listeners on repeated analysis runs.
+let collapsibleSectionsInitialized = false;
+
+function initCollapsibleSections() {
+    // Guard: only initialize once. Re-rendering content via innerHTML
+    // in renderHealthScore() etc. does not require re-initialization
+    // because the section wrappers (with their headers) persist in the DOM
+    // across analysis runs.
+    if (collapsibleSectionsInitialized) {
+        return;
+    }
+
+    COLLAPSIBLE_SECTIONS_CONFIG.forEach(function(sectionConfig) {
+        const card = document.getElementById(sectionConfig.id);
+        if (!card) return;
+
+        // Ensure the card wrapper itself is never hidden via the
+        // analysis-level `.hidden` class. This class is reserved for
+        // setAnalysisView() to show/hide the entire results container,
+        // not for accordion state.
+        card.classList.remove('hidden');
+
+        // Set initial open/closed state
+        const isOpen = sectionConfig.defaultOpen;
+        card.classList.toggle('is-open', isOpen);
+
+        // Find the content element and toggle the `hidden` attribute
+        // (NOT the `.hidden` class — the `hidden` HTML attribute is
+        // the native way to hide content while keeping the element in DOM).
+        const content = card.querySelector('.pb-section-content') || card.querySelector('.pb-health-content');
+        if (content) {
+            content.hidden = !isOpen;
+        }
+
+        // Update aria-expanded on caret button
+        const caretBtn = card.querySelector('.pb-section-caret-btn') || card.querySelector('.pb-health-caret-button');
+        if (caretBtn) {
+            caretBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        }
+
+        // Add click handler to the header (entire header is clickable)
+        const header = card.querySelector('.pb-section-header');
+        if (header && caretBtn) {
+            // Prevent double-firing if clicked directly on button
+            header.addEventListener('click', function(e) {
+                // If click is directly on the button, let the button handle it
+                // Otherwise, trigger the toggle
+                if (!e.target.closest('.pb-section-caret-btn') &&
+                    !e.target.closest('.pb-health-caret-button')) {
+                    toggleSection(card);
+                }
+            });
+
+            // Button click handler
+            caretBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                toggleSection(card);
+            });
+        }
+    });
+
+    collapsibleSectionsInitialized = true;
+}
+
+function toggleSection(card) {
+    const isCurrentlyOpen = card.classList.contains('is-open');
+    const newOpenState = !isCurrentlyOpen;
+    
+    // Toggle the is-open class
+    card.classList.toggle('is-open', newOpenState);
+    
+    // Toggle content visibility
+    const content = card.querySelector('.pb-section-content') || card.querySelector('.pb-health-content');
+    if (content) {
+        content.hidden = !newOpenState;
+        
+        // If opening and content has a chart, trigger resize after a brief delay
+        // to allow the DOM to update and container to have proper dimensions
+        if (newOpenState && content.querySelector('canvas')) {
+            setTimeout(function() {
+                // Notify Chart.js instances to resize if needed
+                if (typeof window !== 'undefined' && window.Chart) {
+                    const canvases = content.querySelectorAll('canvas');
+                    canvases.forEach(function(canvas) {
+                        const chart = Chart.getChart(canvas.id);
+                        if (chart) {
+                            chart.resize();
+                        }
+                    });
+                }
+            }, 50);
+        }
+    }
+    
+    // Update aria-expanded
+    const caretBtn = card.querySelector('.pb-section-caret-btn') || card.querySelector('.pb-health-caret-button');
+    if (caretBtn) {
+        caretBtn.setAttribute('aria-expanded', newOpenState ? 'true' : 'false');
+    }
+    
+    // Update aria-expanded on the header if it's a button
+    const header = card.querySelector('.pb-section-header');
+    if (header && header.tagName === 'BUTTON') {
+        header.setAttribute('aria-expanded', newOpenState ? 'true' : 'false');
+    }
+}
+
+// Initialize collapsible sections when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCollapsibleSections);
+} else {
+    initCollapsibleSections();
+}
+
+// Reinitialize after analysis results are rendered (in case sections are re-rendered)
+// This is a safe no-op because initCollapsibleSections() has a guard that prevents
+// duplicate initialization. The section wrappers persist in the DOM across analysis
+// runs; only their inner content is re-rendered.
+function reinitializeCollapsibleSections() {
+    // No-op: collapsible sections are initialized once on DOMContentLoaded.
+    // The section cards (with their headers) are static HTML; only the content
+    // inside .pb-section-content is re-rendered by the analysis renderers.
+    // Event handlers attached to the headers persist across re-renders.
+    initCollapsibleSections();
 }

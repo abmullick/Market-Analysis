@@ -333,12 +333,12 @@ function renderContinueBtn() {
     if (count > 0) {
         btn.classList.remove('pfs-continue-disabled');
         btn.setAttribute('aria-disabled', 'false');
-        btn.textContent = 'Continue to Portfolio Builder (' + count + ' selected)';
+        btn.textContent = 'Continue to Allocation (' + count + ' selected)';
         if (hint) hint.classList.add('hidden');
     } else {
         btn.classList.add('pfs-continue-disabled');
         btn.setAttribute('aria-disabled', 'true');
-        btn.textContent = 'Continue to Portfolio Builder';
+        btn.textContent = 'Continue to Allocation';
         if (hint) hint.classList.remove('hidden');
     }
 }

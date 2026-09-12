@@ -23,13 +23,31 @@
     <main class="container">
         <div class="page-header">
             <div id="portfolio-select-funds-content">
+                <div class="pfs-progress" aria-label="Portfolio Builder steps">
+                    <div class="pb-progress-step pb-progress-step--active">
+                        <span class="pb-progress-num">1</span>
+                        <span class="pb-progress-label">Select Funds</span>
+                    </div>
+                    <div class="pb-progress-connector" aria-hidden="true"></div>
+                    <div class="pb-progress-step">
+                        <span class="pb-progress-num">2</span>
+                        <span class="pb-progress-label">Set Allocation</span>
+                    </div>
+                    <div class="pb-progress-connector" aria-hidden="true"></div>
+                    <div class="pb-progress-step">
+                        <span class="pb-progress-num">3</span>
+                        <span class="pb-progress-label">Analyze</span>
+                    </div>
+                </div>
+                <p class="pfs-step-label">Step 1 of 3</p>
                 <div class="pfs-page-header-text">
                     <h1 class="mf-page-title">Select Funds</h1>
                     <p class="mf-page-subtitle">Search and select the mutual funds you want to include in your portfolio.</p>
                 </div>
                 <div class="pfs-layout">
                     <aside class="ranking-controls pfs-sidebar">
-                        <h2>Selected Funds <span id="pfs-selected-count"></span></h2>
+                        <p class="pfs-sidebar-label">SELECTED FUNDS</p>
+                    <h2><span id="pfs-selected-count"></span></h2>
                         <div id="pfs-selected-empty" class="pfs-selected-empty">
                             No funds selected yet.
                             <div class="pfs-selected-empty-hint">Search results will appear here once you add funds.</div>
@@ -39,7 +57,7 @@
                         </div>
                         <div id="pfs-continue-section" class="pfs-continue-section hidden">
                             <a href="/portfolio-builder.html" class="btn btn-primary pfs-continue-btn" id="pfs-continue-btn" aria-disabled="true">
-                                Continue to Portfolio Builder
+                                Continue to Allocation
                             </a>
                             <p id="pfs-continue-hint" class="pfs-continue-hint">Select at least one fund to continue.</p>
                         </div>
