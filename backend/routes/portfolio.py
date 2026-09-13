@@ -10,7 +10,10 @@ from backend.models.portfolio import (
     PortfolioAnalysisResult,
     PortfolioWhatIfRequest,
     PortfolioWhatIfResult,
+    StockOverlapRequest,
 )
+from backend.services.data.amfi_holdings import AmfiHoldingsService
+from backend.services.portfolio.stock_overlap import compute_stock_overlap
 from backend.services.mutual_funds.fetcher import MutualFundFetcher
 from backend.services.portfolio.mf_analysis import (
     PortfolioAnalysisError,
@@ -166,6 +169,34 @@ async def analyze_mutual_fund_portfolio(request: PortfolioAnalysisRequest) -> Po
     except Exception as e:
         logger.warning("Portfolio analysis failed: %s", e)
         raise HTTPException(status_code=502, detail=f"Failed to analyze portfolio: {e}")
+
+
+@router.post("/stock-overlap")
+async def stock_overlap(request: StockOverlapRequest) -> dict[str, Any]:
+    """Compute stock overlap across the supplied funds' AMFI holdings.
+
+    Holdings are fetched only for the supplied funds via the existing
+    AmfiHoldingsService (default/hardcoded quarter) and passed directly
+    to compute_stock_overlap(). No new AMFI scraping logic.
+    """
+    if not request.funds:
+        raise HTTPException(status_code=400, detail="funds must not be empty")
+    try:
+        fetcher = _get_fetcher()
+        funds: list[dict[str, Any]] = [
+            {"scheme_code": f.scheme_code.strip(),
+             "scheme_name": f.scheme_name,
+             "allocation": f.allocation}
+            for f in request.funds
+        ]
+        await _enrich_with_scheme_metadata(fetcher, funds)
+        holdings = await AmfiHoldingsService().fetch_holdings(funds)
+        return compute_stock_overlap(funds, holdings.holdings)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("Stock overlap failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"Failed to compute stock overlap: {e}")
 
 
 @router.post("/mutual-fund-analysis/what-if", response_model=PortfolioWhatIfResult)

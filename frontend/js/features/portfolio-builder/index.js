@@ -395,6 +395,88 @@ function renderAnalysis(result) {
         .filter((f) => !f.invalid && typeof f.allocation === 'number')
         .map((f) => ({ scheme_code: f.scheme_code, scheme_name: f.scheme_name, allocation: f.allocation }));
     initWhatIfSection(whatifFunds);
+
+    // Stock Overlap & Concentration — same funds/allocations, rendered in
+    // the existing collapsed card via POST /portfolio/stock-overlap.
+    loadStockOverlap(whatifFunds);
+}
+
+// ---------------------------------------------------------------------------
+// Stock Overlap & Concentration
+// Fetches POST /portfolio/stock-overlap with the same selected funds and
+// allocations used by the portfolio analysis above and renders the summary
+// + stock table inside the existing card. Backend order is preserved.
+// ---------------------------------------------------------------------------
+
+function formatExposure(v) {
+    if (v == null || !Number.isFinite(Number(v))) return 'N/A';
+    return Number(v).toFixed(2) + '%';
+}
+
+function renderStockOverlapLoading() {
+    const el = $('pb-overlap-content');
+    if (el) el.innerHTML = '<div class="pb-analysis-loading"><span class="pb-spinner" aria-hidden="true"></span><span>Loading...</span></div>';
+    setHeaderKpis('pb-overlap-kpis', []);
+}
+
+function renderStockOverlapError() {
+    const el = $('pb-overlap-content');
+    if (el) el.textContent = 'Unable to load stock overlap data.';
+    setHeaderKpis('pb-overlap-kpis', []);
+}
+
+function renderStockOverlap(data) {
+    const el = $('pb-overlap-content');
+    if (!el) return;
+    const stocks = data && Array.isArray(data.stocks) ? data.stocks : [];
+    const unique = data && data.total_unique_stock_count != null ? data.total_unique_stock_count : stocks.length;
+    const overlapping = data && data.overlapping_stock_count != null ? data.overlapping_stock_count : 0;
+    setHeaderKpis('pb-overlap-kpis', [
+        { label: 'Unique Stocks', value: escapeHtml(String(unique)) },
+        { label: 'Overlapping Stocks', value: escapeHtml(String(overlapping)) },
+    ]);
+    if (!stocks.length) {
+        el.textContent = 'No overlapping stock exposure found.';
+        return;
+    }
+    const rows = stocks.map(function (s) {
+        const funds = Array.isArray(s.funds) ? s.funds : [];
+        const fundLabel = funds.length + (funds.length === 1 ? ' fund' : ' funds');
+        return '<tr>'
+            + '<td class="pb-rc-fund-cell"><span class="pb-rc-name">' + escapeHtml(s.security_name || s.isin) + '</span></td>'
+            + '<td>' + escapeHtml(s.isin || '') + '</td>'
+            + '<td>' + escapeHtml(fundLabel) + '</td>'
+            + '<td>' + escapeHtml(formatExposure(s.effective_portfolio_exposure)) + '</td>'
+            + '</tr>';
+    }).join('');
+    el.innerHTML = '<div class="pb-rc-title">Stock Overlap &amp; Concentration</div>'
+        + '<div class="pb-rc-subtitle">Unique stocks: ' + escapeHtml(String(unique))
+        + ' \u00b7 Overlapping stocks: ' + escapeHtml(String(overlapping)) + '</div>'
+        + '<table class="pb-rc-table">'
+        + '<thead><tr><th>Stock</th><th>ISIN</th><th>Funds</th><th>Effective Exposure</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody>'
+        + '</table>';
+}
+
+async function loadStockOverlap(funds) {
+    if (!Array.isArray(funds) || !funds.length) return;
+    renderStockOverlapLoading();
+    try {
+        const response = await fetch(getApiBase() + '/portfolio/stock-overlap', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ funds: funds }),
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data) {
+            renderStockOverlapError();
+            return;
+        }
+        renderStockOverlap(data);
+    } catch (err) {
+        console.warn('Stock overlap request failed:', err);
+        renderStockOverlapError();
+    }
 }
 
 function renderGrowthChart(series, bd) {

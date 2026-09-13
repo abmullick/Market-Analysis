@@ -333,6 +333,16 @@ class HealthScoreData(BaseModel):
     explanation: Optional[HealthScoreExplanation] = None
 
 
+class StockOverlapFundInput(BaseModel):
+    scheme_code: str
+    scheme_name: str = ""
+    allocation: float = Field(ge=0, le=100, description="Target allocation in percent")
+
+
+class StockOverlapRequest(BaseModel):
+    funds: list[StockOverlapFundInput]
+
+
 # Resolve the forward reference from PortfolioAnalysisResult.health_score.
 PortfolioAnalysisResult.model_rebuild()
 
