@@ -459,6 +459,53 @@ A 0–100 portfolio-level diagnostic, not a prediction of future returns. It ble
 - Unavailable components are excluded and the remaining available component weights are re-normalized.
 - Legacy schemes (AMFI-reported NAV publication lagging the universe's newest NAV by more than 14 days) cap confidence at Limited, even when history is otherwise long enough.
 
+### What-If Allocation
+What-If Allocation lets you test an alternative allocation across the **same funds** in your current portfolio. The current portfolio remains unchanged — the scenario is temporary and is never saved. The **What-If Portfolio** must total exactly 100% and must include every fund in the current portfolio (no new funds, no removals, no duplicates).
+
+The **What-If Portfolio** is a **Historical Simulation** of the alternative allocation, run with the same portfolio-analysis methodology as the regular analysis — the same NAV histories, the same common-date alignment, and the same daily-return-based metric calculations — so the comparison between the **Current Portfolio** and the **What-If Portfolio** is directly comparable. Running a scenario is purely computational: nothing is persisted and your saved portfolio is never modified.
+
+**Metrics available:** CAGR, Annualized Volatility, Sharpe Ratio, Sortino Ratio, Maximum Drawdown, and Total Return.
+
+**The feature also provides:**
+- **Metric deltas** — the difference (What-If minus Current) for each metric, where applicable.
+- **Historical growth comparison** — a growth series rebased to 100, charting the Current Portfolio against the What-If Portfolio over the shared analysis period.
+- **Key Insight** — a short, derived summary of the headline delta movements (for example, how CAGR and Maximum Drawdown would have changed).
+- **Analysis period** — the common start date, end date, observation count, and span in years shared by both sides.
+- **Warnings** — where applicable, e.g. funds excluded at 0% allocation.
+
+> What-If results are historical simulations, not forecasts. Past performance does not guarantee future results.
+
+**API**
+`POST /api/portfolio/mutual-fund-analysis/what-if` — Run a temporary What-If allocation scenario for the current funds and return the Current Portfolio vs What-If Portfolio comparison. The scenario is not saved and never modifies the current portfolio.
+
+**Request**
+```json
+{
+  "funds": [
+    { "scheme_code": "123456", "allocation": 50 },
+    { "scheme_code": "789012", "allocation": 50 }
+  ],
+  "scenario_allocations": [
+    { "scheme_code": "123456", "allocation": 70 },
+    { "scheme_code": "789012", "allocation": 30 }
+  ]
+}
+```
+
+**Response**
+```json
+{
+  "analysis_period": { "start_date": "2020-01-01", "end_date": "2025-01-01", "observations": 1234, "years": 4.99 },
+  "current":  { "allocations": [...], "metrics": {...}, "benchmark_data": null },
+  "scenario": { "allocations": [...], "metrics": {...}, "benchmark_data": null },
+  "deltas":   { "cagr": 0.0123, "volatility": -0.0041, "sharpe": 0.051, "sortino": 0.039, "max_drawdown": -0.021, "total_return": 0.512 },
+  "growth_series": [ { "date": "2020-01-01", "current": 100.0, "scenario": 100.0 }, ... ],
+  "warnings": []
+}
+```
+
+`metrics` is the same portfolio-metrics object as the regular analysis (CAGR, Annualized Volatility, Sharpe Ratio, Sortino Ratio, Maximum Drawdown, Total Return, plus period fields); `benchmark_data` is returned when benchmark comparison is available and otherwise `null`. `deltas` are What-If minus Current for each metric; for `max_drawdown` both values are positive magnitudes, so a negative delta means the scenario's drawdown was shallower.
+
 ## Recent Enhancements
 
 These were added on top of the existing architecture without changing any calculation, ranking, or API behaviour:
@@ -473,6 +520,7 @@ These were added on top of the existing architecture without changing any calcul
 - **Return Contribution** — Additive performance-attribution section in the Portfolio Builder results: each fund's contribution to the portfolio's total return in percentage points, computed inside the existing daily-return pipeline (`contribution_i = Σ_t w_i · r_i(t) · V(t−1)`, so contributions reconcile exactly to the portfolio return over the common period). Health Score and benchmark calculations are unchanged.
 - **Drawdown & Recovery** — Additive section derived from the existing portfolio growth series: drawdown episodes (peak/trough/recovery dates, magnitude, calendar-day durations), ongoing-drawdown status, current drawdown, and a drawdown chart. Episodes ≤2% are not listed (top 5 by magnitude shown); the summary Maximum Drawdown covers all episodes and reconciles with the existing metric. Health Score and benchmark calculations are unchanged.
 - **Rolling Performance** — Additive section reusing the existing portfolio growth/return series and the same rolling-consistency conventions: rolling CAGR distributions (1Y/3Y/5Y) with observations, average/median/min/max CAGR, and positive-period percentage, plus a chart switching between windows. Distinguishes rolling CAGR (distribution across windows) from Portfolio CAGR (single period return). Insufficient history shows "Insufficient history" rather than fabricated data. Health Score, Return Contribution, and benchmark calculations are unchanged. No rolling volatility, Sharpe, or future-return prediction is added.
+- **What-If Allocation** — Additive section in the Portfolio Builder letting you temporarily test an alternative allocation across the same funds, comparing the Current Portfolio against the What-If Portfolio using the same Historical Simulation engine. The scenario is never saved and never modifies the current portfolio; results include per-metric deltas, a rebased growth comparison, a Key Insight, the analysis period, and warnings. Health Score and existing metrics are unchanged.
 
 ## Notes
 
