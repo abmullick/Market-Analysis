@@ -391,3 +391,35 @@ class PortfolioWhatIfResult(BaseModel):
     deltas: PortfolioWhatIfDeltas
     growth_series: list[PortfolioWhatIfGrowthPoint] = []
     warnings: list[str] = []
+
+
+# ---------------------------------------------------------------------------
+# Stock Overlap & Concentration — underlying stock exposure (future)
+# ---------------------------------------------------------------------------
+
+
+class StockOverlapHolding(BaseModel):
+    """A single underlying stock holding within a fund's portfolio."""
+
+    isin: str
+    security_name: str
+    weight: float
+
+
+class StockOverlapFundHoldings(BaseModel):
+    """A fund's underlying stock holdings."""
+
+    scheme_code: str
+    scheme_name: str
+    portfolio_date: Optional[str] = None
+    holdings: list[StockOverlapHolding] = []
+
+
+class StockOverlapResult(BaseModel):
+    """Overlap of a single stock across multiple funds in the portfolio."""
+
+    isin: str
+    security_name: str
+    fund_count: int
+    funds: list[str] = []
+    portfolio_exposure: float

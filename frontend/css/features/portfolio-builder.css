@@ -2009,6 +2009,12 @@ body[data-page="portfolio-builder"] {
     --pb-border: rgba(124, 58, 237, 0.2);
 }
 
+#pb-overlap-section {
+    --pb-accent: #475569;
+    --pb-tint: rgba(71, 85, 105, 0.05);
+    --pb-border: rgba(71, 85, 105, 0.2);
+}
+
 .pb-section-card {
     border-left-color: transparent;
     box-shadow: 0 2px 10px rgba(15, 23, 42, 0.045);

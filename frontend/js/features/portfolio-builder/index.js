@@ -2063,6 +2063,7 @@ const COLLAPSIBLE_SECTIONS_CONFIG = [
     { id: 'pb-drawdown-section', defaultOpen: false }, // 5. Drawdown & Recovery — COLLAPSED
     { id: 'pb-contribution-section', defaultOpen: false }, // 6. Return Contribution — COLLAPSED
     { id: 'pb-whatif-section', defaultOpen: false },  // 7. What-If Allocation — COLLAPSED
+    { id: 'pb-overlap-section', defaultOpen: false },  // 8. Stock Overlap & Concentration — COLLAPSED
 ];
 
 // Track whether collapsible sections have been initialized to avoid
