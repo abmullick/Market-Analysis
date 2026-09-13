@@ -2010,8 +2010,7 @@ body[data-page="portfolio-builder"] {
 }
 
 .pb-section-card {
-    border-left-width: 3px;
-    border-left-color: var(--pb-accent, var(--color-accent));
+    border-left-color: transparent;
     box-shadow: 0 2px 10px rgba(15, 23, 42, 0.045);
 }
 
@@ -2220,37 +2219,6 @@ body[data-page="portfolio-builder"] {
 #pb-contribution-section .pb-rc-chip {
     background: var(--pb-tint);
     border-color: var(--pb-border);
-}
-
-/* --- Drawdown & Recovery: Completed vs Ongoing episodes get a clear
-   status badge instead of plain text, and Ongoing rows carry a light
-   amber tint so the still-open episode stands out in the table. --- */
-.pb-dd-status-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 9px;
-    border-radius: var(--radius-pill);
-    font-size: 0.6875rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    white-space: nowrap;
-}
-
-.pb-dd-status-badge.pb-dd-row-completed {
-    color: var(--color-green-700, #15803d);
-    background: var(--color-green-50, #f0fdf4);
-    border: 1px solid var(--color-green-100, #dcfce7);
-}
-
-.pb-dd-status-badge.pb-dd-row-ongoing {
-    color: #b45309;
-    background: rgba(180, 83, 9, 0.1);
-    border: 1px solid rgba(180, 83, 9, 0.22);
-}
-
-#pb-drawdown-recovery tr.pb-dd-row-ongoing {
-    background: rgba(180, 83, 9, 0.035);
 }
 
 /* --- Return Contribution: a subtle green identity, and the Top

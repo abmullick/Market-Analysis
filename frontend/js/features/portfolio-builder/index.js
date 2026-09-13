@@ -1233,10 +1233,9 @@ function renderDrawdownRecovery(result) {
         const recoveryDate = ep.is_ongoing ? 'Ongoing' : (ep.recovery_date || '\u2014');
         const recoveryTime = ep.is_ongoing ? '\u2014' : (ep.recovery_duration_days != null ? ep.recovery_duration_days + ' days' : '\u2014');
         const cls = ep.drawdown < 0 ? 'pb-rc-neg' : '';
-        const rowCls = ep.is_ongoing ? 'pb-dd-row-ongoing' : 'pb-dd-row-completed';
         return ''
-            + '<tr class="' + rowCls + '">'
-            + '<td><span class="pb-dd-status-badge ' + rowCls + '">' + escapeHtml(status) + '</span></td>'
+            + '<tr>'
+            + '<td>' + escapeHtml(status) + '</td>'
             + '<td>' + escapeHtml(ep.peak_date) + '</td>'
             + '<td>' + escapeHtml(ep.trough_date) + '</td>'
             + '<td>' + escapeHtml(recoveryDate) + '</td>'
