@@ -191,6 +191,15 @@ async def stock_overlap(request: StockOverlapRequest) -> dict[str, Any]:
         ]
         await _enrich_with_scheme_metadata(fetcher, funds)
         holdings = await AmfiHoldingsService().fetch_holdings(funds)
+        if not holdings.holdings:
+            from backend.services.data.boi_holdings import BoiHoldingsAdapter
+            try:
+                fallback = await BoiHoldingsAdapter().fetch_holdings(funds)
+            except Exception as exc:
+                logger.warning("BOI fallback holdings failed: %s", exc)
+                fallback = None
+            if fallback is not None and fallback.holdings:
+                holdings = fallback
         return compute_stock_overlap(funds, holdings.holdings)
     except HTTPException:
         raise
