@@ -1024,6 +1024,7 @@ async function runWhatIfAnalysis() {
         try {
             whatifState.result = data;
             renderWhatIfResult(data);
+            updateWhatifHeader();
         } catch (renderErr) {
             console.error('What-If rendering error:', renderErr);
             if (errEl) {

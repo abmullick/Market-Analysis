@@ -1759,14 +1759,14 @@
 
 /* Denominator (e.g. "/ 100" after the Health Score value) stays muted. */
 .pb-hkpi__denom {
-    font-size: 0.8125rem;
+    font-size: 0.5625rem;
     font-weight: 500;
     color: var(--color-text-light);
 }
 
 /* Confidence tier badge inside a KPI value stays prominent. */
 .pb-hkpi__value .confidence-tier {
-    font-size: 1.25rem;
+    font-size: 1rem;
     font-weight: 800;
 }
 
@@ -2020,11 +2020,13 @@ body[data-page="portfolio-builder"] {
     box-shadow: 0 2px 10px rgba(15, 23, 42, 0.045);
 }
 
-/* Title: a touch stronger than body text, description stays subtle
-   (kept intentionally restrained — this is a dense analytical dashboard). */
+/* Title: semibold across all seven section cards — a touch stronger
+   than body text, description stays subtle. Health Score title is NOT
+   heavier than the other six (kept intentionally restrained — this is a
+   dense analytical dashboard). */
 .pb-section-titlewrap.pb-health-summary-label,
 .pb-health-header-main .pb-health-summary-label {
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: -0.012em;
 }
 
@@ -2057,16 +2059,22 @@ body[data-page="portfolio-builder"] {
     background: #fbfcfe;
 }
 
-/* Health Score — the single most important number gets the strongest
-   visual weight; a restrained navy tone rather than a "positive" green. */
+/* Health Score — compact but still the slightly-emphasized KPI; the
+   main score number matches the other sections' KPI value size. */
 #pb-health-score .pb-health-summary-values .pb-hkpi:first-child .pb-hkpi__value {
-    font-size: 1.875rem;
+    font-size: 1.0625rem;
     font-weight: 800;
     color: var(--pb-accent);
 }
 
 #pb-health-score .pb-health-summary-values .pb-hkpi .confidence-tier {
     color: var(--pb-accent);
+}
+
+/* Health Score "Score" / confidence labels stay smaller than the shared
+   KPI labels used by the other six sections. */
+#pb-health-score .pb-health-summary-values .pb-hkpi .pb-hkpi__label {
+    font-size: 0.5rem;
 }
 
 /* --- Portfolio Metrics: compact KPI blocks with subtle dividers instead
