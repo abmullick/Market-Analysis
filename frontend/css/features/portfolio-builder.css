@@ -225,6 +225,46 @@
 .pb-actions .btn {
     width: auto;
     min-width: 160px;
+    border-radius: var(--radius-pill);
+    font-weight: 600;
+    animation: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, filter 0.2s ease;
+}
+
+/* Secondary — "Select Funds": revises the fund selection. Clearly visible
+   (white surface + navy outline) without competing with Continue. */
+.pb-actions a.btn {
+    background: #ffffff;
+    color: #1e3a5f;
+    border: 1px solid rgba(30, 58, 95, 0.35);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.pb-actions a.btn:hover {
+    background: rgba(30, 58, 95, 0.06);
+    border-color: rgba(30, 58, 95, 0.55);
+    transform: translateY(-1px);
+}
+
+/* Primary — "Continue": the strongest action on this stage. */
+#pb-continue-btn {
+    background: linear-gradient(135deg, #10263d, #183a5d 40%, #1d4d7d 75%, #2a6bb1);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 20px rgba(16, 38, 61, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+#pb-continue-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+    box-shadow: 0 14px 24px rgba(16, 38, 61, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+#pb-continue-btn:disabled {
+    background: var(--color-slate-200);
+    color: var(--color-slate-500);
+    border-color: transparent;
+    box-shadow: none;
 }
 
 .pb-next-stage {
@@ -1886,5 +1926,342 @@
     .pb-section-content,
     .pb-health-content {
         padding: 12px;
+    }
+}
+
+/* ========================================================================
+   Portfolio Analysis — dashboard visual refinement (page-scoped).
+   Layered surfaces + semantic per-section accents, in the Retirement
+   Planner's visual language. Presentation-only: no structural, data,
+   calculation, or JS changes — every rule below only recolors/re-surfaces
+   markup that already exists.
+   ======================================================================== */
+
+/* Page background — soft cool blue/gray instead of flat white. */
+body[data-page="portfolio-builder"] {
+    background: linear-gradient(180deg, #edf5ff 0%, #f8fbff 45%, #eef6fb 100%);
+}
+
+/* Portfolio Analysis header — stronger title, and the analysis-period
+   badge reads as a deliberate compact status chip instead of a plain tag. */
+#pb-analysis > .pb-panel-header {
+    padding-bottom: 14px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+#pb-analysis > .pb-panel-header .pb-panel-title {
+    font-size: 1.375rem;
+    letter-spacing: -0.01em;
+}
+
+#pb-analysis-period {
+    background: rgba(30, 58, 95, 0.06);
+    border-color: rgba(30, 58, 95, 0.18);
+    color: #1e3a5f;
+    font-weight: 600;
+}
+
+/* --- Semantic per-section accents: color communicates analysis category.
+   Health = navy (primary/important). Metrics/Growth/Rolling = blue
+   (informational/analysis). Drawdown = amber (risk). Contribution = green
+   (positive/neutral). What-If = purple (advanced/forward-looking). --- */
+#pb-health-score {
+    --pb-accent: #1e3a5f;
+    --pb-tint: rgba(30, 58, 95, 0.05);
+    --pb-border: rgba(30, 58, 95, 0.22);
+}
+
+#pb-metric-section,
+#pb-growth-section,
+#pb-rolling-section {
+    --pb-accent: #1d4ed8;
+    --pb-tint: rgba(29, 78, 216, 0.045);
+    --pb-border: rgba(29, 78, 216, 0.18);
+}
+
+#pb-drawdown-section {
+    --pb-accent: #b45309;
+    --pb-tint: rgba(180, 83, 9, 0.05);
+    --pb-border: rgba(180, 83, 9, 0.2);
+}
+
+#pb-contribution-section {
+    --pb-accent: #059669;
+    --pb-tint: rgba(5, 150, 105, 0.05);
+    --pb-border: rgba(5, 150, 105, 0.2);
+}
+
+#pb-whatif-section {
+    --pb-accent: #7c3aed;
+    --pb-tint: rgba(124, 58, 237, 0.05);
+    --pb-border: rgba(124, 58, 237, 0.2);
+}
+
+.pb-section-card {
+    border-left-color: var(--pb-accent, var(--color-accent));
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+}
+
+.pb-section-header,
+.pb-health-header {
+    background: var(--pb-tint, var(--color-surface));
+}
+
+.pb-section-header:hover,
+.pb-health-header:hover {
+    background: var(--pb-tint, var(--color-slate-100));
+    filter: brightness(0.98);
+}
+
+.pb-section-icon.pb-health-icon,
+.pb-health-icon {
+    color: var(--pb-accent, var(--color-accent));
+    background: var(--pb-tint, var(--color-slate-100));
+    border-color: var(--pb-border, var(--color-border));
+    border-radius: var(--radius-md);
+}
+
+.pb-section-content,
+.pb-health-content {
+    background: #fbfcfe;
+}
+
+/* Health Score — the single most important number gets the strongest
+   visual weight; a restrained navy tone rather than a "positive" green. */
+#pb-health-score .pb-health-summary-values .pb-hkpi:first-child .pb-hkpi__value {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--pb-accent);
+}
+
+#pb-health-score .pb-health-summary-values .pb-hkpi .confidence-tier {
+    color: var(--pb-accent);
+}
+
+/* --- Portfolio Metrics: compact KPI blocks with subtle dividers instead
+   of individually bordered rectangles. --- */
+.pb-metric-grid {
+    gap: 0;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.pb-metric {
+    background: transparent;
+    border: none;
+    border-right: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 0;
+    padding: 14px 16px;
+}
+
+.pb-metric:last-child {
+    border-right: none;
+}
+
+/* --- Growth & Benchmark: the portfolio's own figure reads stronger than
+   the benchmark it is compared against. --- */
+.pb-benchmark-grid .pb-benchmark-item:first-child .pb-benchmark-item-value {
+    color: var(--color-primary);
+}
+
+.pb-benchmark-grid .pb-benchmark-item:nth-child(2) .pb-benchmark-item-value {
+    color: #1d4ed8;
+}
+
+.pb-chart-container {
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: var(--radius-md);
+    padding: 12px;
+}
+
+/* --- Rolling Performance: a polished segmented period control and
+   distinct KPI blocks instead of plain text in one large rectangle. --- */
+.pb-rp-selector {
+    display: inline-flex;
+    gap: 2px;
+    background: var(--color-slate-100);
+    border-radius: var(--radius-pill);
+    padding: 4px;
+}
+
+.pb-rp-btn {
+    border: none;
+    background: transparent;
+}
+
+.pb-rp-btn:hover {
+    background: rgba(255, 255, 255, 0.7);
+}
+
+.pb-rp-active,
+.pb-rp-active:hover {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+    color: #ffffff;
+}
+
+.pb-rp-chart-container {
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: var(--radius-md);
+    padding: 12px;
+}
+
+.pb-rp-summary {
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.pb-rp-stats {
+    gap: 0;
+}
+
+.pb-rp-stat {
+    padding: 8px 16px;
+    border-left: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.pb-rp-stat:first-child {
+    border-left: none;
+    padding-left: 0;
+}
+
+.pb-rp-insight {
+    border-left-color: #1d4ed8;
+    background: rgba(29, 78, 216, 0.05);
+}
+
+/* --- Drawdown & Recovery: restrained risk-oriented chart surface. --- */
+.pb-dd-chart-container {
+    background: #fffaf3;
+    border: 1px solid rgba(180, 83, 9, 0.14);
+    border-radius: var(--radius-md);
+    padding: 12px;
+}
+
+/* --- Return Contribution / Drawdown summary chips pick up their
+   section's restrained accent instead of a neutral gray border. --- */
+#pb-drawdown-section .pb-rc-chip,
+#pb-contribution-section .pb-rc-chip {
+    background: var(--pb-tint);
+    border-color: var(--pb-border);
+}
+
+@media (max-width: 640px) {
+    .pb-metric {
+        border-right: none;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .pb-metric:last-child {
+        border-bottom: none;
+    }
+
+    .pb-rp-stat {
+        border-left: none;
+        padding-left: 16px;
+    }
+
+    .pb-rp-stat:first-child {
+        padding-left: 16px;
+    }
+}
+
+/* ------------------------------------------------------------------------
+   What-If Allocation
+   Reuses .pb-fund-item / .pb-alloc-input / .pb-total-row / .pb-rc-* /
+   .pb-rp-insight / .pb-chart-container / .pb-analysis-loading /
+   .pb-analysis-error patterns already defined above; adds only what is
+   unique to this section (the current-vs-editable column layout).
+   ------------------------------------------------------------------------ */
+#pb-whatif-allocation {
+    margin-top: 4px;
+}
+
+.pb-wf-fund-item {
+    justify-content: flex-start;
+}
+
+.pb-wf-alloc-current {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+    min-width: 84px;
+}
+
+.pb-wf-alloc-current-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-light);
+}
+
+.pb-wf-alloc-current-value {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.pb-wf-run-btn {
+    background: linear-gradient(135deg, #10263d, #183a5d 40%, #1d4d7d 75%, #2a6bb1);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 20px rgba(16, 38, 61, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    width: auto;
+    min-width: 180px;
+    border-radius: var(--radius-pill);
+    font-weight: 600;
+}
+
+.pb-wf-run-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+}
+
+.pb-wf-run-btn:disabled {
+    background: var(--color-slate-200);
+    color: var(--color-slate-500);
+    border-color: transparent;
+    box-shadow: none;
+}
+
+.pb-wf-reset-btn {
+    background: #ffffff;
+    color: #1e3a5f;
+    border: 1px solid rgba(30, 58, 95, 0.35);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    width: auto;
+    min-width: 180px;
+    border-radius: var(--radius-pill);
+    font-weight: 600;
+}
+
+.pb-wf-reset-btn:hover {
+    background: rgba(30, 58, 95, 0.06);
+    border-color: rgba(30, 58, 95, 0.55);
+}
+
+@media (max-width: 640px) {
+    .pb-wf-fund-item {
+        flex-wrap: wrap;
+    }
+
+    .pb-wf-alloc-current {
+        align-items: flex-start;
+        min-width: 0;
+    }
+
+    .pb-wf-run-btn,
+    .pb-wf-reset-btn {
+        width: 100%;
     }
 }

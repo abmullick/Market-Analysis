@@ -5,12 +5,21 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 
 from backend.config.settings import Settings
-from backend.models.portfolio import PortfolioAnalysisRequest, PortfolioAnalysisResult
+from backend.models.portfolio import (
+    PortfolioAnalysisRequest,
+    PortfolioAnalysisResult,
+    PortfolioWhatIfRequest,
+    PortfolioWhatIfResult,
+)
 from backend.services.mutual_funds.fetcher import MutualFundFetcher
 from backend.services.portfolio.mf_analysis import (
     PortfolioAnalysisError,
     calculate_portfolio_analysis,
     validate_allocations,
+)
+from backend.services.portfolio.what_if import (
+    compare_portfolio_results,
+    validate_scenario_allocations,
 )
 from backend.services.data.benchmarks import build_benchmark_data
 from backend.services.data.tigzig import get_tigzig_dataset
@@ -157,3 +166,75 @@ async def analyze_mutual_fund_portfolio(request: PortfolioAnalysisRequest) -> Po
     except Exception as e:
         logger.warning("Portfolio analysis failed: %s", e)
         raise HTTPException(status_code=502, detail=f"Failed to analyze portfolio: {e}")
+
+
+@router.post("/mutual-fund-analysis/what-if", response_model=PortfolioWhatIfResult)
+async def analyze_mutual_fund_portfolio_what_if(
+    request: PortfolioWhatIfRequest,
+) -> PortfolioWhatIfResult:
+    """Run a temporary What-If allocation scenario for the current funds.
+
+    Runs the SAME allocation-based analysis engine twice — once for the
+    current allocation (``request.funds``), once for the alternative
+    ``scenario_allocations`` — over ONE shared NAV fetch, so both sides use
+    identical historical data, date-alignment, and methodology. The scenario
+    is purely computational: nothing is persisted and the caller's actual
+    portfolio state is never modified.
+    """
+    try:
+        # Validate both sides before any NAV fetching.
+        validate_allocations([f.model_dump() for f in request.funds])
+        fund_codes = [f.scheme_code.strip() for f in request.funds]
+        validate_scenario_allocations(
+            fund_codes,
+            [a.model_dump() for a in request.scenario_allocations],
+        )
+
+        dataset = get_tigzig_dataset()
+        if not dataset.is_available:
+            try:
+                await dataset.ensure_dataset()
+            except Exception as e:
+                logger.warning("TigZig dataset initialization failed (%s); using MFAPI fallback", e)
+
+        # One NAV fetch per unique fund, reused for BOTH the current and
+        # scenario analysis — no second data-retrieval pipeline.
+        fetcher = _get_fetcher()
+        funds_with_navs: list[dict[str, Any]] = []
+        for fund in request.funds:
+            code = fund.scheme_code.strip()
+            navs = await fetcher.get_nav_history(code, lookback_years=None)
+            funds_with_navs.append(
+                {"scheme_code": code, "allocation": fund.allocation, "navs": navs}
+            )
+        await _enrich_with_scheme_metadata(fetcher, funds_with_navs)
+
+        current_result = calculate_portfolio_analysis(funds_with_navs)
+
+        scenario_alloc_by_code = {
+            a.scheme_code.strip(): a.allocation for a in request.scenario_allocations
+        }
+        scenario_funds_with_navs = [
+            {**fund, "allocation": scenario_alloc_by_code[fund["scheme_code"]]}
+            for fund in funds_with_navs
+        ]
+        scenario_result = calculate_portfolio_analysis(scenario_funds_with_navs)
+
+        # Same benchmark methodology as the main endpoint, run for both sides;
+        # a failure only omits the benchmark comparison, never the metrics.
+        for result in (current_result, scenario_result):
+            try:
+                result.benchmark_data = await asyncio.to_thread(
+                    build_benchmark_data, result.series
+                )
+            except Exception as e:
+                logger.warning("What-If benchmark comparison failed: %s", e)
+                result.benchmark_data = None
+
+        return compare_portfolio_results(current_result, scenario_result)
+    except PortfolioAnalysisError as e:
+        logger.info("What-If analysis rejected (%s): %s", e.code, e.message)
+        raise HTTPException(status_code=400, detail={"code": e.code, "message": e.message})
+    except Exception as e:
+        logger.warning("What-If analysis failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"Failed to analyze what-if scenario: {e}")

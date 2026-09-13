@@ -37,6 +37,16 @@ class PortfolioAnalysisRequest(BaseModel):
     )
 
 
+class PortfolioWhatIfAllocation(BaseModel):
+    scheme_code: str
+    allocation: float = Field(ge=0, le=100, description="Scenario allocation in percent")
+
+
+class PortfolioWhatIfRequest(BaseModel):
+    funds: list[PortfolioFundInput]
+    scenario_allocations: list[PortfolioWhatIfAllocation]
+
+
 class PortfolioSeriesPoint(BaseModel):
     date: str
     value: float
@@ -325,3 +335,59 @@ class HealthScoreData(BaseModel):
 
 # Resolve the forward reference from PortfolioAnalysisResult.health_score.
 PortfolioAnalysisResult.model_rebuild()
+
+
+# ---------------------------------------------------------------------------
+# What-If Allocation — historical simulation response (temporary, unsaved)
+# ---------------------------------------------------------------------------
+
+
+class PortfolioWhatIfPeriod(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    observations: int = 0
+    years: Optional[float] = None
+
+
+class PortfolioWhatIfSide(BaseModel):
+    """One side (current or scenario) of the What-If comparison.
+
+    ``metrics`` and ``benchmark_data`` are produced by the SAME
+    ``calculate_portfolio_analysis`` / ``build_benchmark_data`` functions the
+    main Portfolio Analysis endpoint uses — no separate calculation path.
+    """
+
+    allocations: list[PortfolioWhatIfAllocation]
+    metrics: PortfolioMetricsData
+    benchmark_data: Optional[BenchmarkData] = None
+
+
+class PortfolioWhatIfDeltas(BaseModel):
+    """scenario - current for each metric (never labeled as improvement).
+
+    ``max_drawdown`` is a difference of magnitudes (both values are the
+    existing positive-magnitude ``metrics.maximum_drawdown``): positive means
+    the scenario's drawdown is deeper, negative means it is shallower.
+    """
+
+    cagr: Optional[float] = None
+    volatility: Optional[float] = None
+    sharpe: Optional[float] = None
+    sortino: Optional[float] = None
+    max_drawdown: Optional[float] = None
+    total_return: Optional[float] = None
+
+
+class PortfolioWhatIfGrowthPoint(BaseModel):
+    date: str
+    current: float
+    scenario: float
+
+
+class PortfolioWhatIfResult(BaseModel):
+    analysis_period: PortfolioWhatIfPeriod
+    current: PortfolioWhatIfSide
+    scenario: PortfolioWhatIfSide
+    deltas: PortfolioWhatIfDeltas
+    growth_series: list[PortfolioWhatIfGrowthPoint] = []
+    warnings: list[str] = []

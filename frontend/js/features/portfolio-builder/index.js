@@ -387,7 +387,14 @@ function renderAnalysis(result) {
     updateDrawdownHeader(result);
     renderReturnContribution(result);
     updateContributionHeader(result);
-    updateWhatifHeader();
+
+    // What-If Allocation uses the SAME fund set/allocations just analyzed
+    // (state.funds, filtered identically to the request above) so its
+    // "Current Allocation" column always matches the analysis just run.
+    const whatifFunds = state.funds
+        .filter((f) => !f.invalid && typeof f.allocation === 'number')
+        .map((f) => ({ scheme_code: f.scheme_code, scheme_name: f.scheme_name, allocation: f.allocation }));
+    initWhatIfSection(whatifFunds);
 }
 
 function renderGrowthChart(series, bd) {
@@ -708,16 +715,456 @@ function updateContributionHeader(result) {
     setHeaderKpis('pb-contribution-kpis', kpis);
 }
 
-// What-If Allocation is a UI placeholder only — there is currently no
-// What-If backend, API, or scenario state. The header therefore shows
-// static descriptive status only: it never depends on analysis results and
-// never fabricates scenario KPIs. The section keeps the same collapsible
-// card header as the other six sections, and its expanded content remains
-// the existing placeholder (#pb-whatif-allocation).
+// ---------------------------------------------------------------------------
+// What-If Allocation (historical simulation)
+// Calls the existing POST /portfolio/mutual-fund-analysis/what-if endpoint.
+// All metrics, deltas and the growth series are the backend's response —
+// nothing financial is computed here. Editing/running/resetting this section
+// only touches local `whatifState`; it never mutates `state.funds` (the
+// saved portfolio allocation) and nothing here is persisted.
+// ---------------------------------------------------------------------------
+
+let whatifChart = null;
+const whatifState = {
+    currentFunds: [], // [{ scheme_code, scheme_name, allocation }] snapshot from the last analysis run
+    scenario: {},      // scheme_code -> editable what-if allocation
+    invalid: {},       // scheme_code -> bool (invalid input)
+    running: false,
+    result: null,      // last successful PortfolioWhatIfResult, or null
+};
+
+const WHATIF_METRIC_ROWS = [
+    { metricKey: 'cagr', deltaKey: 'cagr', label: 'CAGR', kind: 'pct' },
+    { metricKey: 'annualized_volatility', deltaKey: 'volatility', label: 'Annualized Volatility', kind: 'pct' },
+    { metricKey: 'sharpe_ratio', deltaKey: 'sharpe', label: 'Sharpe Ratio', kind: 'ratio' },
+    { metricKey: 'sortino_ratio', deltaKey: 'sortino', label: 'Sortino Ratio', kind: 'ratio' },
+    { metricKey: 'maximum_drawdown', deltaKey: 'max_drawdown', label: 'Maximum Drawdown', kind: 'dd' },
+    { metricKey: 'total_return', deltaKey: 'total_return', label: 'Total Return', kind: 'pct' },
+];
+
+function formatSignedRatio(v) {
+    if (v == null || !Number.isFinite(v)) return 'N/A';
+    if (v === 0) return '0.00';
+    return (v > 0 ? '+' : '\u2212') + Math.abs(v).toFixed(2);
+}
+
+function initWhatIfSection(currentFunds) {
+    whatifState.currentFunds = currentFunds;
+    whatifState.scenario = {};
+    whatifState.invalid = {};
+    whatifState.result = null;
+    currentFunds.forEach(function (f) { whatifState.scenario[f.scheme_code] = f.allocation; });
+    destroyWhatIfChart();
+    renderWhatIfForm();
+    updateWhatifHeader();
+}
+
+function renderWhatIfForm() {
+    const el = $('pb-whatif-allocation');
+    if (!el) return;
+    const funds = whatifState.currentFunds;
+    if (!funds.length) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    const rows = funds.map(function (f) {
+        const v = whatifState.scenario[f.scheme_code];
+        const disp = v == null ? '' : v;
+        return ''
+            + '<li class="pb-fund-item pb-wf-fund-item" data-code="' + escapeAttr(f.scheme_code) + '">'
+            + '<div class="pb-fund-info">'
+            + '<div class="pb-fund-name" title="' + escapeAttr(f.scheme_name) + '">' + escapeHtml(f.scheme_name) + '</div>'
+            + '<div class="pb-fund-meta"><span class="pb-fund-meta-scheme">' + escapeHtml(f.scheme_code) + '</span></div>'
+            + '</div>'
+            + '<div class="pb-wf-alloc-current">'
+            + '<span class="pb-wf-alloc-current-label">Current</span>'
+            + '<span class="pb-wf-alloc-current-value">' + formatPct(f.allocation) + '</span>'
+            + '</div>'
+            + '<div class="pb-alloc-control">'
+            + '<div class="pb-input-wrap">'
+            + '<input type="number" class="pb-alloc-input pb-wf-alloc-input" min="0" max="100" step="0.01" inputmode="decimal" '
+            + 'data-code="' + escapeAttr(f.scheme_code) + '" value="' + disp + '" '
+            + 'aria-label="What-If allocation for ' + escapeAttr(f.scheme_name) + '">'
+            + '<span class="pb-alloc-suffix">%</span>'
+            + '</div>'
+            + '</div>'
+            + '</li>';
+    }).join('');
+
+    const parts = [];
+    parts.push('<div class="pb-rc-title">What-If Allocation</div>');
+    parts.push('<div class="pb-rc-subtitle">Adjust the allocation below and run a historical simulation against the same funds and common period as the analysis above. This does not change your saved portfolio.</div>');
+    parts.push('<ul class="pb-wf-fund-list">' + rows + '</ul>');
+    parts.push('<div class="pb-total-row">'
+        + '<span class="pb-total-label">What-If total allocation</span>'
+        + '<span class="pb-total-value" id="pb-wf-total-value">0%</span>'
+        + '<span class="pb-total-status" id="pb-wf-total-status"></span>'
+        + '</div>');
+    parts.push('<div class="pb-actions">'
+        + '<button type="button" class="btn pb-wf-reset-btn" id="pb-wf-reset-btn">Reset to Current Allocation</button>'
+        + '<button type="button" class="btn pb-wf-run-btn" id="pb-wf-run-btn">Run What-If Analysis</button>'
+        + '</div>');
+    parts.push('<div id="pb-wf-loading" class="pb-analysis-loading hidden"><span class="pb-spinner" aria-hidden="true"></span><span>Running what-if analysis\u2026</span></div>');
+    parts.push('<div id="pb-wf-error" class="pb-analysis-error hidden" role="alert"></div>');
+    parts.push('<div id="pb-wf-results" class="hidden"></div>');
+
+    el.innerHTML = parts.join('');
+    el.classList.remove('hidden');
+
+    attachWhatIfInputHandlers();
+    updateWhatifTotal();
+
+    const runBtn = $('pb-wf-run-btn');
+    if (runBtn) runBtn.addEventListener('click', runWhatIfAnalysis);
+    const resetBtn = $('pb-wf-reset-btn');
+    if (resetBtn) resetBtn.addEventListener('click', resetWhatIfAllocation);
+}
+
+function attachWhatIfInputHandlers() {
+    const el = $('pb-whatif-allocation');
+    if (!el) return;
+    const inputs = el.querySelectorAll('.pb-wf-alloc-input');
+    for (let i = 0; i < inputs.length; i++) {
+        const input = inputs[i];
+        input.addEventListener('input', function () {
+            const code = input.getAttribute('data-code');
+            const parsed = parseAllocation(input.value);
+            if (parsed.valid) {
+                whatifState.scenario[code] = parsed.value;
+                whatifState.invalid[code] = false;
+            } else {
+                whatifState.scenario[code] = null;
+                whatifState.invalid[code] = true;
+            }
+            input.classList.toggle('pb-input-invalid', !!whatifState.invalid[code]);
+            updateWhatifTotal();
+        });
+    }
+}
+
+// Recomputes the What-If total/status/Run-button state. Returns true when
+// the scenario is valid and ready to submit.
+function updateWhatifTotal() {
+    const valueEl = $('pb-wf-total-value');
+    const statusEl = $('pb-wf-total-status');
+    const runBtn = $('pb-wf-run-btn');
+
+    let total = 0;
+    let anyInvalid = false;
+    whatifState.currentFunds.forEach(function (f) {
+        if (whatifState.invalid[f.scheme_code]) { anyInvalid = true; return; }
+        const v = whatifState.scenario[f.scheme_code];
+        if (typeof v === 'number' && Number.isFinite(v)) total = round2(total + v);
+    });
+
+    if (valueEl) valueEl.textContent = formatPct(total);
+
+    let statusText = '';
+    let statusClass = 'pb-total-status';
+    if (anyInvalid) {
+        statusText = 'Enter valid percentages from 0 to 100 (max 2 decimals).';
+        statusClass += ' pb-status-error';
+    } else if (Math.abs(total - 100) < EPS) {
+        statusText = 'Allocated \u2014 ready to run.';
+        statusClass += ' pb-status-success';
+    } else if (total > 100) {
+        statusText = 'Over-allocated by ' + formatPct(total - 100) + '.';
+        statusClass += ' pb-status-error';
+    } else {
+        statusText = formatPct(100 - total) + ' remaining to reach 100%.';
+        statusClass += ' pb-status-warn';
+    }
+    if (statusEl) { statusEl.textContent = statusText; statusEl.className = statusClass; }
+
+    const canRun = !anyInvalid && Math.abs(total - 100) < EPS
+        && whatifState.currentFunds.length > 0 && !whatifState.running;
+    if (runBtn) runBtn.disabled = !canRun;
+    return canRun;
+}
+
+// Restores the editable What-If inputs to the current portfolio allocation
+// and clears any previous scenario result. Never touches state.funds.
+function resetWhatIfAllocation() {
+    whatifState.scenario = {};
+    whatifState.invalid = {};
+    whatifState.result = null;
+    whatifState.currentFunds.forEach(function (f) { whatifState.scenario[f.scheme_code] = f.allocation; });
+    destroyWhatIfChart();
+    renderWhatIfForm();
+    updateWhatifHeader();
+}
+
+async function runWhatIfAnalysis() {
+    if (whatifState.running) return;
+    if (!updateWhatifTotal()) return;
+
+    const scenarioAllocations = whatifState.currentFunds.map(function (f) {
+        return { scheme_code: f.scheme_code, allocation: whatifState.scenario[f.scheme_code] };
+    });
+    const funds = whatifState.currentFunds.map(function (f) {
+        return { scheme_code: f.scheme_code, allocation: f.allocation };
+    });
+
+    whatifState.running = true;
+    const runBtn = $('pb-wf-run-btn');
+    if (runBtn) { runBtn.disabled = true; runBtn.textContent = 'Running\u2026'; }
+    const loadingEl = $('pb-wf-loading');
+    const errEl = $('pb-wf-error');
+    const resultsEl = $('pb-wf-results');
+    if (loadingEl) loadingEl.classList.remove('hidden');
+    if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+    if (resultsEl) { resultsEl.classList.add('hidden'); resultsEl.innerHTML = ''; }
+
+    try {
+        const response = await fetch(getApiBase() + '/portfolio/mutual-fund-analysis/what-if', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ funds: funds, scenario_allocations: scenarioAllocations }),
+        });
+        const data = await response.json().catch(function () { return null; });
+
+        if (!response.ok) {
+            const d = data && data.detail;
+            const message = (d && d.message) || (typeof d === 'string' ? d : null)
+                || (data && data.message) || null;
+            if (errEl) {
+                errEl.textContent = message
+                    || 'The what-if scenario could not be analyzed. Please check the allocation and try again.';
+                errEl.classList.remove('hidden');
+            }
+            return;
+        }
+
+        try {
+            whatifState.result = data;
+            renderWhatIfResult(data);
+        } catch (renderErr) {
+            console.error('What-If rendering error:', renderErr);
+            if (errEl) {
+                errEl.textContent = 'The scenario completed, but the results could not be displayed. Please try again.';
+                errEl.classList.remove('hidden');
+            }
+        }
+    } catch (networkErr) {
+        console.warn('What-If analysis request failed:', networkErr);
+        if (errEl) {
+            errEl.textContent = 'Could not reach the server. Please try again.';
+            errEl.classList.remove('hidden');
+        }
+    } finally {
+        whatifState.running = false;
+        if (loadingEl) loadingEl.classList.add('hidden');
+        if (runBtn) runBtn.textContent = 'Run What-If Analysis';
+        updateWhatifTotal();
+    }
+}
+
+function renderWhatIfResult(data) {
+    const resultsEl = $('pb-wf-results');
+    if (!resultsEl) return;
+    const cur = data && data.current && data.current.metrics;
+    const scn = data && data.scenario && data.scenario.metrics;
+    const deltas = data && data.deltas;
+    const period = data && data.analysis_period;
+    const growth = data && Array.isArray(data.growth_series) ? data.growth_series : [];
+
+    if (!cur || !scn) {
+        resultsEl.classList.add('hidden');
+        resultsEl.innerHTML = '';
+        return;
+    }
+
+    const parts = [];
+
+    if (period) {
+        const bits = [];
+        if (period.start_date) bits.push(period.start_date);
+        if (period.end_date) bits.push(period.end_date);
+        let text = bits.length ? bits.join(' \u2013 ') : '';
+        if (period.observations) text += (text ? ' \u00b7 ' : '') + period.observations + ' observations';
+        if (period.years != null && Number.isFinite(period.years)) {
+            text += (text ? ' \u00b7 ' : '') + period.years.toFixed(2) + ' years';
+        }
+        if (text) parts.push('<div class="pb-rc-subtitle">Historical simulation period: ' + escapeHtml(text) + '</div>');
+    }
+
+    const rows = WHATIF_METRIC_ROWS.map(function (row) {
+        const curVal = cur[row.metricKey];
+        const scnVal = scn[row.metricKey];
+        const delta = deltas ? deltas[row.deltaKey] : null;
+        let curText, scnText, deltaText, deltaCls;
+        if (row.kind === 'ratio') {
+            curText = formatMetricRatio(curVal);
+            scnText = formatMetricRatio(scnVal);
+            deltaText = formatSignedRatio(delta);
+            deltaCls = delta > 0 ? 'pb-rc-pos' : (delta < 0 ? 'pb-rc-neg' : '');
+        } else if (row.kind === 'dd') {
+            // Backend reports maximum_drawdown as a positive magnitude; show it as a loss.
+            curText = formatMetricPercent(curVal, curVal != null && curVal > 0);
+            scnText = formatMetricPercent(scnVal, scnVal != null && scnVal > 0);
+            deltaText = formatSignedPp(delta);
+            // Positive delta means the scenario's drawdown is deeper (worse).
+            deltaCls = delta > 0 ? 'pb-rc-neg' : (delta < 0 ? 'pb-rc-pos' : '');
+        } else {
+            curText = formatSignedPercent(curVal);
+            scnText = formatSignedPercent(scnVal);
+            deltaText = formatSignedPp(delta);
+            deltaCls = delta > 0 ? 'pb-rc-pos' : (delta < 0 ? 'pb-rc-neg' : '');
+        }
+        return '<tr><td>' + escapeHtml(row.label) + '</td>'
+            + '<td>' + escapeHtml(curText) + '</td>'
+            + '<td>' + escapeHtml(scnText) + '</td>'
+            + '<td class="' + deltaCls + '">' + escapeHtml(deltaText) + '</td></tr>';
+    }).join('');
+
+    parts.push('<table class="pb-rc-table pb-wf-metrics-table">'
+        + '<thead><tr><th>Metric</th><th>Current</th><th>What-If</th><th>Change</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody></table>');
+
+    parts.push('<div class="pb-chart-container"><canvas id="pb-wf-chart"></canvas></div>');
+
+    const insight = buildWhatIfInsight(deltas);
+    if (insight) parts.push('<div class="pb-rp-insight">' + escapeHtml(insight) + '</div>');
+
+    parts.push('<div class="pb-rc-note">This is a historical simulation using the same NAV data and methodology as the Portfolio Analysis above. '
+        + 'It reflects only how the alternative allocation would have performed over the historical period shown \u2014 past performance does not '
+        + 'guarantee future results and this is not investment advice. Running or resetting this scenario never changes your saved portfolio.</div>');
+
+    resultsEl.innerHTML = parts.join('');
+    resultsEl.classList.remove('hidden');
+
+    renderWhatIfChart(growth);
+}
+
+// Deterministic, backend-values-only summary: no new metrics are computed,
+// only the already-returned deltas are formatted into short sentences.
+function buildWhatIfInsight(deltas) {
+    if (!deltas) return '';
+    const sentences = [];
+    if (deltas.cagr != null && Number.isFinite(deltas.cagr)) {
+        sentences.push('CAGR would have been ' + formatSignedPp(deltas.cagr) + '.');
+    }
+    if (deltas.volatility != null && Number.isFinite(deltas.volatility)) {
+        sentences.push('Volatility would have been ' + formatSignedPp(deltas.volatility) + '.');
+    }
+    if (deltas.sharpe != null && Number.isFinite(deltas.sharpe)) {
+        sentences.push('The Sharpe Ratio would have changed by ' + formatSignedRatio(deltas.sharpe) + '.');
+    }
+    if (deltas.max_drawdown != null && Number.isFinite(deltas.max_drawdown)) {
+        if (deltas.max_drawdown === 0) {
+            sentences.push('The maximum drawdown would have been unchanged.');
+        } else {
+            const word = deltas.max_drawdown > 0 ? 'deeper' : 'shallower';
+            const ddPp = (Math.abs(deltas.max_drawdown) * 100).toFixed(2);
+            sentences.push('The maximum drawdown would have been ' + ddPp + ' pp ' + word + '.');
+        }
+    }
+    if (!sentences.length) return '';
+    return 'Key Insight: Over the historical simulation period, ' + sentences.join(' ');
+}
+
+function destroyWhatIfChart() {
+    if (whatifChart) {
+        whatifChart.destroy();
+        whatifChart = null;
+    }
+}
+
+function renderWhatIfChart(growth) {
+    destroyWhatIfChart();
+    if (typeof Chart === 'undefined') return;
+    const canvas = $('pb-wf-chart');
+    if (!canvas || !Array.isArray(growth) || growth.length < 2) return;
+    const ctx = canvas.getContext('2d');
+
+    whatifChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: growth.map(function (p) { return p.date; }),
+            datasets: [
+                {
+                    label: 'Current Allocation',
+                    data: growth.map(function (p) { return p.current; }),
+                    borderColor: BENCHMARK_COLORS.portfolio,
+                    borderWidth: 1.75,
+                    fill: false,
+                    tension: 0,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHoverBorderWidth: 2,
+                },
+                {
+                    label: 'What-If Allocation',
+                    data: growth.map(function (p) { return p.scenario; }),
+                    borderColor: '#7c3aed',
+                    borderWidth: 1.75,
+                    fill: false,
+                    tension: 0,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHoverBorderWidth: 2,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, font: { size: 11 }, color: '#64748b' },
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    padding: 10,
+                    titleFont: { size: 12, weight: '600' },
+                    bodyFont: { size: 12 },
+                    callbacks: {
+                        title: function (items) { return items && items[0] ? items[0].label : ''; },
+                        label: function (c) { return (c.dataset.label || 'Series') + ': ' + Number(c.parsed.y).toFixed(2); },
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Date', font: { size: 11, weight: '500' }, color: '#64748b' },
+                    ticks: { maxTicksLimit: 8, color: '#64748b', font: { size: 11 } },
+                    grid: { color: 'rgba(15, 23, 42, 0.04)' },
+                },
+                y: {
+                    title: { display: true, text: 'Growth of 100', font: { size: 11, weight: '500' }, color: '#64748b' },
+                    ticks: { color: '#64748b', font: { size: 11 } },
+                    grid: { color: 'rgba(15, 23, 42, 0.06)' },
+                },
+            },
+        },
+    });
+}
+
 function updateWhatifHeader() {
-    setHeaderKpis('pb-whatif-kpis', [
-        { label: 'Historical Simulation', value: 'Coming Soon', muted: true },
-    ]);
+    const r = whatifState.result;
+    if (!r || !r.deltas) {
+        setHeaderKpis('pb-whatif-kpis', [
+            { label: 'Historical Simulation', value: 'Not run yet', muted: true },
+        ]);
+        return;
+    }
+    const d = r.deltas;
+    const kpis = [];
+    if (d.cagr != null && Number.isFinite(d.cagr)) {
+        kpis.push({ label: '\u0394 CAGR', value: escapeHtml(formatSignedPp(d.cagr)), tone: d.cagr > 0 ? 'positive' : (d.cagr < 0 ? 'negative' : undefined) });
+    }
+    if (d.sharpe != null && Number.isFinite(d.sharpe)) {
+        kpis.push({ label: '\u0394 Sharpe', value: escapeHtml(formatSignedRatio(d.sharpe)), tone: d.sharpe > 0 ? 'positive' : (d.sharpe < 0 ? 'negative' : undefined) });
+    }
+    if (d.max_drawdown != null && Number.isFinite(d.max_drawdown)) {
+        kpis.push({ label: '\u0394 Max Drawdown', value: escapeHtml(formatSignedPp(d.max_drawdown)), tone: d.max_drawdown > 0 ? 'negative' : (d.max_drawdown < 0 ? 'positive' : undefined) });
+    }
+    setHeaderKpis('pb-whatif-kpis', kpis);
 }
 
 // ---------------------------------------------------------------------------
