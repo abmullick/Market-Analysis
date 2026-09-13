@@ -773,7 +773,7 @@ function renderWhatIfForm() {
         const v = whatifState.scenario[f.scheme_code];
         const disp = v == null ? '' : v;
         return ''
-            + '<li class="pb-fund-item pb-wf-fund-item" data-code="' + escapeAttr(f.scheme_code) + '">'
+            + '<li class="pb-wf-card" data-code="' + escapeAttr(f.scheme_code) + '">'
             + '<div class="pb-fund-info">'
             + '<div class="pb-fund-name" title="' + escapeAttr(f.scheme_name) + '">' + escapeHtml(f.scheme_name) + '</div>'
             + '<div class="pb-fund-meta"><span class="pb-fund-meta-scheme">' + escapeHtml(f.scheme_code) + '</span></div>'
@@ -796,13 +796,15 @@ function renderWhatIfForm() {
     const parts = [];
     parts.push('<div class="pb-rc-title">What-If Allocation</div>');
     parts.push('<div class="pb-rc-subtitle">Adjust the allocation below and run a historical simulation against the same funds and common period as the analysis above. This does not change your saved portfolio.</div>');
+    parts.push('<div class="pb-wf-section-label">Portfolio Funds</div>');
     parts.push('<ul class="pb-wf-fund-list">' + rows + '</ul>');
-    parts.push('<div class="pb-total-row">'
+    parts.push('<div class="pb-total-row pb-wf-total-row">'
         + '<span class="pb-total-label">What-If total allocation</span>'
         + '<span class="pb-total-value" id="pb-wf-total-value">0%</span>'
         + '<span class="pb-total-status" id="pb-wf-total-status"></span>'
         + '</div>');
-    parts.push('<div class="pb-actions">'
+    parts.push('<div class="pb-wf-section-label">Run Scenario</div>');
+    parts.push('<div class="pb-actions pb-wf-actions">'
         + '<button type="button" class="btn pb-wf-reset-btn" id="pb-wf-reset-btn">Reset to Current Allocation</button>'
         + '<button type="button" class="btn pb-wf-run-btn" id="pb-wf-run-btn">Run What-If Analysis</button>'
         + '</div>');
@@ -990,7 +992,7 @@ function renderWhatIfResult(data) {
         if (text) parts.push('<div class="pb-rc-subtitle">Historical simulation period: ' + escapeHtml(text) + '</div>');
     }
 
-    const rows = WHATIF_METRIC_ROWS.map(function (row) {
+    const cards = WHATIF_METRIC_ROWS.map(function (row) {
         const curVal = cur[row.metricKey];
         const scnVal = scn[row.metricKey];
         const delta = deltas ? deltas[row.deltaKey] : null;
@@ -999,36 +1001,47 @@ function renderWhatIfResult(data) {
             curText = formatMetricRatio(curVal);
             scnText = formatMetricRatio(scnVal);
             deltaText = formatSignedRatio(delta);
-            deltaCls = delta > 0 ? 'pb-rc-pos' : (delta < 0 ? 'pb-rc-neg' : '');
+            deltaCls = delta > 0 ? 'pb-rc-pos' : (delta < 0 ? 'pb-rc-neg' : 'pb-wf-neutral');
         } else if (row.kind === 'dd') {
             // Backend reports maximum_drawdown as a positive magnitude; show it as a loss.
             curText = formatMetricPercent(curVal, curVal != null && curVal > 0);
             scnText = formatMetricPercent(scnVal, scnVal != null && scnVal > 0);
             deltaText = formatSignedPp(delta);
             // Positive delta means the scenario's drawdown is deeper (worse).
-            deltaCls = delta > 0 ? 'pb-rc-neg' : (delta < 0 ? 'pb-rc-pos' : '');
+            deltaCls = delta > 0 ? 'pb-rc-neg' : (delta < 0 ? 'pb-rc-pos' : 'pb-wf-neutral');
         } else {
             curText = formatSignedPercent(curVal);
             scnText = formatSignedPercent(scnVal);
             deltaText = formatSignedPp(delta);
-            deltaCls = delta > 0 ? 'pb-rc-pos' : (delta < 0 ? 'pb-rc-neg' : '');
+            deltaCls = delta > 0 ? 'pb-rc-pos' : (delta < 0 ? 'pb-rc-neg' : 'pb-wf-neutral');
         }
-        return '<tr><td>' + escapeHtml(row.label) + '</td>'
-            + '<td>' + escapeHtml(curText) + '</td>'
-            + '<td>' + escapeHtml(scnText) + '</td>'
-            + '<td class="' + deltaCls + '">' + escapeHtml(deltaText) + '</td></tr>';
+        return ''
+            + '<div class="pb-wf-metric-card">'
+            + '<div class="pb-wf-metric-name">' + escapeHtml(row.label) + '</div>'
+            + '<div class="pb-wf-metric-values">'
+            + '<div class="pb-wf-metric-col"><span class="pb-wf-metric-col-label">Current</span><span class="pb-wf-metric-col-value">' + escapeHtml(curText) + '</span></div>'
+            + '<div class="pb-wf-metric-col"><span class="pb-wf-metric-col-label">What-If</span><span class="pb-wf-metric-col-value">' + escapeHtml(scnText) + '</span></div>'
+            + '</div>'
+            + '<div class="pb-wf-metric-delta ' + deltaCls + '">' + escapeHtml(deltaText) + '</div>'
+            + '</div>';
     }).join('');
 
-    parts.push('<table class="pb-rc-table pb-wf-metrics-table">'
-        + '<thead><tr><th>Metric</th><th>Current</th><th>What-If</th><th>Change</th></tr></thead>'
-        + '<tbody>' + rows + '</tbody></table>');
+    parts.push('<div class="pb-wf-section-label">Results</div>');
+    parts.push('<div class="pb-wf-metrics-grid">' + cards + '</div>');
 
-    parts.push('<div class="pb-chart-container"><canvas id="pb-wf-chart"></canvas></div>');
+    parts.push('<div class="pb-wf-section-label">Growth Comparison</div>');
+    parts.push('<div class="pb-chart-container pb-wf-chart-card"><canvas id="pb-wf-chart"></canvas></div>');
 
     const insight = buildWhatIfInsight(deltas);
-    if (insight) parts.push('<div class="pb-rp-insight">' + escapeHtml(insight) + '</div>');
+    if (insight) {
+        parts.push('<div class="pb-wf-insight-card">'
+            + '<span class="pb-wf-insight-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"></path></svg></span>'
+            + '<div class="pb-wf-insight-body"><div class="pb-wf-insight-title">Key Insight</div>'
+            + '<div class="pb-wf-insight-text">' + escapeHtml(insight) + '</div></div>'
+            + '</div>');
+    }
 
-    parts.push('<div class="pb-rc-note">This is a historical simulation using the same NAV data and methodology as the Portfolio Analysis above. '
+    parts.push('<div class="pb-wf-methodology-note">This is a historical simulation using the same NAV data and methodology as the Portfolio Analysis above. '
         + 'It reflects only how the alternative allocation would have performed over the historical period shown \u2014 past performance does not '
         + 'guarantee future results and this is not investment advice. Running or resetting this scenario never changes your saved portfolio.</div>');
 
@@ -1062,7 +1075,7 @@ function buildWhatIfInsight(deltas) {
         }
     }
     if (!sentences.length) return '';
-    return 'Key Insight: Over the historical simulation period, ' + sentences.join(' ');
+    return 'Over the historical simulation period, ' + sentences.join(' ');
 }
 
 function destroyWhatIfChart() {
@@ -1220,9 +1233,10 @@ function renderDrawdownRecovery(result) {
         const recoveryDate = ep.is_ongoing ? 'Ongoing' : (ep.recovery_date || '\u2014');
         const recoveryTime = ep.is_ongoing ? '\u2014' : (ep.recovery_duration_days != null ? ep.recovery_duration_days + ' days' : '\u2014');
         const cls = ep.drawdown < 0 ? 'pb-rc-neg' : '';
+        const rowCls = ep.is_ongoing ? 'pb-dd-row-ongoing' : 'pb-dd-row-completed';
         return ''
-            + '<tr>'
-            + '<td>' + escapeHtml(status) + '</td>'
+            + '<tr class="' + rowCls + '">'
+            + '<td><span class="pb-dd-status-badge ' + rowCls + '">' + escapeHtml(status) + '</span></td>'
             + '<td>' + escapeHtml(ep.peak_date) + '</td>'
             + '<td>' + escapeHtml(ep.trough_date) + '</td>'
             + '<td>' + escapeHtml(recoveryDate) + '</td>'
