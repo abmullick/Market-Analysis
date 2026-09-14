@@ -13,6 +13,14 @@
 //     when the fund has never been allocated (a default is assigned on load).
 //   - No backend, no new storage keys, no caching introduced here.
 
+// AI Insights — mirrors the Mutual Fund AI Insights pattern. The compact
+// deterministic context is built from the SAME result passed to
+// renderAnalysis(); nothing financial is computed client-side.
+import { api } from "../../core/api.js";
+import { buildPortfolioAIContext } from "./ai-context.js";
+import { requestPortfolioAIInsights } from "./ai-request.js";
+import { renderInsightError, renderInsightLoading, renderInsightResponse } from "./ai-response.js";
+
 const STORAGE_KEY = 'portfolio_builder_selected_funds';
 const PRECISION = 2; // percentages support up to 2 decimal places
 const EPS = 1e-4;    // tolerance for "exactly 100%"
@@ -150,6 +158,9 @@ function attachInputHandlers(listEl) {
                 fund.allocation = null;
                 fund.invalid = true;
             }
+            // The saved portfolio changed — any previously generated AI insight
+            // no longer matches this state and cannot be shown as current.
+            invalidatePortfolioAIInsight();
             updateTotal();
         });
     }
@@ -255,8 +266,226 @@ function updateTotal() {
     if (nextStage) nextStage.hidden = true;
 }
 
+// ---------------------------------------------------------------------------
+// AI Insights (Portfolio Builder)
+// Mirrors the Mutual Fund AI Insights pattern: a compact deterministic
+// context is POSTed to the portfolio AI endpoint and the returned insight is
+// rendered in the existing AI card theme. Everything derives from the SAME
+// `result` object renderAnalysis() received — nothing is recalculated here.
+// ---------------------------------------------------------------------------
+
+// Funds eligible for the AI context: the same filtered snapshot the portfolio
+// analysis request uses, enriched with the AMC/category already available.
+function currentAllocationFunds() {
+    return state.funds
+        .filter((f) => !f.invalid && typeof f.allocation === 'number')
+        .map((f) => ({
+            scheme_code: f.scheme_code,
+            scheme_name: f.scheme_name,
+            amc: f.amc || null,
+            category: f.category || null,
+            allocation: f.allocation,
+        }));
+}
+
+// Stable-ish fingerprint of the portfolio state an AI insight refers to.
+// Combines the fund allocations AND the deterministic result's period + key
+// KPIs so a recalculated portfolio can never reuse an old insight.
+function portfolioStateFingerprint(funds, result) {
+    try {
+        const allocs = Array.isArray(funds) ? funds
+            .filter((f) => f && !f.invalid && typeof f.allocation === 'number')
+            .map((f) => [f.scheme_code, f.allocation])
+            .sort((a, b) => String(a[0]).localeCompare(String(b[0]))) : [];
+        const m = result && result.metrics ? result.metrics : {};
+        const h = result && result.health_score ? result.health_score : {};
+        return JSON.stringify({
+            allocs: allocs,
+            period: [m.start_date, m.end_date, m.observations],
+            cagr: m.cagr,
+            volatility: m.annualized_volatility,
+            health_score: h.score,
+        });
+    } catch (e) {
+        return null;
+    }
+}
+
+// Re-arm the AI Insights card for a fresh analysis run: hides the insight
+// card (nothing is ready yet) and hides the ✨ button until the new report
+// renders. Also clears the stale fingerprint.
+function resetPortfolioAIInsight() {
+    aiRequestInFlight = false;
+    aiInsightFingerprint = null;
+    const container = $('pb-ai-result');
+    if (container) container.replaceChildren();
+    const section = $('pb-ai-section');
+    if (section) {
+        section.classList.add('hidden');
+        section.classList.remove('is-open');
+    }
+    const content = $('pb-ai-content');
+    if (content) content.hidden = true;
+    const status = $('pb-ai-status');
+    if (status) {
+        status.textContent = '';
+        status.classList.add('hidden');
+    }
+    hidePortfolioAIButton();
+}
+
+// The ✨ button lives beside Continue and is only available while a completed
+// portfolio-analysis report is on screen.
+function hidePortfolioAIButton() {
+    const btn = $('pb-ai-generate-btn');
+    if (btn) {
+        btn.classList.add('hidden');
+        btn.disabled = true;
+        btn.innerHTML = '✨ AI Insights';
+    }
+}
+
+function showPortfolioAIButton() {
+    const btn = $('pb-ai-generate-btn');
+    if (btn) {
+        btn.classList.remove('hidden');
+        btn.disabled = false;
+        btn.innerHTML = '✨ AI Insights';
+    }
+}
+
+// Called when the saved portfolio allocation changes: the previous AI insight
+// (if any) no longer matches the current state, so it is removed immediately
+// and the ✨ button hides until a new report is generated.
+function invalidatePortfolioAIInsight() {
+    if (!aiInsightFingerprint && !aiRequestInFlight) {
+        const container = $('pb-ai-result');
+        if (!container || !container.children.length) {
+            // Nothing generated yet — nothing to invalidate.
+            return;
+        }
+    }
+    aiRequestInFlight = false;
+    aiInsightFingerprint = null;
+    const container = $('pb-ai-result');
+    if (container) container.replaceChildren();
+    const section = $('pb-ai-section');
+    if (section) {
+        section.classList.add('hidden');
+        section.classList.remove('is-open');
+    }
+    const content = $('pb-ai-content');
+    if (content) content.hidden = true;
+    const status = $('pb-ai-status');
+    if (status) {
+        status.textContent = '';
+        status.classList.add('hidden');
+    }
+    hidePortfolioAIButton();
+}
+
+// Bind the ✨ AI Insights button once (the button itself lives in the static
+// `#pb-ai-section` card, so a one-time binding survives re-renders).
+function initPortfolioAIInsights() {
+    const btn = $('pb-ai-generate-btn');
+    if (btn && !btn.dataset.pbAIBound) {
+        btn.dataset.pbAIBound = '1';
+        btn.addEventListener('click', generatePortfolioAIInsights);
+    }
+}
+
+async function generatePortfolioAIInsights() {
+    if (aiRequestInFlight) return; // prevent duplicate requests
+    const container = $('pb-ai-result');
+    const status = $('pb-ai-status');
+    if (!container) return;
+    if (!lastPortfolioResult) {
+        hidePortfolioAIButton();
+        return;
+    }
+
+    // Hard freshness guard: never reuse/attach an insight to a different
+    // portfolio state than the one it was generated for.
+    const currentFp = portfolioStateFingerprint(state.funds, lastPortfolioResult);
+    if (currentFp && aiInsightFingerprint !== null && currentFp !== aiInsightFingerprint) {
+        invalidatePortfolioAIInsight();
+        return;
+    }
+
+    aiRequestInFlight = true;
+    const btn = $('pb-ai-generate-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading-spinner"></span> Generating...';
+    }
+    // The insight card becomes visible while generating so the loading and
+    // (retryable) error states are never invisible.
+    const section = $('pb-ai-section');
+    if (section) section.classList.remove('hidden');
+    if (status) {
+        status.textContent = 'Generating AI Insights...';
+        status.classList.remove('hidden');
+    }
+    renderInsightLoading(container);
+
+    try {
+        const response = await requestPortfolioAIInsights({
+            buildContext: buildPortfolioAIContext,
+            funds: currentAllocationFunds(),
+            result: lastPortfolioResult,
+            stockOverlap: lastStockOverlap,
+            whatIf: whatifState.result || null,
+        });
+        renderInsightResponse(container, response);
+        if (status) {
+            status.textContent = 'AI Insights generated from the current analysis.';
+            status.classList.remove('hidden');
+        }
+        aiInsightFingerprint = portfolioStateFingerprint(state.funds, lastPortfolioResult);
+        revealPortfolioAIInsightCard();
+    } catch (error) {
+        console.warn('Portfolio AI insight generation failed:', error);
+        renderInsightError(container, generatePortfolioAIInsights);
+        if (status) {
+            status.textContent = 'AI Insights could not be generated.';
+            status.classList.remove('hidden');
+        }
+        aiInsightFingerprint = null;
+        revealPortfolioAIInsightCard();
+    } finally {
+        aiRequestInFlight = false;
+        const btnNow = $('pb-ai-generate-btn');
+        if (btnNow) {
+            btnNow.innerHTML = '✨ AI Insights';
+            // The report is still on screen, so the button stays available
+            // (e.g. to regenerate) — unless it was hidden meanwhile.
+            if (!btnNow.classList.contains('hidden')) btnNow.disabled = false;
+        }
+    }
+}
+
+// Reveal + open the collapsible AI Insights card once an insight is ready.
+function revealPortfolioAIInsightCard() {
+    const section = $('pb-ai-section');
+    if (!section) return;
+    section.classList.remove('hidden');
+    section.classList.add('is-open');
+    const content = section.querySelector('.pb-section-content') || section.querySelector('.pb-health-content');
+    if (content) content.hidden = false;
+    const caret = section.querySelector('.pb-section-caret-btn') || section.querySelector('.pb-health-caret-button');
+    if (caret) caret.setAttribute('aria-expanded', 'true');
+    const header = section.querySelector('.pb-section-header, .pb-health-header');
+    if (header) header.setAttribute('aria-expanded', 'true');
+}
+
 async function runPortfolioAnalysis() {
     if (analyzing) return;
+
+    // A new analysis invalidates any previously generated AI insight: its
+    // context and interpretation belonged to a different portfolio state.
+    lastPortfolioResult = null;
+    lastStockOverlap = null;
+    resetPortfolioAIInsight();
 
     const funds = state.funds
         .filter((f) => !f.invalid && typeof f.allocation === 'number')
@@ -399,6 +628,15 @@ function renderAnalysis(result) {
     // Stock Overlap & Concentration — same funds/allocations, rendered in
     // the existing collapsed card via POST /portfolio/stock-overlap.
     loadStockOverlap(whatifFunds);
+
+    // AI Insights — capture the deterministic result and make the ✨ button
+    // (beside Continue) available for THIS analysis only. The insight card
+    // stays hidden until an insight is actually generated.
+    lastPortfolioResult = result;
+    lastStockOverlap = null;
+    resetPortfolioAIInsight();
+    initPortfolioAIInsights();
+    showPortfolioAIButton();
 }
 
 // ---------------------------------------------------------------------------
@@ -417,17 +655,24 @@ function renderStockOverlapLoading() {
     const el = $('pb-overlap-content');
     if (el) el.innerHTML = '<div class="pb-analysis-loading"><span class="pb-spinner" aria-hidden="true"></span><span>Loading...</span></div>';
     setHeaderKpis('pb-overlap-kpis', []);
+    // A new overlap request drops any overlap snapshot from an older run so
+    // the AI context can never pair stock-overlap with an older portfolio.
+    lastStockOverlap = null;
 }
 
 function renderStockOverlapError() {
     const el = $('pb-overlap-content');
     if (el) el.textContent = 'Unable to load stock overlap data.';
     setHeaderKpis('pb-overlap-kpis', []);
+    lastStockOverlap = null;
 }
 
 function renderStockOverlap(data) {
     const el = $('pb-overlap-content');
     if (!el) return;
+    // Keep a compact snapshot for the AI context (paired with the SAME
+    // analysis run — reset happens before every overlap request).
+    lastStockOverlap = data;
     const stocks = data && Array.isArray(data.stocks) ? data.stocks : [];
     const unique = data && data.total_unique_stock_count != null ? data.total_unique_stock_count : stocks.length;
     const overlapping = data && data.overlapping_stock_count != null ? data.overlapping_stock_count : 0;
@@ -1451,6 +1696,13 @@ let drawdownChart = null; // Chart.js instance for the Drawdown & Recovery chart
 let analyzing = false;    // guards against double-submit
 let lastHealthScore = null; // latest HealthScoreData from backend (single source of truth)
 
+// AI Insights state — derived ONLY from the deterministic result rendered by
+// renderAnalysis(); invalidated whenever the portfolio changes or is re-analyzed.
+let lastPortfolioResult = null;  // PortfolioAnalysisResult currently rendered (or null)
+let lastStockOverlap = null;     // stock-overlap data for the same portfolio state (or null)
+let aiRequestInFlight = false;   // guards against duplicate AI requests
+let aiInsightFingerprint = null; // fingerprint of the portfolio state the last AI insight belongs to
+
 function getApiBase() {
     return (window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL) || '/api';
 }
@@ -2147,6 +2399,7 @@ const COLLAPSIBLE_SECTIONS_CONFIG = [
     { id: 'pb-contribution-section', defaultOpen: false }, // 6. Return Contribution — COLLAPSED
     { id: 'pb-whatif-section', defaultOpen: false },  // 7. What-If Allocation — COLLAPSED
     { id: 'pb-overlap-section', defaultOpen: false },  // 8. Stock Overlap & Concentration — COLLAPSED
+    { id: 'pb-ai-section', defaultOpen: false },       // 9. AI Insights — COLLAPSED
 ];
 
 // Track whether collapsible sections have been initialized to avoid
@@ -2170,8 +2423,12 @@ function initCollapsibleSections() {
         // Ensure the card wrapper itself is never hidden via the
         // analysis-level `.hidden` class. This class is reserved for
         // setAnalysisView() to show/hide the entire results container,
-        // not for accordion state.
-        card.classList.remove('hidden');
+        // not for accordion state. EXCEPTION: the AI Insights card manages
+        // its own `.hidden` state (hidden until an insight is ready), so it
+        // must NOT be un-hidden here.
+        if (sectionConfig.id !== 'pb-ai-section') {
+            card.classList.remove('hidden');
+        }
 
         // Set initial open/closed state
         const isOpen = sectionConfig.defaultOpen;
@@ -2203,9 +2460,12 @@ function initCollapsibleSections() {
             // Prevent double-firing if clicked directly on button
             header.addEventListener('click', function(e) {
                 // If click is directly on the button, let the button handle it
-                // Otherwise, trigger the toggle
+                // Otherwise, trigger the toggle. The ✨ AI Insights button
+                // (`.ai-action`) also handles its own click and must NOT
+                // collapse the section.
                 if (!e.target.closest('.pb-section-caret-btn') &&
-                    !e.target.closest('.pb-health-caret-button')) {
+                    !e.target.closest('.pb-health-caret-button') &&
+                    !e.target.closest('.ai-action')) {
                     toggleSection(card);
                 }
             });

@@ -3,6 +3,7 @@ from typing import Any
 import asyncio
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from backend.config.settings import Settings
 from backend.models.portfolio import (
@@ -12,6 +13,7 @@ from backend.models.portfolio import (
     PortfolioWhatIfResult,
     StockOverlapRequest,
 )
+from backend.services.ai.groq import AIInsightService, InsightResponse
 from backend.services.data.amfi_holdings import AmfiHoldingsService
 from backend.services.portfolio.stock_overlap import compute_stock_overlap
 from backend.services.mutual_funds.fetcher import MutualFundFetcher
@@ -32,6 +34,20 @@ router = APIRouter()
 
 settings = Settings()
 _fetcher: MutualFundFetcher | None = None
+
+
+class PortfolioInsightsRequest(BaseModel):
+    """Bounded context submitted by the Portfolio Builder AI Insights action.
+
+    Contains ONLY the compact, decision-useful portfolio context built
+    client-side from the SAME deterministic portfolio-analysis result the UI
+    rendered (fund selection/allocation + analysis summary). The AI service
+    interprets these deterministic values; no financial calculations are
+    performed server-side (mirrors the Mutual Fund AI Insights request model).
+    """
+
+    portfolio_input: dict[str, Any]
+    portfolio_analysis: dict[str, Any]
 
 
 def _get_fetcher() -> MutualFundFetcher:
@@ -169,6 +185,38 @@ async def analyze_mutual_fund_portfolio(request: PortfolioAnalysisRequest) -> Po
     except Exception as e:
         logger.warning("Portfolio analysis failed: %s", e)
         raise HTTPException(status_code=502, detail=f"Failed to analyze portfolio: {e}")
+
+
+@router.post("/mutual-fund-analysis/insights", response_model=InsightResponse)
+async def generate_mutual_fund_portfolio_insights(
+    payload: PortfolioInsightsRequest,
+) -> InsightResponse:
+    """Interpret the bounded Portfolio Builder context with the configured AI service.
+
+    The compact deterministic context (fund selection/allocation + portfolio
+    analysis summary) is built client-side from the SAME result object the UI
+    rendered and is interpreted as a mutual-fund PORTFOLIO via the
+    ``portfolio_builder`` context. Nothing is re-computed here — the AI layer
+    only interprets the deterministic values supplied in the payload.
+    """
+    try:
+        return await AIInsightService(settings).generate_insights(
+            data=payload.model_dump(exclude_unset=True),
+            context="portfolio_builder",
+            focus=(
+                "concise portfolio-specific interpretation: strongest aspects of the portfolio, "
+                "important risks and concentration/diversification issues, notable performance/risk "
+                "trade-offs, the single most important KPI for this portfolio, and practical points "
+                "the investor should review. Do not invent fund characteristics or market facts not "
+                "present in the supplied context."
+            ),
+        )
+    except RuntimeError as exc:
+        logger.error("AI service unavailable for portfolio insights: %s", exc)
+        raise HTTPException(status_code=503, detail="The AI service is temporarily unavailable") from exc
+    except Exception as exc:
+        logger.error("Portfolio insight generation failed: %s", exc)
+        raise HTTPException(status_code=503, detail="The AI service is temporarily unavailable") from exc
 
 
 @router.post("/stock-overlap")

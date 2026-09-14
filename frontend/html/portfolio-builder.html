@@ -131,6 +131,7 @@
                         <div class="pb-actions">
                             <a href="/portfolio-select-funds.html" class="btn btn-primary">Select Funds</a>
                             <button type="button" class="btn btn-primary" id="pb-continue-btn" disabled>Continue</button>
+                            <button type="button" class="ai-action ai-action-compact hidden" id="pb-ai-generate-btn" disabled title="Generate a concise AI interpretation of the current portfolio analysis">✨ AI Insights</button>
                         </div>
                         <p id="pb-next-stage" class="pb-next-stage" hidden>Allocation set to 100% and stored. Portfolio Health analysis and the next stage arrive in a later phase.</p>
                     </section>
@@ -269,6 +270,24 @@
     </div>
     <div id="pb-overlap-content" class="pb-section-content pb-health-content">
       Overlap analysis will be available here.
+    </div>
+  </div>
+
+  <!-- 9. AI Insights (collapsible card — hidden until an AI insight is ready) -->
+  <div id="pb-ai-section" class="pb-section-card pb-health-card hidden">
+    <div class="pb-section-header pb-health-header" role="button" tabindex="0" aria-expanded="false" aria-controls="pb-ai-content">
+      <div class="pb-health-header-main">
+        <span class="pb-section-icon pb-health-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M18.366 5.634l-2.122 2.122M21 12h-3M18.634 18.366l-2.122-2.122M12 21v-3M5.634 18.366l2.122-2.122M3 12h3M5.634 5.634l2.122 2.122"></path></svg></span>
+        <span class="pb-section-titlewrap pb-health-summary-label">AI Insights<small>Concise interpretation of this portfolio's analysis</small></span>
+      </div>
+      <div class="pb-section-kpis" id="pb-ai-kpis"></div>
+      <div class="pb-section-controls">
+        <button type="button" class="pb-section-caret-btn pb-health-caret-button" aria-expanded="false" aria-controls="pb-ai-content" aria-label="Toggle AI Insights"><svg class="pb-section-caret pb-health-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5"></path></svg></button>
+      </div>
+    </div>
+    <div id="pb-ai-content" class="pb-section-content pb-health-content">
+      <p id="pb-ai-status" class="fund-ai-insights-status hidden" aria-live="polite"></p>
+      <div id="pb-ai-result" class="fund-ai-insights-result"></div>
     </div>
   </div>
 </div>

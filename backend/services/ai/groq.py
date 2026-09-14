@@ -20,7 +20,10 @@ logger = logging.getLogger(__name__)
 
 class InsightRequest(BaseModel):
     data: dict[str, Any] = Field(..., description="Structured fund/portfolio/stock data for AI analysis.")
-    context: str = Field(default="fund_analysis", description="Analysis context: fund_analysis, portfolio_analysis, ranking_summary.")
+    context: str = Field(
+        default="fund_analysis",
+        description="Analysis context: fund_analysis, portfolio_analysis, portfolio_builder, ranking_summary.",
+    )
     focus: str | None = Field(default=None, description="Optional specific focus area for the insight.")
 
 
@@ -37,7 +40,7 @@ Your job is to interpret structured fund/portfolio data, identify meaningful pat
 
 RULES
 1. NUMERICAL INTEGRITY: Never invent, calculate, derive, or estimate numbers. Only reference values explicitly present in the supplied data. If a number is not in the data, use qualitative language instead.
-2. CONTEXT AWARENESS: Use the `context` field to understand what type of data is being analyzed (fund_analysis, portfolio_analysis, ranking_summary). Tailor your insights accordingly.
+2. CONTEXT AWARENESS: Use the `context` field to understand what type of data is being analyzed (fund_analysis, portfolio_analysis, portfolio_builder, ranking_summary). `portfolio_builder` means the data describes a MUTUAL-FUND PORTFOLIO (a set of funds with allocations and their portfolio-level analysis), NOT an individual fund. Tailor your insights accordingly.
 3. CLARITY: Write in clear, plain language suitable for retail investors. Avoid jargon where possible, but use standard financial terms when precise.
 4. BALANCE: Highlight both strengths and risks. Do not be overly bullish or bearish. Every analysis should mention at least one strength and one risk when the data supports it.
 5. ACTIONABILITY: When possible, connect insights to concrete next steps the user could consider, grounded in the supplied data.
