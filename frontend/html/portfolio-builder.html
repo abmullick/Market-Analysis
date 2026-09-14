@@ -25,97 +25,15 @@
                 <div class="pb-page-header-text">
                     <h1 class="mf-page-title">Mutual Fund Portfolio Builder</h1>
                     <p class="mf-page-subtitle">Build and analyze your mutual fund portfolio.</p>
-                    <p class="pb-landing-description">Select funds, set your allocation, and evaluate portfolio performance, risk, diversification, and historical consistency.</p>
                 </div>
                 <div class="pb-stage" id="pb-stage">
                     <div id="pb-empty" class="pb-empty hidden">
-                        <div class="pb-landing">
-                            <section class="pb-landing-flow" aria-label="Portfolio building steps">
-                                <ol class="pb-landing-steps">
-                                    <li class="pb-landing-step">
-                                        <div class="pb-landing-step-head">
-                                            <span class="pb-landing-step-num" aria-hidden="true">01</span>
-                                            <span class="pb-landing-step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
-                                        </div>
-                                        <h3 class="pb-landing-step-title">Select Funds</h3>
-                                        <p class="pb-landing-step-desc">Choose the mutual funds you want in your portfolio.</p>
-                                    </li>
-                                    <li class="pb-landing-step-connector" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.5L10 12.5L15 7.5"></path></svg></li>
-                                    <li class="pb-landing-step">
-                                        <div class="pb-landing-step-head">
-                                            <span class="pb-landing-step-num" aria-hidden="true">02</span>
-                                            <span class="pb-landing-step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="4"></line><line x1="12" y1="20" x2="12" y2="12"></line><line x1="18" y1="20" x2="18" y2="8"></line></svg></span>
-                                        </div>
-                                        <h3 class="pb-landing-step-title">Set Allocation</h3>
-                                        <p class="pb-landing-step-desc">Assign the percentage allocation to each fund.</p>
-                                    </li>
-                                    <li class="pb-landing-step-connector" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.5L10 12.5L15 7.5"></path></svg></li>
-                                    <li class="pb-landing-step">
-                                        <div class="pb-landing-step-head">
-                                            <span class="pb-landing-step-num" aria-hidden="true">03</span>
-                                            <span class="pb-landing-step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg></span>
-                                        </div>
-                                        <h3 class="pb-landing-step-title">Analyze Portfolio</h3>
-                                        <p class="pb-landing-step-desc">Review returns, risk, diversification and portfolio insights.</p>
-                                    </li>
-                                </ol>
-                            </section>
-
-                            <section class="pb-landing-cta" aria-labelledby="pb-landing-cta-title">
-                                <span class="pb-landing-cta-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7"></rect><rect x="13" y="4" width="7" height="7"></rect><rect x="4" y="13" width="7" height="7"></rect><rect x="13" y="13" width="7" height="7"></rect></svg></span>
-                                <h2 class="pb-landing-cta-title" id="pb-landing-cta-title">Ready to build your portfolio?</h2>
-                                <p class="pb-landing-cta-text">Select 2&ndash;10 mutual funds to get started. You'll set the allocation for each fund before analyzing your portfolio.</p>
-                                <a href="/portfolio-select-funds.html" class="btn btn-primary pb-landing-cta-btn">Select Funds</a>
-                            </section>
-
-                            <section class="pb-landing-features" aria-labelledby="pb-landing-features-title">
-                                <h2 class="pb-landing-features-title" id="pb-landing-features-title">What you can analyze</h2>
-                                <ul class="pb-landing-feature-list">
-                                    <li class="pb-landing-feature">
-                                        <span class="pb-landing-feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span>
-                                        <div class="pb-landing-feature-text">
-                                            <h3>Portfolio Health Score</h3>
-                                            <p>A single 0&ndash;100 score summarizing overall portfolio quality.</p>
-                                        </div>
-                                    </li>
-                                    <li class="pb-landing-feature">
-                                        <span class="pb-landing-feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg></span>
-                                        <div class="pb-landing-feature-text">
-                                            <h3>Performance</h3>
-                                            <p>CAGR, total return and historical growth for your portfolio.</p>
-                                        </div>
-                                    </li>
-                                    <li class="pb-landing-feature">
-                                        <span class="pb-landing-feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 9 8 15 13 9 18 15 21 11"></polyline></svg></span>
-                                        <div class="pb-landing-feature-text">
-                                            <h3>Risk</h3>
-                                            <p>Volatility, drawdown and risk-adjusted return metrics.</p>
-                                        </div>
-                                    </li>
-                                    <li class="pb-landing-feature">
-                                        <span class="pb-landing-feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="8" height="11"></rect><rect x="13" y="6" width="8" height="15"></rect></svg></span>
-                                        <div class="pb-landing-feature-text">
-                                            <h3>Benchmark Comparison</h3>
-                                            <p>Compare portfolio growth with NIFTY 50 and S&amp;P 500 benchmarks.</p>
-                                        </div>
-                                    </li>
-                                    <li class="pb-landing-feature">
-                                        <span class="pb-landing-feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg></span>
-                                        <div class="pb-landing-feature-text">
-                                            <h3>Consistency</h3>
-                                            <p>Evaluate rolling 1Y, 3Y and 5Y performance across periods.</p>
-                                        </div>
-                                    </li>
-                                    <li class="pb-landing-feature">
-                                        <span class="pb-landing-feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg></span>
-                                        <div class="pb-landing-feature-text">
-                                            <h3>Fund Contribution</h3>
-                                            <p>See which funds helped or hurt overall portfolio return.</p>
-                                        </div>
-                                    </li>
-                                </ul>
-                            </section>
-                        </div>
+                        <section class="pb-empty-card" aria-labelledby="pb-empty-title">
+                            <span class="pb-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7"></rect><rect x="13" y="4" width="7" height="7"></rect><rect x="4" y="13" width="7" height="7"></rect><rect x="13" y="13" width="7" height="7"></rect></svg></span>
+                            <h2 class="pb-empty-title" id="pb-empty-title">Ready to build your portfolio?</h2>
+                            <p class="pb-empty-text">Select 2&ndash;10 mutual funds, set their allocation, and analyze portfolio performance, risk and diversification.</p>
+                            <a href="/portfolio-select-funds.html" class="btn btn-primary">Select Funds</a>
+                        </section>
                     </div>
                     <section id="pb-panel" class="pb-panel hidden">
                         <div class="pb-panel-header">

@@ -278,10 +278,10 @@
 }
 
 /* ====================================================================
-   Landing / initial state — the polished experience shown before any
-   funds are selected (the #pb-empty element the JS toggles). Everything
-   is page-scoped under .pb-landing* so neither the allocation panel nor
-   the analysis layout is affected.
+   Empty state — ONE compact analytical card (the #pb-empty element the
+   JS toggles). It reuses the app's card language (radius, typography,
+   spacing, shadows, .btn) so it belongs to the Portfolio Analysis UI.
+   The soft yellow/gold ambient pulse is scoped to this single card.
    ==================================================================== */
 
 /* The JS-toggle wrapper carries no visual box of its own. */
@@ -289,272 +289,97 @@
     margin: 0;
 }
 
-/* The landing sits in a centred, slightly wider column. */
-.pb-landing {
-    max-width: 1160px;
-    margin: 0 auto;
-}
-
-/* Hero supporting description (lives in the page header). */
-.pb-landing-description {
-    font-size: 0.9375rem;
-    line-height: 1.6;
-    color: var(--color-text);
-    max-width: 72ch;
-    margin-top: 4px;
-}
-
-/* --- 3-step portfolio-building flow --- */
-.pb-landing-flow {
-    margin-top: 36px;
-}
-
-.pb-landing-steps {
-    display: grid;
-    grid-template-columns: 1fr 44px 1fr 44px 1fr;
-    align-items: stretch;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.pb-landing-step {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 20px 20px 18px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--btn-shadow);
-}
-
-.pb-landing-step-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.pb-landing-step-num {
-    width: 34px;
-    height: 34px;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-pill);
-    background: var(--color-primary);
-    color: #ffffff;
-    font-size: 0.8125rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.03em;
-}
-
-.pb-landing-step-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    flex-shrink: 0;
-    border-radius: var(--radius-sm);
-    background: var(--color-slate-100);
-    border: 1px solid var(--color-border);
-    color: var(--color-accent, #0ea5e9);
-}
-
-.pb-landing-step-icon svg {
-    width: 20px;
-    height: 20px;
-}
-
-.pb-landing-step-title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    margin: 0;
-}
-
-.pb-landing-step-desc {
-    font-size: 0.875rem;
-    line-height: 1.55;
-    color: var(--color-text-light);
-    margin: 0;
-}
-
-.pb-landing-step-connector {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-slate-400);
-}
-
-.pb-landing-step-connector svg {
-    width: 22px;
-    height: 22px;
-}
-
-/* --- Primary action panel --- */
-.pb-landing-cta {
+/* Compact, centred primary card — small enough not to dominate the
+   viewport, aligned with the analysis sections' content column. */
+.pb-empty-card {
+    max-width: 560px;
     margin: 36px auto 0;
-    max-width: 640px;
+    padding: 32px 28px;
     text-align: center;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-left: 4px solid var(--color-accent, #0ea5e9);
+    /* Very soft warm yellow/cream gradient over the existing surface. */
+    background:
+        radial-gradient(120% 150% at 50% 0%, rgba(254, 249, 219, 0.85), rgba(255, 253, 240, 0.45) 55%, rgba(255, 255, 255, 0.92)),
+        var(--color-surface);
+    border: 1px solid rgba(217, 168, 25, 0.26);
     border-radius: var(--radius-lg);
-    box-shadow: var(--btn-shadow);
-    padding: 30px 36px;
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.04),
+        0 8px 22px rgba(180, 140, 20, 0.10);
+    /* Pulse animates border + shadow only — no layout properties, so the
+       card never shifts and repainting stays cheap. */
+    animation: pb-empty-glow 3.6s ease-in-out infinite;
 }
 
-.pb-landing-cta-icon {
+/* Slow, gentle golden edge/glow pulse (NOT neon, NOT flashing). */
+@keyframes pb-empty-glow {
+    0%, 100% {
+        border-color: rgba(217, 168, 25, 0.22);
+        box-shadow:
+            0 1px 2px rgba(15, 23, 42, 0.04),
+            0 6px 18px rgba(180, 140, 20, 0.08);
+    }
+    50% {
+        border-color: rgba(202, 138, 4, 0.42);
+        box-shadow:
+            0 1px 2px rgba(15, 23, 42, 0.04),
+            0 12px 34px rgba(180, 140, 20, 0.16);
+    }
+}
+
+/* Small existing-style icon tile in the same gold family. */
+.pb-empty-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 44px;
     height: 44px;
     border-radius: var(--radius-md);
-    background: var(--color-slate-100);
-    border: 1px solid var(--color-border);
-    color: var(--color-accent, #0ea5e9);
+    background: linear-gradient(135deg, rgba(250, 204, 21, 0.20), rgba(254, 243, 199, 0.50));
+    border: 1px solid rgba(202, 138, 4, 0.22);
+    color: #a16207;
 }
 
-.pb-landing-cta-icon svg {
-    width: 24px;
-    height: 24px;
+.pb-empty-icon svg {
+    width: 22px;
+    height: 22px;
 }
 
-.pb-landing-cta-title {
+.pb-empty-title {
     margin: 14px 0 0;
     font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--color-primary);
+    font-weight: 800;
     letter-spacing: -0.01em;
+    color: var(--color-primary);
 }
 
-.pb-landing-cta-text {
-    margin: 10px auto 22px;
-    max-width: 52ch;
-    font-size: 0.9375rem;
+.pb-empty-text {
+    margin: 8px auto 0;
+    max-width: 40ch;
+    font-size: 0.875rem;
     line-height: 1.6;
-    color: var(--color-text);
-}
-
-/* Page-scoped primary button so the landing CTA matches the application's
-   navy primary buttons without touching shared styles (this page does not
-   load mutual-fund-analysis.css, where the app-level .btn-primary lives). */
-.pb-landing-cta .btn {
-    width: auto;
-    min-width: 160px;
-    background: var(--color-primary);
-    color: #ffffff;
-    border: none;
-    border-radius: var(--radius-sm);
-    font-size: 0.9375rem;
-    font-weight: 600;
-}
-
-.pb-landing-cta .btn:hover {
-    background: var(--color-primary-light);
-}
-
-/* --- What you can analyze --- */
-.pb-landing-features {
-    margin-top: 48px;
-}
-
-.pb-landing-features-title {
-    margin: 0 0 20px;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    letter-spacing: -0.01em;
-    text-align: center;
-}
-
-.pb-landing-feature-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 16px;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.pb-landing-feature {
-    display: flex;
-    align-items: flex-start;
-    gap: 14px;
-    padding: 16px 18px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--btn-shadow);
-}
-
-.pb-landing-feature-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-    border-radius: var(--radius-sm);
-    background: var(--color-slate-100);
-    border: 1px solid var(--color-border);
-    color: var(--color-accent, #0ea5e9);
-}
-
-.pb-landing-feature-icon svg {
-    width: 20px;
-    height: 20px;
-}
-
-.pb-landing-feature-text {
-    min-width: 0;
-    flex: 1;
-}
-
-.pb-landing-feature-text h3 {
-    font-size: 0.9375rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    margin: 0;
-}
-
-.pb-landing-feature-text p {
-    font-size: 0.8125rem;
-    line-height: 1.5;
     color: var(--color-text-light);
-    margin: 6px 0 0;
 }
 
-/* --- Responsive: stack the 3-step flow; tighten spacing on small taps --- */
-@media (max-width: 960px) {
-    .pb-landing-steps {
-        grid-template-columns: 1fr;
-        gap: 20px;
-    }
+/* Primary action uses the existing .btn/.btn-primary styling. */
+.pb-empty-card .btn {
+    margin-top: 20px;
+}
 
-    .pb-landing-step-connector {
-        display: none;
+.pb-empty-card .btn:hover {
+    box-shadow: 0 6px 16px rgba(180, 140, 20, 0.20);
+}
+
+/* Respect reduced motion: keep the warm highlight, drop the pulse. */
+@media (prefers-reduced-motion: reduce) {
+    .pb-empty-card {
+        animation: none;
     }
 }
 
 @media (max-width: 640px) {
-    .pb-landing-cta {
-        padding: 24px 20px;
-    }
-
-    .pb-landing-flow,
-    .pb-landing-cta,
-    .pb-landing-features {
-        margin-top: 28px;
-    }
-
-    .pb-landing-features-title {
-        margin-bottom: 16px;
+    .pb-empty-card {
+        margin-top: 24px;
+        padding: 26px 20px;
     }
 }
 
