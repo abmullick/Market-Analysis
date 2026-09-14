@@ -101,6 +101,19 @@
     opacity: 0.8;
 }
 
+/* Shared primary CTA — the application's dark/navy button, layered on the
+   .btn pill base. Uses the same navy palette as the active nav pill and the
+   Help link; feature stylesheets may further override it where needed. */
+.btn-primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+    color: #ffffff;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
+    color: #ffffff;
+}
+
 .btn svg {
     width: 18px;
     height: 18px;
