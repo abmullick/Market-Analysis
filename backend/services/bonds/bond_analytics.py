@@ -19,7 +19,9 @@ For T-Bills (zero-coupon):
 
 For coupon-bearing securities:
     - Construct actual cash flows from coupon, frequency, maturity and face value.
-    - Respect the appropriate settlement/accrual convention where available.
+    - Use semiannual coupon-period discounting for Indian G-Secs / SDLs.
+    - Use 30/360 period fractions when the security uses 30/360.
+    - Keep market YTM separate from independently calculated YTM.
 
 The engine does NOT contact any external data source.
 """
@@ -27,13 +29,12 @@ The engine does NOT contact any external data source.
 from __future__ import annotations
 
 import math
-from datetime import date, datetime
+from datetime import date
 from typing import Any, Optional
 
 from backend.models.bonds import (
     AnalyticsResult,
     Bond,
-    DataType,
     DayCountConvention,
 )
 from backend.services.bonds.bond_cashflows import (
@@ -43,38 +44,30 @@ from backend.services.bonds.bond_cashflows import (
 
 
 # ---------------------------------------------------------------------------
-# YTM solver (Newton-Raphson)
+# Date / coupon-period helpers
 # ---------------------------------------------------------------------------
 
-def _price_from_yield(
-    cash_flows: list[dict[str, Any]],
-    ytm: float,                  # decimal, e.g. 0.0715 for 7.15%
-    settlement_date: date,
-    day_count: str = "ACT/365",
-) -> float:
-    """Compute dirty price from a yield and cash-flow schedule.
 
-    Discounts each cash flow back to settlement_date using compound
-    discounting with the appropriate time factor.
-    """
-    total = 0.0
+def _days_between(
+    from_date: date,
+    to_date: date,
+    day_count: str,
+) -> int:
+    """Return the number of days between two dates under the supplied basis."""
+    if to_date <= from_date:
+        return 0
 
-    for cf in cash_flows:
-        cf_date = cf["date"]
-        amount = float(cf["total"])
+    if day_count == "30/360":
+        d1 = min(from_date.day, 30)
+        d2 = min(to_date.day, 30)
 
-        t = _time_factor(
-            settlement_date,
-            cf_date,
-            day_count,
+        return (
+            360 * (to_date.year - from_date.year)
+            + 30 * (to_date.month - from_date.month)
+            + (d2 - d1)
         )
 
-        if t < 0:
-            t = 0.0
-
-        total += amount / ((1.0 + ytm) ** t)
-
-    return total
+    return (to_date - from_date).days
 
 
 def _time_factor(
@@ -82,37 +75,222 @@ def _time_factor(
     to_date: date,
     day_count: str,
 ) -> float:
-    """Compute the time factor (years) between two dates.
-
-    Conventions:
-        - 30/360: 30-day months, 360-day year
-        - ACT/365: actual days / 365
-        - ACT/360: actual days / 360
-        - ACT/ACT: actual days / 365 fallback
-    """
+    """Compute years between two dates under the supplied day-count basis."""
     if to_date <= from_date:
         return 0.0
 
     if day_count == "30/360":
-        d1 = min(from_date.day, 30)
-        d2 = min(to_date.day, 30)
-
-        days_30_360 = (
-            360 * (to_date.year - from_date.year)
-            + 30 * (to_date.month - from_date.month)
-            + (d2 - d1)
-        )
-        return days_30_360 / 360.0
+        return _days_between(from_date, to_date, day_count) / 360.0
 
     actual = (to_date - from_date).days
-
-    if day_count == "ACT/365":
-        return actual / 365.0
 
     if day_count == "ACT/360":
         return actual / 360.0
 
+    if day_count == "ACT/365":
+        return actual / 365.0
+
+    # Preserve the existing ACT/ACT fallback used by the project.
     return actual / 365.0
+
+
+def _coupon_period_details(
+    cash_flows: list[dict[str, Any]],
+    settlement_date: date,
+    day_count: str,
+) -> tuple[Optional[date], Optional[date], Optional[int], Optional[int], Optional[float]]:
+    """Return previous coupon, next coupon and coupon-period day counts.
+
+    Returns:
+        (previous_coupon, next_coupon, A, DSC, E)
+
+    A   = elapsed days from previous coupon to settlement.
+    DSC = days from settlement to next coupon.
+    E   = length of the current coupon period.
+
+    For Indian G-Secs under 30/360, using the day before settlement for accrued
+    interest means A + DSC may differ by one day from a naive calendar split.
+    The YTM pricing convention, however, uses the settlement-to-next-coupon
+    fraction DSC / E. With the standard 30/360 dates for a regular coupon bond
+    this reproduces the RBI/Excel-style semiannual YIELD result.
+    """
+    if not cash_flows:
+        return None, None, None, None, None
+
+    ordered_dates = sorted(
+        {
+            cf["date"]
+            for cf in cash_flows
+            if isinstance(cf.get("date"), date)
+        }
+    )
+
+    if not ordered_dates:
+        return None, None, None, None, None
+
+    previous_coupon: Optional[date] = None
+    next_coupon: Optional[date] = None
+
+    for cf_date in ordered_dates:
+        if cf_date <= settlement_date:
+            previous_coupon = cf_date
+        elif next_coupon is None:
+            next_coupon = cf_date
+            break
+
+    if next_coupon is None:
+        return previous_coupon, None, None, None, None
+
+    if previous_coupon is None:
+        # Settlement before the first generated cash flow. This should be rare,
+        # but use the first cash-flow date as the next coupon and infer the
+        # preceding period from the next available coupon where possible.
+        first_idx = ordered_dates.index(next_coupon)
+        if first_idx > 0:
+            previous_coupon = ordered_dates[first_idx - 1]
+        else:
+            previous_coupon = next_coupon
+
+    e_days = _days_between(previous_coupon, next_coupon, day_count)
+    dsc_days = _days_between(settlement_date, next_coupon, day_count)
+    if day_count == "30/360":
+        dsc_days += 1
+    a_days = _days_between(previous_coupon, settlement_date, day_count)
+
+    if e_days <= 0:
+        return previous_coupon, next_coupon, a_days, dsc_days, None
+
+    return (
+        previous_coupon,
+        next_coupon,
+        a_days,
+        dsc_days,
+        float(e_days),
+    )
+
+
+def _cash_flow_exponents(
+    cash_flows: list[dict[str, Any]],
+    settlement_date: date,
+    day_count: str,
+    frequency: int,
+) -> list[tuple[dict[str, Any], float]]:
+    """Assign semiannual/frequency coupon-period exponents to future cash flows.
+
+    The first future cash flow is discounted by DSC/E coupon periods.
+    Subsequent cash flows advance by exactly one coupon period.
+    """
+    if not cash_flows or frequency <= 0:
+        return []
+
+    (
+        _previous_coupon,
+        next_coupon,
+        _a_days,
+        dsc_days,
+        e_days,
+    ) = _coupon_period_details(
+        cash_flows,
+        settlement_date,
+        day_count,
+    )
+
+    if next_coupon is None or e_days is None or e_days <= 0:
+        return []
+
+    first_fraction = (
+        dsc_days / e_days
+        if dsc_days is not None
+        else 1.0
+    )
+
+    # Settlement exactly on a coupon date: the next coupon is one full period
+    # away, not zero periods away.
+    if first_fraction <= 0.0:
+        first_fraction = 1.0
+
+    future = [
+        cf
+        for cf in cash_flows
+        if cf["date"] > settlement_date
+    ]
+
+    exponents: list[tuple[dict[str, Any], float]] = []
+
+    for index, cf in enumerate(future):
+        exponent = first_fraction + index
+        exponents.append((cf, exponent))
+
+    return exponents
+
+
+# ---------------------------------------------------------------------------
+# YTM solver
+# ---------------------------------------------------------------------------
+
+
+def _price_from_yield(
+    cash_flows: list[dict[str, Any]],
+    ytm: float,
+    settlement_date: date,
+    day_count: str = "ACT/365",
+    frequency: int = 2,
+) -> float:
+    """Compute dirty price from yield.
+
+    Coupon-bearing securities use periodic compounding:
+        Price = sum(CF / (1 + y/f)^n)
+
+    where n is the number of coupon periods from settlement to each future
+    cash flow, including the fractional first period DSC/E.
+
+    For frequency <= 1, retain the annual effective-discount fallback.
+    """
+    if not cash_flows:
+        return 0.0
+
+    if frequency <= 1:
+        total = 0.0
+
+        for cf in cash_flows:
+            cf_date = cf["date"]
+            amount = float(cf["total"])
+
+            t = _time_factor(
+                settlement_date,
+                cf_date,
+                day_count,
+            )
+
+            if t < 0:
+                t = 0.0
+
+            denominator = 1.0 + ytm
+            if denominator <= 0:
+                return float("inf")
+
+            total += amount / (denominator ** t)
+
+        return total
+
+    rate_per_period = ytm / frequency
+
+    if 1.0 + rate_per_period <= 0.0:
+        return float("inf")
+
+    total = 0.0
+
+    for cf, exponent in _cash_flow_exponents(
+        cash_flows=cash_flows,
+        settlement_date=settlement_date,
+        day_count=day_count,
+        frequency=frequency,
+    ):
+        amount = float(cf["total"])
+        total += amount / ((1.0 + rate_per_period) ** exponent)
+
+    return total
+
 
 def solve_ytm(
     cash_flows: list[dict[str, Any]],
@@ -122,8 +300,12 @@ def solve_ytm(
     guess: float = 0.07,
     max_iter: int = 200,
     tolerance: float = 1e-8,
+    frequency: int = 2,
 ) -> Optional[float]:
     """Solve for YTM (decimal) given a dirty price and cash-flow schedule.
+
+    Coupon-bearing securities use periodic compounding with the supplied
+    coupon frequency. For Indian G-Secs / SDLs this is normally frequency=2.
 
     Uses Newton-Raphson on the bond pricing function.
 
@@ -135,7 +317,7 @@ def solve_ytm(
     if dirty_price <= 0 or not cash_flows:
         return None
 
-    y = guess
+    y = float(guess)
 
     for _ in range(max_iter):
         price = _price_from_yield(
@@ -143,7 +325,11 @@ def solve_ytm(
             y,
             settlement_date,
             day_count,
+            frequency,
         )
+
+        if not math.isfinite(price):
+            return None
 
         diff = price - dirty_price
 
@@ -158,7 +344,11 @@ def solve_ytm(
             y + dy,
             settlement_date,
             day_count,
+            frequency,
         )
+
+        if not math.isfinite(price_plus):
+            break
 
         derivative = (price_plus - price) / dy
 
@@ -167,7 +357,7 @@ def solve_ytm(
 
         y = y - diff / derivative
 
-        # Clamp to reasonable range.
+        # Clamp to a reasonable range.
         if y < -0.5:
             y = -0.49
 
@@ -180,17 +370,44 @@ def solve_ytm(
         y,
         settlement_date,
         day_count,
+        frequency,
     )
 
-    if abs(price - dirty_price) < tolerance * dirty_price + 1e-6:
+    if math.isfinite(price) and abs(price - dirty_price) < (
+        tolerance * max(dirty_price, 1.0) + 1e-6
+    ):
         return y
 
     return None
 
 
+def _solve_tbill_ytm(
+    maturity_date: date,
+    price: float,
+    face_value: float,
+    settlement_date: date,
+    day_count: str,
+) -> Optional[float]:
+    """Calculate zero-coupon YTM from price and maturity."""
+    if price <= 0 or face_value <= 0 or maturity_date <= settlement_date:
+        return None
+
+    t = _time_factor(
+        settlement_date,
+        maturity_date,
+        day_count,
+    )
+
+    if t <= 0:
+        return None
+
+    return (face_value / price) ** (1.0 / t) - 1.0
+
+
 # ---------------------------------------------------------------------------
 # Public analytics API
 # ---------------------------------------------------------------------------
+
 
 def compute_analytics(
     bond: Bond,
@@ -272,10 +489,19 @@ def compute_analytics(
     # --- Accrued interest ---
     last_coupon = None
 
-    if cash_flows and len(cash_flows) > 1:
-        last_coupon = cash_flows[0]["date"]
-    elif cash_flows and len(cash_flows) == 1:
-        # T-Bill: no accrued interest.
+    if future_cash_flows:
+        # Previous coupon is the latest generated cash-flow date on or before
+        # settlement. This avoids hard-coding cash_flows[0] for later coupons.
+        previous_candidates = [
+            cf["date"]
+            for cf in cash_flows
+            if cf["date"] <= settlement_date
+        ]
+        if previous_candidates:
+            last_coupon = max(previous_candidates)
+
+    # T-Bills are zero-coupon and therefore have no accrued coupon interest.
+    if is_tbill:
         last_coupon = None
 
     ai_amount, ai_days = accrued_interest(
@@ -330,12 +556,24 @@ def compute_analytics(
         and dirty_price > 0
         and future_cash_flows
     ):
-        ytm_decimal = solve_ytm(
-            cash_flows=future_cash_flows,
-            dirty_price=dirty_price,
-            settlement_date=settlement_date,
-            day_count=day_count,
-        )
+        if is_tbill:
+            maturity_date = future_cash_flows[-1]["date"]
+
+            ytm_decimal = _solve_tbill_ytm(
+                maturity_date=maturity_date,
+                price=dirty_price,
+                face_value=face_value,
+                settlement_date=settlement_date,
+                day_count=day_count,
+            )
+        else:
+            ytm_decimal = solve_ytm(
+                cash_flows=cash_flows,
+                dirty_price=dirty_price,
+                settlement_date=settlement_date,
+                day_count=day_count,
+                frequency=frequency,
+            )
 
         if ytm_decimal is not None:
             calculated_ytm = ytm_decimal * 100.0
@@ -374,16 +612,19 @@ def compute_analytics(
             )
         )
 
-        macaulay_duration, modified_duration, convexity = (
-            _compute_duration_convexity(
-                cash_flows=future_cash_flows,
-                ytm=ytm_decimal,
-                settlement_date=settlement_date,
-                day_count=day_count,
-            )
+        (
+            macaulay_duration,
+            modified_duration,
+            convexity,
+        ) = _compute_duration_convexity(
+            cash_flows=future_cash_flows,
+            ytm=ytm_decimal,
+            settlement_date=settlement_date,
+            day_count=day_count,
+            frequency=frequency,
         )
 
-        # DV01: change in price for 1bp move in yield, per 100 par.
+        # DV01: change in price for 1bp move in yield, per face value.
         if modified_duration is not None:
             dv01 = (
                 modified_duration
@@ -398,6 +639,7 @@ def compute_analytics(
                 settlement_date=settlement_date,
                 day_count=day_count,
                 face_value=face_value,
+                frequency=frequency,
             )
 
             if dv01_precise is not None:
@@ -405,25 +647,25 @@ def compute_analytics(
 
         notes.append(
             f"Macaulay duration: {macaulay_duration:.4f} years"
-            if macaulay_duration
+            if macaulay_duration is not None
             else "Macaulay duration: N/A"
         )
 
         notes.append(
             f"Modified duration: {modified_duration:.4f}"
-            if modified_duration
+            if modified_duration is not None
             else "Modified duration: N/A"
         )
 
         notes.append(
             f"Convexity: {convexity:.4f}"
-            if convexity
+            if convexity is not None
             else "Convexity: N/A"
         )
 
         notes.append(
             f"DV01: {dv01:.6f}"
-            if dv01
+            if dv01 is not None
             else "DV01: N/A"
         )
 
@@ -434,27 +676,30 @@ def compute_analytics(
         and dirty_price > 0
     ):
         # T-Bill duration = time to maturity.
+        maturity_date = cash_flows[-1]["date"]
         ttm = _time_factor(
             settlement_date,
-            cash_flows[0]["date"],
+            maturity_date,
             day_count,
         )
 
         if ttm > 0:
-            modified_duration = ttm / (
-                1.0
-                + (
+            ytm_for_duration = (
+                calculated_ytm / 100.0
+                if calculated_ytm is not None
+                else (
                     market_ytm / 100.0
-                    if market_ytm
-                    else (
-                        calculated_ytm / 100.0
-                        if calculated_ytm
-                        else 0.0
-                    )
+                    if market_ytm is not None
+                    else 0.0
                 )
             )
 
+            modified_duration = ttm / (
+                1.0 + ytm_for_duration
+            )
+
             macaulay_duration = ttm
+
             dv01 = (
                 modified_duration
                 * 0.0001
@@ -491,11 +736,13 @@ def compute_analytics(
 # Duration / convexity calculations
 # ---------------------------------------------------------------------------
 
+
 def _compute_duration_convexity(
     cash_flows: list[dict[str, Any]],
     ytm: float,
     settlement_date: date,
     day_count: str,
+    frequency: int = 2,
 ) -> tuple[
     Optional[float],
     Optional[float],
@@ -503,48 +750,63 @@ def _compute_duration_convexity(
 ]:
     """Compute Macaulay duration, modified duration, and convexity.
 
-    Returns:
-        (macaulay_duration, modified_duration, convexity)
-
-    All values are None if computation fails.
+    Coupon-bearing securities are valued using the same periodic-compounding
+    convention as the YTM solver, so the risk measures are internally
+    consistent with the calculated YTM.
     """
-    if not cash_flows:
+    if not cash_flows or frequency <= 0:
+        return None, None, None
+
+    exponents = _cash_flow_exponents(
+        cash_flows=cash_flows,
+        settlement_date=settlement_date,
+        day_count=day_count,
+        frequency=frequency,
+    )
+
+    if not exponents:
+        return None, None, None
+
+    rate_per_period = ytm / frequency
+
+    if 1.0 + rate_per_period <= 0.0:
         return None, None, None
 
     macaulay_num = 0.0
     macaulay_den = 0.0
     convexity_num = 0.0
 
-    for cf in cash_flows:
+    for cf, exponent in exponents:
         amount = float(cf["total"])
 
-        t = _time_factor(
-            settlement_date,
-            cf["date"],
-            day_count,
+        discount = 1.0 / (
+            (1.0 + rate_per_period) ** exponent
         )
+        pv = amount * discount
 
-        if t <= 0:
-            continue
+        t_years = exponent / frequency
 
-        df = 1.0 / ((1.0 + ytm) ** t)
-        pv = amount * df
-
-        macaulay_num += t * pv
+        macaulay_num += t_years * pv
         macaulay_den += pv
 
+        # Exact second-derivative form for periodic compounding.
         convexity_num += (
-            t
-            * (t + 1)
+            exponent
+            * (exponent + 1.0)
             * pv
-            / ((1.0 + ytm) ** 2)
+            / (
+                frequency ** 2
+                * (1.0 + rate_per_period) ** 2
+            )
         )
 
-    if macaulay_den == 0:
+    if macaulay_den <= 0.0:
         return None, None, None
 
     macaulay = macaulay_num / macaulay_den
-    modified = macaulay / (1.0 + ytm)
+    modified = macaulay / (
+        frequency * (1.0 + rate_per_period)
+    )
     convexity_val = convexity_num / macaulay_den
 
     return (
@@ -560,8 +822,12 @@ def _dv01_from_pricing(
     settlement_date: date,
     day_count: str,
     face_value: float,
+    frequency: int = 2,
 ) -> Optional[float]:
     """Compute DV01 by repricing at y +/- 1bp."""
+    if not cash_flows or face_value <= 0:
+        return None
+
     bp = 0.0001
 
     p_minus = _price_from_yield(
@@ -569,6 +835,7 @@ def _dv01_from_pricing(
         ytm - bp,
         settlement_date,
         day_count,
+        frequency,
     )
 
     p_plus = _price_from_yield(
@@ -576,12 +843,15 @@ def _dv01_from_pricing(
         ytm + bp,
         settlement_date,
         day_count,
+        frequency,
     )
 
-    if p_minus is None or p_plus is None:
+    if not math.isfinite(p_minus) or not math.isfinite(p_plus):
         return None
 
+    # Current cash-flow amounts are already expressed for the bond's face
+    # value, so the repricing result itself is the price change per that face.
     return round(
-        abs(p_minus - p_plus),
+        abs(p_minus - p_plus) / 2.0,
         6,
     )
