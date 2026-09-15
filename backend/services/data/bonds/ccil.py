@@ -1,26 +1,62 @@
-"""CCIL public market data adapter.
+"""CCIL public market-data adapter (NDS-OM / Market Watch).
 
-CCIL publishes Market Watch pages with separate sections for:
-  - Central Government Market Watch
-  - State Government Market Watch
-  - T-Bills Market Watch
+The current CCIL Market Watch page lives at:
+    https://www.ccilindia.com/market-watch
 
-The adapter fetches the published HTML/CSV and normalizes rows into
-internal CcilRawRecord objects. It does NOT expose CCIL field names to
-the rest of the application.
+It is backed by a Liferay Portlet
+(``com_ccil_ndsom_marketwatch_CcilNDSOMMarketWatchPortlet_INSTANCE_swas``)
+and is served by the resource mechanism the page's own JavaScript uses.
+Three resource IDs back the three market-watch sections:
 
-NOTE: This is an experimental/illustrative adapter. CCIL market-data
-pages are human-facing and may change without notice. In production this
-would be validated against the actual published structure.
+    - NDSOMCG     -> Central Government Securities (G-Secs)
+    - NDSOMSG     -> State Government Securities (SDLs)
+    - NDSOM_TBILL -> Treasury Bills
+
+Each resource returns a JSON wrapper:
+
+    {"result1": "<json-encoded list of records>"}
+
+where ``result1`` itself decodes to a list of record objects. Each record
+exposes (among others):
+
+    ismt_idnt  : security description (e.g. "06.94 GS 2036", "182 DTB 18092026")
+    mrty_date  : maturity date as DD/MM/YYYY
+    ltp        : last-traded value (see FIELD SEMANTICS below)
+    lty        : last-traded value (see FIELD SEMANTICS below)
+    lta        : last-traded amount
+    tta        : total traded amount (Cr.)
+    a, b, c, d, e, f : bid/offer auxiliaries (zero-filled / unused in this feed)
+
+FIELD SEMANTICS (verified against the page's own JS and the live payload):
+The rendered table has two columns labelled "LTP" (Last Traded Price) and
+"LTY" (Last Traded Yield). The JSON field NAMES are swapped relative to
+those column headings in the Central/State sections, while the T-Bill
+section follows the natural order. Concretely, the page JS emits:
+
+    Central/State : .add([... , lty, ltp, lta, tta])   // into LTP/LTY/LTA/TTA cols
+    T-Bills       : .add([... , ltp, lty, lta, tta])   // into LTP/LTY/LTA/TTA cols
+
+So:
+    Central/State : JSON ``lty`` = price, JSON ``ltp`` = yield
+    T-Bills       : JSON ``ltp`` = price, JSON ``lty`` = yield
+
+This adapter normalizes the JSON fields into semantically-correct
+``CcilRawRecord`` fields (``raw.ltp`` = last traded PRICE, ``raw.lty`` =
+last traded YIELD) so the Bond normalizer can consume them uniformly. The
+zero-filled a-f bid/offer auxiliaries are NOT mapped (their semantics here
+are not meaningful / uniformly zero).
+
+NOTE: No ISIN is published in this response. The security description is
+preserved verbatim so a future NSE security-master enrichment step can
+supply the real ISIN. No ISIN is fabricated.
 
 No paid API, no API key, no commercial data vendor.
 """
 
 from __future__ import annotations
 
+import json as _json
 import re
-from datetime import date, datetime
-from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -31,24 +67,50 @@ from backend.utils.logging import logger
 
 
 # ---------------------------------------------------------------------------
-# CCIL public market-watch endpoints (illustrative / research-based)
+# CCIL current Market Watch resource mechanism (Portlet-based)
 # ---------------------------------------------------------------------------
 
-# CCIL publishes market watch pages under the www.ccilindia.com domain.
-# The exact URLs and HTML structure may change; these are research-based
-# starting points for the Central / State / T-Bills sections.
-#
-# IMPORTANT: These endpoints are NOT called during automated tests.
-# Tests use mocked responses instead.
-
 _CCIL_BASE = "https://www.ccilindia.com"
+_MARKET_WATCH_PAGE = f"{_CCIL_BASE}/market-watch"
 
-# These are the conceptual market-watch sections. Actual path/query may
-# differ; the adapter is structured so the endpoints can be updated in
-# one place without touching the rest of the bond layer.
-CENTRAL_MARKET_WATCH_URL = "https://www.ccilindia.com/market/watch/central-government"
-STATE_MARKET_WATCH_URL = "https://www.ccilindia.com/market/watch/state-government"
-TBILL_MARKET_WATCH_URL = "https://www.ccilindia.com/market/watch/t-bills"
+# Portlet id hard-coded on the current CCIL Market Watch page.
+_PORTLET_ID = (
+    "com_ccil_ndsom_marketwatch_CcilNDSOMMarketWatchPortlet_INSTANCE_swas"
+)
+
+
+def _resource_url(resource_id: str) -> str:
+    """Build a portlet resource URL for a given CCIL market-watch resource id."""
+    return (
+        f"{_MARKET_WATCH_PAGE}"
+        f"?p_p_id={_PORTLET_ID}"
+        f"&p_p_lifecycle=2"
+        f"&p_p_state=normal"
+        f"&p_p_mode=view"
+        f"&p_p_resource_id={resource_id}"
+        f"&p_p_cacheability=cacheLevelPage"
+    )
+
+
+# Current, publicly accessible CCIL Market Watch endpoints. Discovered from
+# the page's own JavaScript (updateTable / ndsomSGUpdateTable /
+# ndsomTbillUpdateTable). These are the real production endpoints.
+CENTRAL_MARKET_WATCH_URL = _resource_url("NDSOMCG")
+STATE_MARKET_WATCH_URL = _resource_url("NDSOMSG")
+TBILL_MARKET_WATCH_URL = _resource_url("NDSOM_TBILL")
+
+# CCIL serves the resource to browsers; provide a browser UA.
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0 Safari/537.36"
+    )
+}
+
+
+class CcilParseError(Exception):
+    """Raised when a CCIL Market Watch response cannot be parsed."""
 
 
 class CcilClient:
@@ -64,7 +126,9 @@ class CcilClient:
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(follow_redirects=True, timeout=30.0)
+            self._client = httpx.AsyncClient(
+                follow_redirects=True, timeout=30.0, headers=_HEADERS
+            )
         return self._client
 
     async def close(self) -> None:
@@ -73,34 +137,26 @@ class CcilClient:
             self._client = None
 
     async def fetch_central_market_watch(self) -> list[CcilRawRecord]:
-        """Fetch Central Government Market Watch rows."""
-        return await self._fetch_section(
-            "central",
-            CENTRAL_MARKET_WATCH_URL,
-            has_offer_amount=True,
-            has_tta=True,
-        )
+        """Fetch Central Government Market Watch rows (resource: NDSOMCG)."""
+        return await self._fetch_section("central", CENTRAL_MARKET_WATCH_URL)
 
     async def fetch_state_market_watch(self) -> list[CcilRawRecord]:
-        """Fetch State Government Market Watch rows."""
-        return await self._fetch_section(
-            "state",
-            STATE_MARKET_WATCH_URL,
-            has_offer_amount=True,
-            has_tta=True,
-        )
+        """Fetch State Government Market Watch rows (resource: NDSOMSG)."""
+        return await self._fetch_section("state", STATE_MARKET_WATCH_URL)
 
     async def fetch_tbill_market_watch(self) -> list[CcilRawRecord]:
-        """Fetch T-Bills Market Watch rows."""
-        return await self._fetch_section(
-            "tbills",
-            TBILL_MARKET_WATCH_URL,
-            has_offer_amount=False,
-            has_tta=True,
-        )
+        """Fetch T-Bills Market Watch rows (resource: NDSOM_TBILL)."""
+        return await self._fetch_section("tbills", TBILL_MARKET_WATCH_URL)
 
     async def fetch_all(self) -> list[CcilRawRecord]:
-        """Fetch all three CCIL sections and return combined raw records."""
+        """Fetch all three CCIL sections and return combined raw records.
+
+        Failures of an individual section are logged and isolated; a
+        failure in one section does not prevent the others from loading.
+        A parsing error raises ``CcilParseError``, which this method
+        catches so the rest of the bond layer can continue with the
+        remaining sources (see BondService.refresh_all_sources).
+        """
         records: list[CcilRawRecord] = []
         for fetch in (
             self.fetch_central_market_watch,
@@ -110,6 +166,8 @@ class CcilClient:
             try:
                 rows = await fetch()
                 records.extend(rows)
+            except CcilParseError as exc:
+                logger.warning("CCIL section parse failed (%s): %s", fetch.__name__, exc)
             except Exception as exc:
                 logger.warning("CCIL section fetch failed (%s): %s", fetch.__name__, exc)
         return records
@@ -118,213 +176,150 @@ class CcilClient:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    async def _fetch_section(
-        self,
-        section: str,
-        url: str,
-        has_offer_amount: bool,
-        has_tta: bool,
-    ) -> list[CcilRawRecord]:
-        """Fetch one CCIL market-watch section and normalize rows.
+    async def _fetch_section(self, section: str, url: str) -> list[CcilRawRecord]:
+        """Fetch one CCIL market-watch section and parse it as JSON.
 
-        This is a placeholder for the real parsing logic. The structure
-        below documents the expected raw fields and how they map to
-        CcilRawRecord.
-
-        In a real deployment this would:
-          1. GET the URL
-          2. Parse the HTML table / CSV payload
-          3. Normalize each row into a CcilRawRecord
-
-        For now we return an empty list and log the attempt, so the
-        application can start without external connectivity.
+        Raises:
+            CcilParseError: if the response is not valid CCIL JSON or the
+                expected ``result1`` structure is absent / malformed.
+            httpx.HTTPStatusError: on non-2xx HTTP responses.
         """
         logger.info("CCIL fetch section=%s url=%s", section, url)
-        try:
-            client = await self._get_client()
-            response = await client.get(url)
-            response.raise_for_status()
-            text = response.text
-        except Exception as exc:
-            logger.warning("CCIL section=%s fetch failed: %s", section, exc)
-            return []
+        client = await self._get_client()
+        response = await client.get(url)
+        response.raise_for_status()
+        return _parse_ccil_json(response.text, section)
 
-        return _parse_ccil_section(text, section, has_offer_amount, has_tta)
 
 
 # ---------------------------------------------------------------------------
 # Parsing helpers (source-specific, internal to this module)
 # ---------------------------------------------------------------------------
 
-def _parse_ccil_section(
-    html: str,
-    section: str,
-    has_offer_amount: bool,
-    has_tta: bool,
-) -> list[CcilRawRecord]:
-    """Parse CCIL market-watch HTML into CcilRawRecord rows.
+_NUMERIC_RE = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$")
 
-    This is a minimal illustrative parser. Real CCIL pages use an HTML
-    table; the parser below demonstrates how raw fields map to the
-    internal model. It intentionally does NOT guarantee successful
-    parsing of live pages — it is designed to be replaced / enhanced
-    as the actual page structure is confirmed.
 
-    Central/State published fields:
-      Security Description, Maturity Date, Bid Amount, Bid Yield,
-      Bid Price, Offer Price, Offer Yield, Offer Amount, LTP, LTY,
-      LTA, TTA
+def _num(text: Any) -> str | None:
+    """Return a cleaned numeric string if *text* is numeric, else ``None``.
 
-    T-Bills published fields:
-      Security Description, Maturity Date, Bid Price, Bid Yield,
-      Offer Yield, Offer Price, Offer Amount, LTP, LTY, LTA, TTA
+    Missing / blank / null values become ``None`` (never zero) so the
+    normalizer can distinguish genuinely-absent values from zero. Comma
+    thousands separators are stripped.
     """
+    if text is None:
+        return None
+    v = str(text).strip()
+    if v == "" or v.lower() == "null":
+        return None
+    v = v.replace(",", "")
+    if _NUMERIC_RE.match(v):
+        return v
+    return None
+
+
+def _parse_ccil_json(text: str, section: str) -> list[CcilRawRecord]:
+    """Parse a CCIL Market Watch JSON wrapper into CcilRawRecord rows.
+
+    The response is a JSON object with a ``result1`` field whose value is
+    itself a JSON-encoded list of record objects. This helper:
+
+      1. parses the outer JSON,
+      2. validates presence of ``result1``,
+      3. JSON-decodes ``result1`` when it is a string,
+      4. maps each record into a CcilRawRecord with the section-correct
+         price/yield semantics (see module docstring),
+      5. skips rows lacking a recognisable security description.
+
+    Raises:
+        CcilParseError: if the response cannot be parsed, ``result1`` is
+            missing, or ``result1`` is not a list of records.
+    """
+    # 1. outer JSON
+    try:
+        wrapper = _json.loads(text)
+    except _json.JSONDecodeError as exc:
+        raise CcilParseError(
+            f"CCIL section={section}: outer JSON parse failed: {exc}"
+        ) from exc
+
+    if not isinstance(wrapper, dict):
+        raise CcilParseError(
+            f"CCIL section={section}: expected JSON object, "
+            f"got {type(wrapper).__name__}"
+        )
+
+    # 2. result1 presence
+    if "result1" not in wrapper:
+        raise CcilParseError(f"CCIL section={section}: missing 'result1' field")
+
+    # 3. result1 is frequently a JSON-encoded string
+    payload = wrapper["result1"]
+    if isinstance(payload, str):
+        try:
+            rows = _json.loads(payload)
+        except _json.JSONDecodeError as exc:
+            raise CcilParseError(
+                f"CCIL section={section}: 'result1' JSON-decode failed: {exc}"
+            ) from exc
+    else:
+        rows = payload
+
+    # 4. validate structure
+    if not isinstance(rows, list):
+        raise CcilParseError(
+            f"CCIL section={section}: 'result1' is "
+            f"{type(rows).__name__}, expected list"
+        )
+
     records: list[CcilRawRecord] = []
-
-    # Basic sanitization: collapse whitespace
-    text = re.sub(r"[\s\r\n]+", " ", html)
-
-    # Attempt to find table rows. This is illustrative — real selectors
-    # depend on the actual CCIL page structure.
-    row_pattern = re.compile(
-        r"<tr[^>]*>(.*?)</tr>",
-        re.IGNORECASE | re.DOTALL,
-    )
-    cell_pattern = re.compile(
-        r"<t[dh][^>]*>(.*?)</t[dh]>",
-        re.IGNORECASE | re.DOTALL,
-    )
-
-    for match in row_pattern.finditer(text):
-        row_html = match.group(1)
-        cells = [c.group(1).strip() for c in cell_pattern.finditer(row_html)]
-        if not cells:
+    for item in rows:
+        if not isinstance(item, dict):
             continue
-
-        rec = _normalize_ccil_row(cells, section, has_offer_amount, has_tta)
+        rec = _row_to_record(item, section)
         if rec is not None:
             records.append(rec)
 
-    logger.info(
-        "CCIL parsed section=%s rows=%d",
-        section,
-        len(records),
-    )
+    logger.info("CCIL parsed section=%s rows=%d", section, len(records))
     return records
 
 
-def _normalize_ccil_row(
-    cells: list[str],
-    section: str,
-    has_offer_amount: bool,
-    has_tta: bool,
-) -> CcilRawRecord | None:
-    """Normalize one CCIL table row into a CcilRawRecord.
+def _row_to_record(item: dict[str, Any], section: str) -> CcilRawRecord | None:
+    """Map one CCIL JSON record object into a CcilRawRecord.
 
-    Expected column layout (illustrative; actual order may differ):
-
-    Central/State:
-      0 Security Description
-      1 Maturity Date
-      2 Bid Amount
-      3 Bid Yield
-      4 Bid Price
-      5 Offer Price
-      6 Offer Yield
-      7 Offer Amount   (present when has_offer_amount)
-      8 LTP
-      9 LTY
-      10 LTA
-      11 TTA          (present when has_tta)
-
-    T-Bills:
-      0 Security Description
-      1 Maturity Date
-      2 Bid Price
-      3 Bid Yield
-      4 Offer Yield
-      5 Offer Price
-      6 Offer Amount
-      7 LTP
-      8 LTY
-      9 LTA
-      10 TTA
+    Section-aware price/yield mapping (see module docstring):
+      central/state -> JSON ``lty`` is price, JSON ``ltp`` is yield
+      tbills        -> JSON ``ltp`` is price, JSON ``lty`` is yield
     """
-    # Skip header rows that don't look like data
-    if not cells:
+    desc = _clean_str(item.get("ismt_idnt"))
+    if not desc or len(desc) < 2:
         return None
 
-    # Heuristic: a data row should have a recognizable maturity date in
-    # one of the date-like columns. If we can't find anything resembling
-    # a security description + date, skip the row.
-    desc = _clean(cells[0]) if len(cells) > 0 else ""
-    if not desc or len(desc) < 3:
-        return None
+    mrty = _clean_str(item.get("mrty_date")) or None
 
-    def at(idx: int) -> str:
-        return _clean(cells[idx]) if idx < len(cells) else ""
+    if section in ("central", "state"):
+        price = _num(item.get("lty"))   # JSON lty -> last traded price
+        yield_ = _num(item.get("ltp"))  # JSON ltp -> last traded yield
+    else:  # tbills
+        price = _num(item.get("ltp"))   # JSON ltp -> last traded price
+        yield_ = _num(item.get("lty"))  # JSON lty -> last traded yield
 
-    def try_float(val: str) -> str:
-        """Return the raw string if it looks numeric, else empty."""
-        v = val.strip()
-        if not v:
-            return ""
-        # Strip common symbols
-        v = v.replace("\xa0", " ").strip()
-        if re.fullmatch(r"[\d.,\-\+eE%]+ ?, ?[\d.,]+?", v):
-            return v
-        return ""
-
-    rec = CcilRawRecord(
+    return CcilRawRecord(
         section=section,
         security_description=desc,
-        maturity_date=at(1),
-        bid_amount=try_float(at(2)) if section != "tbills" else "",
-        bid_yield=_parse_yield(at(3) if section != "tbills" else at(3)),
-        bid_price=_parse_price(at(4) if section != "tbills" else at(2)),
-        offer_price=_parse_price(at(5) if section != "tbills" else at(5)),
-        offer_yield=_parse_yield(at(6) if section != "tbills" else at(4)),
-        offer_amount=try_float(at(7)) if has_offer_amount else "",
-        ltp=_parse_price(at(8) if section != "tbills" else at(7)),
-        lty=_parse_yield(at(9) if section != "tbills" else at(8)),
-        lta=try_float(at(10) if section != "tbills" else at(9)),
-        tta=try_float(at(11)) if has_tta else "",
-        isin="",
-        coupon_rate="",
         security_name=desc,
+        maturity_date=mrty,
+        ltp=price,
+        lty=yield_,
+        lta=_num(item.get("lta")),
+        tta=_num(item.get("tta")),
+        # bid/offer auxiliaries (a-f) are zero-filled / unused in this feed.
+        isin=None,
+        coupon_rate=None,
     )
-    return rec
 
 
-def _clean(text: str) -> str:
-    """Minimal cell cleanup: decode entities, collapse spaces."""
-    if not text:
+def _clean_str(text: Any) -> str:
+    """Trim/squash whitespace from a string field (None-safe)."""
+    if text is None:
         return ""
-    text = text.replace("\xa0", " ")
-    text = re.sub(r"&[a-zA-Z]+;", " ", text)
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-
-
-def _parse_price(text: str) -> str:
-    """Return a price-like string if recognizable, else empty."""
-    v = _clean(text)
-    if not v:
-        return ""
-    # Allow values like 98.50, 100, 99.95, etc.
-    if re.fullmatch(r"\d+(\.\d+)?", v):
-        return v
-    return ""
-
-
-def _parse_yield(text: str) -> str:
-    """Return a yield-like string if recognizable, else empty."""
-    v = _clean(text)
-    if not v:
-        return ""
-    # Strip trailing %
-    v = v.replace("%", "").strip()
-    if re.fullmatch(r"-?\d+(\.\d+)?", v):
-        return v
-    return ""
+    return str(text).strip()

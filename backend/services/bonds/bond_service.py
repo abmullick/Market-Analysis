@@ -13,6 +13,7 @@ cache infrastructure is introduced.
 
 from __future__ import annotations
 
+import re
 import time
 from datetime import date, datetime
 from threading import Lock
@@ -206,8 +207,20 @@ class BondService:
             except Exception as exc:
                 logger.warning("RBI normalization failed: %s", exc)
 
-        # De-duplicate by ISIN (prefer primary market observations)
+        # De-duplicate by identity (ISIN when published, otherwise the
+        # security description — see _deduplicate_bonds).
         deduped = _deduplicate_bonds(bonds)
+
+        # Do not cache a total provider failure for the full TTL: an empty
+        # result means every source failed (or returned nothing), so the
+        # next request should retry rather than serve emptiness for an hour.
+        if not deduped:
+            logger.warning(
+                "Bond refresh produced no records (CCIL=%d, NSE=%d, RBI=%d); "
+                "not caching so a subsequent request can retry",
+                len(ccil_records), len(nse_records), len(rbi_records),
+            )
+            return deduped
 
         self._cache.put(cache_key, deduped)
         logger.info("Bond list refreshed: %d bonds (from %d raw CCIL, %d NSE, %d RBI)",
@@ -288,7 +301,14 @@ class BondService:
 # ---------------------------------------------------------------------------
 
 def _deduplicate_bonds(bonds: list[Bond]) -> list[Bond]:
-    """Deduplicate bonds by ISIN, preferring primary (traded) observations.
+    """Deduplicate bonds by identity, preferring primary (traded) observations.
+
+    Identity is the ISIN when the source publishes one. CCIL Market Watch
+    does NOT publish an ISIN, so ISIN-less observations are keyed on the
+    normalized security description instead of being dropped. The CCIL
+    security description is thereby preserved as a stable source
+    identifier for a future NSE security-master enrichment step (which
+    will supply the real ISIN).
 
     Priority:
       1. CCIL traded
@@ -297,27 +317,43 @@ def _deduplicate_bonds(bonds: list[Bond]) -> list[Bond]:
       4. RBI reference
       5. Others
     """
-    by_isin: dict[str, Bond] = {}
+    by_key: dict[str, Bond] = {}
     for bond in bonds:
-        if not bond.isin:
+        key = _bond_identity(bond)
+        if key is None:
             continue
-        key = bond.isin.upper()
-        existing = by_isin.get(key)
+        existing = by_key.get(key)
         if existing is None:
-            by_isin[key] = bond
+            by_key[key] = bond
             continue
 
         # Prefer higher-priority data types
         if _data_type_priority(bond) > _data_type_priority(existing):
-            by_isin[key] = bond
+            by_key[key] = bond
         elif _data_type_priority(bond) == _data_type_priority(existing):
             # If same priority, prefer more recent
             b_date = bond.trade_date or bond.as_of or date(1900, 1, 1)
             e_date = existing.trade_date or existing.as_of or date(1900, 1, 1)
             if b_date > e_date:
-                by_isin[key] = bond
+                by_key[key] = bond
 
-    return list(by_isin.values())
+    return list(by_key.values())
+
+
+def _bond_identity(bond: Bond) -> Optional[str]:
+    """Return a stable deduplication key for a bond.
+
+    ``isin:<ISIN>`` when the source publishes an ISIN, otherwise
+    ``name:<normalized security description>``. Sources that publish no
+    ISIN (CCIL Market Watch) therefore survive deduplication instead of
+    being silently discarded.
+    """
+    if bond.isin:
+        return f"isin:{bond.isin.strip().upper()}"
+    name = re.sub(r"\s+", " ", (bond.security_name or "").strip()).upper()
+    if not name:
+        return None
+    return f"name:{name}"
 
 
 def _data_type_priority(bond: Bond) -> int:

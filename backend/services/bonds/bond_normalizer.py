@@ -337,18 +337,78 @@ def _looks_like_tbill(desc: str) -> bool:
     )
 
 
-def _coupon_from_ccil_description(desc: str, section: str) -> Optional[float]:
-    """Attempt to extract coupon rate from CCIL security description.
+# CCIL security descriptions embed the coupon as a leading numeric token:
+#   "06.94 GS 2036"      -> 6.94   (Central Government G-Sec)
+#   "07.17 MP SDL 2029"  -> 7.17   (State SDL)
+#   "07.92 HR SGS 2052"  -> 7.92   (State Government Security)
+# The match is anchored at the start of the description and must be
+# immediately followed by the security-type token, so the maturity year is
+# never mistaken for a coupon.
+_CCIL_COUPON_PREFIX_RE = re.compile(
+    r"^\s*(\d{1,2}(?:\.\d{1,4})?)\s+(?:[A-Z]{2,3}\s+)?(?:GS|SDL|SGS)\b",
+    re.IGNORECASE,
+)
 
-    Examples:
-      "12.30%, 09-Dec-2026" -> 12.30
-      "91 Day T-Bill" -> None (T-Bill, no coupon)
+# Explicit percentage form, e.g. "12.30%, 09-Dec-2026".
+_CCIL_COUPON_PERCENT_RE = re.compile(r"(\d{1,2}(?:\.\d{1,4})?)\s*%")
+
+# Money-market descriptions carry a tenor (91/182/364 days), not a coupon.
+_CCIL_TBILL_DESC_RE = re.compile(
+    r"\b(?:DTB|TBILL|T-BILL|TREASURY\s+BILL|CMB|CASH\s+MANAGEMENT)\b",
+    re.IGNORECASE,
+)
+
+# Sane coupon band for Indian government securities (percent).
+_COUPON_MIN = 0.1
+_COUPON_MAX = 25.0
+
+
+def _plausible_coupon(value: float) -> Optional[float]:
+    """Return *value* when it lies in a sane coupon band, else None."""
+    if _COUPON_MIN <= value <= _COUPON_MAX:
+        return value
+    return None
+
+
+def _coupon_from_ccil_description(desc: str, section: str) -> Optional[float]:
+    """Attempt to extract coupon rate from a CCIL security description.
+
+    CCIL publishes two description conventions:
+
+      * explicit percentage form:
+            "12.30%, 09-Dec-2026"  -> 12.30
+      * NDS-OM short form (no '%' symbol at all):
+            "06.94 GS 2036"        -> 6.94
+            "06.48 GS 2035"        -> 6.48
+            "07.06 GS 2041"        -> 7.06
+            "07.17 MP SDL 2029"    -> 7.17
+            "07.92 HR SGS 2052"    -> 7.92
+
+    Zero-coupon / money-market descriptions return None:
+            "364 DTB 09092027"     -> None (tenor, not coupon)
+            "182 DTB 31122026"     -> None
+            "91 Day T-Bill"        -> None
+            "GOI FRB 2033"         -> None (no coupon in description)
+
+    The maturity year is never interpreted as a coupon, and the T-Bill
+    tenor (91/182/364) is never interpreted as a coupon.
     """
     if section == "tbills":
         return None
-    m = re.search(r"(\d+(?:\.\d+)?)\s*%", desc)
+    text = (desc or "").strip()
+    if not text or _CCIL_TBILL_DESC_RE.search(text):
+        return None
+
+    # 1. Explicit percentage form.
+    m = _CCIL_COUPON_PERCENT_RE.search(text)
     if m:
-        return float(m.group(1))
+        return _plausible_coupon(float(m.group(1)))
+
+    # 2. NDS-OM short form: leading coupon followed by the security type.
+    m = _CCIL_COUPON_PREFIX_RE.match(text)
+    if m:
+        return _plausible_coupon(float(m.group(1)))
+
     return None
 
 
