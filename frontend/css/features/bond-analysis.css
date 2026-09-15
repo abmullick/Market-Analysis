@@ -1,0 +1,538 @@
+/* ==========================================================================
+   Bond Analysis — feature styles.
+   Uses the SAME visual system as Mutual Fund Portfolio Builder: same tokens
+   (base.css variables), same card language (pb-* classes), same tooltip
+   pattern (.tooltip-trigger). Only bond-specific layout glue lives here.
+   ========================================================================== */
+
+/* ---- Bond selector (mirrors .pfs-search-bar / .pfs-filter-select) ------- */
+.ba-search-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: var(--radius-lg);
+    padding: 0 16px;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ba-search-bar:focus-within {
+    border-color: rgba(30, 58, 95, 0.4);
+    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12), 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
+.ba-search-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--color-slate-400);
+    flex-shrink: 0;
+    margin-right: 12px;
+}
+
+.ba-search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 14px 0;
+    font-size: 1rem;
+    font-family: var(--font-family);
+    font-weight: 500;
+    color: var(--color-primary);
+    outline: none;
+    min-width: 0;
+}
+
+.ba-search-input::placeholder {
+    color: var(--color-slate-400);
+    font-weight: 400;
+}
+
+.ba-filter-select {
+    margin-left: 10px;
+    padding: 8px 14px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: var(--radius-pill);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    font-family: var(--font-family);
+    min-width: 96px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.ba-filter-select:focus {
+    border-color: rgba(30, 58, 95, 0.4);
+    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
+}
+
+.ba-filter-select:hover {
+    border-color: rgba(148, 163, 184, 0.5);
+    background: #ffffff;
+}
+
+/* Bond category accent — the landing-card gold, used only as the card
+   border-left accent so the page still belongs to the shared system. */
+.ba-card-gold {
+    border-left-color: var(--color-gold-500);
+}
+
+/* ---- Bond result list (mirrors .pfs-fund-card rows) --------------------- */
+.ba-bond-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 16px 0 0;
+    padding: 0;
+}
+
+.ba-bond-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    text-align: left;
+    width: 100%;
+    font-family: var(--font-family);
+}
+
+.ba-bond-item[aria-disabled="true"] {
+    cursor: default;
+    opacity: 0.62;
+}
+
+.ba-bond-item:hover {
+    border-color: rgba(37, 99, 235, 0.3);
+    background: #ffffff;
+}
+
+.ba-bond-item.selected {
+    border-color: var(--color-gold-600);
+    background: var(--color-gold-50);
+}
+
+.ba-bond-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.ba-bond-name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    line-height: 1.4;
+    overflow-wrap: break-word;
+}
+
+.ba-bond-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 3px;
+    font-size: 0.75rem;
+    color: var(--color-text-light);
+}
+
+.ba-bond-meta-isin {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--color-slate-400);
+}
+
+.ba-bond-yield {
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+/* ---- Summary card field grid -------------------------------------------- */
+.ba-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 24px;
+    margin-top: 16px;
+}
+
+.ba-detail-item {
+    min-width: 0;
+    padding: 10px 12px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.ba-detail-label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-light);
+    margin-bottom: 2px;
+}
+
+.ba-detail-value {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    overflow-wrap: break-word;
+    font-variant-numeric: tabular-nums;
+}
+
+.ba-detail-value.ba-value-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.875rem;
+}
+
+/* ---- KPI cards ----------------------------------------------------------- */
+.ba-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.ba-kpi {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 12px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.ba-kpi-value {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.ba-kpi-value.is-muted {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text-light);
+}
+
+.ba-kpi-label {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--color-text-light);
+    line-height: 1.3;
+}
+
+/* ---- Cash-flow table (application table treatment) ---------------------- */
+.ba-table-wrap {
+    margin-top: 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.ba-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.ba-table th {
+    text-align: left;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-light);
+    background: var(--color-slate-100);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.ba-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.ba-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.ba-table .ba-num {
+    text-align: right;
+}
+
+/* ---- Calculation notes --------------------------------------------------- */
+.ba-notes {
+    margin: 12px 0 0;
+    padding-left: 20px;
+    font-size: 0.8125rem;
+    color: var(--color-text-light);
+}
+
+.ba-notes li {
+    margin-bottom: 4px;
+}
+
+/* ---- Section subtitle inside pb-panel / pb-section-card ------------------ */
+.ba-section-sub {
+    font-size: 0.8125rem;
+    color: var(--color-text-light);
+}
+
+/* ---- Data-source indicator ---------------------------------------------- */
+.ba-source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--color-slate-100);
+    border: 1px solid var(--color-border);
+    color: var(--color-slate-600);
+    white-space: nowrap;
+}
+
+.ba-source-badge.is-traded {
+    background: var(--color-green-50);
+    border-color: var(--color-green-500);
+    color: var(--color-green-700);
+}
+
+.ba-source-badge.is-stale {
+    background: var(--color-amber-50);
+    border-color: var(--color-gold-600);
+    color: var(--color-gold-700);
+}
+
+/* ---- Empty / no-results state (mirrors .pfs-empty-state) ----------------- */
+.ba-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, #f9fbfe 0%, #f3f7fc 100%);
+}
+
+.ba-empty-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    color: #1e3a5f;
+    background: rgba(30, 58, 95, 0.08);
+    border-radius: 50%;
+    margin-bottom: 16px;
+}
+
+.ba-empty-icon svg {
+    width: 26px;
+    height: 26px;
+}
+
+.ba-empty-state h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-bottom: 8px;
+}
+
+.ba-empty-state p {
+    color: var(--color-text-light);
+    max-width: 360px;
+    line-height: 1.6;
+}
+
+/* ---- Results toggle button (secondary, matches .pfs-btn-add family) ----- */
+.ba-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: var(--radius-pill);
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: var(--font-family);
+    background: #1e3a5f;
+    color: #ffffff;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: var(--btn-shadow);
+}
+
+.ba-btn-secondary:hover {
+    background: #2a4a75;
+    box-shadow: var(--btn-shadow-hover);
+}
+
+/* ---- Responsive ---------------------------------------------------------- */
+@media (max-width: 960px) {
+    .ba-kpi-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .ba-detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .ba-search-bar {
+        flex-wrap: wrap;
+        padding: 0 12px;
+    }
+
+    .ba-search-input {
+        flex: 1 1 100%;
+    }
+
+    .ba-filter-select {
+        margin: 8px 0;
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .ba-bond-item {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    .ba-bond-yield {
+        margin-left: auto;
+    }
+
+    .ba-kpi-grid,
+    .ba-detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 400px) {
+    .ba-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---- Page-title base (same values as .mf-page-title in
+   mutual-fund-analysis.css — the full 107KB stylesheet is not loaded here) - */
+.mf-page-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+}
+
+.mf-page-subtitle {
+    font-size: 0.9375rem;
+    color: var(--color-text-light);
+    font-weight: 400;
+    max-width: 64ch;
+}
+
+/* Section card body — always-visible counterpart of .pb-section-content
+   (which is display:none unless its collapsible section is open). */
+.ba-card-body {
+    padding: 4px 18px 18px;
+}
+
+/* ---- Tooltips — the application's existing .tooltip-trigger pattern -----
+   Same classes/markup as Mutual Fund Analysis; the definitions ride along
+   here because the shared tooltip CSS lives in that feature stylesheet,
+   which this page does not (and should not) load in full. */
+.tooltip-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: var(--color-text-light);
+    background: var(--color-slate-200);
+    border-radius: 50%;
+    cursor: pointer;
+    position: relative;
+    margin-left: 4px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tooltip-trigger:hover,
+.tooltip-trigger:focus {
+    background: var(--color-accent);
+    color: #ffffff;
+    outline: none;
+}
+
+.tooltip-content {
+    position: fixed;
+    z-index: 9999;
+    width: 260px;
+    padding: 8px 10px;
+    background: var(--color-primary);
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.4;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.15);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    pointer-events: none;
+    white-space: normal;
+}
+
+.tooltip-content::after {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-bottom-color: var(--color-primary);
+}
+
+.tooltip-trigger:hover .tooltip-content,
+.tooltip-trigger:focus .tooltip-content {
+    opacity: 1;
+    visibility: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tooltip-content {
+        transition: none;
+    }
+}
+
