@@ -39,6 +39,12 @@ _INDIAN_DATE_FORMATS = [
     "%Y-%m-%d",      # 2026-01-15
     "%d/%m/%Y",      # 15/01/2026
     "%d-%m-%Y",      # 15-01-2026
+    "%d-%b-%y",      # 11-May-36
+    "%d %b %Y",      # 11 May 2036
+    "%d %B %Y",      # 11 May 2036
+    "%d-%b-%Y %H:%M:%S",  # NSE datetime exports
+    "%Y-%m-%d %H:%M:%S",
+    "%d/%m/%Y %H:%M",
 ]
 
 
@@ -101,7 +107,7 @@ def normalize_ccil_record(raw: CcilRawRecord) -> Bond:
         section = "central"
     elif "state" in section:
         section = "state"
-
+    
     # --- Master data ---
     security_name = raw.security_description or raw.security_name or ""
     security_name = security_name.strip()
@@ -167,7 +173,7 @@ def normalize_ccil_record(raw: CcilRawRecord) -> Bond:
     }
 
     if data_type == DataType.TRADED:
-        market["price"] = ltp
+        market["clean_price"] = ltp
         market["ytm"] = lty
     elif data_type == DataType.INDICATIVE:
         market["bid_price"] = bid_price
@@ -185,6 +191,13 @@ def normalize_ccil_record(raw: CcilRawRecord) -> Bond:
         instrument_type=instrument_type,
         maturity_date=maturity,
         coupon_rate=coupon,
+        day_count_convention=(
+            DayCountConvention.ACT_365
+            if instrument_type == InstrumentType.T_BILL
+            else DayCountConvention.THIRTY_360
+            if instrument_type in (InstrumentType.G_SEC, InstrumentType.SDL)
+            else DayCountConvention.UNKNOWN
+        ),
         **market,
     )
 
@@ -192,76 +205,96 @@ def normalize_ccil_record(raw: CcilRawRecord) -> Bond:
 
 
 # ---------------------------------------------------------------------------
-# NSE normalization
+# NSE normalization (Debt Instruments security master)
 # ---------------------------------------------------------------------------
 
 def normalize_nse_record(raw: NseRawRecord) -> Optional[Bond]:
-    """Normalize an NSE raw record into a Bond (or None if not a bond)."""
-    report_type = raw.report_type.lower().strip()
+    """Normalize an NSE Debt Instruments master row into a Bond.
 
-    # Determine instrument type from report family / description
-    desc = raw.security_description or ""
-    is_tbill = (
-        "tbill" in report_type
-        or _looks_like_tbill(desc)
-    )
-    is_gsec = (
-        ("gsec" in report_type or "sec" in report_type or "trade" in report_type or "histor" in report_type)
-        and not is_tbill
-    )
-
-    if not (is_gsec or is_tbill):
+    Master-only: carries ISIN + reference fields (issue date, coupon
+    frequency, face value, listing status). No market price/yield is
+    fabricated — fields absent from the source stay None. Returns None
+    when the row is not a usable government-security master row.
+    """
+    desc = (raw.security_description or "").strip()
+    if not desc:
+        return None
+    isin = parse_isin(raw.isin)
+    if not isin:
         return None
 
-    instrument_type = InstrumentType.T_BILL if is_tbill else InstrumentType.G_SEC
-    issuer = "Government of India"
-
-    # --- Master data ---
-    security_name = desc.strip()
-    maturity = parse_date(raw.maturity_date)
-    coupon = parse_float(raw.coupon_rate)
-    isin = parse_isin(raw.isin)
-
-    # --- Market data ---
-    price = parse_float(raw.price)
-    ytm = parse_float(raw.yield_pct)
-    traded_value = parse_float(raw.traded_value)
-    trade_date = parse_date(raw.trade_date)
-    accrued = parse_float(raw.accrued_interest)
-
-    # Classify
-    if report_type in ("trades", "historical"):
-        data_type = DataType.TRADED if trade_date else DataType.HISTORICAL
-    elif report_type in ("accrued-interest",):
-        data_type = DataType.REFERENCE
-    elif report_type in ("zcyc",):
-        data_type = DataType.REFERENCE
-    else:
-        data_type = DataType.REFERENCE
-
-    market: dict = {
-        "source": "NSE",
-        "data_type": data_type,
-        "price": price,
-        "ytm": ytm,
-        "traded_value": traded_value,
-        "trade_date": trade_date,
-    }
-
-    if accrued is not None:
-        market["accrued_interest"] = accrued  # retained for validation, not a Bond field
+    instrument_type = _nse_instrument_type(raw, desc)
+    if instrument_type == InstrumentType.UNKNOWN:
+        return None
+    issuer = _nse_issuer(raw, desc, instrument_type)
 
     bond = Bond(
         isin=isin,
-        security_name=security_name,
+        security_name=desc,
         issuer=issuer,
         instrument_type=instrument_type,
-        maturity_date=maturity,
-        coupon_rate=coupon,
-        **market,
+        issue_date=parse_date(raw.issue_date or ""),
+        maturity_date=parse_date(raw.maturity_date or ""),
+        coupon_rate=parse_float(raw.coupon_rate or ""),
+        coupon_frequency=_parse_coupon_frequency(raw.coupon_frequency),
+        face_value=parse_float(raw.face_value or ""),
+        listing_status=(raw.listing_status or "").strip() or None,
+        source="NSE",
+        data_type=DataType.REFERENCE,
     )
-
     return bond
+
+
+def _nse_instrument_type(raw: NseRawRecord, desc: str) -> InstrumentType:
+    text = f"{raw.instrument_type or ''} {raw.report_type or ''} {desc}".lower()
+    if _looks_like_tbill(desc) or "tbill" in text or "t-bill" in text or "treasury bill" in text:
+        return InstrumentType.T_BILL
+    if "sdl" in text or "sgs" in text or "state development" in text:
+        return InstrumentType.SDL
+    if "corp" in text or "ncd" in text or "debenture" in text or "commercial paper" in text or text.strip().startswith("cp "):
+        return InstrumentType.UNKNOWN  # corporate master rows excluded from govt enrichment
+    if "gs" in text or "g-sec" in text or "gsec" in text or "government" in text or "dated" in text:
+        return InstrumentType.G_SEC
+    return InstrumentType.UNKNOWN
+
+
+def _nse_issuer(raw: NseRawRecord, desc: str, instrument_type: InstrumentType) -> str:
+    if raw.issuer and raw.issuer.strip():
+        return raw.issuer.strip()
+    if instrument_type == InstrumentType.SDL:
+        return _issuer_from_description(desc) or "State Government"
+    return "Government of India"
+
+
+def _parse_coupon_frequency(raw: str | None) -> Optional[int]:
+    """Parse coupon frequency labels ('Half-Yearly', '2', 'Quarterly') to int."""
+    if not raw:
+        return None
+    text = raw.strip().lower()
+    if not text:
+        return None
+    m = re.search(r"\d+", text)
+    if m:
+        try:
+            n = int(m.group(0))
+            if 1 <= n <= 12:
+                return n
+        except ValueError:
+            pass
+    mapping = {
+    "half-yearly": 2,
+    "half yearly": 2,
+    "semi-annual": 2,
+    "semiannual": 2,
+    "quarterly": 4,
+    "monthly": 12,
+    "annual": 1,
+    "yearly": 1,
+    }
+    for key, val in mapping.items():
+        if key in text:
+            return val
+    return None
 
 
 # ---------------------------------------------------------------------------

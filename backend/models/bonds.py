@@ -40,6 +40,7 @@ class DayCountConvention(str, Enum):
     ACT_ACT = "ACT/ACT"
     ACT_365 = "ACT/365"
     ACT_360 = "ACT/360"
+    THIRTY_360 = "30/360"
     UNKNOWN = "Unknown"
 
 
@@ -228,6 +229,13 @@ class NseRawRecord(BaseModel):
     trade_date: Optional[str] = None
     accrued_interest: Optional[str] = None
     zcyc: Optional[str] = None
+    # --- NSE Debt Instruments master fields (header-driven CSV) ---
+    issue_date: Optional[str] = None
+    coupon_frequency: Optional[str] = None
+    face_value: Optional[str] = None
+    issuer: Optional[str] = None
+    instrument_type: Optional[str] = None
+    listing_status: Optional[str] = None
 
 
 class RbiRawRecord(BaseModel):

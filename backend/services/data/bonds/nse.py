@@ -1,30 +1,39 @@
-"""NSE public debt-report adapter.
+"""NSE Government-Security master adapter (WDM Securities Available for Trading).
 
-NSE publishes several public reports relevant to Government Securities:
-  - Approved list of GSEC and TBILL
-  - WDM Securities available for trading
-  - WDM Security-wise Trades Data
-  - WDM Historical Security-wise Price Volume Data
-  - Accrued Interest
-  - WDM ZCYC (zero-coupon yield curve)
+Primary source (official, public):
 
-This adapter is used primarily for:
-  - security master / reference data
-  - secondary-market trade/price validation
-  - accrued-interest validation
-  - yield-curve / reference data where useful
+    https://www.nseindia.com/all-reports-debt
 
-It does NOT duplicate CCIL logic. The adapter normalizes raw rows into
-NseRawRecord objects; the Bond domain layer converts those into the
-normalized Bond model.
+The NSE WDM daily-reports endpoint publishes the current
+"WDM-SEC-AVAILABLE-FOR-TRADE" file name and path. This adapter:
 
-No paid API, no API key, no commercial data vendor.
+    1. retrieves the official WDM report metadata,
+    2. locates the CURRENT securities-available-for-trading CSV,
+    3. downloads the CSV through normal public HTTP access,
+    4. parses it with a header-driven parser into ``NseRawRecord`` rows.
+
+Only fields genuinely present in the CSV are populated; absent fields stay
+``None`` per model convention. No values are invented. NSE is used here as a
+MASTER-data provider (ISIN + reference fields); it does not duplicate CCIL
+market logic.
+
+Failure policy: any failure (metadata unavailable, report missing, download
+failure, malformed CSV) yields an empty list so the Bond service layer can
+continue with the working CCIL data path. No mock data is returned.
+
+No paid API, no API key, no commercial data vendor, no CAPTCHA or
+authentication bypass — legitimate public access only.
 """
 
 from __future__ import annotations
 
+import csv
+import io
 import re
+import time
+from threading import Lock
 from typing import Any
+from urllib.parse import urljoin
 
 import httpx
 
@@ -34,33 +43,48 @@ from backend.utils.logging import logger
 
 
 # ---------------------------------------------------------------------------
-# NSE public debt-report endpoints (illustrative / research-based)
+# NSE official WDM source
 # ---------------------------------------------------------------------------
-
-# NSE publishes debt-segment reports under:
-#   https://www.nseindia.com/market-data/equities-marketing
-# and related WDM / debt-report pages.
-#
-# The exact URLs and file formats may change without notice. These are
-# research-based conceptual endpoints; the adapter is structured so they
-# can be updated in one place without touching the rest of the bond layer.
-#
-# IMPORTANT: These endpoints are NOT called during automated tests.
-# Tests use mocked responses instead.
 
 _NSE_BASE = "https://www.nseindia.com"
 
-# Report families (conceptual)
-GSEC_APPROVED_LIST_URL = "https://www.nseindia.com/market-data/gsec-approved-list"
-TBILL_APPROVED_LIST_URL = "https://www.nseindia.com/market-data/tbill-approved-list"
-WDM_TRADES_URL = "https://www.nseindia.com/market-data/wdm-trades"
-WDM_HISTORICAL_URL = "https://www.nseindia.com/market-data/wdm-historical"
-ACCRUED_INTEREST_URL = "https://www.nseindia.com/market-data/accrued-interest"
-WDM_ZCYC_URL = "https://www.nseindia.com/market-data/wdm-zcyw"
+# Official NSE WDM report metadata endpoint.
+WDM_DAILY_REPORTS_URL = f"{_NSE_BASE}/api/daily-reports?key=WDM"
+
+DEBT_MASTER_REPORT_TYPE = "debt-master"
+
+# Browser-like request flow for the public NSE endpoint.
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
+# Security master changes far less frequently than daily market observations:
+# cache it in-process for 12h (independent of the Bond-service list TTL).
+_MASTER_CACHE_TTL_SECONDS = 12 * 3600
+_master_cache_lock = Lock()
+_master_cache: dict[str, Any] = {"records": None, "expires": 0.0}
 
 
 class NseClient:
-    """Client for NSE public debt-report data."""
+    """Client for the NSE WDM securities master.
+
+    Flow:
+        NSE WDM daily-reports API
+            -> current WDM-SEC-AVAILABLE-FOR-TRADE report
+            -> CSV download
+            -> header-driven parse
+            -> NseRawRecord rows
+
+    The module also keeps a 12h in-process master cache so the Bond
+    service does not re-download the master for every request.
+    """
 
     def __init__(self, settings: Settings):
         self._settings = settings
@@ -68,7 +92,11 @@ class NseClient:
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(follow_redirects=True, timeout=30.0)
+            self._client = httpx.AsyncClient(
+                follow_redirects=True,
+                timeout=30.0,
+                headers=_HEADERS,
+            )
         return self._client
 
     async def close(self) -> None:
@@ -76,189 +104,311 @@ class NseClient:
             await self._client.aclose()
             self._client = None
 
-    async def fetch_gsec_approved_list(self) -> list[NseRawRecord]:
-        """Fetch approved list of GSEC securities."""
-        return await self._fetch_report(
-            "gsec-list",
-            GSEC_APPROVED_LIST_URL,
-        )
+    async def fetch_debt_master(self) -> list[NseRawRecord]:
+        """Fetch the NSE WDM securities master (cached 12h, graceful on failure)."""
+        cached = _get_cached_master()
+        if cached is not None:
+            return list(cached)
 
-    async def fetch_tbill_approved_list(self) -> list[NseRawRecord]:
-        """Fetch approved list of TBILL securities."""
-        return await self._fetch_report(
-            "tbill-list",
-            TBILL_APPROVED_LIST_URL,
-        )
-
-    async def fetch_wdm_trades(self) -> list[NseRawRecord]:
-        """Fetch WDM security-wise trades data."""
-        return await self._fetch_report(
-            "trades",
-            WDM_TRADES_URL,
-        )
-
-    async def fetch_wdm_historical(self) -> list[NseRawRecord]:
-        """Fetch WDM historical security-wise price volume data."""
-        return await self._fetch_report(
-            "historical",
-            WDM_HISTORICAL_URL,
-        )
-
-    async def fetch_accrued_interest(self) -> list[NseRawRecord]:
-        """Fetch accrued interest report."""
-        return await self._fetch_report(
-            "accrued-interest",
-            ACCRUED_INTEREST_URL,
-        )
-
-    async def fetch_zcyc(self) -> list[NseRawRecord]:
-        """Fetch WDM zero-coupon yield curve (ZCYC) reference data."""
-        return await self._fetch_report(
-            "zcyc",
-            WDM_ZCYC_URL,
-        )
-
-    async def fetch_all(self) -> list[NseRawRecord]:
-        """Fetch all NSE debt-report families and return combined raw records."""
         records: list[NseRawRecord] = []
-        for fetch in (
-            self.fetch_gsec_approved_list,
-            self.fetch_tbill_approved_list,
-            self.fetch_wdm_trades,
-            self.fetch_wdm_historical,
-            self.fetch_accrued_interest,
-            self.fetch_zcyc,
-        ):
-            try:
-                rows = await fetch()
-                records.extend(rows)
-            except Exception as exc:
-                logger.warning("NSE report fetch failed (%s): %s", fetch.__name__, exc)
-        return records
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
-    async def _fetch_report(
-        self,
-        report_type: str,
-        url: str,
-    ) -> list[NseRawRecord]:
-        """Fetch one NSE report and normalize rows.
-
-        Returns an empty list if the fetch fails, so the bond layer can
-        continue with other sources.
-        """
-        logger.info("NSE fetch report=%s url=%s", report_type, url)
         try:
             client = await self._get_client()
-            response = await client.get(url)
-            response.raise_for_status()
-            text = response.text
+
+            # 1. Load official NSE WDM report metadata.
+            reports = await client.get(
+                WDM_DAILY_REPORTS_URL,
+                headers={**_HEADERS, "Accept": "application/json"},
+            )
+            reports.raise_for_status()
+            report_json = reports.json()
+
+            # 2. Locate the current WDM securities-available-for-trading file.
+            csv_url = None
+
+            for report in report_json.get("CurrentDay", []):
+                if report.get("fileKey") != "WDM-SEC-AVAILABLE-FOR-TRADE":
+                    continue
+
+                file_path = (report.get("filePath") or "").strip()
+                file_name = (report.get("fileActlName") or "").strip()
+
+                if file_path and file_name:
+                    csv_url = urljoin(file_path, file_name)
+
+                break
+
+            if not csv_url:
+                logger.warning(
+                    "NSE WDM securities-available-for-trading file not found"
+                )
+                return []
+
+            # 3. Download the current WDM securities master.
+            logger.info("NSE fetch debt-master url=%s", csv_url)
+
+            resp = await client.get(
+                csv_url,
+                headers={**_HEADERS, "Accept": "text/csv,*/*;q=0.8"},
+            )
+            resp.raise_for_status()
+
+            records = parse_debt_instruments_csv(resp.text)
+
         except Exception as exc:
-            logger.warning("NSE report=%s fetch failed: %s", report_type, exc)
+            logger.warning("NSE debt-master fetch failed: %s", exc)
             return []
 
-        return _parse_nse_report(text, report_type)
+        _put_cached_master(records)
+        return list(records)
+
+    async def fetch_all(self) -> list[NseRawRecord]:
+        """Return the NSE security-master records (master-only provider)."""
+        try:
+            return await self.fetch_debt_master()
+        except Exception as exc:
+            logger.warning("NSE master fetch failed: %s", exc)
+            return []
 
 
 # ---------------------------------------------------------------------------
-# Parsing helpers (source-specific, internal to this module)
+# Master cache
 # ---------------------------------------------------------------------------
 
-def _parse_nse_report(html: str, report_type: str) -> list[NseRawRecord]:
-    """Parse an NSE debt report page into NseRawRecord rows.
 
-    This is a minimal illustrative parser. Real NSE pages may use HTML
-    tables or downloadable CSV/XLS payloads. The parser below demonstrates
-    how raw fields map to the internal model; it is designed to be
-    replaced / enhanced as the actual report structure is confirmed.
-    """
+def _get_cached_master() -> list[NseRawRecord] | None:
+    with _master_cache_lock:
+        if (
+            _master_cache["records"] is not None
+            and time.time() < _master_cache["expires"]
+        ):
+            return list(_master_cache["records"])
+        return None
+
+
+def _put_cached_master(records: list[NseRawRecord]) -> None:
+    with _master_cache_lock:
+        _master_cache["records"] = list(records)
+        _master_cache["expires"] = time.time() + _MASTER_CACHE_TTL_SECONDS
+
+
+def clear_master_cache() -> None:
+    """Reset the in-process NSE master cache."""
+    with _master_cache_lock:
+        _master_cache["records"] = None
+        _master_cache["expires"] = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Header-driven CSV parsing
+# ---------------------------------------------------------------------------
+
+_HEADER_ALIASES: dict[str, list[str]] = {
+    "isin": [
+        "isin",
+        "isinno",
+        "isincode",
+    ],
+    "security_description": [
+        "securitydescription",
+        "securitydesc",
+        "securityname",
+        "descriptionofsecurity",
+        "security",
+        "scripname",
+        "symbol",
+        "nameofsecurity",
+        "securitydetails",
+    ],
+    "issuer": [
+        "issuer",
+        "issuername",
+        "issuerdescription",
+        "issuertype",
+    ],
+    "maturity_date": [
+        "maturitydate",
+        "maturity",
+        "redemptiondate",
+        "maturityredemptiondate",
+        "dateofmaturity",
+        "matdate",
+    ],
+    "issue_date": [
+        "issuedate",
+        "dateofissue",
+        "allotmentdate",
+    ],
+    "coupon_rate": [
+        "couponrate",
+        "coupon",
+        "couponpct",
+        "couponpercent",
+        "interestrate",
+        "rateofinterest",
+        "couponratepct",
+        "issuename",
+    ],
+    "coupon_frequency": [
+        "couponfrequency",
+        "frequency",
+        "couponfreq",
+        "cpnfreq",
+    ],
+    "face_value": [
+        "facevalue",
+        "face",
+        "parvalue",
+        "nominalvalue",
+    ],
+    "instrument_type": [
+        "instrument",
+        "instrumenttype",
+        "securitytype",
+        "typeofsecurity",
+        "series",
+        "segment",
+        "securityseries",
+        "sectype",
+    ],
+    "listing_status": [
+        "status",
+        "listingstatus",
+        "tradingstatus",
+        "listing",
+    ],
+}
+
+
+def _normalize_header(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+def _header_index(headers: list[str], field: str) -> int | None:
+    normed = [_normalize_header(h) for h in headers]
+
+    for alias in _HEADER_ALIASES.get(field, []):
+        if alias in normed:
+            return normed.index(alias)
+
+    return None
+
+
+def parse_debt_instruments_csv(csv_text: str) -> list[NseRawRecord]:
+    """Parse the NSE WDM securities-available-for-trading CSV."""
     records: list[NseRawRecord] = []
 
-    text = re.sub(r"[\s\r\n]+", " ", html)
+    if not csv_text or not csv_text.strip():
+        logger.warning("NSE debt-master CSV is empty")
+        return records
 
-    row_pattern = re.compile(r"<tr[^>]*>(.*?)</tr>", re.IGNORECASE | re.DOTALL)
-    cell_pattern = re.compile(r"<t[dh][^>]*>(.*?)</t[dh]>", re.IGNORECASE | re.DOTALL)
+    text = csv_text.lstrip("\ufeff")
 
-    for match in row_pattern.finditer(text):
-        row_html = match.group(1)
-        cells = [c.group(1).strip() for c in cell_pattern.finditer(row_html)]
-        if not cells:
-            continue
+    try:
+        reader = csv.reader(io.StringIO(text))
+        rows = [
+            row
+            for row in reader
+            if any((cell or "").strip() for cell in row)
+        ]
+    except Exception as exc:
+        logger.warning("NSE debt-master CSV parse failed: %s", exc)
+        return []
 
-        rec = _normalize_nse_row(cells, report_type)
+    if not rows:
+        return records
+
+    header_idx: int | None = None
+
+    # The WDM CSV normally has the header on the first row, but retain the
+    # existing defensive search across the first few rows.
+    for i, row in enumerate(rows[:5]):
+        normed = {_normalize_header(cell) for cell in row}
+
+        if (
+            "isin" in normed
+            or "isinno" in normed
+            or "isincode" in normed
+        ):
+            header_idx = i
+            break
+
+    if header_idx is None:
+        logger.warning("NSE debt-master CSV headers not recognised")
+        return records
+
+    headers = [cell.strip() for cell in rows[header_idx]]
+    idx = {
+        field: _header_index(headers, field)
+        for field in _HEADER_ALIASES
+    }
+
+    for row in rows[header_idx + 1 :]:
+        rec = _normalize_master_row(row, idx)
+
         if rec is not None:
             records.append(rec)
 
-    logger.info("NSE parsed report=%s rows=%d", report_type, len(records))
+    logger.info("NSE parsed debt-master rows=%d", len(records))
     return records
 
 
-def _normalize_nse_row(cells: list[str], report_type: str) -> NseRawRecord | None:
-    """Normalize one NSE report row into a NseRawRecord.
+def _normalize_master_row(
+    row: list[str],
+    idx: dict[str, int | None],
+) -> NseRawRecord | None:
+    def at(field: str) -> str:
+        i = idx.get(field)
 
-    Column layout depends on the report family. The parser uses a
-    best-effort mapping: if the row looks like data (has at least a
-    security description and something resembling a date or ISIN), it
-    is normalized; otherwise it is skipped.
-    """
-    if not cells:
-        return None
-
-    desc = _clean(cells[0]) if len(cells) > 0 else ""
-    if not desc or len(desc) < 3:
-        return None
-
-    def at(idx: int) -> str:
-        return _clean(cells[idx]) if idx < len(cells) else ""
-
-    def try_float(val: str) -> str:
-        v = _clean(val)
-        if not v:
+        if i is None or i >= len(row):
             return ""
-        if re.fullmatch(r"-?\d+(\.\d+)?", v):
-            return v
-        return ""
 
-    rec = NseRawRecord(
-        report_type=report_type,
+        return _clean(row[i])
+
+    isin = at("isin")
+    desc = at("security_description")
+
+    if not desc or len(desc) < 2:
+        return None
+
+    if not _looks_like_isin(isin):
+        return None
+
+    return NseRawRecord(
+        report_type=DEBT_MASTER_REPORT_TYPE,
         security_description=desc,
-        isin=at(1) if _looks_like_isin(at(1)) else "",
-        maturity_date=at(2) if _looks_like_date(at(2)) else "",
-        coupon_rate=try_float(at(3)),
-        price=try_float(at(4)),
-        yield_pct=try_float(at(5)),
-        traded_value=try_float(at(6)),
-        traded_quantity=try_float(at(7)),
-        trade_date=at(8) if _looks_like_date(at(8)) else "",
-        accrued_interest=try_float(at(9)),
-        zcyc=try_float(at(10)),
+        isin=isin.upper(),
+        maturity_date=at("maturity_date") or None,
+        coupon_rate=at("coupon_rate") or None,
+        issue_date=at("issue_date") or None,
+        coupon_frequency=at("coupon_frequency") or None,
+        face_value=at("face_value") or None,
+        issuer=at("issuer") or None,
+        instrument_type=at("instrument_type") or None,
+        listing_status=at("listing_status") or None,
     )
-    return rec
 
 
-def _looks_like_isin(text: str) -> bool:
+def _looks_like_isin(text: str | None) -> bool:
     """Heuristic: ISINs are 12-character alphanumeric codes."""
-    v = _clean(text)
-    return bool(re.fullmatch(r"[A-Z]{2}[A-Z0-9]{9}[0-9]", v))
+    value = _clean(text)
 
-
-def _looks_like_date(text: str) -> bool:
-    """Heuristic: resembles a date string."""
-    v = _clean(text)
-    return bool(re.fullmatch(r"\d{2}-[A-Za-z]{3}-\d{4}", v)) or bool(
-        re.fullmatch(r"\d{4}-\d{2}-\d{2}", v)
+    return bool(
+        re.fullmatch(
+            r"[A-Z]{2}[A-Z0-9]{9}[0-9]",
+            value,
+        )
     )
 
 
-def _clean(text: str) -> str:
+def _clean(text: str | None) -> str:
     """Minimal cell cleanup."""
     if not text:
         return ""
+
     text = text.replace("\xa0", " ")
     text = re.sub(r"&[a-zA-Z]+;", " ", text)
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
+
     return text

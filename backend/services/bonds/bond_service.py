@@ -1,8 +1,11 @@
 """Bond service — the central orchestration layer for the Bond domain.
 
 Responsibilities:
-  - Retrieve data from providers (CCIL, NSE, RBI) and cache results.
+  - Retrieve data from providers (CCIL market observations, NSE Debt
+    Instruments master, RBI) and cache results.
   - Normalize provider raw records into the internal Bond model.
+  - Enrich CCIL Bonds with NSE master data (ISIN + reference fields)
+    via the domain-layer matcher (backend.services.bonds.bond_enrichment).
   - Serve analytics via the analytics engine.
   - Keep source-specific parsing out of the service layer.
 
@@ -30,9 +33,9 @@ from backend.models.bonds import (
     RbiRawRecord,
 )
 from backend.services.bonds.bond_analytics import compute_analytics
+from backend.services.bonds.bond_enrichment import enrich_ccil_bonds
 from backend.services.bonds.bond_normalizer import (
     normalize_ccil_record,
-    normalize_nse_record,
     normalize_rbi_record,
 )
 from backend.services.data.bonds.ccil import CcilClient
@@ -161,7 +164,6 @@ class BondService:
             return cached
 
         logger.info("Refreshing bond data from all sources")
-        bonds: list[Bond] = []
 
         # CCIL (primary market observations)
         ccil_records: list[CcilRawRecord] = []
@@ -170,27 +172,30 @@ class BondService:
         except Exception as exc:
             logger.warning("CCIL refresh failed: %s", exc)
 
+        ccil_bonds: list[Bond] = []
         for raw in ccil_records:
             try:
                 bond = normalize_ccil_record(raw)
-                bonds.append(bond)
+                ccil_bonds.append(bond)
             except Exception as exc:
                 logger.warning("CCIL normalization failed for %s: %s", raw.security_description, exc)
 
-        # NSE (secondary validation / reference)
+        # NSE Debt Instruments master (ISIN + reference-field enrichment).
+        # NSE failure must not destroy the working CCIL path: enrichment
+        # is best-effort and CCIL bonds survive with isin=None.
         nse_records: list[NseRawRecord] = []
         try:
             nse_records = await self._get_nse().fetch_all()
         except Exception as exc:
             logger.warning("NSE refresh failed: %s", exc)
 
-        for raw in nse_records:
+        if nse_records:
             try:
-                bond = normalize_nse_record(raw)
-                if bond is not None:
-                    bonds.append(bond)
+                ccil_bonds = enrich_ccil_bonds(ccil_bonds, nse_records)
             except Exception as exc:
-                logger.warning("NSE normalization failed: %s", exc)
+                logger.warning("NSE enrichment failed: %s", exc)
+
+        bonds: list[Bond] = list(ccil_bonds)
 
         # RBI (reference / validation / history)
         rbi_records: list[RbiRawRecord] = []
