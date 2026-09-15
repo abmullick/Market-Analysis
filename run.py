@@ -9,6 +9,7 @@ from backend.routes.stocks import router as stocks_router
 from backend.routes.insights import router as insights_router
 from backend.routes.portfolio import router as portfolio_router
 from backend.routes.mutual_funds import router as mutual_funds_router
+from backend.routes.bonds import router as bonds_router
 
 settings = Settings()
 
@@ -67,6 +68,11 @@ async def read_help():
     return FileResponse("frontend/html/help.html")
 
 
+@app.get("/bond-analysis.html")
+async def read_bond_analysis():
+    return FileResponse("frontend/html/bond-analysis.html")
+
+
 @app.get("/favicon.ico")
 async def favicon():
     return FileResponse("static/images/favicon.ico", media_type="image/x-icon")
@@ -81,6 +87,7 @@ app.include_router(stocks_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(portfolio_router, prefix="/api/portfolio", tags=["portfolio"])
 app.include_router(mutual_funds_router, prefix="/api/mutual-funds", tags=["mutual-funds"])
 app.include_router(insights_router, prefix="/api/insights", tags=["insights"])
+app.include_router(bonds_router, prefix="/api/bonds", tags=["bonds"])
 
 
 @app.get("/health")
