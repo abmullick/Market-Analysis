@@ -259,7 +259,33 @@ async function selectBond(isin) {
     $("ba-cashflow-wrap").innerHTML = "";
     $("ba-details-grid").innerHTML = "";
     $("ba-notes").innerHTML = "";
-    $("ba-source-badge").textContent = "";
+    $("ba-section-header-badge").textContent = "";
+
+    // Reset section collapse states when a new bond is selected
+    const sections = document.querySelectorAll(".ba-section");
+    sections.forEach((section) => {
+        const toggle = section.querySelector(".ba-section-toggle");
+        const body = section.querySelector(".ba-section-body");
+        if (toggle && body) {
+            // Bond Summary: OPEN by default, others: CLOSED by default
+            const sectionId = section.getAttribute("data-section");
+            if (sectionId === "summary") {
+                toggle.setAttribute("aria-expanded", "true");
+                body.classList.remove("collapsed");
+                body.classList.add("expanded");
+                if (toggle.querySelector(".ba-chevron")) {
+                    toggle.querySelector(".ba-chevron").style.transform = "rotate(180deg)";
+                }
+            } else {
+                toggle.setAttribute("aria-expanded", "false");
+                body.classList.add("collapsed");
+                body.classList.remove("expanded");
+                if (toggle.querySelector(".ba-chevron")) {
+                    toggle.querySelector(".ba-chevron").style.transform = "rotate(0deg)";
+                }
+            }
+        }
+    });
 
     // Market YTM (source observation) and Calculated YTM (analytics) come
     // from their own endpoints; the frontend never derives one from the other.
@@ -325,7 +351,7 @@ function renderBond(bond, analytics) {
     }
 
     // Source indicator (backend-provided source/freshness only)
-    const badge = $("ba-source-badge");
+    const badge = $("ba-section-header-badge");
     const dt = (bond.data_type || "").toLowerCase();
     const stale = typeof bond.freshness_days === "number" && bond.freshness_days > 7;
     badge.textContent = [
@@ -537,6 +563,61 @@ function init() {
             const btn = e.target.closest(".ba-bond-item");
             if (btn && btn.dataset.isin) {
                 selectBond(btn.dataset.isin);
+            }
+        });
+    }
+
+// Section collapsible toggle
+    const sectionToggles = document.querySelectorAll(".ba-section-toggle");
+    sectionToggles.forEach((toggle) => {
+        toggle.addEventListener("click", () => {
+            const section = toggle.closest(".ba-section");
+            const isOpen = toggle.getAttribute("aria-expanded") === "true";
+            const body = section.querySelector(".ba-section-body");
+            const chevron = toggle.querySelector(".ba-chevron");
+
+            // Toggle state
+            const newOpen = !isOpen;
+            toggle.setAttribute("aria-expanded", newOpen);
+            if (chevron) {
+                chevron.style.transform = newOpen ? "rotate(180deg)" : "rotate(0deg)";
+            }
+
+            // Toggle content visibility
+            if (body) {
+                body.classList.toggle("collapsed", !newOpen);
+                body.classList.toggle("expanded", newOpen);
+            }
+        });
+    });
+
+    // Pagination event delegation
+    const paginationEl = $("ba-pagination");
+    if (paginationEl) {
+        paginationEl.addEventListener("click", (e) => {
+            const btn = e.target.closest(".ba-page-btn");
+            if (!btn) return;
+
+            const page = btn.getAttribute("data-page");
+            if (page === "prev") {
+                // Prev is handled by going to page - 1, but we need to ensure we don't go below 1
+                if (state.page > 1) {
+                    state.page--;
+                    searchBonds();
+                }
+            } else if (page === "next") {
+                const pageCount = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
+                if (state.page < pageCount) {
+                    state.page++;
+                    searchBonds();
+                }
+            } else {
+                // Page number button
+                const requestedPage = parseInt(page, 10);
+                if (!isNaN(requestedPage) && requestedPage !== state.page) {
+                    state.page = requestedPage;
+                    searchBonds();
+                }
             }
         });
     }

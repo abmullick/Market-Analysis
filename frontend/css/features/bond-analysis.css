@@ -1304,6 +1304,23 @@ body[data-page="bond-analysis"] > header.site-header {
     overflow: hidden;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     background: #ffffff;
+    border-left: 4px solid var(--section-accent, var(--color-primary));
+}
+
+.ba-section[data-section="summary"] {
+    --section-accent: var(--color-gold-500);
+}
+
+.ba-section[data-section="analytics"] {
+    --section-accent: var(--color-blue-500, var(--color-accent));
+}
+
+.ba-section[data-section="cashflows"] {
+    --section-accent: var(--color-purple-500, var(--color-accent));
+}
+
+.ba-section[data-section="details"] {
+    --section-accent: var(--color-green-500, var(--color-accent));
 }
 
 .ba-section-header {
