@@ -70,45 +70,110 @@
                         </div>
                         <div class="ba-analysis-column">
                             <div id="ba-results" class="hidden">
-                                <section class="pb-section-card ba-card-gold" aria-labelledby="ba-summary-title">
-                                    <div class="pb-panel-header ba-card-head">
-                                        <h2 class="pb-panel-title" id="ba-summary-title">Bond Summary</h2>
-                                        <span id="ba-source-badge" class="ba-source-badge"></span>
+                                <!-- Bond Summary Section -->
+                                <div class="ba-section" data-section="summary">
+                                    <div class="ba-section-header">
+                                        <div class="ba-section-left-accent" style="background-color: var(--color-gold-500);"></div>
+                                        <div class="ba-section-content">
+                                            <h3 class="ba-section-title">Bond Summary</h3>
+                                            <p class="ba-section-desc">Key bond metrics</p>
+                                        </div>
+                                        <button class="ba-section-toggle" aria-expanded="true" aria-label="Collapse Bond Summary">
+                                            <svg class="ba-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                            </svg>
+                                        </button>
                                     </div>
-                                    <div class="ba-card-body">
-                                        <h3 id="ba-summary-name" class="ba-bond-name"></h3>
-                                        <div class="ba-bond-meta" id="ba-summary-meta"></div>
-                                        <div class="ba-detail-grid" id="ba-summary-grid"></div>
+                                    <div class="ba-section-body">
+                                        <section class="pb-section-card ba-card-gold" aria-labelledby="ba-summary-title">
+                                            <div class="pb-panel-header ba-card-head">
+                                                <h2 class="pb-panel-title" id="ba-summary-title">Bond Summary</h2>
+                                                <span id="ba-source-badge" class="ba-source-badge"></span>
+                                            </div>
+                                            <div class="ba-card-body">
+                                                <h3 id="ba-summary-name" class="ba-bond-name"></h3>
+                                                <div class="ba-bond-meta" id="ba-summary-meta"></div>
+                                                <div class="ba-detail-grid" id="ba-summary-grid"></div>
+                                            </div>
+                                        </section>
                                     </div>
-                                </section>
-
-                                <section class="pb-section-card ba-card-gold ba-analytics" aria-labelledby="ba-analytics-title">
-                                    <div class="pb-panel-header ba-card-head">
-                                        <h2 class="pb-panel-title" id="ba-analytics-title">Analytics</h2>
+                                </div>
+                                <!-- Analytics Section -->
+                                <div class="ba-section" data-section="analytics">
+                                    <div class="ba-section-header">
+                                        <div class="ba-section-left-accent" style="background-color: var(--color-blue-500, var(--color-accent));"></div>
+                                        <div class="ba-section-content">
+                                            <h3 class="ba-section-title">Analytics</h3>
+                                            <p class="ba-section-desc">Yield and risk metrics</p>
+                                        </div>
+                                        <button class="ba-section-toggle" aria-expanded="true" aria-label="Collapse Analytics">
+                                            <svg class="ba-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                            </svg>
+                                        </button>
                                     </div>
-                                    <div class="ba-card-body">
-                                        <div class="ba-kpi-grid" id="ba-kpi-grid"></div>
+                                    <div class="ba-section-body">
+                                        <section class="pb-section-card ba-card-gold ba-analytics" aria-labelledby="ba-analytics-title">
+                                            <div class="pb-panel-header ba-card-head">
+                                                <h2 class="pb-panel-title" id="ba-analytics-title">Analytics</h2>
+                                            </div>
+                                            <div class="ba-card-body">
+                                                <div class="ba-kpi-grid" id="ba-kpi-grid"></div>
+                                            </div>
+                                        </section>
                                     </div>
-                                </section>
-
-                                <section class="pb-section-card ba-card-gold" aria-labelledby="ba-cashflow-title">
-                                    <div class="pb-panel-header ba-card-head">
-                                        <h2 class="pb-panel-title" id="ba-cashflow-title">Cash Flows</h2>
+                                </div>
+                                <!-- Cash Flows Section -->
+                                <div class="ba-section" data-section="cashflows">
+                                    <div class="ba-section-header">
+                                        <div class="ba-section-left-accent" style="background-color: var(--color-purple-500, var(--color-accent));"></div>
+                                        <div class="ba-section-content">
+                                            <h3 class="ba-section-title">Cash Flows</h3>
+                                            <p class="ba-section-desc">Payment schedule</p>
+                                        </div>
+                                        <button class="ba-section-toggle" aria-expanded="false" aria-label="Expand Cash Flows">
+                                            <svg class="ba-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                            </svg>
+                                        </button>
                                     </div>
-                                    <div class="ba-card-body">
-                                        <div class="ba-table-wrap" id="ba-cashflow-wrap"></div>
+                                    <div class="ba-section-body">
+                                        <section class="pb-section-card ba-card-gold" aria-labelledby="ba-cashflow-title">
+                                            <div class="pb-panel-header ba-card-head">
+                                                <h2 class="pb-panel-title" id="ba-cashflow-title">Cash Flows</h2>
+                                            </div>
+                                            <div class="ba-card-body">
+                                                <div class="ba-table-wrap" id="ba-cashflow-wrap"></div>
+                                            </div>
+                                        </section>
                                     </div>
-                                </section>
-
-                                <section class="pb-section-card ba-card-gold" aria-labelledby="ba-details-title">
-                                    <div class="pb-panel-header ba-card-head">
-                                        <h2 class="pb-panel-title" id="ba-details-title">Bond Details & Methodology</h2>
+                                </div>
+                                <!-- Details & Methodology Section -->
+                                <div class="ba-section" data-section="details">
+                                    <div class="ba-section-header">
+                                        <div class="ba-section-left-accent" style="background-color: var(--color-green-500, var(--color-accent));"></div>
+                                        <div class="ba-section-content">
+                                            <h3 class="ba-section-title">Bond Details & Methodology</h3>
+                                            <p class="ba-section-desc">Additional bond information</p>
+                                        </div>
+                                        <button class="ba-section-toggle" aria-expanded="false" aria-label="Expand Bond Details & Methodology">
+                                            <svg class="ba-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                            </svg>
+                                        </button>
                                     </div>
-                                    <div class="ba-card-body">
-                                        <div class="ba-detail-grid" id="ba-details-grid"></div>
-                                        <ul class="ba-notes" id="ba-notes"></ul>
+                                    <div class="ba-section-body">
+                                        <section class="pb-section-card ba-card-gold" aria-labelledby="ba-details-title">
+                                            <div class="pb-panel-header ba-card-head">
+                                                <h2 class="pb-panel-title" id="ba-details-title">Bond Details & Methodology</h2>
+                                            </div>
+                                            <div class="ba-card-body">
+                                                <div class="ba-detail-grid" id="ba-details-grid"></div>
+                                                <ul class="ba-notes" id="ba-notes"></ul>
+                                            </div>
+                                        </section>
                                     </div>
-                                </section>
+                                </div>
                             </div>
                             <div id="ba-error" class="pb-analysis-error ba-after-panel hidden" role="alert"></div>
                             <div id="ba-detail-empty" class="ba-empty-state ba-after-panel hidden">

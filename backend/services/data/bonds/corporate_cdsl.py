@@ -143,10 +143,6 @@ def parse_primary_csv(content: str) -> List[CdslCorporateBondPrimaryRawRecord]:
             continue
         if header is None:
             norm = [c.strip() for c in raw]
-            mapped: Dict[str, int] = {}
-            for idx, name in enumerate(norm):
-                if name:
-                    mapped[name.lower()] = idx
             header = norm
             if len(header) < 4:
                 raise CdsCorporateBondParseError(
@@ -160,12 +156,11 @@ def parse_primary_csv(content: str) -> List[CdslCorporateBondPrimaryRawRecord]:
         return []
 
     idx: Dict[str, int] = {}
-    for name in _PRIMARY_HEADER:
-        for key, pos in {
-            k.strip().lower(): v for v, k in enumerate(header)
-        }.items():
-            if key == name.lower():
-                idx[name] = pos
+    for expected in _PRIMARY_HEADER:
+        for pos, name in enumerate(header):
+            if name.strip().lower() == expected.lower():
+                idx[expected] = pos
+                break
 
     def _col(name: str, default: str = "") -> str:
         pos = idx.get(name)
@@ -258,24 +253,15 @@ def _repair_secondary_row(fields: Sequence[str]) -> Optional[List[str]]:
     if len(fields) < 15:
         return None
 
-    # Walk backwards from the last known fixed columns to find where the
-    # surplus began. The last 5 columns are: LTP, VWAP, WAY, Remark, and
-    # the trade-value field is immediately before LTP.
-    expected_tail = [
-        "Last Traded Price (in Rs.)",
-        "weighted Average price (VWAP)",
-        "Weighted Average Yield",
-        "Remark",
-    ]
-
+    # The trailing columns are always presentation-stable:
+    #   [-4] Last Traded Price, [-3] VWAP, [-2] Weighted Average Yield,
+    #   [-1] Remark. The trade-value column sits immediately before them, so
+    #   any surplus fields to its right (outside the tail) are merged into it.
     total_expected = len(_SECONDARY_HEADER)
     surplus = len(fields) - total_expected
     if surplus <= 0:
         return None
 
-    # Rebuild by merging the middle block that contains the malformed value.
-    # Strategy: keep first N columns up to trade-value, merge any surplus
-    # columns into trade-value, then keep remaining fixed columns.
     nv_index = None
     for i, name in enumerate(_SECONDARY_HEADER):
         if name == "Total Trade Value (Rs. Lakhs)":
@@ -285,14 +271,20 @@ def _repair_secondary_row(fields: Sequence[str]) -> Optional[List[str]]:
     if nv_index is None:
         return None
 
-    before = list(fields[: nv_index + 1])
-    middle = list(fields[nv_index + 1 : len(fields) - 4])
     after = list(fields[len(fields) - 4 :])
 
     merged_value = ",".join([
         _clean(f) or ""
         for f in (fields[nv_index : len(fields) - 4])
     ])
+
+    # Guard: only accept the repair when it is unambiguously a split numeric
+    # trade value. This prevents a stray comma elsewhere in the row from
+    # silently shifting LTP / VWAP / Weighted Average Yield / Remark.
+    if _num(merged_value) is None:
+        return None
+    if _num(_clean(after[0]) if after else None) is None:
+        return None
 
     repaired: List[str] = []
     for i in range(nv_index):

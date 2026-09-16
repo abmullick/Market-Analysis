@@ -1,8 +1,6 @@
 """
 Normalized Bond domain model.
 
-Normalized Bond domain model.
-
 Represents Government of India dated securities (G-Secs), Treasury Bills (T-Bills),
 State Development Loans (SDLs), and Corporate Bonds (public issues and private
 placements). Provider-specific payloads are normalized into this model so that the

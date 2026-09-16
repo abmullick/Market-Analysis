@@ -678,7 +678,7 @@ body[data-page="bond-analysis"] > header.site-header {
 .ba-page-btn {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
+    justify:center;
     min-width: 34px;
     height: 34px;
     padding: 0 10px;
@@ -1295,4 +1295,191 @@ body[data-page="bond-analysis"] > header.site-header {
         flex: 0 0 60%;
         max-width: 60%;
     }
+}
+
+/* Collapsible sections styles */
+.ba-section {
+    margin-bottom: 16px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    background: #ffffff;
+}
+
+.ba-section-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.ba-section-left-accent {
+    width: 4px;
+    height: 24px;
+    flex-shrink: 0;
+    margin-right: 12px;
+}
+
+.ba-section-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.ba-section-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin: 0 0 4px 0;
+}
+
+.ba-section-desc {
+    font-size: 0.875rem;
+    color: var(--color-text-light);
+    margin: 0;
+}
+
+.ba-section-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin-left: auto;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-text-light);
+    font-size: 0.875rem;
+    border-radius: var(--radius-pill);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.ba-section-toggle:hover {
+    background-color: rgba(30, 58, 95, 0.05);
+    color: var(--color-primary);
+}
+
+.ba-section-toggle[aria-expanded="true"] .ba-chevron {
+    transform: rotate(180deg);
+}
+
+.ba-chevron {
+    transition: transform 0.2s ease;
+}
+
+.ba-section-body {
+    background: #ffffff;
+}
+
+.ba-section-body.collapsed {
+    display: none;
+}
+
+.ba-section-body:not(.collapsed) {
+    display: block;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Improve Bond Summary layout */
+.ba-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+@media (min-width: 641px) {
+    .ba-summary-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+/* Improve KPI cards contrast */
+.ba-kpi {
+    background: #ffffff;
+    border: 1px solid var(--color-border);
+}
+
+/* Improve cash flow table */
+.ba-table {
+    width: 100%;
+}
+
+.ba-table th {
+    background: #f7f9fc;
+}
+
+.ba-table td {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+/* Improve details section */
+.ba-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+@media (min-width: 641px) {
+    .ba-details-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+/* Improve notes */
+.ba-notes {
+    margin: 16px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ba-notes li {
+    padding: 8px 0 8px 20px;
+    position: relative;
+}
+
+.ba-notes li::before {
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+}
+
+/* Improve selected row for better visibility */
+.ba-bond-item.selected {
+    border-left-width: 4px;
+}
+
+/* Improve T-Bill row treatment */
+.ba-bond-item[aria-disabled="true"] {
+    opacity: 0.9;
+    background: var(--color-bg);
+    border-color: rgba(148, 163, 184, 0.2);
+}
+
+.ba-bond-item[aria-disabled="true"] .ba-bond-name {
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+.ba-bond-item[aria-disabled="true"] .ba-bond-meta {
+    color: var(--color-text);
+}
+
+.ba-bond-item[aria-disabled="true"] .ba-bond-yield {
+    font-weight: 700;
+    color: var(--color-primary);
 }
