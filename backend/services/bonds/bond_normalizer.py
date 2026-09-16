@@ -21,6 +21,8 @@ from typing import Optional
 from backend.models.bonds import (
     Bond,
     CcilRawRecord,
+    CdslCorporateBondPrimaryRawRecord,
+    CdslCorporateBondSecondaryRawRecord,
     DataType,
     DayCountConvention,
     InstrumentType,
@@ -464,3 +466,123 @@ def _issuer_from_description(desc: str) -> Optional[str]:
     if m:
         return "State of " + m.group(1).strip().title()
     return None
+
+
+# ---------------------------------------------------------------------------
+# CDSL corporate bond normalization (primary + secondary market)
+# ---------------------------------------------------------------------------
+
+def _clean_str(value: Optional[str]) -> Optional[str]:
+    """Trim whitespace and return None for blank strings."""
+    if value is None:
+        return None
+    text = value.strip()
+    return text or None
+
+
+def _cdsl_coupon(raw: Optional[str]) -> Optional[float]:
+    """Return the coupon rate as a float when the source value is numeric."""
+    if not raw:
+        return None
+    text = raw.strip()
+    if not text or text in ("-", "N/A", "NA", "n/a"):
+        return None
+    try:
+        return float(text.replace(",", "").replace("%", "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def normalize_cdsl_corporate_primary_record(
+    raw: CdslCorporateBondPrimaryRawRecord,
+) -> Optional[Bond]:
+    """Normalize a CDSL primary-market corporate issue row into a Bond.
+
+    This is issuance/reference data only: no market price, YTM, LTP, VWAP,
+    trade count, or trade value is fabricated. Fields absent from the
+    source stay None. Returns None when the row lacks a usable ISIN.
+    """
+    isin = parse_isin(raw.isin)
+    if not isin:
+        return None
+
+    security_name = _clean_str(raw.issue_description) or _clean_str(raw.issuer_name) or ""
+    issuer = _clean_str(raw.issuer_name) or None
+
+    issue_price = parse_float(raw.issue_price_raw or "")
+    issue_size = parse_float(raw.issue_size_raw or "")
+    coupon_rate = _cdsl_coupon(raw.coupon_rate_raw)
+
+    bond = Bond(
+        isin=isin,
+        security_name=security_name,
+        issuer=issuer,
+        instrument_type=InstrumentType.CORPORATE,
+        issue_date=parse_date(raw.issue_date or ""),
+        maturity_date=parse_date(raw.maturity_date or ""),
+        coupon_rate=coupon_rate,
+        issue_size=issue_size,
+        issue_price=issue_price,
+        mode_of_issuance=_clean_str(raw.mode_of_issuance),
+        source="CDSL",
+        data_type=DataType.REFERENCE,
+    )
+    return bond
+
+
+def normalize_cdsl_corporate_secondary_record(
+    raw: CdslCorporateBondSecondaryRawRecord,
+) -> Optional[Bond]:
+    """Normalize a CDSL secondary-market corporate trade row into a Bond.
+
+    Maps trade/market fields (LTP, VWAP, weighted-average yield, trade
+    value, trade count) into the BondMarketObservation. Master fields
+    (issuer, ISIN, description, coupon, maturity, credit rating) are
+    populated when present. Source "-" / blank values are treated as
+    missing. Returns None when the row lacks a usable ISIN.
+    """
+    isin = parse_isin(raw.isin)
+    if not isin:
+        return None
+
+    security_name = _clean_str(raw.issue_description) or ""
+    issuer = _clean_str(raw.issuer_name) or None
+    coupon_rate = _cdsl_coupon(raw.coupon_rate_raw)
+    maturity = parse_date(raw.maturity_date or "")
+    trade_date = parse_date(raw.trade_date or "")
+
+    ltp = parse_float(raw.last_traded_price_raw or "")
+    vwap = parse_float(raw.vwap_raw or "")
+    way = parse_float(raw.weighted_average_yield_raw or "")
+    traded_value = parse_float(raw.total_trade_value_raw or "")
+    trade_count_raw = parse_float(raw.number_of_trades or "")
+
+    credit_rating = _clean_str(raw.credit_rating_raw)
+
+    market: dict = {
+        "source": "CDSL",
+        "data_type": DataType.TRADED,
+        "last_traded_price": ltp,
+        "weighted_average_price": vwap,
+        "weighted_average_yield": way,
+        "traded_value": traded_value,
+        "trade_count": int(trade_count_raw) if trade_count_raw is not None else None,
+        "trade_date": trade_date,
+        "last_traded_yield": way,
+        "price": ltp,
+    }
+    if ltp is not None:
+        market["ytm"] = way
+
+    bond = Bond(
+        isin=isin,
+        security_name=security_name,
+        issuer=issuer,
+        instrument_type=InstrumentType.CORPORATE,
+        maturity_date=maturity,
+        coupon_rate=coupon_rate,
+        credit_rating=credit_rating,
+        listing_status=_clean_str(raw.listed_unlisted),
+        **market,
+    )
+    return bond

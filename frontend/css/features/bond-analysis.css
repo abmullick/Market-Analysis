@@ -395,6 +395,675 @@
     box-shadow: var(--btn-shadow-hover);
 }
 
+/* ---- Page surface (subtle differentiation from the app default) -------------- */
+/* Kept deliberately muted: still the same palette, just a touch more presence
+   so the page doesn't feel washed out. No new colors introduced. */
+body[data-page="bond-analysis"] {
+    background:
+        radial-gradient(120% 80% at 50% 0%, rgba(30, 58, 95, 0.04), rgba(30, 58, 95, 0.015) 60%, transparent 100%),
+        linear-gradient(180deg, #fbfcff 0%, #f6f9fe 100%);
+}
+
+/* Thin gold accent under the page header so the page reads as "Bond" without
+   introducing a separate visual language. */
+body[data-page="bond-analysis"] > header.site-header {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+/* ---- Selector toolbar surface (functional area differentiation) ------------ */
+.ba-panel-head {
+    background: linear-gradient(180deg, #fbfdff 0%, #f4f8fe 100%);
+    border-bottom: 1px solid rgba(30, 58, 95, 0.14);
+}
+
+.ba-panel-head::after {
+    content: "";
+    display: block;
+    height: 3px;
+    margin: 0 0 0 auto;
+    background: linear-gradient(90deg, var(--color-gold-500), rgba(212, 175, 55, 0.0));
+    opacity: 0.85;
+    width: 120px;
+    border-radius: 3px;
+}
+
+.ba-toolbar {
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: var(--radius-md);
+    padding: 8px 14px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+/* Section header hierarchy — slightly stronger contrast than the palette base */
+.ba-panel-head .pb-panel-title,
+.ba-card-head .pb-panel-title {
+    color: #1e3a5f;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+/* Sort/filter tool labels — same for all controls, subtle but legible */
+.ba-tool-label {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-right: 8px;
+    white-space: nowrap;
+}
+
+/* Sort-by select + direction button — compact pill row, aligned with filter chips */
+.ba-header-tools {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ba-sort-select {
+    min-width: 150px;
+}
+
+.ba-sort-dir {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-pill);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: #ffffff;
+    color: #1e3a5f;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    padding: 0;
+}
+
+.ba-sort-dir:hover {
+    border-color: rgba(30, 58, 95, 0.45);
+    background: #f4f8fe;
+}
+
+.ba-sort-dir:focus-visible {
+    outline: none;
+    border-color: rgba(30, 58, 95, 0.45);
+    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.14);
+}
+
+/* Range chip — shows "Showing 1-15 of 78" beside the result-count chip */
+.ba-range-chip {
+    display: inline-block;
+    min-width: 0;
+    padding: 6px 10px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text);
+    background: rgba(30, 58, 95, 0.05);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+}
+
+/* Keep the sort-by select slightly wider so "Instrument Type" fits cleanly */
+.ba-sort-select {
+    min-width: 158px;
+}
+
+/* Compact, clear selected-row state — erase default button chrome so the row
+   reads as a tinted list item, with a gold left edge to anchor the selection. */
+.ba-bond-item {
+    border-left: 3px solid transparent;
+    background-clip: padding-box;
+}
+
+.ba-bond-item.selected {
+    border-left-color: var(--color-gold-600);
+    border-color: var(--color-gold-500);
+    background: var(--color-gold-50);
+    box-shadow: 0 0 0 1px var(--color-gold-200) inset;
+}
+
+.ba-filter-select:hover {
+    border-color: rgba(30, 58, 95, 0.45);
+    background: #f4f8fe;
+}
+
+.ba-filter-select:focus {
+    border-color: rgba(30, 58, 95, 0.5);
+    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.14);
+}
+
+/* Compact, clear selected-row state */
+.ba-bond-item.selected {
+    border-color: var(--color-gold-600);
+    background: var(--color-gold-50);
+    box-shadow: 0 0 0 1px var(--color-gold-200) inset;
+}
+
+.ba-bond-item.selected .ba-bond-yield {
+    color: var(--color-gold-700);
+}
+
+/* Yield prominence — restrained but clearly the key figure on each row */
+.ba-bond-yield {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    flex-shrink: 0;
+    padding: 0 10px;
+    line-height: 1.4;
+}
+
+.ba-bond-item:hover .ba-bond-yield,
+.ba-bond-item:focus-visible .ba-bond-yield {
+    color: var(--color-accent, #0ea5e9);
+}
+
+.ba-bond-item[aria-disabled="true"] .ba-bond-yield {
+    color: var(--color-text-light);
+    font-weight: 600;
+}
+
+/* Row name hierarchy — stronger than meta, softer than yield */
+.ba-bond-name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+}
+
+.ba-bond-info {
+    min-width: 0;
+    flex: 1;
+    line-height: 1.4;
+}
+
+/* Meta line — quiet, scannable */
+.ba-bond-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    font-size: 0.8125rem;
+    color: var(--color-text-light);
+    margin-top: 3px;
+}
+
+.ba-bond-meta span {
+    white-space: nowrap;
+}
+
+.ba-bond-meta-isin {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--color-slate-400);
+    font-size: 0.8125rem;
+}
+
+/* KPI emphasis — compact, restrained, strong numeric value */
+.ba-kpi {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 12px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.ba-kpi-value {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+
+.ba-kpi-value.is-muted {
+    color: var(--color-text-light);
+}
+
+.ba-kpi-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Analytics KPI row sits on its own subtle surface for separation */
+.ba-analytics {
+    background: linear-gradient(180deg, #f7fbff 0%, #f1f7fd 100%);
+}
+
+/* Pagination — compact, aligned with the selector area */
+.ba-pagination {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.ba-page-info {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text);
+    padding: 6px 10px;
+    background: rgba(30, 58, 95, 0.05);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.ba-page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: var(--radius-pill);
+    background: #ffffff;
+    color: var(--color-text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: var(--font-family);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    white-space: nowrap;
+}
+
+.ba-page-btn:hover:not(:disabled) {
+    border-color: rgba(30, 58, 95, 0.45);
+    background: #f4f8fe;
+    color: #1e3a5f;
+}
+
+.ba-page-btn:focus-visible {
+    outline: none;
+    border-color: rgba(30, 58, 95, 0.45);
+    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.14);
+}
+
+.ba-page-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: #f7f9fc;
+    border-color: rgba(148, 163, 184, 0.22);
+}
+
+.ba-page-btn.is-active {
+    background: #1e3a5f;
+    border-color: #1e3a5f;
+    color: #ffffff;
+}
+
+.ba-page-gap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 34px;
+    color: var(--color-slate-400);
+    font-weight: 600;
+}
+
+.ba-page-nav {
+    font-weight: 600;
+}
+
+/* Functional section cards — subtle surface differentiation */
+.ba-card-gold {
+    border-left: 3px solid var(--color-gold-500);
+}
+
+.ba-card-head {
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.ba-card-body {
+    background: #ffffff;
+}
+
+.ba-card-gold.ba-analytics .ba-card-body {
+    background: linear-gradient(180deg, #f7fbff 0%, #f1f7fd 100%);
+}
+
+/* Summary field grid — clearer value prominence */
+.ba-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px 18px;
+}
+
+.ba-detail-grid > div {
+    min-width: 0;
+}
+
+.ba-field-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
+
+.ba-field-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+}
+
+.ba-field-value.is-small {
+    font-size: 0.9375rem;
+}
+
+.ba-field-value.is-muted {
+    color: var(--color-text-light);
+    font-weight: 600;
+}
+
+/* Cash-flow table — stronger header, clearer numeric alignment */
+.ba-table th {
+    text-align: left;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--color-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
+    background: #f7f9fc;
+}
+
+.ba-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+    font-size: 0.9375rem;
+    color: var(--color-text);
+}
+
+.ba-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.ba-table .ba-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+.ba-table tbody tr:hover td {
+    background: rgba(30, 58, 95, 0.04);
+}
+
+/* Notes list — compact, quiet */
+.ba-notes {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ba-notes li {
+    position: relative;
+    padding: 5px 0 5px 18px;
+    font-size: 0.875rem;
+    color: var(--color-text-light);
+    line-height: 1.5;
+}
+
+.ba-notes li::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 10px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-gold-500);
+    opacity: 0.7;
+}
+
+/* Initial empty state — clearer hierarchy without being large */
+.ba-detail-empty h3 {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin-bottom: 6px;
+}
+
+.ba-detail-empty p {
+    font-size: 0.875rem;
+    color: var(--color-text-light);
+    max-width: 420px;
+    line-height: 1.55;
+}
+
+.ba-empty-icon {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 12px;
+}
+
+.ba-empty-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* Source badge — slightly stronger for visibility */
+.ba-source-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+}
+
+.ba-source-badge.is-traded {
+    background: var(--color-green-50);
+    border-color: var(--color-green-500);
+    color: var(--color-green-700);
+}
+
+.ba-source-badge.is-stale {
+    background: var(--color-amber-50);
+    border-color: var(--color-gold-600);
+    color: var(--color-gold-700);
+}
+
+/* Clear status chip when loading/search active */
+.ba-selector-status {
+    padding: 6px 10px;
+    background: rgba(30, 58, 95, 0.04);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: var(--radius-pill);
+    margin-top: 10px;
+}
+
+.ba-selector-status .pb-spinner {
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+/* Mobile: keep controls and rows usable */
+@media (max-width: 640px) {
+    .ba-search-bar {
+        flex-wrap: wrap;
+        padding: 0 12px;
+    }
+
+    .ba-search-input {
+        flex: 1 1 100%;
+    }
+
+    .ba-filter-select {
+        margin: 8px 0;
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .ba-bond-item {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    .ba-bond-yield {
+        margin-left: auto;
+        width: 100%;
+        text-align: right;
+    }
+
+    .ba-kpi-grid,
+    .ba-detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ba-header-tools {
+        width: 100%;
+    }
+
+    .ba-sort-select {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .ba-range-chip {
+        flex: 1 1 auto;
+    }
+
+    .ba-pagination {
+        gap: 6px;
+    }
+
+    .ba-page-btn {
+        min-width: 30px;
+        height: 32px;
+        padding: 0 8px;
+        font-size: 0.75rem;
+    }
+
+    .ba-page-info {
+        font-size: 0.75rem;
+        padding: 5px 8px;
+    }
+
+    .ba-bond-meta {
+        flex-direction: column;
+        gap: 2px;
+    }
+}
+
+@media (max-width: 400px) {
+    .ba-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---- Page-title base (same values as .mf-page-title in
+   mutual-fund-analysis.css — the full 107KB stylesheet is not loaded here) - */
+.mf-page-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+}
+
+.mf-page-subtitle {
+    font-size: 0.9375rem;
+    color: var(--color-text-light);
+    font-weight: 400;
+    max-width: 64ch;
+}
+
+/* Section card body — always-visible counterpart of .pb-section-content
+   (which is display:none unless its collapsible section is open). */
+.ba-card-body {
+    padding: 4px 18px 18px;
+}
+
+/* ---- Tooltips — the application's existing .tooltip-trigger pattern -----
+   Same classes/markup as Mutual Fund Analysis; the definitions ride along
+   here because the shared tooltip CSS lives in that feature stylesheet,
+   which this page does not (and should not) load in full. */
+.tooltip-trigger {
+    display: inline-flex;
+    position: relative;
+    cursor: help;
+    color: inherit;
+    text-decoration: none;
+}
+
+.tooltip-content {
+    position: absolute;
+    z-index: 50;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--color-primary);
+    background: #1e3a5f;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+    white-space: normal;
+    max-width: 260px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    pointer-events: none;
+}
+
+.tooltip-content::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-bottom-color: var(--color-primary);
+}
+
+.tooltip-trigger:hover .tooltip-content,
+.tooltip-trigger:focus .tooltip-content {
+    opacity: 1;
+    visibility: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tooltip-content {
+        transition: none;
+    }
+}
 /* ---- Responsive ---------------------------------------------------------- */
 @media (max-width: 960px) {
     .ba-kpi-grid {

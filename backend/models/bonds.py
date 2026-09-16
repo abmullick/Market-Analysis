@@ -1,11 +1,11 @@
 """
 Normalized Bond domain model.
 
-Represents Government of India dated securities (G-Secs), Treasury Bills (T-Bills),
-and State Development Loans (SDLs), with optional fields reserved for future
-corporate-bond support (NSE/BSE/SEBI adapters).
+Normalized Bond domain model.
 
-The model is normalized from multiple public sources (CCIL, NSE, RBI) so that the
+Represents Government of India dated securities (G-Secs), Treasury Bills (T-Bills),
+State Development Loans (SDLs), and Corporate Bonds (public issues and private
+placements). Provider-specific payloads are normalized into this model so that the
 frontend and service layer never depend on source-specific field names.
 """
 from __future__ import annotations
@@ -22,11 +22,17 @@ from pydantic import BaseModel, ConfigDict, Field
 # ---------------------------------------------------------------------------
 
 class InstrumentType(str, Enum):
-    """Normalized instrument types for government securities."""
+    """Normalized instrument types for government and corporate securities.
+
+    Covers G-Secs, T-Bills, SDLs, and Corporate Bonds (public and private
+    placements). Enum values mirror the frontend/instrument-type filter vocabulary
+    used in the Bond analysis UI.
+    """
 
     G_SEC = "G-Sec"
     T_BILL = "T-Bill"
     SDL = "SDL"
+    CORPORATE = "Corporate Bond"
     UNKNOWN = "Unknown"
 
 
@@ -65,7 +71,17 @@ class DataType(str, Enum):
 # ---------------------------------------------------------------------------
 
 class BondMaster(BaseModel):
-    """Immutable / reference master data for a bond security."""
+    """Immutable / reference master data for a bond security.
+
+    Covers Government of India securities (G-Secs, T-Bills, SDLs) and Corporate
+    Bonds (public issues and private placements). Provider-specific payloads are
+    normalized into this model so that downstream code depends only on this common
+    representation.
+
+    Fields that are specific to a particular instrument class are still present on
+    the shared model and default to ``None`` so that government-security records
+    continue to validate without any corporate fields populated.
+    """
 
     isin: Optional[str] = Field(default=None, description="ISIN")
     security_name: Optional[str] = Field(default=None, description="Security name/description")
@@ -81,14 +97,50 @@ class BondMaster(BaseModel):
     puttable: bool = Field(default=False)
     listing_status: Optional[str] = Field(default=None)
 
-    # --- Future corporate-bond fields (reserved, not populated for Govt bonds) ---
-    credit_rating: Optional[str] = Field(default=None)
-    rating_agency: Optional[str] = Field(default=None)
-    secured_status: Optional[str] = Field(default=None)
-    seniority: Optional[str] = Field(default=None)
-    call_date: Optional[date] = Field(default=None)
-    put_date: Optional[date] = Field(default=None)
-    issuer_sector: Optional[str] = Field(default=None)
+    # --- Corporate-bond / private-placement reference fields ---
+    # Populated from corporate-bond sources (NSE/CDSL/BSE). Left as None for
+    # government securities and wherever a provider does not supply the value.
+    credit_rating: Optional[str] = Field(default=None, description="Credit rating")
+    rating_agency: Optional[str] = Field(default=None, description="Rating agency")
+    secured_status: Optional[str] = Field(default=None, description="Secured / unsecured status")
+    seniority: Optional[str] = Field(default=None, description="Seniority (senior / subordinated, etc.)")
+    call_date: Optional[date] = Field(
+        default=None, description="First call date, when available"
+    )
+    put_date: Optional[date] = Field(
+        default=None, description="First put date, when available"
+    )
+    issuer_sector: Optional[str] = Field(default=None, description="Issuer sector / industry")
+    issuer_type: Optional[str] = Field(
+        default=None, description="Issuer classification / type"
+    )
+    issue_type: Optional[str] = Field(
+        default=None, description="Type / category of the issue"
+    )
+    issue_size: Optional[float] = Field(
+        default=None, description="Original issue size"
+    )
+    outstanding_amount: Optional[float] = Field(
+        default=None, description="Amount currently outstanding, when available"
+    )
+    issue_price: Optional[float] = Field(
+        default=None, description="Issue price"
+    )
+    coupon_type: Optional[str] = Field(
+        default=None, description="Fixed / floating / zero / other, as supplied by source"
+    )
+    mode_of_issuance: Optional[str] = Field(
+        default=None, description="EBP / NON-EBP / other source value"
+    )
+    guarantee_status: Optional[str] = Field(
+        default=None, description="Guaranteed / unguaranteed / source value"
+    )
+    security_type: Optional[str] = Field(
+        default=None, description="Source security classification"
+    )
+    exchange: Optional[str] = Field(
+        default=None, description="Exchange / listing venue when supplied"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +169,8 @@ class BondMarketObservation(BaseModel):
     trade_count: Optional[int] = Field(default=None, description="Number of trades")
     trade_date: Optional[date] = Field(default=None, description="Trade/observation date")
     trade_time: Optional[str] = Field(default=None, description="Trade time as reported by source")
+    weighted_average_price: Optional[float] = Field(default=None, description="Volume-weighted average price (VWAP)")
+    weighted_average_yield: Optional[float] = Field(default=None, description="Weighted average yield, in percent")
 
     # --- Source & freshness ---
     source: Optional[str] = Field(default=None, description="Originating source identifier")
@@ -153,6 +207,27 @@ class BondListQuery(BaseModel):
     search: Optional[str] = Field(default=None, description="Free-text search across security name / ISIN")
     limit: int = Field(default=50, ge=1, le=200, description="Maximum results to return")
     offset: int = Field(default=0, ge=0, description="Pagination offset")
+    sort_by: Optional[str] = Field(
+        default=None,
+        description="Sort field: maturity_date, market_ytm, clean_price, coupon_rate, security_name, instrument_type",
+    )
+    sort_dir: str = Field(default="asc", description="Sort direction: asc or desc")
+
+
+class BondListResponse(BaseModel):
+    """Paginated response envelope for GET /api/bonds.
+
+    Returned only when the client requests ``envelope=true``; the default
+    response remains a plain JSON list of Bond records (backward compatible).
+    ``total`` is the number of bonds matching the query BEFORE limit/offset
+    are applied, so it represents the full available universe.
+    """
+
+    items: list[Bond] = Field(default_factory=list, description="Page of bonds")
+    total: int = Field(default=0, ge=0, description="Total bonds matching the query")
+    limit: int = Field(default=50, ge=1, le=200, description="Page size used")
+    offset: int = Field(default=0, ge=0, description="Offset used for this page")
+
 
 
 class AnalyticsResult(BaseModel):
@@ -215,7 +290,14 @@ class CcilRawRecord(BaseModel):
 
 
 class NseRawRecord(BaseModel):
-    """Raw NSE public debt-report row, normalized minimally for internal passing."""
+    """Raw NSE public debt-report row, normalized minimally for internal passing.
+
+    Covers NSE WDM Debt Instruments master rows, government-bond trades, and the
+    corporate-bond / private-placement payloads the model is being extended to
+    support. Fields are kept as optional strings/dates because provider CSVs and
+    feeds supply them inconsistently, and not every record will populate every
+    field.
+    """
 
     report_type: str = Field(default="", description="NSE report family")
     security_description: Optional[str] = None
@@ -236,6 +318,21 @@ class NseRawRecord(BaseModel):
     issuer: Optional[str] = None
     instrument_type: Optional[str] = None
     listing_status: Optional[str] = None
+    # --- Corporate-bond / private-placement fields (future NSE/CDSL providers) ---
+    issuer_type: Optional[str] = None
+    issue_type: Optional[str] = None
+    issue_size: Optional[str] = None
+    outstanding_amount: Optional[str] = None
+    issue_price: Optional[str] = None
+    coupon_type: Optional[str] = None
+    mode_of_issuance: Optional[str] = None
+    guarantee_status: Optional[str] = None
+    security_type: Optional[str] = None
+    exchange: Optional[str] = None
+    credit_rating: Optional[str] = None
+    rating_agency: Optional[str] = None
+    secured_status: Optional[str] = None
+    seniority: Optional[str] = None
 
 
 class RbiRawRecord(BaseModel):
@@ -252,3 +349,65 @@ class RbiRawRecord(BaseModel):
     reference_yield: Optional[str] = None
     state_borrowing_ref: Optional[str] = None
     as_of: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# CDSL corporate-bond / private-placement raw records
+# ---------------------------------------------------------------------------
+
+class CdslCorporateBondPrimaryRawRecord(BaseModel):
+    """One row from CDSL PrimaryMarketTradeData.csv.
+
+    Schema (11 columns):
+        ISIN, Temporary Isin, Issuer Name, Issue Description, Issue Type,
+        Issue Size (In Cr.), Issue Price (Rs.), Issue Date, Date of Maturity,
+        Coupon Rate (%), Mode of Issuance
+
+    Raw source values are preserved as strings where convenient; only fields
+    that can be parsed deterministically are coerced.
+    """
+
+    isin: Optional[str] = None
+    temporary_isin: Optional[str] = None
+    issuer_name: Optional[str] = None
+    issue_description: Optional[str] = None
+    issue_type: Optional[str] = None
+    issue_size_raw: Optional[str] = None
+    issue_price_raw: Optional[str] = None
+    issue_date: Optional[str] = None
+    maturity_date: Optional[str] = None
+    coupon_rate_raw: Optional[str] = None
+    mode_of_issuance: Optional[str] = None
+
+
+class CdslCorporateBondSecondaryRawRecord(BaseModel):
+    """One row from CDSL SecondaryMarketTradeData.csv.
+
+    Schema (15 columns):
+        Exchange, Trade Date, ISIN, Listed/Unlisted security, Issuer name,
+        Issue Description, Coupon(%), Maturity Date, Credit Rating,
+        Number of Trades, Total Trade Value (Rs. Lakhs),
+        Last Traded Price (in Rs.), weighted Average price (VWAP),
+        Weighted Average Yield, Remark
+
+    A small number of source rows place an unquoted thousands separator inside
+    ``Total Trade Value (Rs. Lakhs)``, which can inflate the column count to 16
+    when parsed naively. The parser must repair such rows before constructing
+    the raw record.
+    """
+
+    exchange: Optional[str] = None
+    trade_date: Optional[str] = None
+    isin: Optional[str] = None
+    listed_unlisted: Optional[str] = None
+    issuer_name: Optional[str] = None
+    issue_description: Optional[str] = None
+    coupon_rate_raw: Optional[str] = None
+    maturity_date: Optional[str] = None
+    credit_rating_raw: Optional[str] = None
+    number_of_trades: Optional[str] = None
+    total_trade_value_raw: Optional[str] = None
+    last_traded_price_raw: Optional[str] = None
+    vwap_raw: Optional[str] = None
+    weighted_average_yield_raw: Optional[str] = None
+    remark: Optional[str] = None

@@ -15,10 +15,16 @@ import { utils } from "../../core/utils.js";
 
 const $ = (id) => document.getElementById(id);
 
+const PAGE_SIZE = 12; // bonds per selector page (12–15 per spec)
+
 const state = {
-    searchSeq: 0,   // guards against out-of-order search responses
-    loadSeq: 0,     // guards against out-of-order bond loads
+    searchSeq: 0,       // guards against out-of-order search responses
+    loadSeq: 0,         // guards against out-of-order bond loads
     selectedIsin: null,
+    page: 1,            // 1-based selector page
+    total: 0,           // total bonds matching the current query (from envelope)
+    sortBy: "maturity_date",
+    sortDir: "asc",
 };
 
 // ---------------------------------------------------------------------------
@@ -78,22 +84,28 @@ async function searchBonds() {
     const q = $("ba-search-input").value.trim();
     const type = $("ba-type-filter").value;
 
+    // Server-side pagination + sorting (backend-provided values only).
     const params = new URLSearchParams();
     if (q) params.set("search", q);
     if (type) params.set("instrument_type", type);
-    params.set("limit", "50");
+    params.set("sort_by", state.sortBy);
+    params.set("sort_dir", state.sortDir);
+    params.set("limit", String(PAGE_SIZE));
+    params.set("offset", String((state.page - 1) * PAGE_SIZE));
+    params.set("envelope", "true");
 
     setSelectorStatus('<span class="pb-analysis-loading"><span class="pb-spinner" aria-hidden="true"></span><span>Searching bonds&hellip;</span></span>');
     $("ba-no-results").classList.add("hidden");
 
-    let bonds;
+    let data;
     try {
-        bonds = await api.get(`/bonds?${params.toString()}`);
+        data = await api.get(`/bonds?${params.toString()}`);
     } catch (err) {
         if (seq !== state.searchSeq) return;
         setSelectorStatus("");
         $("ba-no-results").classList.add("hidden");
         $("ba-bond-list").innerHTML = "";
+        renderPagination(0);
         $("ba-result-count").textContent = "";
         showError(`Could not load bonds: ${err && err.message ? err.message : err}`);
         return;
@@ -103,8 +115,19 @@ async function searchBonds() {
     setSelectorStatus("");
     hideError();
 
-    const list = Array.isArray(bonds) ? bonds : [];
-    $("ba-result-count").textContent = list.length ? `${list.length} result${list.length === 1 ? "" : "s"}` : "";
+    // Envelope response: {items, total, limit, offset}. A plain array is also
+    // accepted defensively, though the page always requests the envelope.
+    const list = Array.isArray(data) ? data : (data && Array.isArray(data.items) ? data.items : []);
+    state.total = Array.isArray(data) ? list.length : (data && typeof data.total === "number" ? data.total : list.length);
+
+    // Header chip — the universe size, not the page size.
+    $("ba-range-chip").textContent = state.total
+        ? `Showing 1–${Math.min(PAGE_SIZE, state.total)} of ${state.total}`
+        : "";
+    $("ba-result-count").textContent = state.total
+        ? `${state.total} bond${state.total === 1 ? "" : "s"}`
+        : "";
+
     $("ba-no-results").classList.toggle("hidden", list.length > 0);
 
     // Rows without an ISIN (some CCIL Market Watch entries) cannot be loaded
@@ -127,8 +150,11 @@ async function searchBonds() {
         if (!isin) {
             return `<li><div class="ba-bond-item" aria-disabled="true" title="Details unavailable — this source entry has no ISIN">${inner}</div></li>`;
         }
-        return `<li><button type="button" class="ba-bond-item" data-isin="${escapeAttr(isin)}">${inner}</button></li>`;
+        const selected = isin === state.selectedIsin ? " selected" : "";
+        return `<li><button type="button" class="ba-bond-item${selected}" data-isin="${escapeAttr(isin)}">${inner}</button></li>`;
     }).join("");
+
+    renderPagination(state.total);
 }
 
 function setSelectorStatus(html) {
@@ -148,6 +174,65 @@ function showError(message) {
 function hideError() {
     const el = $("ba-error");
     if (el) el.classList.add("hidden");
+}
+
+// ---------------------------------------------------------------------------
+// Pagination controls (client state only — data pages come from the API)
+// ---------------------------------------------------------------------------
+
+// Page-number list with ellipsis windows: 1 … (p-1) p (p+1) … N
+function pageNumbers(current, count) {
+    if (count <= 7) {
+        return Array.from({ length: count }, (_, i) => i + 1);
+    }
+    const pages = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(count - 1, current + 1);
+    if (start > 2) pages.push("gap");
+    for (let p = start; p <= end; p++) pages.push(p);
+    if (end < count - 1) pages.push("gap");
+    pages.push(count);
+    return pages;
+}
+
+function renderPagination(total) {
+    const el = $("ba-pagination");
+    if (!el) return;
+
+    const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    state.page = Math.min(Math.max(1, state.page), pageCount);
+
+    if (total <= 0) {
+        el.classList.add("hidden");
+        el.innerHTML = "";
+        return;
+    }
+    el.classList.remove("hidden");
+
+    const start = (state.page - 1) * PAGE_SIZE + 1;
+    const end = Math.min(total, state.page * PAGE_SIZE);
+    const atFirst = state.page <= 1;
+    const atLast = state.page >= pageCount;
+
+    const buttons = pageNumbers(state.page, pageCount).map((p) => {
+        if (p === "gap") return '<span class="ba-page-btn ba-page-gap" aria-hidden="true">&hellip;</span>';
+        const active = p === state.page ? " is-active" : "";
+        const aria = p === state.page ? ' aria-current="page"' : "";
+        return `<button type="button" class="ba-page-btn${active}" data-page="${p}"${aria} aria-label="Page ${p}">${p}</button>`;
+    }).join("");
+
+    el.innerHTML = `<span class="ba-page-info">Showing ${start}&ndash;${end} of ${total}</span>`
+        + `<button type="button" class="ba-page-btn ba-page-nav" data-page="prev" aria-label="Previous page"${atFirst ? " disabled" : ""}>&lsaquo; Prev</button>`
+        + buttons
+        + `<button type="button" class="ba-page-btn ba-page-nav" data-page="next" aria-label="Next page"${atLast ? " disabled" : ""}>Next &rsaquo;</button>`;
+}
+
+function goToPage(page) {
+    const pageCount = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
+    const next = Math.min(Math.max(1, page), pageCount);
+    if (next === state.page) return;
+    state.page = next;
+    searchBonds();
 }
 
 
@@ -420,7 +505,31 @@ function init() {
         // Debounced free-text search (shared core/utils debounce).
         const debouncedSearch = utils.debounce(searchBonds, 300);
         searchInput.addEventListener("input", debouncedSearch);
-        typeFilter.addEventListener("change", searchBonds);
+        typeFilter.addEventListener("change", () => {
+            state.page = 1;
+            searchBonds();
+        });
+    }
+
+    const sortSelect = $("ba-sort-select");
+    const sortDirBtn = $("ba-sort-dir");
+    if (sortSelect) {
+        sortSelect.addEventListener("change", () => {
+            state.sortBy = sortSelect.value;
+            state.page = 1;
+            searchBonds();
+        });
+    }
+    if (sortDirBtn) {
+        sortDirBtn.addEventListener("click", () => {
+            const next = state.sortDir === "asc" ? "desc" : "asc";
+            state.sortDir = next;
+            sortDirBtn.setAttribute("aria-label", next === "asc" ? "Sort ascending" : "Sort descending");
+            sortDirBtn.setAttribute("title", next === "asc" ? "Sort ascending" : "Sort descending");
+            sortDirBtn.innerHTML = next === "asc" ? "&uarr;" : "&darr;";
+            state.page = 1;
+            searchBonds();
+        });
     }
 
     if (bondList) {

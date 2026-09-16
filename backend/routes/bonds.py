@@ -6,8 +6,9 @@ Routes:
   GET  /api/bonds/{isin}/market      — retrieve market observation
   GET  /api/bonds/{isin}/analytics   — retrieve analytics
 
-No frontend page is built in this phase; the Coming Soon Bond page
-remains in place. No external source URLs are exposed to the frontend.
+GET /api/bonds supports opt-in server-side sorting (sort_by/sort_dir) and an
+opt-in pagination envelope (envelope=true → {items, total, limit, offset}).
+The default response remains a plain JSON list for backward compatibility.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from backend.models.bonds import (
     AnalyticsResult,
     Bond,
     BondListQuery,
+    BondListResponse,
     InstrumentType,
 )
 from backend.services.bonds.bond_service import BondService
@@ -55,21 +57,51 @@ async def list_bonds(
     ),
     limit: int = Query(50, ge=1, le=200, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
-) -> list[Bond]:
+    sort_by: Optional[str] = Query(
+        None,
+        description=(
+            "Optional sort field: maturity_date, market_ytm, clean_price, "
+            "coupon_rate, security_name, instrument_type"
+        ),
+    ),
+    sort_dir: Optional[str] = Query(
+        None, description="Sort direction: asc (default) or desc"
+    ),
+    envelope: bool = Query(
+        False,
+        description=(
+            "Return a {items, total, limit, offset} envelope. total counts "
+            "ALL bonds matching the query (before limit/offset). Default "
+            "response remains a plain JSON list (backward compatible)."
+        ),
+    ),
+) -> list[Bond] | BondListResponse:
     """List government bonds (G-Secs, T-Bills, SDLs).
 
     Supports optional filtering by instrument type, issuer, and free-text
-    search. Results are cached in-process.
+    search, plus opt-in server-side sorting and a paginated response
+    envelope. Results are cached in-process.
     """
     service = get_bond_service()
-    bonds = await service.list_bonds(
+    if envelope:
+        return await service.list_bonds_page(
+            instrument_type=instrument_type,
+            issuer=issuer,
+            search=search,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_dir=sort_dir or "asc",
+        )
+    return await service.list_bonds(
         instrument_type=instrument_type,
         issuer=issuer,
         search=search,
         limit=limit,
         offset=offset,
+        sort_by=sort_by,
+        sort_dir=sort_dir or "asc",
     )
-    return bonds
 
 
 @router.get("/{isin}")

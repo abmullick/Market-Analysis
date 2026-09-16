@@ -239,8 +239,47 @@ class BondService:
         search: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
+        sort_by: Optional[str] = None,
+        sort_dir: str = "asc",
     ) -> list[Bond]:
-        """List normalized bonds, with optional filtering."""
+        """List normalized bonds, with optional filtering and sorting."""
+        results = await self._filtered_bonds(instrument_type, issuer, search)
+        results = _sort_bonds(results, sort_by, sort_dir)
+        return results[offset: offset + limit]
+
+    async def list_bonds_page(
+        self,
+        instrument_type: Optional[InstrumentType] = None,
+        issuer: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: Optional[str] = None,
+        sort_dir: str = "asc",
+    ) -> dict:
+        """List normalized bonds as a pagination envelope.
+
+        Returns ``{"items", "total", "limit", "offset"}`` where ``total``
+        counts every bond matching the filter/search BEFORE the limit and
+        offset are applied — i.e. the full available universe for the query.
+        """
+        results = await self._filtered_bonds(instrument_type, issuer, search)
+        total = len(results)
+        results = _sort_bonds(results, sort_by, sort_dir)
+        return {
+            "items": results[offset: offset + limit],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+    async def _filtered_bonds(
+        self,
+        instrument_type: Optional[InstrumentType] = None,
+        issuer: Optional[str] = None,
+        search: Optional[str] = None,
+    ) -> list[Bond]:
+        """Shared filter pipeline for both list endpoints."""
         all_bonds = await self.refresh_all_sources()
 
         results: list[Bond] = []
@@ -258,7 +297,8 @@ class BondService:
                     continue
             results.append(bond)
 
-        return results[offset: offset + limit]
+        return results
+
 
     async def get_bond_by_isin(self, isin: str) -> Optional[Bond]:
         """Retrieve a single normalized bond by ISIN."""
@@ -304,6 +344,67 @@ class BondService:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+# Sort fields supported by GET /api/bonds (additive, opt-in via sort_by).
+BOND_SORT_FIELDS = frozenset({
+    "maturity_date",
+    "market_ytm",
+    "clean_price",
+    "coupon_rate",
+    "security_name",
+    "instrument_type",
+})
+
+
+def _sort_value(bond: Bond, sort_by: str):
+    """Extract a comparable sort value, or None when the field is absent.
+
+    Only backend-normalized values are used — no derived/computed values.
+    """
+    if sort_by == "maturity_date":
+        return bond.maturity_date
+    if sort_by == "market_ytm":
+        return bond.ytm
+    if sort_by == "clean_price":
+        # Clean price is the canonical quote; fall back to the raw
+        # source-reported price only when clean is not published.
+        return bond.clean_price if bond.clean_price is not None else bond.price
+    if sort_by == "coupon_rate":
+        return bond.coupon_rate
+    if sort_by == "security_name":
+        name = (bond.security_name or "").strip()
+        return name.casefold() if name else None
+    if sort_by == "instrument_type":
+        return bond.instrument_type.value.casefold() if bond.instrument_type else None
+    return None
+
+
+def _sort_bonds(bonds: list[Bond], sort_by: Optional[str], sort_dir: str = "asc") -> list[Bond]:
+    """Sort bonds by a supported field.
+
+    Bonds whose sort field is missing are always placed last, regardless of
+    direction. Invalid/unspecified sort fields return the input unchanged
+    (provider priority order), preserving existing behavior. Ties are broken
+    deterministically by security name.
+    """
+    if not sort_by or sort_by not in BOND_SORT_FIELDS:
+        return bonds
+
+    reverse = (sort_dir or "asc").lower() == "desc"
+
+    present: list[tuple] = []
+    absent: list[Bond] = []
+    for bond in bonds:
+        value = _sort_value(bond, sort_by)
+        if value is None:
+            absent.append(bond)
+        else:
+            present.append((value, (bond.security_name or "").casefold(), bond))
+
+    present.sort(key=lambda triple: (triple[0], triple[1]), reverse=reverse)
+
+    return [bond for _, _, bond in present] + absent
+
 
 def _deduplicate_bonds(bonds: list[Bond]) -> list[Bond]:
     """Deduplicate bonds by identity, preferring primary (traded) observations.

@@ -2,6 +2,7 @@
 
 Source-specific retrieval/parsing lives here. Each provider normalizes its
 raw response into internal CcilRawRecord / NseRawRecord / RbiRawRecord
+/CdslCorporateBondPrimaryRawRecord / CdslCorporateBondSecondaryRawRecord
 models. The Bond domain layer then converts those into the normalized
 Bond model.
 
