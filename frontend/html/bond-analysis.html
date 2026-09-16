@@ -27,97 +27,99 @@
                     <p class="mf-page-subtitle">Market prices, yields and fixed-income analytics for government bonds &mdash; G-Secs, SDLs and T-Bills.</p>
                 </div>
                 <div class="pb-stage" id="ba-stage">
-                    <section class="pb-panel" aria-labelledby="ba-selector-title">
-                        <div class="pb-panel-header ba-panel-head">
-                            <h2 class="pb-panel-title" id="ba-selector-title">Find a Bond</h2>
-                            <div class="ba-header-tools">
-                                <label class="ba-tool-label" for="ba-sort-select">Sort by</label>
-                                <select id="ba-sort-select" class="ba-filter-select ba-sort-select" aria-label="Sort bonds by">
-                                    <option value="maturity_date" selected>Maturity Date</option>
-                                    <option value="market_ytm">Market YTM</option>
-                                    <option value="clean_price">Clean Price</option>
-                                    <option value="coupon_rate">Coupon Rate</option>
-                                    <option value="security_name">Security Name</option>
-                                    <option value="instrument_type">Instrument Type</option>
-                                </select>
-                                <button type="button" id="ba-sort-dir" class="ba-sort-dir" aria-label="Sort ascending" title="Sort direction">&uarr;</button>
-                                <span class="ba-range-chip" id="ba-range-chip" aria-live="polite"></span>
-                                <span class="pb-count" id="ba-result-count"></span>
-                            </div>
+                    <div class="ba-workspace">
+                        <div class="ba-selector-column">
+                            <section class="pb-panel" aria-labelledby="ba-selector-title">
+                                <div class="pb-panel-header ba-panel-head">
+                                    <h2 class="pb-panel-title" id="ba-selector-title">Find a Bond</h2>
+                                    <div class="ba-header-tools">
+                                        <label class="ba-tool-label" for="ba-sort-select">Sort by</label>
+                                        <select id="ba-sort-select" class="ba-filter-select ba-sort-select" aria-label="Sort bonds by">
+                                            <option value="maturity_date" selected>Maturity Date</option>
+                                            <option value="market_ytm">Market YTM</option>
+                                            <option value="clean_price">Clean Price</option>
+                                            <option value="coupon_rate">Coupon Rate</option>
+                                            <option value="security_name">Security Name</option>
+                                            <option value="instrument_type">Instrument Type</option>
+                                        </select>
+                                        <button type="button" id="ba-sort-dir" class="ba-sort-dir" aria-label="Sort ascending" title="Sort direction">&uarr;</button>
+                                        <span class="ba-range-chip" id="ba-range-chip" aria-live="polite"></span>
+                                        <span class="pb-count" id="ba-result-count"></span>
+                                    </div>
+                                </div>
+                                <p class="ba-section-sub">Search by security name, ISIN or issuer, then select a bond to see its market data and analytics.</p>
+                                <div class="ba-search-bar ba-toolbar">
+                                    <svg class="ba-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    <input type="search" id="ba-search-input" class="ba-search-input" placeholder="Search bonds by name, ISIN, or issuer..." autocomplete="off" aria-label="Search bonds">
+                                    <select id="ba-type-filter" class="ba-filter-select" aria-label="Instrument type filter">
+                                        <option value="" selected>All</option>
+                                        <option value="G-Sec">G-Sec</option>
+                                        <option value="SDL">SDL</option>
+                                        <option value="T-Bill">T-Bill</option>
+                                    </select>
+                                </div>
+                                <p id="ba-selector-status" class="ba-section-sub ba-selector-status hidden" role="status" aria-live="polite"></p>
+                                <ul id="ba-bond-list" class="ba-bond-list"></ul>
+                                <div id="ba-pagination" class="ba-pagination hidden"></div>
+                                <div id="ba-no-results" class="ba-empty-state ba-after-panel hidden">
+                                    <span class="ba-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></span>
+                                    <h3>No bonds found</h3>
+                                    <p>No bonds match your search. Try a different name, ISIN or issuer, or change the instrument type filter.</p>
+                                </div>
+                            </section>
                         </div>
-                        <p class="ba-section-sub">Search by security name, ISIN or issuer, then select a bond to see its market data and analytics.</p>
-                        <div class="ba-search-bar ba-toolbar">
-                            <svg class="ba-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                            <input type="search" id="ba-search-input" class="ba-search-input" placeholder="Search bonds by name, ISIN, or issuer..." autocomplete="off" aria-label="Search bonds">
-                            <select id="ba-type-filter" class="ba-filter-select" aria-label="Instrument type filter">
-                                <option value="" selected>All</option>
-                                <option value="G-Sec">G-Sec</option>
-                                <option value="SDL">SDL</option>
-                                <option value="T-Bill">T-Bill</option>
-                            </select>
+                        <div class="ba-analysis-column">
+                            <div id="ba-results" class="hidden">
+                                <section class="pb-section-card ba-card-gold" aria-labelledby="ba-summary-title">
+                                    <div class="pb-panel-header ba-card-head">
+                                        <h2 class="pb-panel-title" id="ba-summary-title">Bond Summary</h2>
+                                        <span id="ba-source-badge" class="ba-source-badge"></span>
+                                    </div>
+                                    <div class="ba-card-body">
+                                        <h3 id="ba-summary-name" class="ba-bond-name"></h3>
+                                        <div class="ba-bond-meta" id="ba-summary-meta"></div>
+                                        <div class="ba-detail-grid" id="ba-summary-grid"></div>
+                                    </div>
+                                </section>
+
+                                <section class="pb-section-card ba-card-gold ba-analytics" aria-labelledby="ba-analytics-title">
+                                    <div class="pb-panel-header ba-card-head">
+                                        <h2 class="pb-panel-title" id="ba-analytics-title">Analytics</h2>
+                                    </div>
+                                    <div class="ba-card-body">
+                                        <div class="ba-kpi-grid" id="ba-kpi-grid"></div>
+                                    </div>
+                                </section>
+
+                                <section class="pb-section-card ba-card-gold" aria-labelledby="ba-cashflow-title">
+                                    <div class="pb-panel-header ba-card-head">
+                                        <h2 class="pb-panel-title" id="ba-cashflow-title">Cash Flows</h2>
+                                    </div>
+                                    <div class="ba-card-body">
+                                        <div class="ba-table-wrap" id="ba-cashflow-wrap"></div>
+                                    </div>
+                                </section>
+
+                                <section class="pb-section-card ba-card-gold" aria-labelledby="ba-details-title">
+                                    <div class="pb-panel-header ba-card-head">
+                                        <h2 class="pb-panel-title" id="ba-details-title">Bond Details & Methodology</h2>
+                                    </div>
+                                    <div class="ba-card-body">
+                                        <div class="ba-detail-grid" id="ba-details-grid"></div>
+                                        <ul class="ba-notes" id="ba-notes"></ul>
+                                    </div>
+                                </section>
+                            </div>
+                            <div id="ba-error" class="pb-analysis-error ba-after-panel hidden" role="alert"></div>
+                            <div id="ba-detail-empty" class="ba-empty-state ba-after-panel hidden">
+                                <span class="ba-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 9h8M8 13h8M8 17h5"></path></svg></span>
+                                <h3>Select a bond to begin</h3>
+                                <p>Search for a government bond above and select it to view its market price, yields, cash flows and risk analytics.</p>
+                            </div>
+                            <p class="pb-page-note" style="margin-top: 16px;">Prices are clean prices; accrued interest is reported separately. Market YTM is as reported by the source; Calculated YTM is computed by the analytics engine.</p>
                         </div>
-                        <p id="ba-selector-status" class="ba-section-sub ba-selector-status hidden" role="status" aria-live="polite"></p>
-                        <ul id="ba-bond-list" class="ba-bond-list"></ul>
-                        <div id="ba-pagination" class="ba-pagination hidden"></div>
-                        <div id="ba-no-results" class="ba-empty-state ba-after-panel hidden">
-                            <span class="ba-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></span>
-                            <h3>No bonds found</h3>
-                            <p>No bonds match your search. Try a different name, ISIN or issuer, or change the instrument type filter.</p>
-                        </div>
-                    </section>
-
-                    <div id="ba-results" class="hidden">
-                        <section class="pb-section-card ba-card-gold" aria-labelledby="ba-summary-title">
-                            <div class="pb-panel-header ba-card-head">
-                                <h2 class="pb-panel-title" id="ba-summary-title">Bond Summary</h2>
-                                <span id="ba-source-badge" class="ba-source-badge"></span>
-                            </div>
-                            <div class="ba-card-body">
-                                <h3 id="ba-summary-name" class="ba-bond-name"></h3>
-                                <div class="ba-bond-meta" id="ba-summary-meta"></div>
-                                <div class="ba-detail-grid" id="ba-summary-grid"></div>
-                            </div>
-                        </section>
-
-                        <section class="pb-section-card ba-card-gold ba-analytics" aria-labelledby="ba-analytics-title">
-                            <div class="pb-panel-header ba-card-head">
-                                <h2 class="pb-panel-title" id="ba-analytics-title">Analytics</h2>
-                            </div>
-                            <div class="ba-card-body">
-                                <div class="ba-kpi-grid" id="ba-kpi-grid"></div>
-                            </div>
-                        </section>
-
-                        <section class="pb-section-card ba-card-gold" aria-labelledby="ba-cashflow-title">
-                            <div class="pb-panel-header ba-card-head">
-                                <h2 class="pb-panel-title" id="ba-cashflow-title">Cash Flows</h2>
-                            </div>
-                            <div class="ba-card-body">
-                                <div class="ba-table-wrap" id="ba-cashflow-wrap"></div>
-                            </div>
-                        </section>
-
-                        <section class="pb-section-card ba-card-gold" aria-labelledby="ba-details-title">
-                            <div class="pb-panel-header ba-card-head">
-                                <h2 class="pb-panel-title" id="ba-details-title">Bond Details &amp; Methodology</h2>
-                            </div>
-                            <div class="ba-card-body">
-                                <div class="ba-detail-grid" id="ba-details-grid"></div>
-                                <ul class="ba-notes" id="ba-notes"></ul>
-                            </div>
-                        </section>
                     </div>
-
-                    <div id="ba-error" class="pb-analysis-error ba-after-panel hidden" role="alert"></div>
-                    <div id="ba-detail-empty" class="ba-empty-state ba-after-panel hidden">
-                        <span class="ba-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 9h8M8 13h8M8 17h5"></path></svg></span>
-                        <h3>Select a bond to begin</h3>
-                        <p>Search for a government bond above and select it to view its market price, yields, cash flows and risk analytics.</p>
-                    </div>
-                    <p class="pb-page-note" style="margin-top: 16px;">Prices are clean prices; accrued interest is reported separately. Market YTM is as reported by the source; Calculated YTM is computed by the analytics engine.</p>
-
                 </div>
-
             </div>
         </div>
     </main>

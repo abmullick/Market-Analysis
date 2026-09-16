@@ -157,6 +157,7 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
+
 /* ---- Summary card field grid -------------------------------------------- */
 .ba-detail-grid {
     display: grid;
@@ -246,6 +247,7 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
+
 .ba-table {
     width: 100%;
     border-collapse: collapse;
@@ -279,6 +281,7 @@
 
 .ba-table .ba-num {
     text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
 /* ---- Calculation notes --------------------------------------------------- */
@@ -1064,6 +1067,7 @@ body[data-page="bond-analysis"] > header.site-header {
         transition: none;
     }
 }
+
 /* ---- Responsive ---------------------------------------------------------- */
 @media (max-width: 960px) {
     .ba-kpi-grid {
@@ -1099,11 +1103,47 @@ body[data-page="bond-analysis"] > header.site-header {
 
     .ba-bond-yield {
         margin-left: auto;
+        width: 100%;
+        text-align: right;
     }
 
     .ba-kpi-grid,
     .ba-detail-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ba-header-tools {
+        width: 100%;
+    }
+
+    .ba-sort-select {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .ba-range-chip {
+        flex: 1 1 auto;
+    }
+
+    .ba-pagination {
+        gap: 6px;
+    }
+
+    .ba-page-btn {
+        min-width: 30px;
+        height: 32px;
+        padding: 0 8px;
+        font-size: 0.75rem;
+    }
+
+    .ba-page-info {
+        font-size: 0.75rem;
+        padding: 5px 8px;
+    }
+
+    .ba-bond-meta {
+        flex-direction: column;
+        gap: 2px;
     }
 }
 
@@ -1113,95 +1153,146 @@ body[data-page="bond-analysis"] > header.site-header {
     }
 }
 
-/* ---- Page-title base (same values as .mf-page-title in
-   mutual-fund-analysis.css — the full 107KB stylesheet is not loaded here) - */
-.mf-page-title {
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    letter-spacing: -0.02em;
-    margin-bottom: 4px;
-}
-
-.mf-page-subtitle {
-    font-size: 0.9375rem;
-    color: var(--color-text-light);
-    font-weight: 400;
-    max-width: 64ch;
-}
-
-/* Section card body — always-visible counterpart of .pb-section-content
-   (which is display:none unless its collapsible section is open). */
-.ba-card-body {
-    padding: 4px 18px 18px;
-}
-
-/* ---- Tooltips — the application's existing .tooltip-trigger pattern -----
-   Same classes/markup as Mutual Fund Analysis; the definitions ride along
-   here because the shared tooltip CSS lives in that feature stylesheet,
-   which this page does not (and should not) load in full. */
-.tooltip-trigger {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 14px;
-    height: 14px;
-    font-size: 0.625rem;
-    font-weight: 700;
-    color: var(--color-text-light);
-    background: var(--color-slate-200);
-    border-radius: 50%;
-    cursor: pointer;
-    position: relative;
-    margin-left: 4px;
-    transition: background 0.15s ease, color 0.15s ease;
-}
-
-.tooltip-trigger:hover,
-.tooltip-trigger:focus {
-    background: var(--color-accent);
-    color: #ffffff;
-    outline: none;
-}
-
-.tooltip-content {
-    position: fixed;
-    z-index: 9999;
-    width: 260px;
-    padding: 8px 10px;
-    background: var(--color-primary);
-    color: #ffffff;
-    font-size: 0.75rem;
-    font-weight: 400;
-    line-height: 1.4;
-    border-radius: var(--radius-sm);
-    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.15);
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.15s ease, visibility 0.15s ease;
-    pointer-events: none;
-    white-space: normal;
-}
-
-.tooltip-content::after {
-    content: "";
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-bottom-color: var(--color-primary);
-}
-
-.tooltip-trigger:hover .tooltip-content,
-.tooltip-trigger:focus .tooltip-content {
-    opacity: 1;
-    visibility: visible;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .tooltip-content {
-        transition: none;
+/* Two-column layout for desktop */
+@media (min-width: 641px) {
+    .ba-workspace {
+        display: flex;
+        gap: 24px;
+        align-items: flex-start;
+    }
+    .ba-selector-column {
+        flex: 0 0 40%;
+        max-width: 40%;
+    }
+    .ba-analysis-column {
+        flex: 0 0 58%;
+        max-width: 58%;
+    }
+    /* Control the height of the bond list and make it scrollable */
+    .ba-bond-list {
+        max-height: 60vh;
+        overflow-y: auto;
+        margin-bottom: 0;
+    }
+    .ba-bond-item {
+        width: 100%;
     }
 }
 
+/* Improve bond row contrast */
+.ba-bond-item {
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+.ba-bond-item:hover {
+    border-color: rgba(30, 58, 95, 0.4);
+    background: #ffffff;
+}
+.ba-bond-item.selected {
+    border-color: var(--color-gold-600);
+    background: var(--color-gold-50);
+    box-shadow: 0 0 0 1px var(--color-gold-200) inset;
+    border-left-color: var(--color-gold-600);
+}
+.ba-bond-item[aria-disabled="true"] {
+    opacity: 0.62;
+    cursor: default;
+}
+
+/* T-Bill rows: ensure they are readable */
+.ba-bond-item[aria-disabled="true"] {
+    opacity: 0.8;
+    background: var(--color-bg);
+    border-color: rgba(148, 163, 184, 0.3);
+}
+.ba-bond-item[aria-disabled="true"] .ba-bond-name,
+.ba-bond-item[aria-disabled="true"] .ba-bond-meta,
+.ba-bond-item[aria-disabled="true"] .ba-bond-yield {
+    opacity: 1;
+}
+
+/* Selected state: make it obvious */
+.ba-bond-item.selected {
+    border-left: 3px solid var(--color-gold-600);
+    border-color: var(--color-gold-600);
+    background: var(--color-gold-50);
+    box-shadow: 0 0 0 1px var(--color-gold-200) inset;
+}
+
+/* Improve KPI cards readability */
+.ba-kpi {
+    background: #ffffff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+.ba-kpi-value {
+    color: var(--color-primary);
+    font-weight: 700;
+}
+.ba-kpi-label {
+    color: var(--color-text-light);
+    font-weight: 600;
+}
+
+/* Improve cash flow table readability */
+.ba-table th {
+    background: #f7f9fc;
+    border-bottom: 1px solid var(--color-border);
+    font-weight: 700;
+    color: var(--color-text-light);
+}
+.ba-table td {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+    color: var(--color-text);
+}
+.ba-table tbody tr:hover td {
+    background: rgba(30, 58, 95, 0.04);
+}
+.ba-table .ba-num {
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+/* Improve details section */
+.ba-notes {
+    color: var(--color-text-light);
+}
+.ba-notes li::before {
+    background: var(--color-gold-500);
+    opacity: 0.7;
+}
+
+/* Ensure the analysis column is scrollable if needed */
+.ba-analysis-column {
+    overflow-y: auto;
+}
+
+/* Adjust the bond list header (sort, search, etc.) to be sticky or at least visible */
+.ba-panel-head {
+    position: sticky;
+    top: 0;
+    background: linear-gradient(180deg, #fbfdff 0%, #f4f8fe 100%);
+    z-index: 10;
+}
+
+/* Make the bond list container have some padding at the bottom for the sticky header */
+.ba-bond-list {
+    margin-bottom: 16px;
+}
+
+/* Adjust the gap between columns on larger screens */
+@media (min-width: 1024px) {
+    .ba-workspace {
+        gap: 32px;
+    }
+    .ba-selector-column {
+        flex: 0 0 38%;
+        max-width: 38%;
+    }
+    .ba-analysis-column {
+        flex: 0 0 60%;
+        max-width: 60%;
+    }
+}
