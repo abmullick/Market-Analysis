@@ -575,10 +575,12 @@ def normalize_cdsl_corporate_secondary_record(
         "traded_value": traded_value,
         "trade_count": int(trade_count_raw) if trade_count_raw is not None else None,
         "trade_date": trade_date,
-        "last_traded_yield": way,
         "price": ltp,
+        # CDSL supplies a Weighted Average Yield (WAY), not a distinct
+        # last-traded yield, so last_traded_yield is deliberately None.
+        "last_traded_yield": None,
     }
-    if ltp is not None:
+    if way is not None:
         market["ytm"] = way
 
     bond = Bond(

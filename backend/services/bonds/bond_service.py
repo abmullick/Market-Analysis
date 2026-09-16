@@ -16,11 +16,13 @@ cache infrastructure is introduced.
 
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 from datetime import date, datetime
 from threading import Lock
-from typing import Any, Optional
+from typing import Any, Optional, Union
+from zoneinfo import ZoneInfo
 
 from backend.models.bonds import (
     AnalyticsResult,
@@ -36,12 +38,20 @@ from backend.services.bonds.bond_analytics import compute_analytics
 from backend.services.bonds.bond_enrichment import enrich_ccil_bonds
 from backend.services.bonds.bond_normalizer import (
     normalize_ccil_record,
+    normalize_cdsl_corporate_primary_record,
+    normalize_cdsl_corporate_secondary_record,
     normalize_rbi_record,
+    parse_date as _parse_source_date,
 )
 from backend.services.data.bonds.ccil import CcilClient
+from backend.services.data.bonds.corporate_cdsl import CdsCorporateBondClient
 from backend.services.data.bonds.nse import NseClient
 from backend.services.data.bonds.rbi import RbiClient
 from backend.utils.logging import logger
+
+# Timezone used to resolve "today" for date-defaulted corporate report
+# requests (CDSL publishes reports on the Indian calendar).
+_IST = ZoneInfo("Asia/Kolkata")
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +65,8 @@ class BondCache:
       - "list"        : list of all normalized bonds (from all sources)
       - "isin:<isin>" : normalized Bond for a specific ISIN
       - "analytics:<isin>" : AnalyticsResult for a specific ISIN
+      - "corporate:<date>" : consolidated corporate bonds (CDSL only)
+      - "corporate-isin:<date>:<isin>" : corporate Bond for one ISIN
     """
 
     def __init__(self, ttl_seconds: int = 3600):
@@ -122,6 +134,7 @@ class BondService:
         self._ccil: CcilClient | None = None
         self._nse: NseClient | None = None
         self._rbi: RbiClient | None = None
+        self._cdsl: CdsCorporateBondClient | None = None
 
     # ------------------------------------------------------------------
     # Provider lazy initialization
@@ -147,6 +160,13 @@ class BondService:
             settings = Settings()
             self._rbi = RbiClient(settings)
         return self._rbi
+
+    def _get_cdsl(self) -> CdsCorporateBondClient:
+        if self._cdsl is None:
+            from backend.config.settings import Settings
+            settings = Settings()
+            self._cdsl = CdsCorporateBondClient(settings)
+        return self._cdsl
 
     # ------------------------------------------------------------------
     # Retrieval + normalization
@@ -340,10 +360,350 @@ class BondService:
         self._cache.put(cache_key, analytics)
         return analytics
 
+    # ------------------------------------------------------------------
+    # Corporate bond pipeline (CDSL only — separate from government)
+    # ------------------------------------------------------------------
+
+    async def refresh_corporate_sources(
+        self,
+        trade_date: date | datetime | str | None = None,
+    ) -> list[Bond]:
+        """Retrieve CDSL corporate-bond reports, normalize, and cache.
+
+        This is a completely separate retrieval path from
+        ``refresh_all_sources()``: it touches ONLY the CDSL live transport
+        (secondary + primary market reports). CCIL, NSE, RBI, and the
+        government bond cache are never involved, so corporate data is
+        loaded only when a corporate endpoint explicitly requests it.
+
+        ``trade_date`` defaults to the current Indian calendar date.
+        """
+        resolved = _resolve_corporate_trade_date(trade_date)
+        cache_key = f"corporate:{resolved.isoformat()}"
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            logger.debug("Corporate bond list cache hit (%s)", cache_key)
+            return cached
+
+        logger.info("Refreshing corporate bond data from CDSL for %s", resolved)
+
+        cdsl = self._get_cdsl()
+
+        # The CDSL client is synchronous (browser transport); run the
+        # blocking retrievals off the event loop.
+        secondary_raw: list = []
+        try:
+            secondary_raw = await asyncio.to_thread(
+                cdsl.fetch_secondary_live, resolved
+            )
+        except Exception as exc:
+            logger.warning("CDSL secondary live retrieval failed: %s", exc)
+
+        primary_raw: list = []
+        try:
+            primary_raw = await asyncio.to_thread(
+                cdsl.fetch_primary_live, resolved
+            )
+        except Exception as exc:
+            logger.warning("CDSL primary live retrieval failed: %s", exc)
+
+        secondary_bonds: list[Bond] = []
+        for raw in secondary_raw:
+            try:
+                bond = normalize_cdsl_corporate_secondary_record(raw)
+                if bond is not None:
+                    secondary_bonds.append(bond)
+            except Exception as exc:
+                logger.warning(
+                    "CDSL secondary normalization failed for %s: %s",
+                    raw.isin, exc,
+                )
+
+        primary_bonds: list[Bond] = []
+        for raw in primary_raw:
+            try:
+                bond = normalize_cdsl_corporate_primary_record(raw)
+                if bond is not None:
+                    primary_bonds.append(bond)
+            except Exception as exc:
+                logger.warning(
+                    "CDSL primary normalization failed for %s: %s",
+                    raw.isin, exc,
+                )
+
+        # One normalized corporate Bond per ISIN: secondary rows become the
+        # market-observation record, primary rows only fill master fields.
+        consolidated = _consolidate_corporate_bonds(
+            secondary_bonds, primary_bonds
+        )
+
+        # Do not cache a total provider failure for the full TTL: an empty
+        # result means CDSL failed (or returned nothing), so the next
+        # request should retry rather than serve emptiness for an hour.
+        if not consolidated:
+            logger.warning(
+                "Corporate bond refresh produced no records "
+                "(secondary=%d, primary=%d); not caching so a subsequent "
+                "request can retry",
+                len(secondary_bonds), len(primary_bonds),
+            )
+            return consolidated
+
+        self._cache.put(cache_key, consolidated)
+        logger.info(
+            "Corporate bond list refreshed: %d bonds for %s "
+            "(from %d secondary, %d primary raw rows)",
+            len(consolidated), resolved,
+            len(secondary_bonds), len(primary_bonds),
+        )
+        return consolidated
+
+    async def list_corporate_bonds(
+        self,
+        issuer: str | None = None,
+        search: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str | None = None,
+        sort_dir: str = "asc",
+        trade_date: date | datetime | str | None = None,
+    ) -> list[Bond]:
+        """List normalized corporate bonds, with optional filtering/sorting.
+
+        Uses ONLY the corporate (CDSL) pipeline — never
+        ``_filtered_bonds()``/``refresh_all_sources()``.
+        """
+        results = await self.refresh_corporate_sources(trade_date)
+        results = _filter_corporate_bonds(results, issuer, search)
+        results = _sort_bonds(results, sort_by, sort_dir)
+        return results[offset: offset + limit]
+
+    async def list_corporate_bonds_page(
+        self,
+        issuer: str | None = None,
+        search: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str | None = None,
+        sort_dir: str = "asc",
+        trade_date: date | datetime | str | None = None,
+    ) -> dict:
+        """List corporate bonds as a pagination envelope.
+
+        Same envelope shape as ``list_bonds_page()``: ``total`` counts every
+        corporate bond matching the filter/search BEFORE limit/offset.
+        """
+        results = await self.refresh_corporate_sources(trade_date)
+        results = _filter_corporate_bonds(results, issuer, search)
+        total = len(results)
+        results = _sort_bonds(results, sort_by, sort_dir)
+        return {
+            "items": results[offset: offset + limit],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+    async def get_corporate_bond_by_isin(
+        self,
+        isin: str,
+        trade_date: date | datetime | str | None = None,
+    ) -> Optional[Bond]:
+        """Retrieve a single corporate bond by ISIN (CDSL data only).
+
+        Searches ONLY the corporate cached/live dataset; the government
+        pipeline (``refresh_all_sources()``) is never invoked.
+        """
+        resolved = _resolve_corporate_trade_date(trade_date)
+        cache_key = (
+            f"corporate-isin:{resolved.isoformat()}:{isin.strip().upper()}"
+        )
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        all_corporate = await self.refresh_corporate_sources(resolved)
+        for bond in all_corporate:
+            if bond.isin and bond.isin.upper() == isin.strip().upper():
+                self._cache.put(cache_key, bond)
+                return bond
+
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+# Fields a primary (issuance) record may contribute to the consolidated
+# corporate Bond when the secondary market-observation row leaves them
+# missing. Secondary values are NEVER overwritten (not even with None).
+_CORPORATE_PRIMARY_ENRICH_FIELDS = (
+    "issue_date",
+    "issue_size",
+    "issue_price",
+    "mode_of_issuance",
+    "issue_type",
+    "issuer",
+    "security_name",
+    "maturity_date",
+    "coupon_rate",
+)
+
+
+def _resolve_corporate_trade_date(
+    trade_date: date | datetime | str | None,
+) -> date:
+    """Resolve the corporate report trade date to a calendar date.
+
+    ``None`` defaults to the current Indian calendar date (Asia/Kolkata)
+    rather than the naive server/UTC date. Strings are parsed with the
+    shared source-date formats (``%d-%b-%Y``, ``%Y-%m-%d``, ...).
+    Raises ``ValueError`` for unrecognised input.
+    """
+    if trade_date is None:
+        return datetime.now(_IST).date()
+    if isinstance(trade_date, datetime):
+        return trade_date.date()
+    if isinstance(trade_date, date):
+        return trade_date
+    parsed = _parse_source_date(str(trade_date))
+    if parsed is None:
+        raise ValueError(f"Unrecognised corporate trade date: {trade_date!r}")
+    return parsed
+
+
+def _pick_representative_secondary(secondary: list[Bond]) -> Optional[Bond]:
+    """Select one representative secondary market observation.
+
+    CDSL can publish multiple secondary rows for the same ISIN (different
+    exchanges, multiple trades). Preference order:
+
+        1. Most recent ``trade_date`` (missing ranks lowest)
+        2. Greater ``trade_count``
+        3. Greater ``traded_value``
+
+    This only selects one representative observation — values are never
+    aggregated or reinterpreted. The first row encountered wins remaining
+    ties, keeping the result deterministic.
+    """
+    if not secondary:
+        return None
+
+    def _rank(bond: Bond):
+        trade_day = bond.trade_date or date(1900, 1, 1)
+        trade_count = bond.trade_count if bond.trade_count is not None else -1
+        traded_value = (
+            bond.traded_value if bond.traded_value is not None else float("-inf")
+        )
+        return (trade_day, trade_count, traded_value)
+
+    return max((bond for bond in secondary if bond is not None), key=_rank)
+
+
+def _is_missing_value(value: Any) -> bool:
+    """True when a Bond field is absent (None or blank string)."""
+    if value is None:
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    return False
+
+
+def _consolidate_corporate_bonds(
+    secondary_bonds: list[Bond],
+    primary_bonds: list[Bond],
+) -> list[Bond]:
+    """Return ONE normalized corporate Bond per ISIN.
+
+    CDSL publishes primary issuance rows and multiple secondary-market rows
+    (e.g. per exchange) for the same ISIN. The secondary-market record is
+    the market-observation record: one representative row is chosen per
+    ISIN and its market fields (exchange, listing status, LTP, VWAP,
+    weighted-average yield, trade count/value/date, credit rating) are
+    preserved untouched. Primary (issuance) information only enriches the
+    same ISIN where the secondary row leaves a master field missing:
+    issue_date, issue_size, issue_price, mode_of_issuance, issue_type,
+    issuer, security_name, maturity_date, coupon_rate. No valid value is
+    ever overwritten, and no value is fabricated. ISINs present only in
+    the primary report remain as reference (issuance) records.
+    """
+    by_isin_secondary: dict[str, list[Bond]] = {}
+    for bond in secondary_bonds:
+        if bond is None:
+            continue
+        key = (bond.isin or "").strip().upper()
+        if not key:
+            continue
+        by_isin_secondary.setdefault(key, []).append(bond)
+
+    by_isin_primary: dict[str, Bond] = {}
+    for bond in primary_bonds:
+        if bond is None:
+            continue
+        key = (bond.isin or "").strip().upper()
+        if not key or key in by_isin_primary:
+            continue
+        by_isin_primary[key] = bond
+
+    consolidated: list[Bond] = []
+    for isin, rows in by_isin_secondary.items():
+        representative = _pick_representative_secondary(rows)
+        if representative is None:
+            continue
+        primary = by_isin_primary.get(isin)
+        if primary is None:
+            consolidated.append(representative)
+            continue
+
+        updates = {
+            field: getattr(primary, field)
+            for field in _CORPORATE_PRIMARY_ENRICH_FIELDS
+            if _is_missing_value(getattr(representative, field))
+            and getattr(primary, field) is not None
+        }
+        if updates:
+            representative = representative.model_copy(update=updates)
+        consolidated.append(representative)
+
+    # Primary-only ISINs remain reference (issuance) records.
+    for isin, primary in by_isin_primary.items():
+        if isin not in by_isin_secondary:
+            consolidated.append(primary)
+
+    return consolidated
+
+
+def _filter_corporate_bonds(
+    bonds: list[Bond],
+    issuer: Optional[str] = None,
+    search: Optional[str] = None,
+) -> list[Bond]:
+    """Filter corporate bonds by issuer substring and free-text search.
+
+    Search covers security_name, isin, issuer, and credit_rating.
+    """
+    results: list[Bond] = []
+    for bond in bonds:
+        if issuer:
+            if not bond.issuer or issuer.lower() not in bond.issuer.lower():
+                continue
+        if search:
+            haystack = " ".join(
+                str(x)
+                for x in [
+                    bond.security_name,
+                    bond.isin,
+                    bond.issuer,
+                    bond.credit_rating,
+                ]
+                if x
+            ).lower()
+            if search.lower() not in haystack:
+                continue
+        results.append(bond)
+    return results
+
 
 # Sort fields supported by GET /api/bonds (additive, opt-in via sort_by).
 BOND_SORT_FIELDS = frozenset({

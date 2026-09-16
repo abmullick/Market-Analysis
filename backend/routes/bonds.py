@@ -1,14 +1,20 @@
 """Bond API routes.
 
-Routes:
+Government bond routes (CCIL + NSE + RBI pipeline):
   GET  /api/bonds                    — list/search government bonds
   GET  /api/bonds/{isin}             — retrieve bond by ISIN
   GET  /api/bonds/{isin}/market      — retrieve market observation
   GET  /api/bonds/{isin}/analytics   — retrieve analytics
 
+Corporate bond routes (CDSL pipeline — lazy-loaded, fully separate):
+  GET  /api/bonds/corporate          — list/search corporate bonds
+  GET  /api/bonds/corporate/{isin}   — retrieve corporate bond by ISIN
+
 GET /api/bonds supports opt-in server-side sorting (sort_by/sort_dir) and an
 opt-in pagination envelope (envelope=true → {items, total, limit, offset}).
 The default response remains a plain JSON list for backward compatibility.
+Corporate routes are declared BEFORE the /{isin} routes so FastAPI never
+interprets "corporate" as an ISIN.
 """
 
 from __future__ import annotations
@@ -102,6 +108,114 @@ async def list_bonds(
         sort_by=sort_by,
         sort_dir=sort_dir or "asc",
     )
+
+
+# ---------------------------------------------------------------------------
+# Corporate bond routes (CDSL pipeline — declared BEFORE /{isin} so the
+# literal "corporate" path segment is never captured as an ISIN)
+# ---------------------------------------------------------------------------
+
+@router.get("/corporate")
+async def list_corporate_bonds(
+    issuer: Optional[str] = Query(
+        None, description="Filter by issuer name (substring match)"
+    ),
+    search: Optional[str] = Query(
+        None,
+        description=(
+            "Search across security name, ISIN, issuer, and credit rating"
+        ),
+    ),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    sort_by: Optional[str] = Query(
+        None,
+        description=(
+            "Optional sort field: maturity_date, market_ytm, clean_price, "
+            "coupon_rate, security_name, instrument_type"
+        ),
+    ),
+    sort_dir: Optional[str] = Query(
+        None, description="Sort direction: asc (default) or desc"
+    ),
+    trade_date: Optional[str] = Query(
+        None,
+        description=(
+            "CDSL report trade date (e.g. 2026-09-16 or 16-Sep-2026). "
+            "Defaults to the current Indian calendar date."
+        ),
+    ),
+    envelope: bool = Query(
+        False,
+        description=(
+            "Return a {items, total, limit, offset} envelope. total counts "
+            "ALL corporate bonds matching the query (before limit/offset). "
+            "Default response remains a plain JSON list (backward "
+            "compatible)."
+        ),
+    ),
+) -> list[Bond] | BondListResponse:
+    """List corporate bonds from the CDSL reports.
+
+    Uses ONLY the corporate (CDSL) retrieval path: the government bond
+    pipeline (CCIL + NSE + RBI) is never triggered by this endpoint.
+    Supports optional issuer filter, free-text search, server-side sorting,
+    and an opt-in paginated response envelope.
+    """
+    service = get_bond_service()
+    try:
+        if envelope:
+            return await service.list_corporate_bonds_page(
+                issuer=issuer,
+                search=search,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                sort_dir=sort_dir or "asc",
+                trade_date=trade_date,
+            )
+        return await service.list_corporate_bonds(
+            issuer=issuer,
+            search=search,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_dir=sort_dir or "asc",
+            trade_date=trade_date,
+        )
+    except ValueError as exc:
+        # Unrecognised trade_date input.
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/corporate/{isin}")
+async def get_corporate_bond(
+    isin: str,
+    trade_date: Optional[str] = Query(
+        None,
+        description=(
+            "CDSL report trade date (e.g. 2026-09-16 or 16-Sep-2026). "
+            "Defaults to the current Indian calendar date."
+        ),
+    ),
+) -> Bond:
+    """Retrieve a single corporate bond by ISIN (CDSL data only).
+
+    Searches only the corporate dataset; the government bond pipeline is
+    never invoked.
+    """
+    service = get_bond_service()
+    try:
+        bond = await service.get_corporate_bond_by_isin(
+            isin, trade_date=trade_date
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if bond is None:
+        raise HTTPException(
+            status_code=404, detail=f"Corporate bond with ISIN {isin} not found"
+        )
+    return bond
 
 
 @router.get("/{isin}")
