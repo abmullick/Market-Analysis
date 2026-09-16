@@ -17,3 +17,5 @@ requests==2.33.1
 curl_cffi==0.16.3
 groq==1.7.0
 google-genai==2.20.0
+# Live CDSL corporate-bond report retrieval (headless Chromium transport)
+playwright==1.62.0
