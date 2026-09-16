@@ -1,0 +1,19 @@
+curl --url 'https://www.cdslindia.com/corporatebond/CorporateBondReports.aspx' \
+  -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7' \
+  -H 'accept-language: en-US,en;q=0.9,bn;q=0.8' \
+  -H 'cache-control: max-age=0' \
+  -H 'content-type: application/x-www-form-urlencoded' \
+  -b '_gid=GA1.2.114604365.1789586226; _ga=GA1.1.1825670468.1789586226; _ga_J0BFBWN0GT=GS2.1.s1789586226$o1$g1$t1789586380$j43$l0$h0; ADRUM_BTa=R:0|g:357787a4-3f29-40e8-bf93-4314b907eaf1|n:customer1_112866c9-5b5a-4c8d-a36f-7bad42466a35; SameSite=None; ADRUM_BT1=R:0|i:93156' \
+  -H 'origin: https://www.cdslindia.com' \
+  -H 'priority: u=0, i' \
+  -H 'referer: https://www.cdslindia.com/corporatebond/CorporateBondReports.aspx' \
+  -H 'sec-ch-ua: "Google Chrome";v="153", "Not_A Brand";v="8", "Chromium";v="153"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  -H 'sec-fetch-dest: document' \
+  -H 'sec-fetch-mode: navigate' \
+  -H 'sec-fetch-site: same-origin' \
+  -H 'sec-fetch-user: ?1' \
+  -H 'upgrade-insecure-requests: 1' \
+  -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36' \
+  --data-raw '__VIEWSTATE=9EsydXrw1MqgL6VwRnOMmc%2BCWlN%2FOWKCD0y1Fj9BgSVfaP96SkVazvpVy60dqHvQx2ajU1K2eCkmEsCT%2BMf2X1U6eWYgzAQ6N2pxYyZQGO5UUN4UeINj4xQxNF4elV1Sb%2BwMjP5RGMVjwwv5gs7UD8j9jfS2i13kpDxKlzgjc2esBtkAfjJf8dIpWQUSJNH75Q1cp8PiWP30t70XLYjfueCNCEA9atA4MZj9YGzI8era0pjtcs9psirozbPwOHZ1AjmnzQcgDVVmmc4yqwDV8yVOi9udZ0BQx9gLWapcJGSMs9Ccxnl0PsYiQHksvRZED5O737PKwX1oqulWw%2BIHdsKqcwoB3NE1hzjUzWMgUNvE%2BJ1j%2BfZsrt3ViN7l%2FuwKMR4KJT6MHuoDGqts3yvMfqKHSDI7o69BQQ2SdknIM9mU7Hz4XRyQ5%2F6xYmCnAWKcx50IsOj%2BnylZtYwwAT1UgFGE4QZ23RXB7izfc6iPBzqnENpn%2BWDCE0%2Fl1%2F%2F7ybhg9pJDH3rahxBrXxUWH1GW1NoWEzD%2FL%2BPa%2FtKhpVQovc4XyOy%2FFmW%2Bnv2Pg93RUUd5&__VIEWSTATEGENERATOR=69E68835&__EVENTVALIDATION=Oo%2B6%2FOuHgzac%2FHqvN%2BvDlhhEiix5I%2FapDcWLjitg%2FIcK%2BeBQ%2BfXgAPBcNhJPJc8f4JpvVRz7HmC0P5Pa1DvYAONMXjqHfSwrELVlcnbhdtTCVtcbx23Kgy2y860c2BdXIAXdeym%2BHRaMLCUWXpy7OrcuEFuFAf4p%2FATIa95MtZY3tl3GxaIy3anY7ygp2D7zf0XeNne4zQan%2BgxElaYjqufIhAb%2BF6BNQpyYgkjbyKC0LPuA%2BB9w7Pcl%2FvO9tkv7EfogcEeY%2BPc3pDtARnirEvQkhoU7SEXNKE5a469NFNQrCOeJlhVX6KOhWU8AgixjaElkzACCACcYxEeKWOTL2EOXqhFKEDWA5tCokRLMvopplg2A6zv1vJ3Qkg9hc%2BWGwV1icgeFHo7cg1ZbmuDjXg%3D%3D&customRadioInline1=customRadioInline1&idtradedate=September+17%2C+2026&idhdndate=&markettype_select=B&filter_select=A&search_text=&btnsearch=Search&otcidtradedate=September+17%2C+2026&otcidhdndate=&otc_filter_select=A&searchotc_text=&txtMaturityDate=September+17%2C+2026'

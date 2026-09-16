@@ -1,0 +1,815 @@
+
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+<meta name="description" content="Current date data for OTC and cash markets Primary and Secondary market trades in corporate bonds">
+	<meta name="keywords" content="OTC trades, Cash Market ,Secondary market trades in debt instruments, debt instruments primary market ">
+
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="../IncludesNew/bootstrap-5.2.3/bootstrap.min.css">
+    <script src="../IncludesNew/bootstrap-5.2.3/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="../IncludesNew/css/common/main.css">
+    <link rel="stylesheet" href="../IncludesNew/css/common/owl.carousel.min.css" />
+    <link rel="stylesheet" href="../IncludesNew/css/common/owl.theme.default.min.css" />
+    <link id="effect" rel="stylesheet" type="text/css" media="all" href="../IncludesNew/css/common/fade-down.css" />
+    <link rel="stylesheet" type="text/css" media="all" href="../IncludesNew/css/common/webslidemenu.css" />
+    <link rel="stylesheet" href="../IncludesNew/css/common/demo.css" />
+    <link href="../IncludesNew/css/common/date.css" rel="stylesheet" />
+
+    
+    <script src="../IncludesNew/js/common/main.js"></script>
+    <script src="../IncludesNew/js/libs/popper.min.js"></script>
+    <script src="../IncludesNew/js/common/owl.carousel.js"></script>
+    <script type="text/javascript" src="../IncludesNew/js/common/webslidemenu.js"></script>
+    <script src="../IncludesNew/js/common/jquery.easing.js"></script>
+    <script src="../IncludesNew/js/common/scrolling-nav.js"></script>
+    <script src="../IncludesNew/js/common/select-dropdown.js"></script>
+    <script src="../IncludesNew/js/common/date.js"></script>
+    <script src="../IncludesNew/js/common/TableExport/dist/js/Blob.js"></script>
+    <script src="../IncludesNew/js/common/TableExport/dist/js/FileSaver.js"></script>
+    <script src="../IncludesNew/js/common/TableExport/dist/js/tableexport.min.js"></script>
+
+
+    <style type="text/css">
+        .hidden {
+            display: none !important;
+        }
+        .wsmenu > .wsmenu-list > li > a::after {
+            content: "";
+        }
+    </style>
+
+    <link href="../IncludesNew/libnew/datepicker/bootstrap-datepicker.min.css" rel="stylesheet" />
+    <script src="../IncludesNew/libnew/datepicker/bootstrap-datepicker.min.js"></script>
+
+    <script type="text/javascript">
+        $(document).ready(function () {
+
+            var today = new Date();
+
+            function initDatePicker(selector) {
+                var $el = $(selector);
+
+                $el.datepicker({
+                    format: "MM d, yyyy",
+                    autoclose: true,
+                    todayHighlight: false,
+                    orientation: "bottom auto"
+                });
+
+                if (!$el.val()) {
+                    $el.datepicker('setDate', today);
+                }
+            }
+
+            initDatePicker('#idtradedate');
+            initDatePicker('#otcidtradedate');
+            initDatePicker('#txtMaturityDate');
+
+            if ($("#lblSecondarymarket").text() != "0")
+            {
+                $("#headingOne3").addClass('active');
+                $("#collapseOne3").addClass('show');
+            }
+            if ($("#lblPrimarymarket").text() != "0") {
+                $("#headingTwo4").addClass('active');
+                $("#collapseTwo4").addClass('show');
+            }
+            if ($("#lblOtcmarket").text() != "0") {
+                $("#headingOne7").addClass('active');
+                $("#collapseOne7").addClass('show');
+            }
+
+            //          if ($("#idtradedate").val() === "") {
+            //              var today = new Date();
+            //              var dd = String(today.getDate()).padStart(2, '0');
+            //              // var mm = String(today.getMonth() + 1).padStart(2, '0'); //January is 0!
+	            //var mm = today.toLocaleDateString('en-us', { month:"short"});
+            //              var yyyy = today.getFullYear();
+            //              today = mm + ' ' + dd + ',' + yyyy;
+              
+            //              $("#idtradedate").val(today); // To set todays date
+            //          }
+
+            //        if ($("#otcidtradedate").val() === "") {
+            //              var today = new Date();
+            //              var dd = String(today.getDate()).padStart(2, '0');
+            //              // var mm = String(today.getMonth() + 1).padStart(2, '0'); //January is 0!
+	            //var mm = today.toLocaleDateString('en-us', { month:"short"});
+            //              var yyyy = today.getFullYear();
+            //              today = mm + ' ' + dd + ',' + yyyy;
+              
+            //              $("#otcidtradedate").val(today); // To set todays date
+            //          }
+
+            if ($("#filter_select").val() === "A") {
+                $("#search_text").addClass('hidden');
+            }
+            else {
+                $("#search_text").removeClass('hidden');
+            }
+
+            $('.collapse').on('hidden.bs.collapse', toggleChevron);
+            $('.collapse').on('shown.bs.collapse', toggleChevron);
+
+            //CR1926
+            if ($("#otc_filter_select").val() === "A") {
+                $("#searchotc_text").addClass('hidden');
+            }
+            else {
+                $("#searchotc_text").removeClass('hidden');
+            }
+
+            if ($("#otc_filter_select").val() === "D") {
+                $(".divMaturityDate").removeClass('hidden');
+                $("#searchotc_text").addClass('hidden');
+
+            }
+            //till here
+
+            if ($(".tblSecDetails").is(":visible")) {
+                $('#linkDownload1').show();
+            } else {
+                $('#linkDownload1').hide();
+            }
+
+            if ($(".tblPriDetails").is(":visible")) {
+                $('#linkDownload2').show();
+            } else {
+                $('#linkDownload2').hide();
+            }
+
+            if ($(".tblOTCDetails").is(":visible")) {
+                $('#linkDownload3').show();
+            } else {
+                $('#linkDownload3').hide();
+            }
+
+            $("#filter_select").change(function () {
+                if ($("#filter_select").val() === "A") {
+                    $("#search_text").addClass('hidden');
+                    $("#errormsgdiv").css({ "visibility": "Hidden" });
+                    $("#search_text").css({ "borderColor": "#CCCCCC", "backgroundColor": "#FFFFFF" });
+                }
+                else {
+                    $("#search_text").val("");
+                    $("#search_text").removeClass('hidden');
+                    $("#search_text").css({ "borderColor": "#CCCCCC", "backgroundColor": "#FFFFFF" });
+                    $("#errormsgdiv").css({ "visibility": "Hidden" });
+                }
+            });
+
+            $("#otc_filter_select").change(function () {
+                if ($("#otc_filter_select").val() === "A" || $("#otc_filter_select").val() === "D") {
+                    $("#searchotc_text").val("");
+                    $("#txtMaturityDate").val("");
+                    $("#searchotc_text").addClass('hidden');
+                    $(".divMaturityDate").addClass('hidden');
+                    if ($("#otc_filter_select").val() === "D") {
+                        $(".divMaturityDate").removeClass('hidden');
+                        $("#txtMaturityDate").datepicker("setDate", $(".divMaturityDate").val());
+                    }
+                    $("#otc_errormsg").css({ "visibility": "Hidden" });
+                    $("#searchotc_text").css({ "borderColor": "#CCCCCC", "backgroundColor": "#FFFFFF" });
+                }
+                else {
+                    $("#searchotc_text").removeClass('hidden');
+                    $(".divMaturityDate").addClass('hidden');
+                    $("#searchotc_text").val("");
+                    $("#searchotc_text").css({ "borderColor": "#CCCCCC", "backgroundColor": "#FFFFFF" });
+                    $("#otc_errormsg").css({ "visibility": "Hidden" });
+                    $("#txtMaturityDate").css({ "borderColor": "#CCCCCC", "backgroundColor": "#FFFFFF" });
+                    $("#txtMaturityDate").val("");
+                }
+            });
+
+            $('#linkDownload1').click(function (evt) {
+
+                var instance = new TableExport($('.tblSecDetails'), {
+                    formats: ['xls', 'csv'],
+                    exportButtons: false
+                });
+                var exportdata = export2csv1();
+                instance.export2file(exportdata, "text/csv", "SecondaryMarketTradeData", ".csv");
+
+            });
+
+            $('#linkDownload2').click(function (evt) {
+
+                var instance = new TableExport($('.tblPriDetails'), {
+                    formats: ['xls', 'csv'],
+                    exportButtons: false
+                });
+                var exportdata = export2csv2();
+                instance.export2file(exportdata, "text/csv", "PrimaryMarketTradeData", ".csv");
+
+            });
+
+            $('#linkDownload3').click(function (evt) {
+
+                var instance = new TableExport($('.tblOTCDetails'), {
+                    formats: ['xls', 'csv'],
+                    exportButtons: false
+                });
+                var exportdata = export2csv3();
+                instance.export2file(exportdata, "text/csv", "OTCTradeData", ".csv");
+
+            });
+
+        });
+
+        function toggleChevron(e) {
+            $(e.target)
+                .prev('.panel-heading')
+                .find('i.indicator')
+                .toggleClass('fa fa-minus-circle fa fa-plus-circle');
+        }
+
+
+
+        function Validate() {
+
+            if ($("#search_text").is(":hidden") === true) {
+                return true;
+            }
+            else {
+                if ($("#search_text").val() === "" || $.trim($("#search_text").val()) === "") //CR1926
+                {
+                    $("#search_text").css({ "borderColor": "#B94A48", "backgroundColor": "#FFEEEE" });
+                    $("#errormsgdiv").css({ "visibility": "visible" });
+                    return false;
+                }
+                else {
+                    $("#search_text").css({ "borderColor": "#CCCCCC", "backgroundColor": "#FFFFFF" });
+                    $("#errormsgdiv").css({ "visibility": "Hidden" });
+                }
+            }
+
+            const regex = /^[a-zA-Z0-9 ]*$/;
+
+            if (!regex.test($("#search_text").val())) {
+                alert('Input contains invalid characters. Only letters, numbers and spaces are allowed');
+                return false;
+            }
+
+            return true;
+        }
+
+        function validateOTCSearch() {
+            if ($("#searchotc_text").hasClass('hidden') && $(".divMaturityDate").hasClass('hidden')) {
+                return true;
+            }
+            else {
+                if ($("#searchotc_text").hasClass('hidden')) {
+                    if ($("#txtMaturityDate").val() === "") {
+                        $("#txtMaturityDate").css({ "borderColor": "#B94A48", "backgroundColor": "#FFEEEE" });
+                        $("#otc_errormsg").css({ "visibility": "visible" });
+                        return false;
+                    }
+                }
+                else {
+                    if ($("#searchotc_text").val() === "" || $.trim($("#searchotc_text").val()) === "") {
+                        $("#searchotc_text").css({ "borderColor": "#B94A48", "backgroundColor": "#FFEEEE" });
+                        $("#otc_errormsg").css({ "visibility": "visible" });
+                        return false;
+                    }
+                }
+            }
+
+            const regex = /^[a-zA-Z0-9 ]*$/;
+
+            if (!regex.test($("#searchotc_text").val())) {
+                alert('Input contains invalid characters. Only letters, numbers and spaces are allowed');
+                return false;
+            }
+
+            return true;
+        }
+
+        function hideShowDiv(obj) {
+            if (obj == 'rdbCashMarket') {
+                document.getElementById("searchcrit").style.display = "block";
+                document.getElementById("otcsearchcrit").style.display = "none";
+                document.getElementById("tradedata").style.display = "block";
+                document.getElementById("otcdata").style.display = "none"
+            }
+            else {
+                if (obj == 'rdbOTCData') {
+
+                    document.getElementById("searchcrit").style.display = "none";
+                    document.getElementById("otcsearchcrit").style.display = "block";
+                    document.getElementById("tradedata").style.display = "none";
+                    document.getElementById("otcdata").style.display = "block"
+
+                }
+            }
+        }
+
+        function ShowPopUp(isin) {
+            window.open("CorpBondDatabase.aspx?ISIN=" + isin);
+        }
+
+        function export2csv1() {
+            var strexportdata = "";
+
+            var headers = ["Exchange", "Trade Date", "ISIN", "Listed/Unlisted security", "Issuer name", "Issue Description", "Coupon(%)", "Maturity Date", "Credit Rating", "Number of Trades", "Total Trade Value (Rs. Lakhs)", "Last Traded Price (in Rs.)", "weighted Average price (VWAP)", "Weighted Average Yield", "Remark"];
+            strexportdata = strexportdata.concat(headers.join()).concat("\r\n");
+
+            $('.tblSecDetails tr').each(function (index, tr) {
+
+                var tempdata = "";
+
+                $(tr).find('td').each(function (index, td) {
+
+                    if (index === 2) {
+                        tempdata = tempdata + $('a', this).text() + ",";
+                    }
+                    else {
+
+                        if (index === 14) {
+                            tempdata = tempdata + this.innerText;
+                        }
+                        else {
+                            tempdata = tempdata + this.innerText + ",";
+                        }
+
+                    }
+
+                });
+
+                strexportdata = strexportdata.concat(tempdata).concat("\r\n");
+
+            });
+
+            return strexportdata;
+
+        }
+
+        function export2csv2() {
+            var strexportdata = "";
+
+            var headers = ["ISIN", "Temporary Isin", "Issuer Name", "Issue Description", "Issue Type", "Issue Size (In Cr.)", "Issue Price (Rs.)", "Issue Date", "Date of Maturity", "Coupon Rate (%)", "Mode of Issuance"];
+            strexportdata = strexportdata.concat(headers.join()).concat("\r\n");
+
+            $('.tblPriDetails tr').each(function (index, tr) {
+
+                var tempdata = "";
+
+                $(tr).find('td').each(function (index, td) {
+
+                    if (index === 0) {
+                        tempdata = tempdata + $('a', this).text() + ",";
+                    }
+                    else {
+
+                        if (index === 10) {
+                            tempdata = tempdata + this.innerText;
+                        }
+                        else {
+                            tempdata = tempdata + this.innerText + ",";
+                        }
+
+                    }
+
+                });
+
+                strexportdata = strexportdata.concat(tempdata).concat("\r\n");
+
+            });
+
+            return strexportdata;
+
+        }
+
+        function export2csv3() {
+            var strexportdata = "";
+
+            var headers = ["Exchange", "Trade Date", "ISIN", "Listed/Unlisted security", "Issuer name", "Issue Description", "Coupon(%)", "Maturity Date", "Credit Rating", "Number of Trades", "Total Trade Value (Rs. Lakhs)", "Last Traded Price (in Rs.)", "weighted Average price (VWAP)", "Weighted Average Yield", "Remark"];
+            strexportdata = strexportdata.concat(headers.join()).concat("\r\n");
+
+            $('.tblOTCDetails tr').each(function (index, tr) {
+
+                var tempdata = "";
+
+                $(tr).find('td').each(function (index, td) {
+
+                    if (index === 2) {
+                        tempdata = tempdata + $('a', this).text() + ",";
+                    }
+                    else {
+
+                        if (index === 14) {
+                            tempdata = tempdata + this.innerText;
+                        }
+                        else {
+                            tempdata = tempdata + this.innerText + ",";
+                        }
+
+                    }
+
+                });
+
+                strexportdata = strexportdata.concat(tempdata).concat("\r\n");
+
+            });
+
+            return strexportdata;
+
+        }
+
+        //till here
+    </script>
+
+    <title>CDSL | Trade Repository</title>
+</head>
+<body>
+    <!-- header -->
+    <script src="../IncludesNew/js/common/CorporateBondHeader.js"></script>
+    <!--header end -->
+
+    <section class="content-warpper padding clr" style="padding-bottom: 0;">
+        <div class="container">
+            <div class="row">
+                <div class="breadcrumb-container">
+                    <nav aria-label="Breadcrumb">
+                        <ul class="breadcrumb">
+                            <li>
+                                <a href="../index.html">Home
+                                    <img src="../IncludesNew/images/common/arrow.png" alt="" aria-hidden="true" />
+                                </a>
+                            </li>
+                            <li>
+                                <a href="../CorporateBond/introduction.html">Corporate Bond
+                                    <img src="../IncludesNew/images/common/arrow.png" alt="" aria-hidden="true" />
+                                </a>
+                            </li>
+                            <li>
+                                Corporate Bond Reports
+                            </li>
+                        </ul>
+                    </nav>
+
+                    <div class="print-btn">
+                        <a href="javascript:window.print()" title="Print">
+                            <img src="../IncludesNew/images/common/Printer.png" alt="Print page" />
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container clr" id="section7">
+            <div class="row">
+                <div class="overview_div">
+                    <div class="row">
+                        
+                        <h2 class="title_big">Corporate Bonds
+                                    Reports
+                                </h2>
+                        <div class="col-lg-12 col-md-12 col-sm-12 padding-left">
+                            <div class="text-div_2 pt-30">
+
+                                
+
+                                <form method="post" action="./CorporateBondReports.aspx" id="ctl00" class="container py-4">
+<div class="aspNetHidden">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="omaLApNMfygevjyCh/pcH0lREbYcUI31H2PAgA8N7Mp5UrcL5NCafSR9eCUkDRPoy8GT/o3sjNqM1hfb0JNFEuZWi9tl08T7nWSeTdeEw3s+jYLD+ETUsEl+yvZH0hR67kuARV5LlETehceHP2gVersnQUsTaHJcmkdBGPTBi72GAQVstlh5hoHQ+3eC8Ig3DEp/ilibBIyqoapfHxUJWeBp8kseFZTtCW1rhwClx5CYJD7yqIEuAtaISky6tX7JF3Za+OGexOeZQFFVDqLDw6iOQYLZ+pG3bMr3IAJIQCz+tKeiVHSq7gbNeoDyETSEZWuAi5KiWVNnPQAzrnnKccgSgPGuUsow1kQk8HMsm98v7yPK1i+8shDm4ThJEWYU/Kx3UpCHJEguaAIuiQqSXiuy1dpRk4V3usXJoBXsbW1E4RT/cgvTEo3aLVASf2ZfsDu+4BQYhSJxH8DoosZ2ngOkn/jUvq9ED9YMHzZ2QyHcuwqaT7m2hGt5SuZ6CTMdyb2STrx+IldsnPZz3EpH+8Fu31t5CzS6byAODZLplhUJPRmysZ1zWoe+GWlVvHfg" />
+</div>
+
+<div class="aspNetHidden">
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="69E68835" />
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="aJgOljtYbSc1nO5MBVQ/SnYULmqItbyK3LK2+GE3BP3JmiNacN/Hs+jpUi1Ax7OfBrR+bYBhir6l5CC1L7o5VaTR6Yc0U8uRJpuZ5rUQXCHsBj2NrmA6WpstrC8HWlleoHf2HP8B/xLJwxZi+eSJ1H1KiOqr58azDMzR49SDsZhPLfyLpuzxfHhRO+8pO+y40jVgOW3obe7g85OE2wcTIVkyds8l3A/u12FOFG+gLqEHLJZORqxOfbCjizGf4MRf90ZFT9G8ynVtwh8rVuS+6D06pef7+Kz824S3TwoJbjf87ccDrj44sHlZSCsquyRxuzCrivpIuFvSPKGaiWQ9+gUF4hnbUYJ7OCcGPh+fzZWdkDadV8WG4oKUftQptPn2bs1Jgca3kzUOA0cSC1EKNQ==" />
+</div>
+
+                                    <!-- Radio Selection for Cash Markets / OTC Trades -->
+                                    <div class="row mb-4">
+                                        <div class="col-12 col-lg-7 col-md-7">
+                                            <div class="d-flex flex-column flex-md-row gap-3">
+                                                <div class="form-check">
+                                                    <input value="customRadioInline1" name="customRadioInline1" type="radio" id="customRadioInline1" class="form-check-input" checked="checked" onclick="hideShowDiv(&#39;rdbCashMarket&#39;)" />
+                                                    <label class="form-check-label" for="customRadioInline1">Cash Markets</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input value="customRadioInline2" name="customRadioInline1" type="radio" id="customRadioInline2" class="form-check-input" onclick="hideShowDiv(&#39;rdbOTCData&#39;)" />
+                                                    <label class="form-check-label" for="customRadioInline2">OTC Trades</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Cash Market Search -->
+                                    <div id="searchcrit">
+                                        <div class="row mb-3">
+                                            <div class="col-12 col-md-2">
+                                                <label for="idtradedate" class="form-label">Trade Date</label>
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <div class="input-group">
+                                                    <input name="idtradedate" type="text" id="idtradedate" class="form-control" placeholder="Enter Trade Date" autocomplete="on" />
+                                                    <span class="input-group-text">
+                                                        <i class="fa fa-calendar"></i>
+                                                    </span>
+                                                </div>
+                                                <input name="idhdndate" type="hidden" id="idhdndate" class="form-control" />
+                                            </div>
+                                        </div>
+
+                                        <div class="row mb-3 align-items-end">
+                                            <div class="col-12 col-md-2">
+                                                <label class="form-label">Search Criteria</label>
+                                            </div>
+                                            <div class="col-12 col-md-4 mb-2 mb-md-0">
+                                                <select name="markettype_select" id="markettype_select" class="form-select">
+	<option value="B">Secondary Plus Primary Market</option>
+	<option value="S">Secondary Market</option>
+	<option value="P">Primary Market</option>
+</select>
+                                            </div>
+                                            <div class="col-12 col-md-2 mb-2 mb-md-0">
+                                                <select name="filter_select" id="filter_select" class="form-select">
+	<option value="A">For all</option>
+	<option value="N">By Issuer Name</option>
+	<option value="I">By ISIN</option>
+	<option value="C">By Credit Rating</option>
+</select>
+                                            </div>
+                                            <div class="col-12 col-md-4">
+                                                <input name="search_text" type="text" id="search_text" class="form-control hidden" autocomplete="off" placeholder="Search Criteria here" />
+                                                <div id="errormsgdiv" class="form-text text-danger" style="visibility: hidden;" aria-live="polite" role="status">Enter Search Field.</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="row mb-4">
+                                            <div class="col-12 col-md-2">
+                                                <input type="submit" name="btnsearch" value="Search" onclick="return Validate();" id="btnsearch" Class="btn btn-primary w-100" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- OTC Trades Search -->
+                                    <div id="otcsearchcrit" style="display: none;">
+                                        <div class="row mb-3">
+                                            <div class="col-12 col-md-2">
+                                                <label for="otcidtradedate" class="form-label">Trade Date</label>
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <div class="input-group">
+                                                    <input name="otcidtradedate" type="text" id="otcidtradedate" class="form-control" placeholder="Enter Trade Date" autocomplete="on" />
+                                                    <span class="input-group-text">
+                                                        <i class="fa fa-calendar"></i>
+                                                    </span>
+                                                </div>
+                                                <input name="otcidhdndate" type="hidden" id="otcidhdndate" class="form-control" />
+                                            </div>
+                                        </div>
+
+                                        <div class="row mb-3 align-items-end">
+                                            <div class="col-12 col-md-2">
+                                                <label class="form-label">Search Criteria</label>
+                                            </div>
+                                            <div class="col-12 col-md-4 mb-2 mb-md-0">
+                                                <select name="otc_filter_select" id="otc_filter_select" class="form-select">
+	<option value="A">For all</option>
+	<option value="N">By Issuer Name</option>
+	<option value="I">By ISIN</option>
+	<option value="C">By Exchange</option>
+	<option value="D">By Maturity Date</option>
+</select>
+                                            </div>
+                                            <div class="col-12 col-md-4">
+                                                <input name="searchotc_text" type="text" id="searchotc_text" class="form-control hidden" autocomplete="off" />
+                                                <div class="calendar divMaturityDate hidden">
+                                                    <input name="txtMaturityDate" type="text" id="txtMaturityDate" class="form-control" placeholder="Enter Maturity Date" autocomplete="on" />
+                                                </div>
+                                                <div id="otc_errormsg" class="form-text text-danger" style="visibility: hidden;" aria-live="polite" role="status">Enter Search Field.</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="row mb-4">
+                                            <div class="col-12 col-md-2">
+                                                <input type="submit" name="btnsearchOTC" value="Search" onclick="return validateOTCSearch();" id="btnsearchOTC" Class="btn btn-primary w-100" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </form>
+
+
+                                <div id="tradedata" class="wrapper center-block min-height clr">
+                                    <div class="panel-group " id="accordion" role="tablist" aria-multiselectable="true">
+                                        <div id="secondrypanel" class="panel panel-default">
+                                            <div class="panel-heading" role="tab" id="headingOne3">
+                                                <h4 class="panel-title">
+                                                    <a role="button" data-bs-toggle="collapse" data-bs-parent="#accordion" href="#collapseOne3" aria-expanded="true" aria-controls="collapseOne3">Secondary Market Trade Data For 17-Sep-2026
+                                                    </a>
+                                                </h4>
+                                            </div>
+                                            <div id="collapseOne3" class="panel-collapse collapse" role="tabpanel" aria-labelledby="headingOne3">
+                                                <div>
+                                                    <a class="float-right" id="linkDownload1" href="#">Download</a>
+                                                </div>
+                                                <div class="panel-body" style="width:108%">
+                                                    <div class="table-2 table-responsive">
+
+                                                        
+                                                                <div style="text-align: center">
+                                                                    <span style="color: red; font-weight: bold;">No Data Is Available For Secondary Market.</span>
+                                                                </div>
+
+                                                            
+
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="primarypanel" class="panel panel-default clr">
+                                            <div class="panel-heading" role="tab" id="headingTwo4">
+                                                <h4 class="panel-title">
+                                                    <a class="collapsed" role="button" data-bs-toggle="collapse" data-bs-parent="#accordion" href="#collapseTwo4" aria-expanded="false" aria-controls="collapseTwo4">Primary Issuance Data For 17-Sep-2026
+                                                    </a>
+                                                </h4>
+                                            </div>
+                                            <div id="collapseTwo4" class="panel-collapse collapse" role="tabpanel" aria-labelledby="headingTwo4">
+                                                <div>
+                                                    <a class="float-right" id="linkDownload2" href="#">Download</a>
+                                                </div>
+                                                <div class="panel-body" style="width:108%">
+
+                                                    <div class="table-2 table-responsive">
+
+                                                        
+                                                                <div style="text-align: center">
+                                                                    <span style="color: red; font-weight: bold;">No Data Is Available For Primary Market.</span>
+                                                                </div>
+                                                            
+
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div>
+
+
+                                    </div>
+                                </div>
+
+                                <div id="otcdata" class="wrapper center-block min-height clr" style="display: none">
+                                    <div class="panel-group " id="accordion1" role="tablist" aria-multiselectable="true">
+                                        <div id="secondrypanel1" class="panel panel-default">
+                                            <div class="panel-heading" role="tab" id="headingOne7">
+                                                <h4 class="panel-title">
+                                                    <a role="button" data-bs-toggle="collapse" data-bs-parent="#accordion1" href="#collapseOne7" aria-expanded="true" aria-controls="collapseOne7">OTC Trade Data For 17-Sep-2026
+                                                    </a>
+                                                </h4>
+                                            </div>
+                                            <div id="collapseOne7" class="panel-collapse collapse" role="tabpanel" aria-labelledby="headingOne7">
+                                                <div>
+                                                    <a class="float-right" id="linkDownload3" href="#">Download</a>
+                                                </div>
+                                                <div class="panel-body">
+                                                    <div class="table-2 table-responsive">
+
+                                                        
+                                                                <div style="text-align: center">
+                                                                    <span style="color: red; font-weight: bold;">No Data Is Available For OTC Trades.</span>
+                                                                </div>
+
+                                                            
+
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                <span id="lblSecondarymarket" class="hidden">0</span>
+                                <span id="lblPrimarymarket" class="hidden">0</span>
+                                <span id="lblOtcmarket" class="hidden">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+        </div>
+
+    </section>
+
+
+    <!-- footer -->
+    <script src="../IncludesNew/js/common/footer.js"></script>
+    <!-- footer end -->
+
+    <div class="update">
+        <h3 style="text-align: center; font-size: 12px">Page last updated on May 20, 2020&nbsp;&nbsp;&nbsp; Dept:Operations</h3>
+    </div>
+
+    
+    <!-- footer end -->
+
+    <div class="modal fade" id="exampleModalCenter" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalCenterTitle">Login</h5>
+                    <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="poup-holder">
+                        <div class="row">
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio1" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio1">
+                                            New
+                                            System Myeasi (BO/CM)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio2" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio2">
+                                            CAS/
+                                            Declare Bonafide
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio3" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio3">Myeasi</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio4" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio4">DDP</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio5" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio5">
+                                            Unlisted
+                                            Companies (Admission)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio6" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio6">
+                                            Register
+                                            - Training
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <a href="#" class="login-btn">Login</a>
+                        </div>
+                    </div>
+                </div>
+                <!-- <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                  <button type="button" class="btn btn-primary">Save changes</button>
+                </div> -->
+            </div>
+        </div>
+    </div>
+
+
+    <script src="../IncludesNew/js/common/script.js"></script>
+</body>
+</html>
