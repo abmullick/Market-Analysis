@@ -558,10 +558,17 @@ def normalize_cdsl_corporate_secondary_record(
     trade_count_raw = parse_float(raw.number_of_trades or "")
 
     credit_rating = _clean_str(raw.credit_rating_raw)
+    # CDSL uses "-" as a "no rating" sentinel; treat it as missing.
+    if credit_rating in ("-", "--", "N/A", "NA", "n/a"):
+        credit_rating = None
+    listing_status = _clean_str(raw.listed_unlisted)
+    if listing_status in ("-", "--", "N/A", "NA", "n/a"):
+        listing_status = None
 
     market: dict = {
         "source": "CDSL",
         "data_type": DataType.TRADED,
+        "exchange": _clean_str(raw.exchange),
         "last_traded_price": ltp,
         "weighted_average_price": vwap,
         "weighted_average_yield": way,

@@ -56,6 +56,22 @@ def _clean(s: Optional[str]) -> Optional[str]:
     return t or None
 
 
+# Source sentinel values CDSL uses for "no data" in optional text columns.
+_SENTINELS = {"-", "--", "N/A", "NA", "n/a", "nan", "NaN", "NIL", "Nil"}
+
+
+def _clean_field(s: Optional[str]) -> Optional[str]:
+    """Trim and normalize optional textual source fields.
+
+    Blank values and CDSL "no data" sentinels (``-``, ``N/A`` …) become
+    ``None``; everything else is preserved verbatim.
+    """
+    t = _clean(s)
+    if t is None:
+        return None
+    return None if t in _SENTINELS else t
+
+
 def _num(s: Optional[str]) -> Optional[float]:
     """Parse a numeric string, returning ``None`` for blanks/invalid values."""
     if not s:
@@ -181,13 +197,13 @@ def parse_primary_csv(content: str) -> List[CdslCorporateBondPrimaryRawRecord]:
         temporary_isin = _clean(_col("Temporary Isin"))
         issuer_name = _clean(_col("Issuer Name"))
         issue_description = _clean(_col("Issue Description"))
-        issue_type = _clean(_col("Issue Type"))
+        issue_type = _clean_field(_col("Issue Type"))
         issue_size_raw = _clean(_col("Issue Size (In Cr.)"))
         issue_price_raw = _clean(_col("Issue Price (Rs.)"))
         issue_date = _parse_date(_clean(_col("Issue Date")))
         maturity_date = _parse_date(_clean(_col("Date of Maturity")))
         coupon_rate_raw = _clean(_col("Coupon Rate (%)"))
-        mode_of_issuance = _clean(_col("Mode of Issuance"))
+        mode_of_issuance = _clean_field(_col("Mode of Issuance"))
 
         out.append(
             CdslCorporateBondPrimaryRawRecord(
@@ -364,20 +380,20 @@ def parse_secondary_csv(content: str) -> List[CdslCorporateBondSecondaryRawRecor
         if not isin:
             continue
 
-        exchange = _clean(_col("Exchange"))
+        exchange = _clean_field(_col("Exchange"))
         trade_date = _parse_date(_clean(_col("Trade Date")))
-        listed_unlisted = _clean(_col("Listed/Unlisted security"))
-        issuer_name = _clean(_col("Issuer name"))
-        issue_description = _clean(_col("Issue Description"))
-        coupon_rate_raw = _clean(_col("Coupon(%)"))
+        listed_unlisted = _clean_field(_col("Listed/Unlisted security"))
+        issuer_name = _clean_field(_col("Issuer name"))
+        issue_description = _clean_field(_col("Issue Description"))
+        coupon_rate_raw = _clean_field(_col("Coupon(%)"))
         maturity_date = _parse_date(_clean(_col("Maturity Date")))
-        credit_rating_raw = _clean(_col("Credit Rating"))
+        credit_rating_raw = _clean_field(_col("Credit Rating"))
         number_of_trades = _clean(_col("Number of Trades"))
         total_trade_value_raw = _clean(_col("Total Trade Value (Rs. Lakhs)"))
         last_traded_price_raw = _clean(_col("Last Traded Price (in Rs.)"))
         vwap_raw = _clean(_col("weighted Average price (VWAP)"))
         weighted_average_yield_raw = _clean(_col("Weighted Average Yield"))
-        remark = _clean(_col("Remark"))
+        remark = _clean_field(_col("Remark"))
 
         out.append(
             CdslCorporateBondSecondaryRawRecord(
