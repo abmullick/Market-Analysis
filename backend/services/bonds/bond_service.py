@@ -30,6 +30,7 @@ from backend.models.bonds import (
     BondListQuery,
     CcilRawRecord,
     DataType,
+    DayCountConvention,
     InstrumentType,
     NseRawRecord,
     RbiRawRecord,
@@ -531,7 +532,7 @@ class BondService:
                 try:
                     rich = await self._get_corporate_rich_detail(bond.isin.upper())
                     if rich is not None:
-                        bond = self._merge_rich_detail_into_bond(bond, rich)
+                        bond = _merge_rich_detail_into_bond(bond, rich)
                 except Exception as exc:
                     logger.debug(
                         "CDSL rich detail enrichment skipped for %s: %s",
