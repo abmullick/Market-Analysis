@@ -24,7 +24,7 @@
             <div id="bond-analysis-content">
                 <div class="pb-page-header-text">
                     <h1 class="mf-page-title">Bond Analysis</h1>
-                    <p class="mf-page-subtitle">Market prices, yields and fixed-income analytics for government bonds &mdash; G-Secs, SDLs and T-Bills.</p>
+                    <p class="mf-page-subtitle">Market prices, yields and fixed-income analytics for government and corporate bonds.</p>
                 </div>
                 <div class="pb-stage" id="ba-stage">
                     <div class="ba-workspace">
@@ -48,6 +48,11 @@
                                     </div>
                                 </div>
                                 <p class="ba-section-sub">Search by security name, ISIN or issuer, then select a bond to see its market data and analytics.</p>
+                                <div id="ba-universe-switch" class="ba-header-tools" role="group" aria-label="Bond universe">
+                                    <span class="ba-tool-label">Universe</span>
+                                    <button type="button" class="ba-page-btn ba-universe-btn is-active" id="ba-universe-government" data-universe="government" aria-pressed="true">Government Bonds</button>
+                                    <button type="button" class="ba-page-btn ba-universe-btn" id="ba-universe-corporate" data-universe="corporate" aria-pressed="false">Corporate Bonds</button>
+                                </div>
                                 <div class="ba-search-bar ba-toolbar">
                                     <svg class="ba-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                                     <input type="search" id="ba-search-input" class="ba-search-input" placeholder="Search bonds by name, ISIN, or issuer..." autocomplete="off" aria-label="Search bonds">
@@ -56,6 +61,9 @@
                                         <option value="G-Sec">G-Sec</option>
                                         <option value="SDL">SDL</option>
                                         <option value="T-Bill">T-Bill</option>
+                                    </select>
+                                    <select id="ba-corporate-type-filter" class="ba-filter-select hidden" aria-label="Corporate bond filter">
+                                        <option value="" selected>All</option>
                                     </select>
                                 </div>
                                 <p id="ba-selector-status" class="ba-section-sub ba-selector-status hidden" role="status" aria-live="polite"></p>
@@ -154,7 +162,7 @@
                             <div id="ba-detail-empty" class="ba-empty-state ba-after-panel hidden">
                                 <span class="ba-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 9h8M8 13h8M8 17h5"></path></svg></span>
                                 <h3>Select a bond to begin</h3>
-                                <p>Search for a government bond above and select it to view its market price, yields, cash flows and risk analytics.</p>
+                                <p>Search for a bond above and select it to view its market data and analytics.</p>
                             </div>
                             <p class="pb-page-note" style="margin-top: 16px;">Prices are clean prices; accrued interest is reported separately. Market YTM is as reported by the source; Calculated YTM is computed by the analytics engine.</p>
                         </div>

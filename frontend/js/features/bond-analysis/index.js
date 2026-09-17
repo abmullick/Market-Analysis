@@ -1,10 +1,15 @@
-// Bond Analysis — first production UI slice.
+// Bond Analysis — production UI slice.
 // Wires the page to the EXISTING bond APIs (no new backend, no client-side
 // financial computation):
-//   GET /api/bonds                    — list/search bonds
-//   GET /api/bonds/{isin}             — bond by ISIN
-//   GET /api/bonds/{isin}/market      — market observation
-//   GET /api/bonds/{isin}/analytics   — computed analytics
+//   GET /api/bonds                       — list/search government bonds
+//   GET /api/bonds/corporate             — list/search corporate bonds (CDSL)
+//   GET /api/bonds/{isin}                — government bond by ISIN
+//   GET /api/bonds/{isin}/market         — market observation
+//   GET /api/bonds/{isin}/analytics      — computed analytics
+//   GET /api/bonds/corporate/{isin}      — corporate bond by ISIN
+//
+// Government and Corporate are SEPARATE lazy-loaded universes: only the
+// active universe is ever requested, never both together.
 //
 // All financial values are rendered exactly as returned by the backend.
 // Market YTM comes from the source/market observation; Calculated YTM comes
@@ -21,8 +26,13 @@ const state = {
     searchSeq: 0,       // guards against out-of-order search responses
     loadSeq: 0,         // guards against out-of-order bond loads
     selectedIsin: null,
-    page: 1,            // 1-based selector page
-    total: 0,           // total bonds matching the current query (from envelope)
+    universe: "government", // active universe: "government" | "corporate"
+    universes: {            // per-universe pagination state (lazy-loaded)
+        government: { page: 1, total: 0, visited: true },
+        corporate:  { page: 1, total: 0, visited: false },
+    },
+    page: 1,            // 1-based selector page (ACTIVE universe)
+    total: 0,           // total bonds matching the current query (ACTIVE universe)
     sortBy: "maturity_date",
     sortDir: "asc",
 };
@@ -82,9 +92,12 @@ function couponFrequencyLabel(freq) {
 async function searchBonds() {
     const seq = ++state.searchSeq;
     const q = $("ba-search-input").value.trim();
-    const type = $("ba-type-filter").value;
+    const isCorporate = state.universe === "corporate";
+    const type = isCorporate ? "" : $("ba-type-filter").value;
 
-    // Server-side pagination + sorting (backend-provided values only).
+    // Server-side pagination + sorting (backend-provided values only). The
+    // corporate universe is a separate CDSL endpoint and does not support the
+    // government instrument_type filter, so it is never sent there.
     const params = new URLSearchParams();
     if (q) params.set("search", q);
     if (type) params.set("instrument_type", type);
@@ -99,7 +112,7 @@ async function searchBonds() {
 
     let data;
     try {
-        data = await api.get(`/bonds?${params.toString()}`);
+        data = await api.get(`${isCorporate ? "/bonds/corporate" : "/bonds"}?${params.toString()}`);
     } catch (err) {
         if (seq !== state.searchSeq) return;
         setSelectorStatus("");
@@ -135,10 +148,15 @@ async function searchBonds() {
     $("ba-bond-list").innerHTML = list.map((b) => {
         const isin = b.isin || "";
         const name = b.security_name || isin || "Unnamed security";
-        const ytm = b.ytm != null ? formatPct(b.ytm) : "N/A";
+        // Government rows keep using the market YTM exactly as before;
+        // corporate (CDSL) rows may fall back to the weighted-average yield.
+        const ytmValue = b.ytm != null ? b.ytm
+            : (isCorporate && b.weighted_average_yield != null ? b.weighted_average_yield : null);
+        const ytm = ytmValue != null ? formatPct(ytmValue) : "N/A";
         const meta = [
             isin ? `<span class="ba-bond-meta-isin">${escapeHtml(isin)}</span>` : '<span>No ISIN reported</span>',
             b.instrument_type ? `<span>${escapeHtml(b.instrument_type)}</span>` : "",
+            b.credit_rating ? `<span>${escapeHtml(b.credit_rating)}</span>` : "",
             b.issuer ? `<span>${escapeHtml(b.issuer)}</span>` : "",
             b.maturity_date ? `<span>Matures ${escapeHtml(formatDate(b.maturity_date))}</span>` : "",
         ].join("");
@@ -174,6 +192,71 @@ function showError(message) {
 function hideError() {
     const el = $("ba-error");
     if (el) el.classList.add("hidden");
+}
+
+// ---------------------------------------------------------------------------
+// Universe switching — Government and Corporate are separate lazy-loaded
+// datasets. Only the ACTIVE universe is ever requested; the inactive one is
+// never fetched in the background.
+// ---------------------------------------------------------------------------
+
+function updateUniverseControls() {
+    const isCorporate = state.universe === "corporate";
+    const govBtn = $("ba-universe-government");
+    const corpBtn = $("ba-universe-corporate");
+    if (govBtn) {
+        govBtn.classList.toggle("is-active", !isCorporate);
+        govBtn.setAttribute("aria-pressed", String(!isCorporate));
+    }
+    if (corpBtn) {
+        corpBtn.classList.toggle("is-active", isCorporate);
+        corpBtn.setAttribute("aria-pressed", String(isCorporate));
+    }
+    // The instrument-type selector (All | G-Sec | SDL | T-Bill) is a
+    // government-only control; corporate shows its own filter area instead.
+    const govFilter = $("ba-type-filter");
+    const corpFilter = $("ba-corporate-type-filter");
+    if (govFilter) govFilter.classList.toggle("hidden", isCorporate);
+    if (corpFilter) corpFilter.classList.toggle("hidden", !isCorporate);
+}
+
+function resetDetailPanel() {
+    $("ba-results").classList.add("hidden");
+    $("ba-detail-empty").classList.remove("hidden");
+    $("ba-error").classList.add("hidden");
+}
+
+function setUniverse(next) {
+    if (!next || next === state.universe || !state.universes[next]) return;
+
+    // Preserve the outgoing universe's pagination state.
+    state.universes[state.universe].page = state.page;
+    state.universes[state.universe].total = state.total;
+
+    state.universe = next;
+    const target = state.universes[next];
+    // A universe starts at page 1 on its FIRST visit only; its page is
+    // preserved on later visits.
+    if (!target.visited) {
+        target.page = 1;
+        target.visited = true;
+    }
+    state.page = target.page;
+    state.total = target.total;
+
+    // Invalidate any in-flight search/bond load from the previous universe
+    // (stale-response protection) and clear the selection, which belonged to
+    // the previous universe's dataset.
+    state.searchSeq++;
+    state.loadSeq++;
+    state.selectedIsin = null;
+
+    updateUniverseControls();
+    resetDetailPanel();
+    $("ba-range-chip").textContent = "";
+    $("ba-result-count").textContent = "";
+
+    searchBonds();
 }
 
 // ---------------------------------------------------------------------------
@@ -289,13 +372,22 @@ async function selectBond(isin) {
 
     // Market YTM (source observation) and Calculated YTM (analytics) come
     // from their own endpoints; the frontend never derives one from the other.
+    // Corporate bonds use ONLY the corporate detail endpoint for this step —
+    // the government detail/market/analytics endpoints are never called for
+    // them, and no analytics are computed client-side (neutral N/A instead).
     let bond, market, analytics;
     try {
-        [bond, market, analytics] = await Promise.all([
-            api.get(`/bonds/${encodeURIComponent(isin)}`),
-            api.get(`/bonds/${encodeURIComponent(isin)}/market`),
-            api.get(`/bonds/${encodeURIComponent(isin)}/analytics`),
-        ]);
+        if (state.universe === "corporate") {
+            bond = await api.get(`/bonds/corporate/${encodeURIComponent(isin)}`);
+            market = null;
+            analytics = {};
+        } else {
+            [bond, market, analytics] = await Promise.all([
+                api.get(`/bonds/${encodeURIComponent(isin)}`),
+                api.get(`/bonds/${encodeURIComponent(isin)}/market`),
+                api.get(`/bonds/${encodeURIComponent(isin)}/analytics`),
+            ]);
+        }
     } catch (err) {
         if (seq !== state.loadSeq) return;
         $("ba-results").classList.add("hidden");
@@ -317,6 +409,7 @@ const MARKET_FIELDS = [
     "price", "clean_price", "dirty_price", "ytm",
     "bid_price", "bid_yield", "offer_price", "offer_yield",
     "last_traded_price", "last_traded_yield",
+    "weighted_average_price", "weighted_average_yield",
     "traded_value", "traded_quantity", "trade_count",
     "trade_date", "trade_time", "source", "as_of",
     "retrieved_at", "data_type", "freshness_days",
@@ -375,7 +468,21 @@ function renderBond(bond, analytics) {
     const couponLabel = isTBill ? "N/A (zero-coupon)" : formatPct(bond.coupon_rate);
     const freqLabel = isTBill ? "N/A (zero-coupon)" : couponFrequencyLabel(bond.coupon_frequency);
 
-    $("ba-summary-grid").innerHTML = [
+    // Corporate records (CDSL) render the fields the corporate endpoint
+    // actually supplies — LTP/VWAP/weighted-average yield — using their real
+    // names; the government rendering below is unchanged.
+    const isCorporate = state.universe === "corporate";
+    $("ba-summary-grid").innerHTML = isCorporate ? [
+        detailItem("ISIN", bond.isin, true),
+        detailItem("Instrument Type", bond.instrument_type),
+        detailItem("Issuer", bond.issuer),
+        detailItem("Credit Rating", bond.credit_rating),
+        detailItem("Maturity Date", formatDate(bond.maturity_date)),
+        detailItem("Coupon Rate", couponLabel),
+        detailItem("LTP", formatNum(bond.last_traded_price != null ? bond.last_traded_price : bond.price)),
+        detailItem("VWAP", formatNum(bond.weighted_average_price)),
+        detailItem("Weighted Avg Yield", formatPct(bond.weighted_average_yield)),
+    ].join("") : [
         detailItem("ISIN", bond.isin, true),
         detailItem("Instrument Type", bond.instrument_type),
         detailItem("Issuer", bond.issuer),
@@ -392,8 +499,19 @@ function renderBond(bond, analytics) {
     // E. Cash flows
     renderCashFlows(analytics.cash_flows);
 
-    // F. Details / methodology
-    $("ba-details-grid").innerHTML = [
+    // F. Details / methodology — government rows keep the analytics-backed
+    // fields; corporate rows show the CDSL issuance/trade fields instead.
+    // Analytics sections that cannot be populated for corporate records stay
+    // at their neutral N/A/empty state (no client-side computation).
+    $("ba-details-grid").innerHTML = isCorporate ? [
+        detailItem("Trade Date", formatDate(bond.trade_date)),
+        detailItem("Exchange", bond.exchange),
+        detailItem("Issue Date", formatDate(bond.issue_date)),
+        detailItem("Issue Size (Cr.)", formatNum(bond.issue_size)),
+        detailItem("Issue Price", formatNum(bond.issue_price)),
+        detailItem("Mode of Issuance", bond.mode_of_issuance),
+        detailItem("Coupon Frequency", freqLabel),
+    ].join("") : [
         detailItem("Settlement Date", formatDate(analytics.settlement_date)),
         detailItem("Day-Count Convention", analytics.day_count_convention),
         detailItem("Coupon Frequency", freqLabel),
@@ -537,6 +655,26 @@ function init() {
         });
     }
 
+    // Corporate filter area (currently "All" only — same shape as the
+    // government filter for the future corporate filter controls).
+    const corpFilter = $("ba-corporate-type-filter");
+    if (corpFilter) {
+        corpFilter.addEventListener("change", () => {
+            state.page = 1;
+            searchBonds();
+        });
+    }
+
+    // Universe switch — Government (default) | Corporate. Each universe is
+    // loaded independently and lazily; the inactive one is never requested.
+    const universeSwitch = $("ba-universe-switch");
+    if (universeSwitch) {
+        universeSwitch.addEventListener("click", (e) => {
+            const btn = e.target.closest(".ba-universe-btn");
+            if (btn) setUniverse(btn.dataset.universe);
+        });
+    }
+
     const sortSelect = $("ba-sort-select");
     const sortDirBtn = $("ba-sort-dir");
     if (sortSelect) {
@@ -622,6 +760,11 @@ function init() {
         });
     }
 
+    // Initialization always starts in the government universe; the initial
+    // search below is the existing government search and /api/bonds/corporate
+    // is never called during init.
+    state.universe = "government";
+    updateUniverseControls();
     searchBonds();
 }
 
