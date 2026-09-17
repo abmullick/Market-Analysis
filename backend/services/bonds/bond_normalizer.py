@@ -175,6 +175,7 @@ def normalize_ccil_record(raw: CcilRawRecord) -> Bond:
     }
 
     if data_type == DataType.TRADED:
+        market["price"] = ltp
         market["clean_price"] = ltp
         market["ytm"] = lty
     elif data_type == DataType.INDICATIVE:
@@ -193,13 +194,6 @@ def normalize_ccil_record(raw: CcilRawRecord) -> Bond:
         instrument_type=instrument_type,
         maturity_date=maturity,
         coupon_rate=coupon,
-        day_count_convention=(
-            DayCountConvention.ACT_365
-            if instrument_type == InstrumentType.T_BILL
-            else DayCountConvention.THIRTY_360
-            if instrument_type in (InstrumentType.G_SEC, InstrumentType.SDL)
-            else DayCountConvention.UNKNOWN
-        ),
         **market,
     )
 
@@ -211,19 +205,16 @@ def normalize_ccil_record(raw: CcilRawRecord) -> Bond:
 # ---------------------------------------------------------------------------
 
 def normalize_nse_record(raw: NseRawRecord) -> Optional[Bond]:
-    """Normalize an NSE Debt Instruments master row into a Bond.
+    """Normalize an NSE government-security master or trade row into a Bond.
 
-    Master-only: carries ISIN + reference fields (issue date, coupon
-    frequency, face value, listing status). No market price/yield is
-    fabricated — fields absent from the source stay None. Returns None
-    when the row is not a usable government-security master row.
+    Fields absent from the source stay None. Partial records without an ISIN
+    are accepted when their description and instrument classification are usable.
     """
     desc = (raw.security_description or "").strip()
     if not desc:
         return None
     isin = parse_isin(raw.isin)
-    if not isin:
-        return None
+    report_type = raw.report_type.strip().lower()
 
     instrument_type = _nse_instrument_type(raw, desc)
     if instrument_type == InstrumentType.UNKNOWN:
@@ -242,7 +233,11 @@ def normalize_nse_record(raw: NseRawRecord) -> Optional[Bond]:
         face_value=parse_float(raw.face_value or ""),
         listing_status=(raw.listing_status or "").strip() or None,
         source="NSE",
-        data_type=DataType.REFERENCE,
+        data_type=DataType.TRADED if report_type == "trades" else DataType.REFERENCE,
+        price=parse_float(raw.price),
+        ytm=parse_float(raw.yield_pct),
+        traded_value=parse_float(raw.traded_value),
+        trade_date=parse_date(raw.trade_date),
     )
     return bond
 

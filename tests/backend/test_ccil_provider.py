@@ -138,11 +138,12 @@ class TestCcilJsonWrapper:
         rec = by_desc["06.94 GS 2036"]
         assert rec.section == "central"
         assert rec.maturity_date == "11/05/2036"
-        assert rec.last_traded_price == "7.07270000"
-        assert rec.last_traded_yield == "99.07000000"
-        assert rec.last_traded_amount == "10.0000000000000000"
-        assert rec.traded_value == "33590.000000000000"
-        assert rec.isin == ""
+        # Central/state source keys are swapped; raw fields carry semantic values.
+        assert rec.ltp == "99.07000000"
+        assert rec.lty == "7.07270000"
+        assert rec.lta == "10.0000000000000000"
+        assert rec.tta == "33590.000000000000"
+        assert rec.isin is None
 
     def test_security_description_is_whitespace_normalised(self):
         """CCIL pads descriptions; the stored value is trimmed/normalised."""
@@ -157,12 +158,12 @@ class TestCcilJsonWrapper:
         rec = next(r for r in recs if r.security_description == "06.94 GS 2036")
         # a-f are all "0.0000..." in the live payload; none of these
         # mapped fields should have picked up such a value as a real price.
-        assert rec.bid_price == ""
-        assert rec.bid_yield == ""
-        assert rec.offer_price == ""
-        assert rec.offer_yield == ""
-        assert rec.bid_amount == ""
-        assert rec.offer_amount == ""
+        assert rec.bid_price is None
+        assert rec.bid_yield is None
+        assert rec.offer_price is None
+        assert rec.offer_yield is None
+        assert rec.bid_amount is None
+        assert rec.offer_amount is None
 
 
 # =========================================================================

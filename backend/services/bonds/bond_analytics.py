@@ -38,6 +38,7 @@ from backend.models.bonds import (
     DayCountConvention,
 )
 from backend.services.bonds.bond_cashflows import (
+    _step_back,
     accrued_interest,
     generate_cash_flows,
 )
@@ -98,6 +99,7 @@ def _coupon_period_details(
     cash_flows: list[dict[str, Any]],
     settlement_date: date,
     day_count: str,
+    frequency: int,
 ) -> tuple[Optional[date], Optional[date], Optional[int], Optional[int], Optional[float]]:
     """Return previous coupon, next coupon and coupon-period day counts.
 
@@ -149,7 +151,10 @@ def _coupon_period_details(
         if first_idx > 0:
             previous_coupon = ordered_dates[first_idx - 1]
         else:
-            previous_coupon = next_coupon
+            previous_coupon = _step_back(
+                next_coupon,
+                frequency,
+            )
 
     e_days = _days_between(previous_coupon, next_coupon, day_count)
     dsc_days = _days_between(settlement_date, next_coupon, day_count)
@@ -193,6 +198,7 @@ def _cash_flow_exponents(
         cash_flows,
         settlement_date,
         day_count,
+        frequency,
     )
 
     if next_coupon is None or e_days is None or e_days <= 0:
