@@ -140,6 +140,88 @@ class BondMaster(BaseModel):
         default=None, description="Exchange / listing venue when supplied"
     )
 
+    # --- Rich CDSL ISIN-detail fields (contract / security terms) ---
+    # Populated from the CDSL rich ISIN detail page on demand when a single
+    # corporate bond is selected. Left as None for government securities and
+    # wherever the provider does not supply the value.
+
+    # Issuer identity (beyond the basic issuer_name)
+    issuer_address: Optional[str] = Field(
+        default=None, description="Issuer registered address"
+    )
+    cin: Optional[str] = Field(
+        default=None, description="Corporate Identification Number (CIN)"
+    )
+    lei: Optional[str] = Field(
+        default=None, description="Legal Entity Identifier (LEI)"
+    )
+
+    # Coupon contract terms
+    coupon_basis: Optional[str] = Field(
+        default=None, description="Coupon basis: Fixed / Variable / Step-up, as supplied by source"
+    )
+    interest_start_date: Optional[date] = Field(
+        default=None, description="Interest payment start date"
+    )
+    interest_end_date: Optional[date] = Field(
+        default=None, description="Interest payment end date"
+    )
+
+    # Call / put option descriptors (text, not just dates)
+    call_option: Optional[str] = Field(
+        default=None, description="Call option descriptor (e.g. 'Not Applicable', 'Callable from ...')"
+    )
+    call_dates: Optional[str] = Field(
+        default=None, description="Call option dates text"
+    )
+    put_option: Optional[str] = Field(
+        default=None, description="Put option descriptor (e.g. 'Not Applicable', 'Putable from ...')"
+    )
+    put_dates: Optional[str] = Field(
+        default=None, description="Put option dates text"
+    )
+
+    # Credit rating status
+    rating_status: Optional[str] = Field(
+        default=None, description="Rating status: Rated / Unrated"
+    )
+    credit_rating_outlook: Optional[str] = Field(
+        default=None, description="Rating outlook (Stable / Positive / Negative etc.)"
+    )
+    rating_action_date: Optional[date] = Field(
+        default=None, description="Date of rating action / latest rating"
+    )
+
+    # Redemption
+    redemption_type: Optional[str] = Field(
+        default=None, description="Redemption type: Full Redemption / Partial Redemption etc."
+    )
+    redemption_date: Optional[date] = Field(
+        default=None, description="Redemption/maturity date (contractual)"
+    )
+    redemption_premium: Optional[str] = Field(
+        default=None, description="Redemption premium details"
+    )
+    perpetual: Optional[bool] = Field(
+        default=None, description="Whether the debenture/bond is perpetual"
+    )
+    debentuer_trustee: Optional[str] = Field(
+        default=None, description="Debenture trustee name"
+    )
+
+    # Cash-flow schedule and record date rows from the CDSL rich detail page
+    cash_flow_schedule: Optional[list] = Field(
+        default=None, description="CDSL cash-flow schedule events"
+    )
+    record_date_rows: Optional[list] = Field(
+        default=None, description="CDSL record date grid rows"
+    )
+
+    # Exchange/listing detail from the rich page
+    exchange_listing_status: Optional[str] = Field(
+        default=None, description="Exchange listing status (Listed / Unlisted)"
+    )
+
 
 # ---------------------------------------------------------------------------
 # Market observation
@@ -409,3 +491,169 @@ class CdslCorporateBondSecondaryRawRecord(BaseModel):
     vwap_raw: Optional[str] = None
     weighted_average_yield_raw: Optional[str] = None
     remark: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# CDSL rich ISIN detail raw payload (from /CorporateBond/CorpBondDatabase.aspx?ISIN=...)
+# ---------------------------------------------------------------------------
+class CdslCashFlowEvent(BaseModel):
+    """One row from the CDSL cash-flow schedule page method (GetCashflowSchedule)."""
+
+    event_type: Optional[str] = None
+    redemption_method: Optional[str] = None
+    quantity_redeemed: Optional[str] = None
+    redemption_premium: Optional[str] = None
+    net_face_value: Optional[str] = None
+    record_date: Optional[str] = None
+    due_date: Optional[str] = None
+    amount_payable: Optional[str] = None
+    payment_date: Optional[str] = None
+
+
+class CdslRatingRecord(BaseModel):
+    """One row from the CDSL rating details grid (grdRatingDtls)."""
+
+    cra_name: Optional[str] = None
+    credit_rating: Optional[str] = None
+    rating_outlook: Optional[str] = None
+    credit_rating_date: Optional[str] = None
+    record_status: Optional[str] = None
+    verification_date: Optional[str] = None
+    
+    
+class CdslRatingHistoryRecord(BaseModel):
+    """One row from the CDSL GetHistorydtls rating-history endpoint."""
+
+    cra_name: Optional[str] = None
+    credit_rating: Optional[str] = None
+    credit_rating_date: Optional[str] = None
+    credit_rating_change_date: Optional[str] = None
+    credit_rating_status: Optional[str] = None
+    rating_action: Optional[str] = None
+    verification_date: Optional[str] = None    
+
+
+class CdslRichCorporateDetail(BaseModel):
+    """Raw, normalized-as-possible payload from the CDSL rich ISIN detail page.
+
+    This is the internal bridge between the HTML source and the domain Bond
+    model. It is intentionally field-heavy and conservative: missing source
+    fields are preserved as None; source text is retained where interpretation
+    is uncertain.
+    """
+
+    isin: Optional[str] = None
+
+    # --- Security / master terms ---
+    issuer_name: Optional[str] = None
+    issuer_address: Optional[str] = None
+    issuer_former_names: Optional[str] = None
+    cin: Optional[str] = None
+    lei: Optional[str] = None
+    type_of_issuer: Optional[str] = None
+    nature_of_issuer: Optional[str] = None
+    business_sector: Optional[str] = None
+    security_description: Optional[str] = None
+    isin_short_description: Optional[str] = None
+    instrument_type: Optional[str] = None
+    instrument_description: Optional[str] = None
+    secured_or_unsecured: Optional[str] = None
+    guaranteed_or_partially_guaranteed: Optional[str] = None
+    convertibility: Optional[str] = None
+    seniority_in_payment: Optional[str] = None
+    tax_free: Optional[str] = None
+    series: Optional[str] = None
+    tranche_no: Optional[str] = None
+    infrastructure_category: Optional[str] = None
+    face_value: Optional[str] = None
+    tenure: Optional[str] = None
+    defaulted_in_redemption: Optional[str] = None
+    principal_protected: Optional[str] = None
+    is_tokenized: Optional[str] = None
+
+    # --- Issue details ---
+    issue_type_label: Optional[str] = None
+    put_option: Optional[str] = None
+    put_option_dates: Optional[str] = None
+    call_option: Optional[str] = None
+    call_option_dates: Optional[str] = None
+    rating_status: Optional[str] = None
+    mode_of_issue: Optional[str] = None
+    ebp_non_ebp: Optional[str] = None
+    schedule_opening_date: Optional[str] = None
+    schedule_closing_date: Optional[str] = None
+    actual_closing_date: Optional[str] = None
+    arranger_to_issue: Optional[str] = None
+    lead_manager_to_issue: Optional[str] = None
+    registrar_to_issue: Optional[str] = None
+    debenture_trustee_to_issue: Optional[str] = None
+    date_of_allotment: Optional[str] = None
+    debentures_bonds_nature_perpetual: Optional[str] = None
+    total_allotment_quantity: Optional[str] = None
+    issue_price: Optional[str] = None
+    issue_size_including_green_shoe: Optional[str] = None
+    green_shoe_option: Optional[str] = None
+    amount_raised: Optional[str] = None
+
+    # --- Coupon / interest ---
+    coupon_basis: Optional[str] = None
+    coupon_rate_label: Optional[str] = None
+    coupon_type: Optional[str] = None
+    step_up_down_coupon_basis: Optional[str] = None
+    coupon_reset_value: Optional[str] = None
+    coupon_reset_date: Optional[str] = None
+    day_count_convention: Optional[str] = None
+    frequency_of_interest_payment: Optional[str] = None
+    interest_payment_start_date: Optional[str] = None
+    interest_payment_end_date: Optional[str] = None
+
+    # --- Redemption ---
+    redemption_type: Optional[str] = None
+    redemption_date: Optional[str] = None
+    redemption_premium_details: Optional[str] = None
+    total_quantity_redeemed: Optional[str] = None
+    total_value_redeemed: Optional[str] = None
+    net_quantity: Optional[str] = None
+    maturity_type: Optional[str] = None
+
+    # --- Rating grid ---
+    rating_records: list[CdslRatingRecord] = Field(default_factory=list)
+    
+    # --- Rating history (page method GetHistorydtls) ---
+    rating_history: list[CdslRatingHistoryRecord] = Field(default_factory=list)
+
+    # --- Cash-flow schedule (page method GetCashflowSchedule) ---
+    cash_flow_schedule: list[CdslCashFlowEvent] = Field(default_factory=list)
+
+    # --- Payment status / history ---
+    interest_payment_record_date: Optional[str] = None
+    interest_due_date: Optional[str] = None
+    interest_actual_payment_date: Optional[str] = None
+    interest_amount_paid: Optional[str] = None
+    last_interest_payment_date: Optional[str] = None
+    interest_non_payment_reason: Optional[str] = None
+    redemption_type_status: Optional[str] = None
+    partial_redemption: Optional[str] = None
+    redemption_reason: Optional[str] = None
+    redemption_date_due_to_put: Optional[str] = None
+    redemption_date_due_to_call: Optional[str] = None
+    quantity_redeemed_status: Optional[str] = None
+    redemption_due_date: Optional[str] = None
+    redemption_actual_date: Optional[str] = None
+    amount_redeemed_status: Optional[str] = None
+    outstanding_amount_status: Optional[str] = None
+    redemption_last_interest_payment_date: Optional[str] = None
+
+    # --- Exchange / listing ---
+    exchange_name: Optional[str] = None
+    exchange_listing_status: Optional[str] = None
+    exchange_listing_date: Optional[str] = None
+
+    # --- Record date grid (grdRecordDateDtls) ---
+    record_date_rows: list[dict[str, Optional[str]]] = Field(default_factory=list)
+
+    # --- Source ---
+    source: Optional[str] = Field(default=None, description="Originating source identifier")
+    retrieved_at: Optional[datetime] = Field(default=None, description="When this detail was retrieved by the backend")
+
+

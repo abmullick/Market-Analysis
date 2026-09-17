@@ -1,0 +1,2201 @@
+
+
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <!--<link href="../IncludesNew/webfonts/font_lato.css" rel="stylesheet">
+    <link rel="stylesheet" href="../IncludesNew/webfonts/all.css" crossorigin="anonymous">-->
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="../IncludesNew/libnew/main/bmain.css">
+    <link rel="stylesheet" href="../IncludesNew/css/common/main.css">
+    <link rel="stylesheet" href="../IncludesNew/css/common/owl.carousel.min.css" />
+    <link rel="stylesheet" href="../IncludesNew/css/common/owl.theme.default.min.css" />
+    <link id="effect" rel="stylesheet" type="text/css" media="all" href="../IncludesNew/css/common/fade-down.css" />
+    <link rel="stylesheet" type="text/css" media="all" href="../IncludesNew/css/common/webslidemenu.css" />
+    <link rel="stylesheet" href="../Includes/css/common/demo.css" />
+    <link href="../IncludesNew/css/common/jquery-ui.min_custm.css" rel="stylesheet" />
+
+    <script src="../IncludesNew/js/common/main.js"></script>
+    <script src="../IncludesNew/js/libs/popper.min.js"></script>
+    <script src="../IncludesNew/libnew/main/bmain.js"></script>
+    <script src="../Includes/js/common//owl.carousel.js"></script>
+    <script type="text/javascript" src="../IncludesNew/js/common/webslidemenu.js"></script>
+    <script src="../Includes/js/common/jquery.easing.js"></script>
+    <script src="../Includes/js/common/scrolling-nav.js"></script>
+    <script src="../Includes/js/common/select-dropdown.js"></script>
+   <script src="../Includes/bootbox/bootbox.min.js"></script>
+    <script src="../Includes/js/common/spin.min.js"></script>
+    <script src="../IncludesNew/js/common/jquery-ui.min_custm.js"></script>
+    <style>
+        td #lnkBtnBusinessSec{
+            color: #007bff;
+        }
+        #cashflow_schedule_table td {
+            white-space: nowrap !important;
+        }
+    </style>
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $("#accordion1").accordion();
+            $("#accordion2").accordion();
+            $("#accordion3").accordion({
+                collapsible: true,
+                active: false,
+                animate: 0,
+                heightStyle: 'content'
+            }); //CR2246
+            $("#tabcontainer").tabs();
+            $("#historydtls-dialog").dialog({
+                modal: true,
+                autoOpen: false
+            });
+            //added by shefali
+            $("#CorpBondColl-dialog").dialog({
+                modal: true,
+                autoOpen: false
+            });
+            $("#btnhistdtls").click(function () {
+                showP();
+                var obj = {};
+                obj.isin = window.location.search.substring(6);
+                $.ajax({
+                    type: "POST",
+                    url: "CorpBondDatabase.aspx/GetHistorydtls",
+                    data: JSON.stringify(obj),
+                    contentType: "application/json; charset= utf-8",
+                    datatype: "json",
+                    async: "true",
+                    cache: "false",
+                    success: function (data) {
+                        HideP();
+                        var tr;
+                        if (data.d.length > 0) {
+                            $("#tblhistdtls tr > td").remove();
+                            for (var i = 0; i < data.d.length; i++) {
+                                // $("#tblhistdtls").append("<tr><td  class='td'>" + data.d[i].CRA_Name + "</td><td class='td'>" + data.d[i].Credit_Rating + "</td><td class='td'>" + data.d[i].Credit_Rating_Date + "</td></tr>");
+                                $("#tblhistdtls").append(
+                                    "<tr>" +
+                                    "<td class='td'>" + htmlEncode(data.d[i].CRA_Name) + "</td>" +
+                                    "<td class='td'>" + htmlEncode(data.d[i].Credit_Rating) + "</td>" +
+                                    "<td class='td'>" + htmlEncode(data.d[i].Credit_Rating_Date) + "</td>" +
+                                    "</tr>"
+                                );
+                            }
+                        }
+                        else {
+                            $("#tblhistdtls tr > td").remove();
+                            $("#tblhistdtls").append("<tr><td colspan='3'><b>" + 'No Record Found' + "</b></td></tr>");
+                        }
+                        $("#historydtls-dialog").dialog('open')
+                    },
+                    Error: function (x, e) {
+                        HideP();
+                        alert("failure");
+                    },
+                    complete: function (jq, status) {
+                        HideP();
+                    }
+                });
+            });
+            function displayCashflowScheduleData() {
+                showP();
+                var obj = {};
+                obj.isin = window.location.search.substring(6);
+                $.ajax({
+                    type: "POST",
+                    url: "CorpBondDatabase.aspx/GetCashflowSchedule",
+                    data: JSON.stringify(obj),
+                    contentType: "application/json; charset= utf-8",
+                    datatype: "json",
+                    async: "true",
+                    cache: "false",
+
+                    success: function (data) {
+                        HideP();
+
+                        if (data.d.length > 0) {
+                            $("#cashflow_schedule_table tbody").empty();
+                            for (var i = 0; i < data.d.length; i++) {
+                                var tr = document.createElement("tr");
+                                function addCell(value) {
+                                    var td = document.createElement("td");
+                                    td.textContent = value || "";
+                                    tr.appendChild(td);
+                                }
+                                addCell(data.d[i].Cashflow_Event);
+                                addCell(data.d[i].Redemp_Method);
+                                addCell(data.d[i].Quant_Redem);
+                                addCell(data.d[i].Redemp_Prem_Dtls);
+                                addCell(data.d[i].Net_Face_Val);
+                                addCell(data.d[i].Record_Date);
+                                addCell(data.d[i].Due_Date);
+                                addCell(data.d[i].Amount_Payable);
+                                addCell(data.d[i].Payment_Date);
+                                document.querySelector("#cashflow_schedule_table tbody")
+                                    .appendChild(tr);
+                            }
+                        } else {
+                            $("#cashflow_schedule_table tbody").empty();
+
+                            $("#cashflow_schedule_table tbody").append(
+                                "<tr><td colspan='9'><b>No Record Found</b></td></tr>"
+                            );
+                        }
+
+                        $("#Cashflow").show();
+                    },
+                    Error: function (x, e) {
+                        HideP();
+                        alert("failure");
+                    },
+                    complete: function (jq, status) {
+                        HideP();
+                    }
+                });
+            }
+            if (window.location.hash === "#Cashflow") {
+                displayCashflowScheduleData();
+            }
+            $("#cashflow_tab_button").click(displayCashflowScheduleData);
+            //added by shefali
+            //CR2246
+            var filename1 = "";
+            filename1 = $("#txtFileName").text();
+            if (filename1 == "") {
+                var tag = document.createElement("p");
+                var text = document.createTextNode("Presently No Data Found");
+                tag.appendChild(text);
+                var element = document.getElementById("txtavlbl");
+                element.appendChild(tag);
+            }
+            else {
+                var tag = document.createElement("p");
+                var text = document.createTextNode("Please click on below hyperlink");
+                tag.appendChild(text);
+                var element = document.getElementById("txtavlbl");
+                element.appendChild(tag);
+            }
+        });
+
+        function htmlEncode(value) {
+            var temp = document.createElement("span");
+            temp.textContent = value;   // safe
+            return temp.innerHTML;      // encoded string
+        }
+
+        function spinnerInit() {
+            var opts = {
+                lines: 13, // The number of lines to draw
+                length: 7, // The length of each line
+                width: 4, // The line thickness
+                radius: 10, // The radius of the inner circle
+                corners: 1, // Corner roundness (0..1)
+                rotate: 0, // The rotation offset
+                color: '#000', // #rgb or #rrggbb
+                speed: 1, // Rounds per second
+                trail: 60, // Afterglow percentage
+                shadow: false, // Whether to render a shadow
+                hwaccel: false, // Whether to use hardware acceleration
+                className: 'spinner', // The CSS class to assign to the spinner
+                zIndex: 2e9, // The z-index (defaults to 2000000000)
+                top: 'auto', // Top position relative to parent in px
+                left: 'auto', // Left position relative to parent in px
+                visibility: true
+
+            };
+
+            var target = document.getElementById('foo2');
+            var spinner = new Spinner(opts).spin(target);
+        }
+
+        function showP() {
+            spinnerInit();
+            $("#divSpinner").css("display", "inline");
+            $("body").css("overflow-y", "hidden");
+            return true;
+        }
+
+        function HideP() {
+            $("#divSpinner").css("display", "none");
+            $("body").css("overflow-y", "scroll");
+        }
+
+        //CR2246
+        function downloadfile() {
+            debugger;
+            
+            var convertedfilename = $("#convertedFileName").val();
+            var filename = $("#txtFileName").text();
+            var issuerId = $("#issuerId").val();
+            window.location.href = "../Common/DownLoadFileCB.aspx?action=corporatebond&covertedfilename=" + convertedfilename + "&issuerid=" + issuerId + "&filename=" + filename;
+        }
+
+    </script>  
+    
+    <style>
+        .txtcolor {
+            text-decoration: none;
+            color: #008CBA !important;
+        }
+        .title1 {
+            float: left;
+            position: relative;
+            color: #666;
+            /* border-bottom: 4px solid #28b9c8; */
+            font-size: 16px;
+            font-weight: 600;
+            padding-bottom: 5px;
+        }
+        .grd td, .grd th
+        {
+            text-align: center;
+        }
+        .wsmenu > .wsmenu-list > li > a::after {
+            content: "";
+        }
+        #cashflow_schedule_table thead {
+            background-color: wheat;
+        }
+    </style>
+
+    <title>:: Central Depository Services (India) Limited ::</title>
+</head>
+<body>
+    <!-- header -->
+    <script src="../IncludesNew/js/common/CorporateBondHeader.js"></script>
+    <!--header end -->
+
+    <section class="content-warpper padding clr" style="padding-bottom: 0;">
+        <div class="container">
+            <div class="row">
+                
+            </div>
+        </div>
+
+        <div class="container clr" id="section6">
+            <div class="container">
+                <form method="post" action="./CorpBondDatabase.aspx?ISIN=INE040A08831" id="form1">
+<div class="aspNetHidden">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="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" />
+</div>
+
+<div class="aspNetHidden">
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="6EEF3C7E" />
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="fY0mnAnHr+LwhOJUkp3aO8vuOZKNO+2KTk6dwLhOm0sA6E5Ib5/RSUjlU51p82NLRK+8uQundWQhAcTCR1AgN0vqzPlbOmQOyITncCEUo+EN3Lrrzj0R8WRkjr0gVLNEaQ557j3/4ISoORXoBVbKEQ==" />
+</div>
+                    <div class="row">
+                        <div class="framing col-md-11">
+                            <table width="100%">
+                                <tr>
+                                    <th>
+                                        <h3>Corporate Bond Database</h3>
+                                    </th>
+                                </tr>
+                            </table>
+
+
+
+                            <div id="tabcontainer">
+                                <div>
+                                    <h4 style="padding-left: 10px;">
+                                        <span id="lblISINCode" class="title1">ISIN Code : INE040A08831</span>
+                                    </h4>
+                                </div>
+
+                                <div>
+                                    <h4 style="padding-left: 10px;">
+                                        <span id="lblISINDesc" class="title1">ISIN Description : HDFC BANK LTD#7.10% USEC NGRT SNR TAX NCUM RTD RED NCD SR Z007 SOA-RD 12-11-2031</span>
+                                    </h4>
+                                </div>
+                                <ul>
+                                    <li><a data-toggle="tab" href="#Issuer"><b>Issuer Details</b></a></li>
+                                    <li><a data-toggle="tab" href="#Instrument"><b>Instrument Details</b></a></li>
+                                    <li><a data-toggle="tab" href="#Redemption"><b>Redemption Details</b></a></li>
+                                    <li><a data-toggle="tab" id="cashflow_tab_button" href="#Cashflow"><b>Cashflow Schedule</b></a></li>
+                                    <li><a data-toggle="tab" href="#Agency"><b>Agency Details</b></a></li>
+                                    <li><a data-toggle="tab" href="#AddtnlInfo" class="d-none"><b>Additional Information</b></a></li>
+                                    <li><a data-toggle="tab" href="#Annexure2"><b>Information From Exchanges </b></a></li>
+                                    <li><a data-toggle="tab" href="#Shareholdingp"><b>Bond Shareholding Pattern </b></a></li>
+                                </ul>
+
+                                <div id="Issuer">
+                                    <table cellpadding="5" cellspacing="10">
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Issuer Name</label>
+                                            </td>
+                                            <td style="width: 2%;">:</td>
+                                            <td style="width: 30%;">
+                                                <span id="txtIssuerName" class="dataFont">HDFC BANK LIMITED</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Address of the Issuer</label>
+                                            </td>
+                                            <td style="width: 2%">:</td>
+                                            <td style="width: 30%">
+                                                <span id="txtIssuerAddr" class="dataFont">HDFC BANK HOUSE SENAPATI BAPAT MARG  MUMBAI MAHARASHTRA INDIA 400013</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Issuer Former Names</label>
+                                            </td>
+                                            <td style="width: 2%;">:</td>
+                                            <td style="width: 30%;">
+                                                <span id="txtIssuerFormerNames" class="dataFont"></span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">CIN</label>
+                                            </td>
+                                            <td style="width: 2%">:</td>
+                                            <td style="width: 30%">
+                                                <span id="lblCIN" class="dataFont">L65920MH1994PLC080618</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">LEI</label>
+                                            </td>
+                                            <td style="width: 2%">:</td>
+                                            <td style="width: 30%">
+                                                <span id="lblLEI" class="dataFont">335800ZQ6I4E2JXENC50</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Type of Issuer</label>
+                                            </td>
+                                            <td style="width: 2%">:</td>
+                                            <td style="width: 30%">
+                                                <span id="lblIssuerType" class="dataFont">Non PSU</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Nature of Issuer</label>
+                                            </td>
+                                            <td style="width: 2%">:</td>
+                                            <td style="width: 30%">
+                                                <span id="lblIssuerNature" class="dataFont">Banks</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Business Sector</label>
+                                            </td>
+                                            <td style="width: 2%">:</td>
+                                            <td style="width: 30%">
+                                                <span id="lblBusinessSector" class="dataFont">Financial Services-Financial Services-Banks-Private Sector Bank</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <span id="lblCOCSName" class="lbl">Company Secretary</span>
+                                            </td>
+                                            <td style="width: 2%">:</td>
+                                            <td style="width: 30%">
+                                                <span id="txtCOCSName" class="dataFont">MR N E VENKITAKRISHNAN</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>                                                                                    
+                                            <td style="width: 18%;"></td>
+                                                <td style="width: 2%">:</td>
+                                            <td style="width: 30%">
+                                                <span id="txtCOCSEmail" class="dataFont"></span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <strong><label class="lbl">Details of the Group Companies</label></strong>
+                                            </td>
+                                             
+
+                                        </tr>
+
+                                    </table>
+                                    <table cellpadding="5" cellspacing="10">
+                                        <tr>
+                                            <td>
+
+                                             <div class="table-2 table-responsive" style="margin-bottom:10px;">
+                                                 <div>
+	<table class="grd" cellspacing="2" cellpadding="4" rules="all" border="1" id="GroupCompany" style="background-color:#CCCCCC;border-color:Transparent;">
+		<tr style="color:White;background-color:#006699;font-weight:bold;">
+			<th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:30%;">Name of Group Company</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">CIN</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">LEI</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Nature of Relationship</th>
+		</tr><tr style="background-color:White;">
+			<td>HDB FINANCIAL SERVICES LIMITED</td><td>U65993GJ2007PLC051028                             </td><td>NA                                                </td><td>Subsidiary</td>
+		</tr>
+	</table>
+</div>
+                                </div>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td>
+                                                <span id="Label2" class="lbl"></span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                    </table>
+
+                                </div>
+
+                                <div id="Instrument">
+                                    <div id="accordion1">
+                                        <h4>Instrument Details</h4>
+                                        
+                                        <div>
+                                            <table cellpadding="5" cellspacing="10">
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Type of Instrument</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="lblIntrmntType" class="dataFont">Not Applicable</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Instrument Description</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="lblIntrmntDesc" class="dataFont">HDFC BANK LTD#7.10% USEC NGRT SNR TAX NCUM RTD RED NCD SR Z007 SOA-RD 12-11-2031</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">ISIN Short Description</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="lblISINShortDesc" class="dataFont">HDFCBK 7.10 12112031</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Whether Secured or Unsecured</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="lblSecuritytype" class="dataFont">Unsecured</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Whether Guaranteed or Partially Guaranteed</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblGuaranteetype" class="dataFont">Not Guaranteed</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Type of Convertibility</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblConvertabilitytype" class="dataFont">Non Convertible</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Seniority In Payment</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblSeniorityPay" class="dataFont">Senior</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Whether Tax Free</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblTaxFree" class="dataFont">No</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Series</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblSeries" class="dataFont">Z-007</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Tranche No. </label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblTranchNo" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Infrastructure Category</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblInfrastructureCategory" class="dataFont">No</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Face Value/Security</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblFaceValue" class="dataFont">1000000</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Tenure</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblTenure" class="dataFont">10 Years ; 0 Months ; 0     Days</span>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">ISIN Defaulted in Redemption</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblisinredempt" class="dataFont">NO</span>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Principal Protected</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblPrncplprtd" class="dataFont"> </span>
+                                                    </td>
+
+                                                </tr>
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Is Tokenized</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblIsTokenized" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                            </table>
+                                        </div>
+
+                                        <h4>Issue Details</h4>
+                                        <div>
+                                            <table cellpadding="5" cellspacing="10">
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Put Option</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblPutOption" class="dataFont">Not Applicable</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Put Option Dates</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblPutFromDt" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Call Option</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblCallOption" class="dataFont">Not Applicable</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Call Option Dates</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblCallFromDt" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Rating Status</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblRatingStatus" class="dataFont">Rated</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Mode of Issue</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="lblIssueMode" class="dataFont">Not Applicable</span>
+                                                    </td>
+                                                </tr>
+
+                                                                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">EBP / Non EBP</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="lblEBPN" class="dataFont"> </span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Schedule Opening Date</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblSchdlOpenDt" class="dataFont">11-Nov-2021</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Schedule Closing Date</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblSchdlCloseDt" class="dataFont">11-Nov-2021</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Actual Closing Date</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblActualCloseDt" class="dataFont">11-Nov-2021</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Arranger to Issue</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblArrngrToIssue" class="dataFont">HDFC BANK LTD</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Lead Manager To Issue</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblLDMngrToIssue" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Registrar To Issue</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblRgstrToIssue" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Debenture Trustee To Issue</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblDTToIssue" class="dataFont">IL AND FS TRUST COMPANY LIMITED</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Date of Allotement</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="lblAlltmntDt" class="dataFont">12-Nov-2021</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Debentures/Bonds Nature Perpetual?</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblDbntrBondsPerpetualNature" class="dataFont">No</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Total Allotement Quantity</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblTotalAlltmntQnt" class="dataFont">30,000.00</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Issue Price</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblIssuePrice" class="dataFont">10,00,000.00</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Issue Size including Green Shoe Option, if applicable:</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblIssueSize" class="dataFont">30,00,00,00,000.00</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Green Shoe Option: Yes/No</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblGreenShoeOption" class="dataFont"> </span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Amount Raised (Total allotment Quantity * issue price):</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblAmountRaised" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Objects of the Issue (Details):</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblObjectOfIssue" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                            </table>
+                                        </div>
+
+                                        <h4>Interest Payment Details</h4>
+                                        <div>
+                                            <table cellpadding="5" cellspacing="10">
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Coupon Basis</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="lblCouponBasis" class="dataFont">Fixed</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Coupon Rate</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="lblCouponRate" class="dataFont">7.1</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Coupon Type</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblCouponType" class="dataFont">Simple</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Step Up/Down Coupon Basis</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblStepUpDownCouponBasis" class="dataFont">Not Applicable</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Coupon Reset Value</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblCouponRstVal" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Coupon Reset Date</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblCouponRstDt" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Day Count Convention</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblDayCNTConvntn" class="dataFont">Actual/Actual</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Frequency Of Interest Payment</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblFrqInstrPay" title="12112022" class="dataFont" style="text-decoration:underline;">Once a Year</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Interest Payment Start Date</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblIntrPayStratDt" class="dataFont">12-Nov-2022</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Interest Payment End Date</label>
+                                                    </td>
+                                                    <td>:</td>
+                                                    <td>
+                                                        <span id="lblIntrPayEndDt" class="dataFont">12-Nov-2031</span>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+
+                                        <h4>Further Issuance under same ISIN</h4>
+                                        <div>
+                                            <div class="table-2 table-responsive" style="margin-bottom:10px;">
+                                    <table cellpadding="5" cellspacing="10">
+                                        <tr>
+                                            <td>
+                                            
+                                                 <div>
+	<table class="grd" cellspacing="2" cellpadding="4" rules="all" border="1" id="FurIssuanceGrid" style="background-color:#CCCCCC;border-color:Transparent;">
+		<tr style="color:White;background-color:#006699;font-weight:bold;">
+			<th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Date of Allotment</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Allotment Quantity</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Cumulative Quantity</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Issue Price (in Rs.)</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Issue Size (in Rs. Crs.)</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Cumulative Issue Size (in Rs. Crs.)</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Total amount raised(in Rs crs)</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Cum. Amount raised (in Rs crs)</th>
+		</tr><tr>
+			<td colspan="8">
+                                                        <div style="text-align: center">
+                                                            <span style="color: red;">No Data Is Available.</span>
+                                                        </div>
+
+                                                    </td>
+		</tr>
+	</table>
+</div>
+                                                </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                        </div>
+
+                                        <h4>Credit Enhancement Details</h4>
+                                         <div>
+                                            <div class="table-2 table-responsive" style="margin-bottom:10px;">
+                                    <table cellpadding="5" cellspacing="10">
+                                        <tr>
+                                            <td>
+                                                  
+                                                 <div>
+	<table class="grd" cellspacing="2" cellpadding="4" rules="all" border="1" id="CreditEnchGrid" style="background-color:#CCCCCC;border-color:Transparent;">
+		<tr style="color:White;background-color:#006699;font-weight:bold;">
+			<th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Nature of Credit Enhancement</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Amount of Credit Enhancement</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Other details of Credit Enhancement</th>
+		</tr><tr>
+			<td colspan="3">
+                                                        <div style="text-align: center">
+                                                            <span style="color: red;">No Data Is Available.</span>
+                                                        </div>
+
+                                                    </td>
+		</tr>
+	</table>
+</div>
+                                                </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                <div id="Redemption">
+                                    <table cellpadding="5" cellspacing="10">
+                                        <tr>
+                                            <td colspan="3">
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Redemption Type</label>
+                                            </td>
+                                            <td style="width: 2%;">:</td>
+                                            <td style="width: 30%;">
+                                                <span id="lblRedmType" class="dataFont">Full Redemption</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Redemption Date</label>
+                                            </td>
+                                            <td style="width: 2%;">:</td>
+                                            <td style="width: 30%;">
+                                                <span id="lblRedmDate" class="dataFont">12-Nov-2031</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Redemption Premium Details</label>
+                                            </td>
+                                            <td style="width: 2%;">:</td>
+                                            <td style="width: 30%;">
+                                                <span id="lblRedmDtls" class="dataFont">0.00</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Total Quantity Redeemed</label>
+                                            </td>
+                                            <td style="width: 2%;">:</td>
+                                            <td style="width: 30%;">
+                                                <span id="lblTtlQtyRedm" class="dataFont">0.00</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Total Value Redeemed</label>
+                                            </td>
+                                            <td style="width: 2%;">:</td>
+                                            <td style="width: 30%;">
+                                                <span id="lblTtlValRedm" class="dataFont">0.00</span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Net Quantity</label>
+                                            </td>
+                                            <td style="width: 2%;">:</td>
+                                            <td style="width: 30%;">
+                                                <span id="lblNetQty" class="dataFont"></span>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td style="width: 18%;">
+                                                <label class="lbl">Maturity Type</label>
+                                            </td>
+                                            <td style="width: 2%;">:</td>
+                                            <td style="width: 30%;">
+                                                <span id="Label8" class="dataFont"></span>
+                                            </td>
+                                        </tr>
+
+                                    </table>
+                                </div>
+
+                                <div id="Cashflow" class="table-publication table-responsive" tabindex="0">
+                                    <table class="table table-bordered" aria-label="Redemption Cashflow Details" id="cashflow_schedule_table">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">Cashflow Event</th>
+                                                <th scope="col">Redemption Method</th>
+                                                <th scope="col">Quantity Redeemed</th>
+                                                <th scope="col">Redemption Premium</th>
+                                                <th scope="col">Net Face Value</th>
+                                                <th scope="col">Record Date</th>
+                                                <th scope="col">Due Date</th>
+                                                <th scope="col">Amount Payable</th>
+                                                <th scope="col">Payment Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div id="Agency">
+                                    <table>
+                                        <tr>
+                                            <td>
+                                                <div style="width: 15px; height: 15px; background-color: #FFFF99; border: 1px Solid black; margin: 5px"></div>
+                                            </td>
+                                            <td>
+                                                <label>- Verified by Agency</label></td>
+                                            
+                                            <td>
+                                                <div style="width: 15px; height: 15px; background-color: #F5DBD6; border: 1px Solid black; margin-left: 50px"></div>
+                                            </td>
+                                            <td>
+                                                <label>- Rejected by Agency</label></td>
+                                            
+                                            <td>
+                                                <div style="width: 15px; height: 15px; background-color: #D4E5F7; border: 1px Solid black; margin-left: 50px"></div>
+                                            </td>
+                                            <td>
+                                                <label>- Pending for Verification by Agency</label></td>
+                                        </tr>
+                                    </table>
+                                    <div id="accordion2">
+                                        <h4>Credit Rating Agency Details</h4>
+                                        <div>
+                                            <table cellpadding="5" cellspacing="10">
+                                                <tr>
+                                                    <td>
+                                                        <div>
+	<table class="grd" cellspacing="2" cellpadding="4" rules="all" border="1" id="grdRatingDtls" style="background-color:#CCCCCC;border-color:Transparent;">
+		<tr style="color:White;background-color:#006699;font-weight:bold;">
+			<th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:30%;">CRA Name</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Credit Rating</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:30%;">Rating Outlook</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Credit Rating date</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:30%;">Record Status</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:30%;">Verification Date</th>
+		</tr><tr style="background-color:White;">
+			<td style="background-color:#D4E5F7;">CRISIL Limited                                                                                      </td><td style="background-color:#D4E5F7;">AAA</td><td style="background-color:#D4E5F7;">&nbsp;</td><td style="background-color:#D4E5F7;">07-Apr-2023</td><td style="background-color:#D4E5F7;">Pending for Verification by Agency</td><td style="background-color:#D4E5F7;">&nbsp;</td>
+		</tr><tr style="background-color:White;">
+			<td style="background-color:#D4E5F7;">ICRA Limited                                                                                        </td><td style="background-color:#D4E5F7;">AAA</td><td style="background-color:#D4E5F7;">&nbsp;</td><td style="background-color:#D4E5F7;">&nbsp;</td><td style="background-color:#D4E5F7;">Pending for Verification by Agency</td><td style="background-color:#D4E5F7;">&nbsp;</td>
+		</tr>
+	</table>
+</div>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td>
+                                                        <span id="lblTotalRatingDtls" class="lbl"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td>
+                                                        <button id="btnhistdtls" type="button" class="Submitbutton">History</button>
+                                                        
+                                                    </td>
+
+                                                </tr>
+                                            </table>
+                                        </div>
+
+                                        <h4>Debenture Trustee Details</h4>
+                                        <div>
+                                            <table cellpadding="5" cellspacing="10">
+                                                <tr>
+                                                    <td style="width: 40%;">
+                                                        <span id="lblDebTrstName" class="dataFont">Debenture Trustee Name : </span>
+                                                    </td>
+                                                    <td style="width: 2%;">:</td>
+                                                    <td style="width: 30%;">
+                                                        <span id="txtDebTrstName" class="dataFont">IL AND FS TRUST COMPANY LIMITED</span>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        <div>
+
+</div>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        <span id="lblTotalHistoryDtls" class="lbl"></span>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+
+                                        <h4>Exchange Details</h4>
+                                        <div>
+                                            <table cellpadding="5" cellspacing="10">
+                                                <tr>
+                                                    <td>
+                                                        <div>
+	<table class="grd" cellspacing="2" cellpadding="4" rules="all" border="1" id="grdExchDtls" style="background-color:#CCCCCC;border-color:Transparent;">
+		<tr style="color:White;background-color:#006699;font-weight:bold;">
+			<th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:30%;">Exchange Name</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:10%;">Listing Status</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Listing Date</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Term Sheet</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Annual Report</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Allotment Confirmation Letter</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Shelf Prospectus</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Information Memorandum</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Offer Documents</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Series Tranches</th>
+		</tr><tr style="background-color:White;">
+			<td>BOMBAY STOCK EXCHANGE LIMITED</td><td>Unlisted</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+		</tr>
+	</table>
+</div>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        <span id="lblTotalExchDtls" class="lbl"></span>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+
+                                    </div>
+                                </div>
+                                
+                                <div id="AddtnlInfo">
+                                    <p style="text-align: justify">Additional Information as per SEBI Circular dated June 4, 2021 Annexure 1</p>
+                                    <br />
+                                    <div id="txtavlbl"></div>
+                                    <a id="txtFileName" class="txtcolor" href="javascript:downloadfile();"></a>
+                                    <input type="hidden" name="issuerId" id="issuerId" />
+                                    <input type="hidden" name="convertedFileName" id="convertedFileName" />
+                                </div>
+
+                                <div id="Annexure2">
+                                    <p style="text-align: justify">Additional Information from exchanges as per SEBI Circular dated June 4, 2021 Annexure II</p>
+                                    <div id="accordion3">
+                                        
+                                        <h4>Listing Details</h4>
+                                        <div>
+                                            <table class="mb-3 mt-3">
+                                                <tr>
+                                                    <td>
+                                                        <div>
+
+</div>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        <span id="lblListingNoRcrd" class="lbl">Presently No Data Available</span>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+
+                                        
+                                        <h4>Details of Record Date</h4>
+                                        <div>
+                                            <table class="mb-3 mt-3">
+                                                <tr>
+                                                    <td>
+                                                        <div>
+	<table class="grd" cellspacing="2" cellpadding="4" rules="all" border="1" id="grdRecordDateDtls" style="background-color:#CCCCCC;border-color:Transparent;">
+		<tr style="color:White;background-color:#006699;font-weight:bold;">
+			<th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:10%;">Sr. No. </th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:15%;">ISIN</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:15%;">Record Date</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:15%;">Interest/ Redemption</th><th scope="col" style="color:White;background-color:#006699;font-weight:bold;width:20%;">Date of Payment of Interest/ Redemption</th>
+		</tr><tr style="background-color:White;">
+			<td>1</td><td>INE040A08831</td><td>26/10/2024</td><td>Payment of Interest</td><td>&nbsp;</td>
+		</tr><tr style="background-color:White;">
+			<td>1</td><td>INE040A08831</td><td>27/10/2023</td><td>Payment of Interest</td><td>&nbsp;</td>
+		</tr>
+	</table>
+</div>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        <span id="lblDtlsOfRDNoRcrd" class="lbl"></span>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+
+                                        
+                                        <h4>Details of Credit Rating</h4>
+                                        <div>
+                                            <h6><b>Current Rating Details</b></h6>
+                                            <table class="mb-3 mt-3">
+                                                <tr>
+                                                    <td>
+                                                        <div>
+
+</div>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        <span id="lblCrntRtngNoRcrd" class="lbl">Presently No Data Available</span>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                            <br />
+                                            <h6><b>Earlier Rating Details</b></h6>
+                                            <table class="mb-3 mt-3">
+                                                <tr>
+                                                    <td>
+                                                        <div>
+
+</div>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        <span id="lblErlrRtngNoRcrd" class="lbl">Presently No Data Available</span>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+
+                                        
+                                        <h4>Payment Status</h4>
+                                        <div>
+                                            <h6><b>Details of interest Payments</b></h6>
+                                            <table class="mb-3 mt-3">
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">ISIN</label>
+                                                    </td>
+                                                    <td style="width: 2%;">:</td>
+                                                    <td style="width: 30%;">
+                                                        <span id="psIsin" class="dataFont">INE040A08831</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Issue size</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="psIssueSIze" class="dataFont">30000000000</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Interest Amount to be paid on due date</label>
+                                                    </td>
+                                                    <td style="width: 2%;">:</td>
+                                                    <td style="width: 30%;">
+                                                        <span id="psIntrestAmount" class="dataFont">2130000000</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Frequency</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="psFrequency" class="dataFont">Yearly</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Change in Frequency of payment</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="psChngeInFrqncy" class="dataFont">0</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Details of such change</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="psDtlsofChng" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Interest Payment Record Date</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="psIntrstPmntRcrdDt" class="dataFont">26/10/2024</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Due date for Interest Payment</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="psDueDate" class="dataFont">12/11/2024</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Actual Date for Interest Payment</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="psActlDate" class="dataFont">12/11/2024</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Amount of interest paid</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="psAmntofIntrstPd" class="dataFont">2130000000</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Date of last Interest Payment </label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="psDtofLstPmnt" class="dataFont">13-11-2023 00:00:00</span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Reason for non-payment/ delay in payment</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="psReason" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+                                            </table>
+
+                                            <h6><b>Details of Redemption Payments</b></h6>
+                                            <table class="mb-3">
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">ISIN</label>
+                                                    </td>
+                                                    <td style="width: 2%;">:</td>
+                                                    <td style="width: 30%;">
+                                                        <span id="rpIsin" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Type of Redemption</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="rpTypeofRdmptn" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Partial Redemption</label>
+                                                    </td>
+                                                    <td style="width: 2%;">:</td>
+                                                    <td style="width: 30%;">
+                                                        <span id="rpPartlRdmptn" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+                                                
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Reason for redemption</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="rpReasonfrRdmptn" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Redemption Date due to PUT option</label>
+                                                    </td>
+                                                    <td style="width: 2%;">:</td>
+                                                    <td style="width: 30%;">
+                                                        <span id="rpPutOptn" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Redemption Date due to CALL option</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="rpCallOptn" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Quantity Redeemed </label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="rpQtyRdmed" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Due date for Redemption/ Maturity</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="rpDueDate" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Actual Date for Redemption</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="rpActldtforRdmptn" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Amount Redeemed</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="rpAmntRdmd" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Outstanding Amount (Rs.)</label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="rpOutstndngAmnt" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <td style="width: 18%;">
+                                                        <label class="lbl">Date of last Interest Payment </label>
+                                                    </td>
+                                                    <td style="width: 2%">:</td>
+                                                    <td style="width: 30%">
+                                                        <span id="rpDtofLstInPymnt" class="dataFont"></span>
+                                                    </td>
+                                                </tr>
+
+                                            </table>
+                                        </div>
+
+                                        
+                                        <h4>Default History Information</h4>
+                                        <div>
+                                            <table class="mb-3 mt-3">
+                                                <tr>
+                                                    <td>
+                                                        <div>
+
+</div>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>
+                                                        <span id="lblHstyInfoNoRcrd" class="lbl">Presently No Data Available</span>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                               
+
+                                <div id="Shareholdingp">
+                                
+                                    
+                                
+                                    <div id="pnlMain">
+	
+                                
+                                        <p style="text-align: justify">
+                                            Statement showing holding of Debentures by the Public Debentureholders as on Quarter End 
+                                            <span id="lblBenposDate">30-06-2026</span>
+                                        </p>
+                                
+                                        <br />
+                                
+                                        <table border="1" cellpadding="5" cellspacing="0"
+                                               style="width:100%; border-collapse:collapse; table-layout:fixed;">
+                                
+                                            <tr style="font-weight:bold; background-color:#d9edf7;">
+                                                <th style="width:5%; border:1px solid #999;"></th>
+                                                <th style="width:45%; border:1px solid #999; text-align:left;">
+                                                    Category of Debenture holders
+                                                </th>
+                                                <th style="width:25%; border:1px solid #999;">
+                                                    No. of Debenture holders
+                                                </th>
+                                                <th style="width:25%; border:1px solid #999;">
+                                                    No. of Bonds / Debentures held
+                                                </th>
+                                            </tr>
+                                
+                                            
+                                            
+                                            <tr style='font-weight:bold;background:#e6f2ff;'>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    1
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:5px;'>
+                                                    Institutions (Domestic)
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style=''>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Mutual Funds
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    2
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    400
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style=''>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Insurance Companies
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    17
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    12750
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style=''>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Provident / Pension Funds
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    2
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    7021
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style=''>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Other - Trust
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    45
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    2750
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style='font-weight:bold;background:#fff3cd;'>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Sub-Total B(1)
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    66
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    22921
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style='font-weight:bold;background:#e6f2ff;'>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    2
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:5px;'>
+                                                    Institutions (Foreign)
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style='font-weight:bold;background:#fff3cd;'>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Sub-Total B(2)
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    0
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    0
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style='font-weight:bold;background:#e6f2ff;'>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    3
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:5px;'>
+                                                    Central Government / State Government(s)
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style=''>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Shareholding by Companies or Bodies Corporate where Central / State Government is a promoter
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    2
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    470
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style='font-weight:bold;background:#fff3cd;'>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Sub-Total B(3)
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    2
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    470
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style='font-weight:bold;background:#e6f2ff;'>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    4
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:5px;'>
+                                                    Non- institutions
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style=''>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Resident Individuals holding nominal share capital in excess of Rs. 2 lakhs
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    72
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    153
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style=''>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Bodies Corporate
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    27
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    1649
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style=''>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Other - HUF
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    9
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    19
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style=''>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Other - Trusts
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    52
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    4728
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style='font-weight:bold;background:#fff3cd;'>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Sub-Total B(4)
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    160
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    6549
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                            
+                                            <tr style='font-weight:bold;background:#d4edda;color:#155724;'>
+
+                                                <td style="text-align:center; border:1px solid #ccc;">
+                                                    
+                                                </td>
+
+                                                <td style='border:1px solid #ccc; padding-left:25px;'>
+                                                    Total     Public = 1+2+3+4
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    228
+                                                </td>
+
+                                                <td style="text-align:right; border:1px solid #ccc;">
+                                                    29940
+                                                </td>
+                                            
+                                            </tr>
+                                            
+                                            
+                                
+                                        </table>
+                                
+                                    
+</div>
+                                
+                                </div>
+
+                                
+                            </div>
+                        </div>
+                        <div id="divSpinner" class="progressb spinner" style="display: none; z-index: 3;">
+                            <div style="position: absolute; top: 50%; left: 50%">
+                                <div>
+                                    <div id="foo2" style="position: absolute; transform: translate(-50%, -50%);">
+                                    </div>
+                                </div>
+                                <br />
+                                <br />
+                                <br />
+                                <br />
+                                <br />
+                                <div style="font-size: 18pt; color: White; left: 50%; transform: translate(-50%, -50%); position: fixed">
+                                    Please wait...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+
+        <div id="historydtls-dialog" title="History Details" style="padding: 5px 0px">
+            
+            <table id="tblhistdtls" class="table">
+                <tr>
+                    <th class="th"><b>CRA Name</b></th>
+                    <th class="th"><b>Rating Value</b></th>
+                    <th class="th"><b>Rating Date</b></th>
+                </tr>
+            </table>
+        </div>
+        <div id="CorpBondColl-dialog" title="Corporate Bond Coll Details" style="padding: 5px 0px">
+            
+            
+            <table id="tblCorpbondColldtls" class="table">
+                <tr>
+                    <th class="th"><b>Industry Desc</b></th>
+                </tr>
+            </table>
+        </div>
+    </section>
+
+    <!-- footer -->
+    <script src="../IncludesNew/js/common/footer.js"></script>
+    <!-- footer end -->
+
+    <div class="update">
+        <h3 style="text-align: center; font-size: 12px">Page last updated on June 30, 2026&nbsp;&nbsp;&nbsp; Dept:Operations</h3>
+    </div>
+
+    <script type="text/javascript" src="../IncludesNew/js/common/script.js"></script>
+
+
+    <!--<a href="#" class="ask-diya-btn" id="show">
+        <img src="images/ask-diya.png"
+             class="img-fluid"
+             alt=""
+             title="" /><span></span>
+    </a>-->
+    <!--<div class="chat-window" id="p" style="display: none;">
+        <h4 class="head">Ask DIYA</h4>
+        <span class="close" id="hide">X</span>
+        <div class="message-typ">
+            <input type="text"
+                   placeholder="Type your message here..."
+                   class="form-control" />
+            <a href="#" class="micro-phone"><img src="../IncludesNew/images/common/mic.svg" /></a>
+        </div>
+    </div>-->
+    <!-- footer end -->
+
+    <div class="modal fade" id="exampleModalCenter" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalCenterTitle">Login</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="poup-holder">
+                        <div class="row">
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio1" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio1">
+                                            New
+                                            System Myeasi (BO/CM)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio2" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio2">
+                                            CAS/
+                                            Declare Bonafide
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio3" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio3">Myeasi</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio4" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio4">DDP</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio5" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio5">
+                                            Unlisted
+                                            Companies (Admission)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 col-md-6 col-sm-6">
+                                <div class="radio-btn">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="customRadio6" name="customRadio"
+                                            class="custom-control-input">
+                                        <label class="custom-control-label" for="customRadio6">
+                                            Register
+                                            - Training
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <a href="#" class="login-btn">Login</a>
+                        </div>
+                    </div>
+                </div>
+                <!-- <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                  <button type="button" class="btn btn-primary">Save changes</button>
+                </div> -->
+            </div>
+        </div>
+    </div>
+
+
+</body>
+</html>

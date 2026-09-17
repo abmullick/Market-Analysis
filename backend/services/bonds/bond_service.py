@@ -45,6 +45,7 @@ from backend.services.bonds.bond_normalizer import (
 )
 from backend.services.data.bonds.ccil import CcilClient
 from backend.services.data.bonds.corporate_cdsl import CdsCorporateBondClient
+from backend.services.data.bonds.corporate_cdsl import fetch_detail_live
 from backend.services.data.bonds.nse import NseClient
 from backend.services.data.bonds.rbi import RbiClient
 from backend.utils.logging import logger
@@ -526,9 +527,47 @@ class BondService:
         for bond in all_corporate:
             if bond.isin and bond.isin.upper() == isin.strip().upper():
                 self._cache.put(cache_key, bond)
+                # Enrich with CDSL rich ISIN detail (on demand, cached separately).
+                try:
+                    rich = await self._get_corporate_rich_detail(bond.isin.upper())
+                    if rich is not None:
+                        bond = self._merge_rich_detail_into_bond(bond, rich)
+                except Exception as exc:
+                    logger.debug(
+                        "CDSL rich detail enrichment skipped for %s: %s",
+                        bond.isin,
+                        exc,
+                    )
+                self._cache.put(cache_key, bond)
                 return bond
 
         return None
+
+    async def _get_corporate_rich_detail(
+        self,
+        isin_norm: str,
+    ) -> Optional[Any]:
+        """Fetch CDSL rich ISIN detail for *isin_norm*, cached separately.
+
+        The rich detail is fetched on demand ONLY here (not during list
+        refresh, pagination, or search). It is cached under
+        ``corporate-detail:<ISIN>`` so repeated selection of the same ISIN
+        does not hit CDSL again.
+        """
+        detail_cache_key = f"corporate-detail:{isin_norm}"
+        cached = self._cache.get(detail_cache_key)
+        if cached is not None:
+            return cached
+
+        try:
+            rich = await asyncio.to_thread(fetch_detail_live, isin_norm)
+            self._cache.put(detail_cache_key, rich)
+            return rich
+        except Exception as exc:
+            logger.warning(
+                "CDSL rich detail retrieval failed for %s: %s", isin_norm, exc
+            )
+            return None
 
 
 # ---------------------------------------------------------------------------
@@ -838,3 +877,124 @@ def _data_type_priority(bond: Bond) -> int:
         DataType.UNKNOWN: -1,
     }
     return mapping.get(dt, 0)
+
+
+def _merge_rich_detail_into_bond(
+    bond: Bond,
+    rich: Any,
+) -> Bond:
+    """Merge CDSL rich ISIN detail into an existing consolidated corporate Bond."""
+    if getattr(rich, "issuer_name", None) and not bond.issuer:
+        bond.issuer = rich.issuer_name
+    if getattr(rich, "security_description", None) and not bond.security_name:
+        bond.security_name = rich.security_description
+    if getattr(rich, "issuer_address", None):
+        bond.issuer_address = rich.issuer_address
+    if getattr(rich, "cin", None):
+        bond.cin = rich.cin
+    if getattr(rich, "lei", None):
+        bond.lei = rich.lei
+    if getattr(rich, "type_of_issuer", None) and not bond.issuer_type:
+        bond.issuer_type = rich.type_of_issuer
+    if getattr(rich, "nature_of_issuer", None) and not bond.issuer_sector:
+        bond.issuer_sector = rich.nature_of_issuer
+    if getattr(rich, "business_sector", None) and not bond.issuer_sector:
+        bond.issuer_sector = rich.business_sector
+    if getattr(rich, "instrument_type", None):
+        if not bond.instrument_type or str(bond.instrument_type) == "UNKNOWN":
+            bond.instrument_type = rich.instrument_type
+    return bond
+
+
+def _num(value: Any) -> Optional[float]:
+    """Parse a numeric string or numeric value; return ``None`` for blanks."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    s = str(value).strip()
+    if not s or s in ("-", "N/A", "NA", "n/a", "NaN", "nan", ""):
+        return None
+    try:
+        return float(s.replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+
+def _parse_cdsl_or_none(raw: Any) -> Optional[date]:
+    """Parse a CDSL date string (DD-Mon-YYYY or DD/MM/YYYY) into a date."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s or s in ("-", "N/A", "NA", "n/a", ""):
+        return None
+    from datetime import datetime as _dt
+
+    for fmt in ("%d-%b-%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            return _dt.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+
+
+def _clean_cdsl_text(raw: Any) -> Optional[str]:
+    """Normalize a CDSL text value: None for blanks/dashes.
+
+    Strips null bytes and unicode replacement characters (observed in source
+    cells such as CRA names).
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        s = raw.strip()
+    else:
+        s = str(raw).strip()
+    if not s or s in ("-", "N/A", "NA", "n/a", ""):
+        return None
+    s = s.replace(chr(0), "").replace(chr(0xFFFD), "").strip()
+    if not s or s in ("-", "N/A", "NA", "n/a", ""):
+        return None
+    return s
+
+
+
+def _parse_coupon_frequency(raw: Any) -> Optional[int]:
+    """Parse a CDSL frequency string like 'Once a Year' into an int."""
+    if raw is None:
+        return None
+    s = str(raw).strip().lower()
+    if not s:
+        return None
+    if "once" in s and "year" in s:
+        return 1
+    if "twice" in s and "year" in s:
+        return 2
+    if "quarter" in s:
+        return 4
+    if "monthly" in s:
+        return 12
+    try:
+        return int(float(s))
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_day_count_convention(raw: Any) -> DayCountConvention:
+    """Map a CDSL day-count string to a DayCountConvention enum."""
+    if raw is None:
+        return DayCountConvention.UNKNOWN
+    s = str(raw).strip().upper()
+    mapping = {
+        "ACTUAL/ACTUAL": DayCountConvention.ACT_ACT,
+        "ACT/ACT": DayCountConvention.ACT_ACT,
+        "ACTUAL/365": DayCountConvention.ACT_365,
+        "ACT/365": DayCountConvention.ACT_365,
+        "ACTUAL/360": DayCountConvention.ACT_360,
+        "ACT/360": DayCountConvention.ACT_360,
+        "30/360": DayCountConvention.THIRTY_360,
+    }
+    return mapping.get(s, DayCountConvention.UNKNOWN)
