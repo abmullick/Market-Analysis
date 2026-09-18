@@ -768,5 +768,90 @@ function init() {
     searchBonds();
 }
 
+
+// ---------------------------------------------------------------------------
+// Data Source Status — GET /api/bonds/sources/status
+// ---------------------------------------------------------------------------
+const BA_SOURCE_ORDER = ["CCIL", "NSE", "RBI"];
+function baSourceStatusLabel(status) {
+    const s = String(status || "not_loaded").toLowerCase();
+    if (s === "success") return "Success";
+    if (s === "error") return "Error";
+    return "Not Loaded";
+}
+function baSourceStatusClass(status) {
+    const s = String(status || "not_loaded").toLowerCase();
+    if (s === "success") return "is-success";
+    if (s === "error") return "is-error";
+    return "is-neutral";
+}
+function renderBondSourceStatus(payload) {
+    const list = $("ba-source-status-list");
+    if (!list) return;
+    const items = Array.isArray(payload) ? payload : (payload && Array.isArray(payload.sources) ? payload.sources : []);
+    const bySource = {};
+    items.forEach((entry) => {
+        if (!entry || !entry.source) return;
+        bySource[String(entry.source).toUpperCase()] = entry;
+    });
+    let okCount = 0;
+    BA_SOURCE_ORDER.forEach((name) => {
+        const row = list.querySelector(`[data-source="${name}"]`);
+        if (!row) return;
+        const entry = bySource[name] || { status: "not_loaded", record_count: 0, error: null };
+        const status = String(entry.status || "not_loaded").toLowerCase();
+        if (status === "success") okCount++;
+        const badge = row.querySelector(".ba-source-badge");
+        if (badge) {
+            badge.textContent = baSourceStatusLabel(status);
+            badge.classList.remove("is-success", "is-error", "is-neutral");
+            badge.classList.add(baSourceStatusClass(status));
+        }
+        const count = row.querySelector(".ba-source-count");
+        if (count) {
+            const n = Number(entry.record_count);
+            const safe = Number.isFinite(n) && n >= 0 ? n : 0;
+            count.textContent = `${safe} record${safe === 1 ? "" : "s"}`;
+        }
+        let err = row.querySelector(".ba-source-error");
+        const msg = status === "error" && entry.error ? String(entry.error) : "";
+        if (msg) {
+            if (!err) {
+                err = document.createElement("span");
+                err.className = "ba-source-error";
+                err.setAttribute("role", "alert");
+                row.appendChild(err);
+            }
+            err.textContent = msg;
+        } else if (err) {
+            err.remove();
+        }
+    });
+    const total = $("ba-source-status-count");
+    if (total) total.textContent = `${okCount}/${BA_SOURCE_ORDER.length} healthy`;
+}
+async function refreshBondSourceStatus() {
+    try {
+        const payload = await api.get("/bonds/sources/status");
+        renderBondSourceStatus(payload);
+    } catch (err) {
+        renderBondSourceStatus({ sources: [] });
+        const total = $("ba-source-status-count");
+        if (total) total.textContent = "Status unavailable";
+    }
+}
+// Refresh source status after every bond data refresh completes.
+if (typeof searchBonds === "function" && !searchBonds.__baStatusWrapped) {
+    const _baBaseSearchBonds = searchBonds;
+    searchBonds = async function (...args) {
+        try {
+            return await _baBaseSearchBonds.apply(this, args);
+        } finally {
+            refreshBondSourceStatus();
+        }
+    };
+    searchBonds.__baStatusWrapped = true;
+}
+
 init();
 

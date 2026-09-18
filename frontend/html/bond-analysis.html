@@ -164,6 +164,30 @@
                                 <h3>Select a bond to begin</h3>
                                 <p>Search for a bond above and select it to view its market data and analytics.</p>
                             </div>
+                            <section class="pb-panel ba-source-status-panel" aria-labelledby="ba-source-status-title" aria-live="polite">
+                                <div class="pb-panel-header ba-panel-head">
+                                    <h2 class="pb-panel-title" id="ba-source-status-title">Data Source Status</h2>
+                                    <span class="pb-count" id="ba-source-status-count"></span>
+                                </div>
+                                <p class="ba-section-sub">Live retrieval status for each configured bond data source.</p>
+                                <ul class="ba-source-status-list" id="ba-source-status-list">
+                                    <li class="ba-source-status-row" data-source="CCIL">
+                                        <span class="ba-source-name">CCIL</span>
+                                        <span class="ba-source-badge is-neutral">Not Loaded</span>
+                                        <span class="ba-source-count">0 records</span>
+                                    </li>
+                                    <li class="ba-source-status-row" data-source="NSE">
+                                        <span class="ba-source-name">NSE</span>
+                                        <span class="ba-source-badge is-neutral">Not Loaded</span>
+                                        <span class="ba-source-count">0 records</span>
+                                    </li>
+                                    <li class="ba-source-status-row" data-source="RBI">
+                                        <span class="ba-source-name">RBI</span>
+                                        <span class="ba-source-badge is-neutral">Not Loaded</span>
+                                        <span class="ba-source-count">0 records</span>
+                                    </li>
+                                </ul>
+                            </section>
                             <p class="pb-page-note" style="margin-top: 16px;">Prices are clean prices; accrued interest is reported separately. Market YTM is as reported by the source; Calculated YTM is computed by the analytics engine.</p>
                         </div>
                     </div>
