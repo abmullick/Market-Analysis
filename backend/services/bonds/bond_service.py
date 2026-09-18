@@ -339,6 +339,18 @@ class BondService:
         # (fallback — normally ISINs come from the combined list)
         return None
 
+    async def get_bond_by_record_id(self, record_id: str) -> Optional[Bond]:
+        """Retrieve a single normalized bond by its source-scoped ``record_id``.
+
+        Needed for records that carry no ISIN (e.g. CCIL market-watch rows);
+        see ``backend.services.bonds.bond_identity``.
+        """
+        bonds = await self.refresh_all_sources()
+        return next(
+            (bond for bond in bonds if bond.record_id == record_id),
+            None,
+        )
+
     async def get_market_observation(self, isin: str) -> Optional[Bond]:
         """Retrieve market observation for a bond by ISIN.
 

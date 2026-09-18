@@ -285,6 +285,7 @@ class Bond(BondMaster, BondMarketObservation):
 
         @_model_validator(mode="after")
         def _ensure_record_id(self):
+            """Attach the identity helper's record_id when the payload has none."""
             from backend.services.bonds.bond_identity import attach_record_id
 
             return attach_record_id(self)
@@ -293,17 +294,10 @@ class Bond(BondMaster, BondMarketObservation):
 
         @_root_validator(pre=False, skip_on_failure=True)
         def _ensure_record_id(cls, values):
-            from backend.services.bonds.bond_identity import compute_record_id
+            """Attach the identity helper's record_id when the payload has none."""
+            from backend.services.bonds.bond_identity import attach_record_id
 
-            if not values.get("record_id"):
-                values["record_id"] = compute_record_id(
-                    values.get("source"),
-                    values.get("data_type"),
-                    values.get("security_name"),
-                    values.get("maturity_date"),
-                    values.get("coupon_rate"),
-                )
-            return values
+            return attach_record_id(values)
     model_config = ConfigDict(use_attribute_docstrings=True)
 
 

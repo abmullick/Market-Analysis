@@ -2,6 +2,7 @@
 
 Government bond routes (CCIL + NSE + RBI pipeline):
   GET  /api/bonds                    — list/search government bonds
+  GET  /api/bonds/record/{record_id} — retrieve bond by record_id (no-ISIN records)
   GET  /api/bonds/{isin}             — retrieve bond by ISIN
   GET  /api/bonds/{isin}/market      — retrieve market observation
   GET  /api/bonds/{isin}/analytics   — retrieve analytics
@@ -214,6 +215,23 @@ async def get_corporate_bond(
     if bond is None:
         raise HTTPException(
             status_code=404, detail=f"Corporate bond with ISIN {isin} not found"
+        )
+    return bond
+
+
+@router.get("/record/{record_id}")
+async def get_bond_by_record_id(record_id: str) -> Bond:
+    """Retrieve a single bond by its source-scoped record_id.
+
+    Falls back to the deterministic ``record_id`` for records that carry no
+    ISIN (e.g. CCIL market-watch rows).
+    """
+    service = get_bond_service()
+    bond = await service.get_bond_by_record_id(record_id)
+    if bond is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Bond not found: {record_id}",
         )
     return bond
 

@@ -4,7 +4,10 @@ CCIL market-watch records do not carry an ISIN, so the Bond Analysis API needs
 an additional stable identifier to be able to select a single record that has
 no ISIN. The identifier is deliberately *source-scoped*:
 
-    record_id = "<source>|<data_type>|sha1(description|maturity|coupon)[:12]"
+    record_id = "<source>|<instrument_type>|sha1(description|maturity|coupon)[:12]"
+
+``description`` is the normalized ``security_name``; missing maturity or coupon
+values are rendered as the literal string ``"none"`` so the digest is stable.
 
 It is **never** presented as an ISIN and it **never** claims that records from
 two different sources describe the same security.
@@ -26,65 +29,189 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Iterable, Mapping
+from datetime import date, datetime
 from typing import Any, Optional
 
 __all__ = [
-    "build_record_id",
-    "describe_identity_limits",
+    "SOURCE_CCIL",
+    "SOURCE_NSE",
     "RECORD_ID_FIELDS",
+    "RECORD_ID_PATTERN",
+    "attach_record_id",
+    "build_record_id",
+    "compute_record_id",
+    "describe_identity_limits",
+    "ensure_record_id",
+    "ensure_record_ids",
+    "is_valid_record_id",
+    "normalize_identity_text",
+    "parse_record_id",
+    "record_id_for",
+    "record_id_for_bond",
+    "record_id_source",
 ]
+
+#: Canonical source identifiers used by the bond providers.
+SOURCE_CCIL = "CCIL"
+SOURCE_NSE = "NSE"
 
 #: Fields that participate in the fallback digest, in a fixed order.
 RECORD_ID_FIELDS = ("security_name", "maturity_date", "coupon_rate")
 
-_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+#: ``<source>|<instrument_type>|<12 hex chars>``
+RECORD_ID_PATTERN = re.compile(r"^[a-z0-9_]+\|[a-z0-9_]+\|[0-9a-f]{12}$")
+
+_WHITESPACE_RE = re.compile(r"\s+")
+_UNSAFE_RE = re.compile(r"[^a-z0-9_]+")
+
+_MISSING = "none"
+_UNKNOWN = "unknown"
 
 
-def _text(value: Any) -> str:
-    """Return a trimmed string for *value*, or an empty string when absent."""
+def normalize_identity_text(value: Any) -> str:
+    """Collapse whitespace and upper-case *value* so cosmetic differences do not fork identity."""
     if value is None:
         return ""
     if isinstance(value, (bytes, bytearray)):
         value = value.decode("utf-8", "replace")
-    return str(value).strip()
+    text = str(value).replace("\u00a0", " ")
+    return _WHITESPACE_RE.sub(" ", text).strip().upper()
 
 
-def _normalize(value: Any) -> str:
-    """Case-fold and strip punctuation so cosmetic differences do not fork identity."""
-    return _NON_ALNUM.sub("", _text(value).lower())
-
-
-def _enum_value(value: Any) -> str:
-    """Return the lower-cased enum ``value`` (or the plain string) for *value*."""
-    if value is None:
-        return ""
+def _token(value: Any, default: str = _UNKNOWN) -> str:
+    """Normalize a source/instrument-type label into a lowercase, string-safe token."""
     raw = getattr(value, "value", value)
-    return _text(raw).lower()
+    token = _UNSAFE_RE.sub("_", normalize_identity_text(raw).lower()).strip("_")
+    return token or default
 
 
-def build_record_id(bond: Any) -> Optional[str]:
-    """Build the deterministic, source-scoped identifier for *bond*.
+def _description(value: Any) -> str:
+    """Return the normalized security description, or ``"none"`` when absent."""
+    return normalize_identity_text(value) or _MISSING
 
-    ``bond`` may be any object exposing the normalized bond attributes
-    (``source``, ``data_type``, ``security_name``, ``maturity_date``,
-    ``coupon_rate``). Missing attributes are treated as absent, never guessed.
 
-    Returns ``None`` only when *bond* carries none of the identifying fields at
-    all, in which case no stable identifier can be derived from the source.
+def _maturity(value: Any) -> str:
+    """Return the normalized maturity date, or ``"none"`` when absent."""
+    if value is None:
+        return _MISSING
+    if isinstance(value, datetime):
+        value = value.date()
+    if isinstance(value, date):
+        return value.isoformat()
+    return normalize_identity_text(value) or _MISSING
+
+
+def _coupon(value: Any) -> str:
+    """Return the normalized coupon rate, or ``"none"`` when absent."""
+    if value is None:
+        return _MISSING
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return normalize_identity_text(value) or _MISSING
+    text = repr(number)
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text
+
+
+def record_id_for(
+    source: Any,
+    instrument_type: Any,
+    description: Any,
+    maturity_date: Any,
+    coupon_rate: Any,
+) -> str:
+    """Build ``"<source>|<instrument_type>|sha1(description|maturity|coupon)[:12]"``."""
+    identity = (
+        f"{_description(description)}|{_maturity(maturity_date)}|{_coupon(coupon_rate)}"
+    )
+    digest = hashlib.sha1(identity.encode("utf-8")).hexdigest()[:12]
+    return f"{_token(source)}|{_token(instrument_type)}|{digest}"
+
+
+def _field(bond: Any, *names: str) -> Any:
+    """Return the first non-``None`` value from *bond* (mapping or object)."""
+    if isinstance(bond, Mapping):
+        for name in names:
+            if bond.get(name) is not None:
+                return bond[name]
+        return None
+    for name in names:
+        value = getattr(bond, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+def record_id_for_bond(bond: Any) -> Optional[str]:
+    """Build the record_id for a bond-like mapping or object.
+
+    ``security_name`` is used as the description; ``instrument_type`` is used
+    when present, with ``data_type`` as the fallback.
     """
     if bond is None:
         return None
+    return record_id_for(
+        _field(bond, "source"),
+        _field(bond, "instrument_type", "data_type"),
+        _field(bond, "security_name", "security_description", "description"),
+        _field(bond, "maturity_date"),
+        _field(bond, "coupon_rate"),
+    )
 
-    source = _enum_value(getattr(bond, "source", None)) or "unknown"
-    data_type = _enum_value(getattr(bond, "data_type", None)) or "unknown"
 
-    parts = [_normalize(getattr(bond, field, None)) for field in RECORD_ID_FIELDS]
-    if not any(parts):
+def build_record_id(bond: Any) -> Optional[str]:
+    """Alias of :func:`record_id_for_bond` (bond-like object in, record_id out)."""
+    return record_id_for_bond(bond)
+
+
+def compute_record_id(
+    source: Any,
+    instrument_type: Any,
+    description: Any,
+    maturity_date: Any,
+    coupon_rate: Any,
+) -> str:
+    """Alias of :func:`record_id_for` for component-based callers/validators."""
+    return record_id_for(
+        source, instrument_type, description, maturity_date, coupon_rate
+    )
+
+
+def attach_record_id(bond: Any) -> Any:
+    """Stamp ``record_id`` on *bond* when missing and return *bond* unchanged."""
+    if bond is None:
         return None
+    existing = (
+        bond.get("record_id")
+        if isinstance(bond, Mapping)
+        else getattr(bond, "record_id", None)
+    )
+    if existing:
+        return bond
+    record_id = record_id_for_bond(bond)
+    if record_id is None:
+        return bond
+    if isinstance(bond, Mapping):
+        bond["record_id"] = record_id
+    else:
+        try:
+            setattr(bond, "record_id", record_id)
+        except (AttributeError, TypeError, ValueError):
+            return bond
+    return bond
 
-    payload = "|".join(parts)
-    digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:12]
-    return f"{source}|{data_type}|{digest}"
+
+def ensure_record_id(bond: Any) -> Any:
+    """Alias of :func:`attach_record_id` for raw provider records."""
+    return attach_record_id(bond)
+
+
+def ensure_record_ids(bonds: Iterable[Any]) -> list[Any]:
+    """Stamp ``record_id`` on every record, preserving order."""
+    return [ensure_record_id(bond) for bond in bonds]
 
 
 def describe_identity_limits() -> str:
@@ -95,3 +222,22 @@ def describe_identity_limits() -> str:
         "securities from the same source that share the same normalized "
         "security description, maturity date and coupon rate can collide."
     )
+
+
+def is_valid_record_id(value: Any) -> bool:
+    """Return ``True`` when *value* matches ``<source>|<type>|<12 hex>``."""
+    return isinstance(value, str) and RECORD_ID_PATTERN.match(value) is not None
+
+
+def parse_record_id(value: Any) -> Optional[dict[str, str]]:
+    """Split a valid record_id into ``source`` / ``data_type`` / ``digest``."""
+    if not is_valid_record_id(value):
+        return None
+    source, data_type, digest = value.split("|")
+    return {"source": source, "data_type": data_type, "digest": digest}
+
+
+def record_id_source(value: Any) -> Optional[str]:
+    """Return the source prefix of *value*, or ``None`` when it is not a record_id."""
+    parsed = parse_record_id(value)
+    return parsed["source"] if parsed else None
