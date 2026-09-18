@@ -264,7 +264,12 @@ def _nse_issuer(raw: NseRawRecord, desc: str, instrument_type: InstrumentType) -
 
 
 def _parse_coupon_frequency(raw: str | None) -> Optional[int]:
-    """Parse coupon frequency labels ('Half-Yearly', '2', 'Quarterly') to int."""
+    """Parse coupon frequency labels ('Half-Yearly', '2', 'Quarterly') to int.
+
+    Also understands CDSL's spelled-out forms such as 'twelve times a year'
+    and 'once a year'. Only well-defined payment cycles are returned;
+    anything unrecognised stays ``None`` (never guessed).
+    """
     if not raw:
         return None
     text = raw.strip().lower()
@@ -291,6 +296,26 @@ def _parse_coupon_frequency(raw: str | None) -> Optional[int]:
     for key, val in mapping.items():
         if key in text:
             return val
+    word_numbers = {
+        "once": 1,
+        "one": 1,
+        "two": 2,
+        "twice": 2,
+        "three": 3,
+        "four": 4,
+        "six": 6,
+        "twelve": 12,
+    }
+    if (
+        "times a year" in text
+        or "time a year" in text
+        or "per year" in text
+        or "a year" in text
+        or "per annum" in text
+    ):
+        for word, n in word_numbers.items():
+            if word in text:
+                return n
     return None
 
 

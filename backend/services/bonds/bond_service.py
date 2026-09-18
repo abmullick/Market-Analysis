@@ -37,11 +37,14 @@ from backend.models.bonds import (
 from backend.services.bonds.bond_analytics import compute_analytics
 from backend.services.bonds.bond_enrichment import enrich_ccil_bonds
 from backend.services.bonds.bond_normalizer import (
+    _parse_coupon_frequency as _parse_coupon_frequency_source,
     normalize_ccil_record,
     normalize_cdsl_corporate_primary_record,
     normalize_cdsl_corporate_secondary_record,
     normalize_rbi_record,
+    parse_date,
     parse_date as _parse_source_date,
+    parse_float,
 )
 from backend.services.data.bonds.ccil import CcilClient
 from backend.services.data.bonds.corporate_cdsl import CdsCorporateBondClient
@@ -739,6 +742,34 @@ class BondService:
             )
             return None
 
+    async def get_corporate_analytics(
+        self,
+        isin: str,
+        trade_date: date | datetime | str | None = None,
+    ) -> Optional[AnalyticsResult]:
+        """Compute analytics for a corporate bond by ISIN (CDSL data only).
+
+        Reuses the corporate detail path (which merges CDSL's rich ISIN
+        terms — coupon frequency, day-count convention, interest window —
+        into the Bond) and then runs the shared analytics engine. Metrics
+        that cannot be computed from source-validated terms are ``None``
+        with an explanation in ``unavailable_metrics``; nothing is assumed.
+        """
+        resolved = _resolve_corporate_trade_date(trade_date)
+        isin_norm = isin.strip().upper()
+        cache_key = f"corporate-analytics:{resolved.isoformat()}:{isin_norm}"
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        bond = await self.get_corporate_bond_by_isin(isin, trade_date=trade_date)
+        if bond is None:
+            return None
+
+        analytics = compute_analytics(bond)
+        self._cache.put(cache_key, analytics)
+        return analytics
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -1053,7 +1084,14 @@ def _merge_rich_detail_into_bond(
     bond: Bond,
     rich: Any,
 ) -> Bond:
-    """Merge CDSL rich ISIN detail into an existing consolidated corporate Bond."""
+    """Merge CDSL rich ISIN detail into an existing consolidated corporate Bond.
+
+    Only source-published terms are copied — nothing is inferred. The
+    analytics-relevant structured terms (coupon frequency, day-count
+    convention, interest payment window, redemption date) are what make a
+    validated cash-flow schedule and risk metrics possible for corporate
+    bonds; they are mapped here exactly as CDSL publishes them.
+    """
     if getattr(rich, "issuer_name", None) and not bond.issuer:
         bond.issuer = rich.issuer_name
     if getattr(rich, "security_description", None) and not bond.security_name:
@@ -1073,6 +1111,70 @@ def _merge_rich_detail_into_bond(
     if getattr(rich, "instrument_type", None):
         if not bond.instrument_type or str(bond.instrument_type) == "UNKNOWN":
             bond.instrument_type = rich.instrument_type
+
+    # --- Structured terms used by the analytics engine ---
+    face_value = parse_float(getattr(rich, "face_value", None) or "")
+    if face_value is not None and bond.face_value is None:
+        bond.face_value = face_value
+
+    frequency = _parse_coupon_frequency(
+        getattr(rich, "frequency_of_interest_payment", None)
+    )
+    if frequency is not None and bond.coupon_frequency is None:
+        bond.coupon_frequency = frequency
+
+    day_count = _parse_day_count_convention(
+        getattr(rich, "day_count_convention", None)
+    )
+    if (
+        day_count is not None
+        and day_count != DayCountConvention.UNKNOWN
+        and (
+            bond.day_count_convention is None
+            or bond.day_count_convention == DayCountConvention.UNKNOWN
+        )
+    ):
+        bond.day_count_convention = day_count
+
+    interest_start = parse_date(
+        getattr(rich, "interest_payment_start_date", None) or ""
+    )
+    if interest_start is not None and bond.interest_start_date is None:
+        bond.interest_start_date = interest_start
+
+    interest_end = parse_date(
+        getattr(rich, "interest_payment_end_date", None) or ""
+    )
+    if interest_end is not None and bond.interest_end_date is None:
+        bond.interest_end_date = interest_end
+
+    redemption_date = parse_date(getattr(rich, "redemption_date", None) or "")
+    if redemption_date is not None and bond.redemption_date is None:
+        bond.redemption_date = redemption_date
+
+    if getattr(rich, "redemption_type", None) and not bond.redemption_type:
+        bond.redemption_type = rich.redemption_type
+    if getattr(rich, "coupon_basis", None) and not bond.coupon_basis:
+        bond.coupon_basis = rich.coupon_basis
+    if getattr(rich, "coupon_type", None) and not bond.coupon_type:
+        bond.coupon_type = rich.coupon_type
+    if getattr(rich, "security_type", None) and not bond.security_type:
+        bond.security_type = rich.security_type
+
+    # Coupon rate: the rich page sometimes omits the numeric rate; its
+    # coupon-rate label (e.g. "10.95%") is still source-published evidence.
+    if bond.coupon_rate is None:
+        label_coupon = parse_float(
+            getattr(rich, "coupon_rate_label", None) or ""
+        )
+        if label_coupon is not None:
+            bond.coupon_rate = label_coupon
+
+    # Source-published cash-flow schedule (when CDSL returns one).
+    rich_schedule = getattr(rich, "cash_flow_schedule", None)
+    if rich_schedule and not bond.cash_flow_schedule:
+        bond.cash_flow_schedule = list(rich_schedule)
+
     return bond
 
 
@@ -1133,24 +1235,15 @@ def _clean_cdsl_text(raw: Any) -> Optional[str]:
 
 
 def _parse_coupon_frequency(raw: Any) -> Optional[int]:
-    """Parse a CDSL frequency string like 'Once a Year' into an int."""
-    if raw is None:
-        return None
-    s = str(raw).strip().lower()
-    if not s:
-        return None
-    if "once" in s and "year" in s:
-        return 1
-    if "twice" in s and "year" in s:
-        return 2
-    if "quarter" in s:
-        return 4
-    if "monthly" in s:
-        return 12
-    try:
-        return int(float(s))
-    except (TypeError, ValueError):
-        return None
+    """Parse a CDSL frequency string like 'Once a Year' into an int.
+
+    Delegates to the shared normalizer parser, which also understands
+    spelled-out CDSL forms such as 'twelve times a year' and label forms
+    like 'Half-Yearly'. Only recognized cycles are returned — never guessed.
+    """
+    return _parse_coupon_frequency_source(
+        str(raw) if raw is not None else None
+    )
 
 
 def _parse_day_count_convention(raw: Any) -> DayCountConvention:

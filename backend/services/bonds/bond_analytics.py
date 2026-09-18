@@ -40,8 +40,10 @@ from backend.models.bonds import (
 from backend.services.bonds.bond_cashflows import (
     _step_back,
     accrued_interest,
+    build_cash_flow_schedule,
     generate_cash_flows,
 )
+from backend.services.bonds.bond_normalizer import parse_date, parse_float
 
 
 # ---------------------------------------------------------------------------
@@ -422,18 +424,26 @@ def compute_analytics(
 ) -> AnalyticsResult:
     """Compute full analytics for a normalized Bond.
 
+    Metrics are computed ONLY from source-validated inputs. When a required
+    term (coupon rate, coupon frequency, payment dates, day count, price) is
+    missing, the affected metric is left ``None`` and a human-readable reason
+    is recorded in ``unavailable_metrics`` — nothing is fabricated.
+
     Args:
         bond: Normalized Bond record (master + market observation).
         settlement_date: Date for analytics. Defaults to trade_date or today.
-        day_count: Day-count convention. Defaults to bond's convention or
-                   ACT/365.
+        day_count: Day-count convention. Defaults to the bond's published
+                   convention, falling back to ACT/365 when the source does
+                   not publish one.
 
     Returns:
         AnalyticsResult with calculated_ytm (independent of market YTM),
         market_ytm (retained separately from source), current_yield,
-        accrued_interest, cash_flows, durations, convexity, DV01.
+        accrued_interest, cash_flows, durations, convexity, DV01, plus
+        ``unavailable_metrics`` explanations and ``cash_flow_source``.
     """
     notes: list[str] = []
+    unavailable: dict[str, str] = {}
 
     # --- Settlement date ---
     if settlement_date is None:
@@ -443,81 +453,181 @@ def compute_analytics(
             settlement_date = date.today()
 
     # --- Day count ---
+    day_count_published = (
+        bond.day_count_convention is not None
+        and bond.day_count_convention != DayCountConvention.UNKNOWN
+    )
     if day_count is None:
-        if (
-            bond.day_count_convention
-            and bond.day_count_convention != DayCountConvention.UNKNOWN
-        ):
+        if day_count_published:
             day_count = bond.day_count_convention.value
         else:
             day_count = "ACT/365"
 
     notes.append(f"Settlement date: {settlement_date}")
     notes.append(f"Day count: {day_count}")
+    if day_count_published:
+        notes.append("Day count published by the source.")
+    else:
+        notes.append(
+            "Day count not published by the source; ACT/365 applied for "
+            "time fractions."
+        )
 
-    # --- Face value / coupon / frequency defaults ---
-    face_value = bond.face_value if bond.face_value else 100.0
+    # All price-based metrics use the per-100-par basis (quoted prices are
+    # percent of par). Face value only matters for absolute cash amounts and
+    # is reported separately when it differs from 100.
+    if bond.face_value is not None and abs(bond.face_value - 100.0) > 1e-9:
+        notes.append(
+            f"Source face value: {bond.face_value:g} per unit; analytics "
+            "expressed per 100 par."
+        )
+
+    # --- Coupon / frequency policy ---
     coupon_rate = bond.coupon_rate
-    frequency = bond.coupon_frequency or 2
+    instrument_value = (
+        bond.instrument_type.value if bond.instrument_type is not None else ""
+    )
+    is_government = instrument_value in ("G-Sec", "SDL")
 
     is_tbill = (
-        bond.instrument_type is not None
-        and bond.instrument_type.value == "T-Bill"
-    ) or (
-        coupon_rate is not None
-        and coupon_rate == 0
+        instrument_value == "T-Bill"
+        or (coupon_rate is not None and coupon_rate == 0)
     )
+
+    frequency: Optional[int] = bond.coupon_frequency
+    if frequency is None and not is_tbill and is_government:
+        # Indian central/state government securities pay semi-annual coupons
+        # (documented market convention; module docstring). This is applied
+        # ONLY to government securities and is disclosed in the notes.
+        frequency = 2
+        notes.append(
+            "Coupon frequency not published; semi-annual applied per Indian "
+            "government-bond market convention."
+        )
 
     if is_tbill:
         notes.append(
             "T-Bill / zero-coupon instrument: treated as zero-coupon"
         )
 
-    # --- Cash flow schedule ---
-    cash_flows = generate_cash_flows(
-        issue_date=bond.issue_date,
-        maturity_date=bond.maturity_date,
-        coupon_rate=coupon_rate,
-        coupon_frequency=frequency,
-        face_value=face_value,
-        settlement_date=settlement_date,
-        day_count=day_count,
-    )
+    # --- Cash flow schedule (source-provided first, then strictly calculated) ---
+    cash_flow_source: Optional[str] = None
+    schedule_reason: Optional[str] = None
+    cash_flows: Optional[list[dict[str, Any]]] = None
+
+    source_rows = bond.cash_flow_schedule or []
+    if source_rows:
+        # Source amounts are per the bond's actual face value; the schedule
+        # is expressed per 100 par to line up with quoted prices.
+        face_scale = (bond.face_value / 100.0) if bond.face_value else 1.0
+        mapped: list[dict[str, Any]] = []
+        for idx, ev in enumerate(source_rows, start=1):
+            ev_date = parse_date(getattr(ev, "due_date", None) or "")
+            if ev_date is None:
+                ev_date = parse_date(getattr(ev, "payment_date", None) or "")
+            amount = parse_float(str(getattr(ev, "amount_payable", "") or ""))
+            if ev_date is None or amount is None or face_scale <= 0:
+                continue
+            amount_per_100 = amount / face_scale
+            ev_type = (getattr(ev, "event_type", "") or "").lower()
+            is_interest = "interest" in ev_type
+            is_principal = ("redemption" in ev_type) or ("principal" in ev_type)
+            mapped.append(
+                {
+                    "period": idx,
+                    "date": ev_date,
+                    "coupon": amount_per_100 if is_interest and not is_principal else 0.0,
+                    "principal": amount_per_100 if is_principal else 0.0,
+                    "total": amount_per_100,
+                    "source": "cdsl",
+                }
+            )
+        if mapped:
+            cash_flows = sorted(mapped, key=lambda r: r["date"])
+            cash_flow_source = "source"
+            notes.append(
+                "Cash-flow schedule provided by CDSL (source-published)."
+            )
+        else:
+            schedule_reason = (
+                "CDSL published a cash-flow schedule but its rows could not "
+                "be parsed into dated payments."
+            )
+
+    if cash_flows is None and schedule_reason is None:
+        anchor_date = bond.interest_start_date or bond.issue_date
+        final_date = bond.redemption_date or bond.maturity_date
+        # Government securities anchor their coupon calendar on the maturity
+        # date (project convention); corporates must publish an anchor.
+        maturity_anchored = is_government or is_tbill
+        if anchor_date is None and not maturity_anchored:
+            schedule_reason = (
+                "Interest payment start / issue date not published (cannot "
+                "anchor the coupon calendar)."
+            )
+        else:
+            built_flows, built_source, built_reason = build_cash_flow_schedule(
+                coupon_rate=coupon_rate,
+                coupon_frequency=frequency,
+                anchor_date=anchor_date,
+                final_date=final_date,
+                is_zero_coupon=is_tbill,
+                allow_maturity_anchor=maturity_anchored and anchor_date is None,
+            )
+            if built_flows:
+                cash_flows = built_flows
+                cash_flow_source = built_source
+                if not is_tbill and anchor_date is None:
+                    notes.append(
+                        "Coupon dates generated backwards from the published "
+                        "maturity date (government security convention)."
+                    )
+            else:
+                schedule_reason = built_reason
+
+    if cash_flows is None:
+        if schedule_reason is None:
+            schedule_reason = "Cash-flow schedule unavailable."
+        unavailable["cash_flows"] = schedule_reason
 
     # Cash flows on or before settlement have already occurred and must not
     # be included in YTM, duration, convexity, or DV01 calculations.
     future_cash_flows = [
         cf
-        for cf in cash_flows
+        for cf in (cash_flows or [])
         if cf["date"] > settlement_date
     ]
 
-    # --- Accrued interest ---
-    last_coupon = None
+    # --- Accrued interest (only when a real previous coupon date exists) ---
+    ai_amount: Optional[float] = None
+    ai_days: Optional[int] = None
 
-    if future_cash_flows:
-        # Previous coupon is the latest generated cash-flow date on or before
-        # settlement. This avoids hard-coding cash_flows[0] for later coupons.
+    if is_tbill:
+        unavailable["accrued_interest"] = (
+            "Zero-coupon instrument: there is no coupon accrual."
+        )
+    elif cash_flows is None:
+        unavailable["accrued_interest"] = schedule_reason
+    else:
         previous_candidates = [
             cf["date"]
             for cf in cash_flows
             if cf["date"] <= settlement_date
         ]
-        if previous_candidates:
-            last_coupon = max(previous_candidates)
-
-    # T-Bills are zero-coupon and therefore have no accrued coupon interest.
-    if is_tbill:
-        last_coupon = None
-
-    ai_amount, ai_days = accrued_interest(
-        coupon_rate=coupon_rate,
-        face_value=face_value,
-        last_coupon_date=last_coupon,
-        settlement_date=settlement_date,
-        coupon_frequency=frequency,
-        day_count=day_count,
-    )
+        last_coupon = max(previous_candidates) if previous_candidates else None
+        if last_coupon is None:
+            unavailable["accrued_interest"] = (
+                "Settlement precedes the first coupon of the published schedule."
+            )
+        else:
+            ai_amount, ai_days = accrued_interest(
+                coupon_rate=coupon_rate,
+                face_value=100.0,
+                last_coupon_date=last_coupon,
+                settlement_date=settlement_date,
+                coupon_frequency=frequency or 2,
+                day_count=day_count,
+            )
 
     # --- Clean / dirty price ---
     dirty_price = None
@@ -525,67 +635,114 @@ def compute_analytics(
 
     if bond.clean_price is not None:
         clean_price = bond.clean_price
-        dirty_price = clean_price + ai_amount
+        dirty_price = clean_price + (ai_amount or 0.0)
     elif bond.dirty_price is not None:
         dirty_price = bond.dirty_price
-        clean_price = dirty_price - ai_amount
+        clean_price = dirty_price - (ai_amount or 0.0)
     elif bond.price is not None:
         # Legacy fallback: price is treated as dirty when no explicit
         # clean/dirty classification is available.
         dirty_price = bond.price
-        clean_price = dirty_price - ai_amount
+        if ai_amount is not None:
+            clean_price = dirty_price - ai_amount
+
+    if dirty_price is None or dirty_price <= 0:
+        price_reason = (
+            "No usable market price (LTP/weighted average price) for this bond."
+        )
+        unavailable["current_yield"] = price_reason
+        unavailable["calculated_ytm"] = price_reason
+        unavailable["macaulay_duration"] = price_reason
+        unavailable["modified_duration"] = price_reason
+        unavailable["convexity"] = price_reason
+        unavailable["dv01"] = price_reason
 
     # --- Current yield ---
     current_yield = None
 
-    if (
-        clean_price
-        and clean_price > 0
-        and coupon_rate
-        and not is_tbill
-    ):
+    if is_tbill:
+        unavailable["current_yield"] = (
+            "Zero-coupon instrument: current yield is not applicable."
+        )
+    elif coupon_rate is None or coupon_rate <= 0:
+        if "current_yield" not in unavailable:
+            unavailable["current_yield"] = (
+                "Coupon rate not published for this ISIN."
+            )
+    elif clean_price and clean_price > 0:
         # coupon_rate is already stored as a percentage
         # (e.g. 6.94 means 6.94%), so do not multiply by 100.
-        current_yield = (
-            coupon_rate * face_value
-        ) / clean_price
+        # Per-100-par basis: annual coupon per 100 = coupon_rate, so the
+        # yield in percent is coupon_rate / clean_price * 100.
+        current_yield = coupon_rate * 100.0 / clean_price
 
         notes.append(
             f"Current yield: {current_yield:.4f}%"
+        )
+    elif dirty_price and dirty_price > 0:
+        # Accrued interest could not be derived, so no clean price exists;
+        # fall back to the traded price rather than withholding the metric.
+        current_yield = coupon_rate * 100.0 / dirty_price
+
+        notes.append(
+            f"Current yield: {current_yield:.4f}% "
+            "(clean price unavailable; traded price used)"
         )
 
     # --- Calculated YTM ---
     calculated_ytm = None
 
-    if (
-        dirty_price
-        and dirty_price > 0
-        and future_cash_flows
-    ):
+    if dirty_price and dirty_price > 0 and cash_flows is not None:
         if is_tbill:
-            maturity_date = future_cash_flows[-1]["date"]
+            if future_cash_flows:
+                maturity_date = future_cash_flows[-1]["date"]
 
-            ytm_decimal = _solve_tbill_ytm(
-                maturity_date=maturity_date,
-                price=dirty_price,
-                face_value=face_value,
-                settlement_date=settlement_date,
-                day_count=day_count,
-            )
-        else:
+                ytm_decimal = _solve_tbill_ytm(
+                    maturity_date=maturity_date,
+                    price=dirty_price,
+                    face_value=100.0,
+                    settlement_date=settlement_date,
+                    day_count=day_count,
+                )
+            else:
+                ytm_decimal = None
+        elif any(cf.get("coupon", 0) > 0 for cf in future_cash_flows):
+            # A coupon-bearing YTM requires at least one future coupon; a
+            # maturity-only placeholder must never be priced as a YTM.
             ytm_decimal = solve_ytm(
                 cash_flows=cash_flows,
                 dirty_price=dirty_price,
                 settlement_date=settlement_date,
                 day_count=day_count,
-                frequency=frequency,
+                frequency=frequency or 2,
             )
+        else:
+            ytm_decimal = None
 
-        if ytm_decimal is not None:
-            calculated_ytm = ytm_decimal * 100.0
+        if ytm_decimal is not None and math.isfinite(ytm_decimal):
+            # Plausibility guard: suppress nonsensical solves caused by
+            # degenerate inputs rather than displaying them.
+            if -0.5 <= ytm_decimal <= 2.0:
+                calculated_ytm = ytm_decimal * 100.0
 
-            notes.append(
-                f"Calculated YTM: {calculated_ytm:.4f}%"
+                notes.append(
+                    f"Calculated YTM: {calculated_ytm:.4f}%"
+                )
+            else:
+                unavailable["calculated_ytm"] = (
+                    "Solved YTM fell outside a plausible range and was "
+                    "suppressed rather than displayed."
+                )
+        elif "calculated_ytm" not in unavailable:
+            unavailable["calculated_ytm"] = (
+                "YTM could not be solved from the available price and schedule."
+            )
+    elif "calculated_ytm" not in unavailable:
+        if cash_flows is None and schedule_reason:
+            unavailable["calculated_ytm"] = schedule_reason
+        elif is_tbill and not future_cash_flows:
+            unavailable["calculated_ytm"] = (
+                "T-Bill has already matured; no future cash flow to price."
             )
 
     # --- Market YTM (retained separately) ---
@@ -602,78 +759,78 @@ def compute_analytics(
     convexity = None
     dv01 = None
 
-    if (
-        future_cash_flows
-        and dirty_price
-        and dirty_price > 0
-        and not is_tbill
-    ):
-        ytm_decimal = (
-            calculated_ytm / 100.0
-            if calculated_ytm is not None
-            else (
-                market_ytm / 100.0
-                if market_ytm is not None
-                else 0.07
-            )
-        )
-
-        (
-            macaulay_duration,
-            modified_duration,
-            convexity,
-        ) = _compute_duration_convexity(
-            cash_flows=future_cash_flows,
-            ytm=ytm_decimal,
-            settlement_date=settlement_date,
-            day_count=day_count,
-            frequency=frequency,
-        )
-
-        # DV01: change in price for 1bp move in yield, per face value.
-        if modified_duration is not None:
-            dv01 = (
-                modified_duration
-                * 0.0001
-                * face_value
+    if dirty_price and dirty_price > 0 and future_cash_flows and not is_tbill:
+        # Discounting yield: the independently calculated YTM when available,
+        # otherwise the source-reported YTM. A fabricated default (e.g. 7%)
+        # is never used — without either yield the risk metrics are skipped.
+        if calculated_ytm is not None:
+            ytm_decimal = calculated_ytm / 100.0
+        elif market_ytm is not None:
+            ytm_decimal = market_ytm / 100.0
+        else:
+            ytm_decimal = None
+            unavailable["macaulay_duration"] = (
+                "Requires a calculated or source-reported YTM; neither is "
+                "available for this bond."
             )
 
-            # More precise: reprice at y +/- 1bp.
-            dv01_precise = _dv01_from_pricing(
+        if ytm_decimal is not None:
+            (
+                macaulay_duration,
+                modified_duration,
+                convexity,
+            ) = _compute_duration_convexity(
                 cash_flows=future_cash_flows,
                 ytm=ytm_decimal,
                 settlement_date=settlement_date,
                 day_count=day_count,
-                face_value=face_value,
-                frequency=frequency,
+                frequency=frequency or 2,
             )
 
-            if dv01_precise is not None:
-                dv01 = dv01_precise
+            # DV01: change in price for 1bp move in yield, per 100 par.
+            if modified_duration is not None:
+                dv01 = (
+                    modified_duration
+                    * 0.0001
+                    * 100.0
+                )
 
-        notes.append(
-            f"Macaulay duration: {macaulay_duration:.4f} years"
-            if macaulay_duration is not None
-            else "Macaulay duration: N/A"
-        )
+                # More precise: reprice at y +/- 1bp (same per-100 basis).
+                dv01_precise = _dv01_from_pricing(
+                    cash_flows=future_cash_flows,
+                    ytm=ytm_decimal,
+                    settlement_date=settlement_date,
+                    day_count=day_count,
+                    face_value=100.0,
+                    frequency=frequency or 2,
+                )
 
-        notes.append(
-            f"Modified duration: {modified_duration:.4f}"
-            if modified_duration is not None
-            else "Modified duration: N/A"
-        )
+                if dv01_precise is not None:
+                    dv01 = dv01_precise
 
-        notes.append(
-            f"Convexity: {convexity:.4f}"
-            if convexity is not None
-            else "Convexity: N/A"
-        )
+            notes.append(
+                f"Macaulay duration: {macaulay_duration:.4f} years"
+                if macaulay_duration is not None
+                else "Macaulay duration: N/A"
+            )
 
-        notes.append(
-            f"DV01: {dv01:.6f}"
-            if dv01 is not None
-            else "DV01: N/A"
-        )
+            notes.append(
+                f"Modified duration: {modified_duration:.4f}"
+                if modified_duration is not None
+                else "Modified duration: N/A"
+            )
+
+            notes.append(
+                f"Convexity: {convexity:.4f}"
+                if convexity is not None
+                else "Convexity: N/A"
+            )
+
+            notes.append(
+                f"DV01: {dv01:.6f}"
+                if dv01 is not None
+                else "DV01: N/A"
+            )
 
     elif (
         is_tbill
@@ -696,30 +853,53 @@ def compute_analytics(
                 else (
                     market_ytm / 100.0
                     if market_ytm is not None
-                    else 0.0
+                    else None
                 )
             )
 
-            modified_duration = ttm / (
-                1.0 + ytm_for_duration
-            )
+            if ytm_for_duration is None:
+                unavailable["macaulay_duration"] = (
+                    "Requires a calculated or source-reported YTM; neither "
+                    "is available for this bond."
+                )
+            else:
+                modified_duration = ttm / (
+                    1.0 + ytm_for_duration
+                )
 
-            macaulay_duration = ttm
+                macaulay_duration = ttm
 
-            dv01 = (
-                modified_duration
-                * 0.0001
-                * face_value
-            )
+                dv01 = (
+                    modified_duration
+                    * 0.0001
+                    * 100.0
+                )
 
-            notes.append(
-                f"T-Bill Macaulay duration (TTM): "
-                f"{macaulay_duration:.4f} years"
-            )
+                notes.append(
+                    f"T-Bill Macaulay duration (TTM): "
+                    f"{macaulay_duration:.4f} years"
+                )
 
-            notes.append(
-                f"T-Bill DV01: {dv01:.6f}"
-            )
+                notes.append(
+                    f"T-Bill DV01: {dv01:.6f}"
+                )
+
+    # Any risk metric still missing without a reason: explain the gap.
+    _risk_values = {
+        "macaulay_duration": macaulay_duration,
+        "modified_duration": modified_duration,
+        "convexity": convexity,
+        "dv01": dv01,
+    }
+    for metric, value in _risk_values.items():
+        if value is None and metric not in unavailable:
+            if cash_flows is None and schedule_reason:
+                unavailable[metric] = schedule_reason
+            else:
+                unavailable[metric] = (
+                    "Requires a validated coupon schedule, a market price "
+                    "and a yield; one or more are missing for this bond."
+                )
 
     return AnalyticsResult(
         current_yield=current_yield,
@@ -735,6 +915,8 @@ def compute_analytics(
         settlement_date=settlement_date,
         day_count_convention=day_count,
         notes=notes if notes else None,
+        unavailable_metrics=unavailable if unavailable else None,
+        cash_flow_source=cash_flow_source,
     )
 
 

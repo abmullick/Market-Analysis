@@ -423,6 +423,21 @@ class AnalyticsResult(BaseModel):
     settlement_date: Optional[date] = Field(default=None, description="Settlement/valuation date used for analytics")
     day_count_convention: Optional[str] = Field(default=None, description="Convention used for the calculation")
     notes: Optional[list[str]] = Field(default=None, description="Calculation notes / assumptions")
+    unavailable_metrics: Optional[dict[str, str]] = Field(
+        default=None,
+        description=(
+            "Map of metric name -> human-readable reason why the metric could "
+            "not be computed for this bond (missing source terms etc.)."
+        ),
+    )
+    cash_flow_source: Optional[str] = Field(
+        default=None,
+        description=(
+            "Origin of the cash-flow schedule: 'source' when provided by the "
+            "data vendor, 'calculated' when generated from validated bond "
+            "terms, None when no schedule is available."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------

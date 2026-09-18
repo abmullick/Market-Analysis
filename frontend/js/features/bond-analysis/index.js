@@ -372,9 +372,10 @@ async function selectBond(isin) {
 
     // Market YTM (source observation) and Calculated YTM (analytics) come
     // from their own endpoints; the frontend never derives one from the other.
-    // Corporate bonds use ONLY the corporate detail endpoint for this step —
-    // the government detail/market/analytics endpoints are never called for
-    // them, and no analytics are computed client-side (neutral N/A instead).
+    // Government bonds use the three government endpoints. Corporate bonds
+    // use the corporate detail endpoint plus the corporate analytics
+    // endpoint (analytics computed server-side from CDSL-validated terms);
+    // a failed analytics call degrades to the neutral N/A state.
     let bond, market, analytics;
     try {
         if (state.universe === "corporate") {
@@ -387,6 +388,15 @@ async function selectBond(isin) {
                 api.get(`/bonds/${encodeURIComponent(isin)}/market`),
                 api.get(`/bonds/${encodeURIComponent(isin)}/analytics`),
             ]);
+        }
+        if (state.universe === "corporate") {
+            try {
+                analytics = await api.get(
+                    `/bonds/corporate/${encodeURIComponent(isin)}/analytics`
+                );
+            } catch (_aErr) {
+                analytics = {};
+            }
         }
     } catch (err) {
         if (seq !== state.loadSeq) return;
@@ -497,7 +507,7 @@ function renderBond(bond, analytics) {
     renderKpis(analytics);
 
     // E. Cash flows
-    renderCashFlows(analytics.cash_flows);
+    renderCashFlows(analytics);
 
     // F. Details / methodology — government rows keep the analytics-backed
     // fields; corporate rows show the CDSL issuance/trade fields instead.
@@ -540,41 +550,71 @@ const KPI_HELP = {
     dv01: "Dollar value of one basis point — price change for a 0.01% yield move, per 100 of face value.",
 };
 
-function kpiCard(key, label, value, muted) {
+function kpiCard(key, label, value, muted, unavailableReason) {
     const help = KPI_HELP[key] || "";
     const helpHtml = help
         ? `<span class="tooltip-trigger" tabindex="0" role="button" aria-label="More information about ${escapeAttr(label)}"><span class="tooltip-content">${escapeHtml(help)}</span>ⓘ</span>`
         : "";
+    // When a metric is unavailable, the N/A value itself carries a tooltip
+    // explaining exactly why (missing source terms etc.) instead of an
+    // unexplained N/A.
+    const naHtml = muted && unavailableReason
+        ? `<span class="tooltip-trigger" tabindex="0" role="button" aria-label="Why is ${escapeAttr(label)} unavailable?"><span class="tooltip-content">${escapeHtml(unavailableReason)}</span>ⓘ</span>`
+        : "";
     return `<div class="ba-kpi">
-        <span class="ba-kpi-value${muted ? " is-muted" : ""}">${escapeHtml(na(value))}</span>
+        <span class="ba-kpi-value${muted ? " is-muted" : ""}">${escapeHtml(na(value))}${naHtml}</span>
         <span class="ba-kpi-label">${escapeHtml(label)}${helpHtml}</span>
     </div>`;
 }
 
 function renderKpis(a) {
+    const reasons = (a && a.unavailable_metrics) || {};
     $("ba-kpi-grid").innerHTML = [
-        kpiCard("current_yield", "Current Yield", formatPct(a.current_yield), a.current_yield == null),
-        kpiCard("calculated_ytm", "Calculated YTM", formatPct(a.calculated_ytm), a.calculated_ytm == null),
-        kpiCard("market_ytm", "Market YTM", formatPct(a.market_ytm), a.market_ytm == null),
-        kpiCard("accrued_interest", "Accrued Interest", formatNum(a.accrued_interest), a.accrued_interest == null),
-        kpiCard("macaulay_duration", "Macaulay Duration", formatNum(a.macaulay_duration), a.macaulay_duration == null),
-        kpiCard("modified_duration", "Modified Duration", formatNum(a.modified_duration), a.modified_duration == null),
-        kpiCard("convexity", "Convexity", formatNum(a.convexity), a.convexity == null),
-        kpiCard("dv01", "DV01", formatNum(a.dv01), a.dv01 == null),
+        kpiCard("current_yield", "Current Yield", formatPct(a.current_yield), a.current_yield == null, reasons.current_yield),
+        kpiCard("calculated_ytm", "Calculated YTM", formatPct(a.calculated_ytm), a.calculated_ytm == null, reasons.calculated_ytm),
+        kpiCard("market_ytm", "Market YTM", formatPct(a.market_ytm), a.market_ytm == null, reasons.market_ytm),
+        kpiCard("accrued_interest", "Accrued Interest", formatNum(a.accrued_interest), a.accrued_interest == null, reasons.accrued_interest),
+        kpiCard("macaulay_duration", "Macaulay Duration", formatNum(a.macaulay_duration), a.macaulay_duration == null, reasons.macaulay_duration),
+        kpiCard("modified_duration", "Modified Duration", formatNum(a.modified_duration), a.modified_duration == null, reasons.modified_duration),
+        kpiCard("convexity", "Convexity", formatNum(a.convexity), a.convexity == null, reasons.convexity),
+        kpiCard("dv01", "DV01", formatNum(a.dv01), a.dv01 == null, reasons.dv01),
     ].join("");
 }
 
-function renderCashFlows(cashFlows) {
+function renderCashFlows(analytics) {
     const wrap = $("ba-cashflow-wrap");
-    const rows = Array.isArray(cashFlows) ? cashFlows : [];
+    const a = analytics || {};
+    const rows = Array.isArray(a.cash_flows) ? a.cash_flows : [];
     if (!rows.length) {
-        wrap.innerHTML = '<p class="ba-section-sub">No cash-flow schedule available for this bond.</p>';
+        // Explain the empty state: which inputs are missing and, when known,
+        // what additional data source would provide them.
+        const reasons = a.unavailable_metrics || {};
+        const reason = a.unavailable_metrics && a.unavailable_metrics.cash_flows
+            ? a.unavailable_metrics.cash_flows
+            : "Cash-flow data unavailable for this bond.";
+        const missing = Object.values(reasons)
+            .filter((r) => r && r !== reason)
+            .slice(0, 3);
+        wrap.innerHTML = `
+            <p class="ba-section-sub"><strong>Cash-flow data unavailable.</strong> ${escapeHtml(reason)}</p>
+            ${missing.length ? `<ul class="ba-notes">${missing.map((m) => `<li>${escapeHtml(m)}</li>`).join("")}</ul>` : ""}
+            <p class="ba-section-sub">A payment schedule is shown only when the bond's coupon rate, coupon frequency, interest start date and redemption/maturity date are all published by the source (CDSL). For government securities the coupon calendar is derived from the published maturity date.</p>`;
         return;
     }
 
-    // Values are rendered exactly as returned by the analytics endpoint;
-    // nothing is recomputed in the browser.
-    wrap.innerHTML = `<table class="ba-table">
+    // Distinguish source-published schedules from schedules calculated from
+    // source-validated terms; values are rendered exactly as returned by the
+    // analytics endpoint — nothing is recomputed in the browser.
+    const sourceLabel = a.cash_flow_source === "source"
+        ? "Source-provided schedule (CDSL)"
+        : "Calculated from source-validated terms (per ₹100 face value)";
+    const hasSourceRows = rows.some((r) => r && r.source === "cdsl");
+    const badge = hasSourceRows
+        ? "Source-provided schedule (CDSL)"
+        : sourceLabel;
+
+    wrap.innerHTML = `<p class="ba-section-sub">${escapeHtml(badge)}</p>
+    <table class="ba-table">
         <thead>
             <tr>
                 <th>Payment Date</th>

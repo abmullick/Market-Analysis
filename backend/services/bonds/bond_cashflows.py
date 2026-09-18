@@ -14,12 +14,24 @@ Conventions:
       * ACT/360
 
 All calculations are purely computational; no external data is needed.
+
+Strict mode (``build_cash_flow_schedule``) is used by the analytics engine:
+it never assumes coupon frequency, face value, payment dates, or day-count
+convention. A schedule is produced only when every required term is present
+in the source data; otherwise the exact missing term is reported back so the
+UI can explain why cash flows are unavailable.
 """
 
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
+
+
+# Coupon frequencies with a well-defined calendar step. Anything else
+# (e.g. 7 payments/year) has no standard month stepping and is refused
+# rather than approximated.
+SUPPORTED_FREQUENCIES = (1, 2, 4, 12)
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +175,116 @@ def generate_cash_flows(
         )
 
     return cash_flows
+
+
+# ---------------------------------------------------------------------------
+# Strict (source-validated) schedule builder
+# ---------------------------------------------------------------------------
+
+
+def build_cash_flow_schedule(
+    *,
+    coupon_rate: Optional[float],
+    coupon_frequency: Optional[int],
+    anchor_date: Optional[date],
+    final_date: Optional[date],
+    is_zero_coupon: bool = False,
+    allow_maturity_anchor: bool = False,
+) -> Tuple[Optional[list[dict[str, Any]]], str, Optional[str]]:
+    """Build a cash-flow schedule using ONLY source-provided terms.
+
+    Returns ``(cash_flows, source_label, unavailable_reason)``:
+
+    - ``cash_flows`` is ``None`` when the schedule cannot be produced; in
+      that case ``unavailable_reason`` states exactly which term is missing.
+    - ``source_label`` is ``"calculated"`` for generated schedules (the only
+      mode this builder supports) and ``None`` when nothing was produced.
+
+    Rules (no fabrication):
+      - Zero-coupon instruments (T-Bills) need only ``final_date``.
+      - Coupon-bearing instruments need: a positive coupon rate, a supported
+        frequency (1/2/4/12), an anchor date (issue or first interest-payment
+        date from the source) and a final date (redemption or maturity date
+        from the source).
+      - ``allow_maturity_anchor`` permits the government-security convention
+        of stepping the coupon calendar backwards from the published maturity
+        date when no issue/interest-start date was published.
+      - Amounts are expressed per 100 par so they line up with the quoted
+        (percent-of-par) price convention used everywhere in this app.
+    """
+    if is_zero_coupon:
+        if final_date is None:
+            return None, None, "Maturity / redemption date not published."
+        return (
+            [
+                {
+                    "period": 1,
+                    "date": final_date,
+                    "coupon": 0.0,
+                    "principal": 100.0,
+                    "total": 100.0,
+                    "source": "calculated",
+                }
+            ],
+            "calculated",
+            None,
+        )
+
+    if coupon_rate is None:
+        return None, None, "Coupon rate not published for this ISIN."
+    if coupon_rate <= 0:
+        return None, None, "Coupon rate is not positive."
+    if coupon_frequency is None:
+        return (
+            None,
+            None,
+            "Coupon frequency not published (cannot assume annual or semi-annual).",
+        )
+    if coupon_frequency not in SUPPORTED_FREQUENCIES:
+        return (
+            None,
+            None,
+            f"Coupon frequency {coupon_frequency}/year is not a supported "
+            "payment cycle (1, 2, 4 or 12 per year).",
+        )
+    if anchor_date is None and not allow_maturity_anchor:
+        return (
+            None,
+            None,
+            "Interest payment start / issue date not published (cannot "
+            "anchor the coupon calendar).",
+        )
+    if final_date is None:
+        return None, None, "Maturity / redemption date not published."
+    if anchor_date is not None and final_date <= anchor_date:
+        return (
+            None,
+            None,
+            "Maturity / redemption date is not after the interest start date.",
+        )
+
+    if anchor_date is None:
+        # Government convention: walk back a bounded window from maturity
+        # (50 years) so historical coupons exist for accrued-interest logic.
+        anchor_date = date(final_date.year - 50, final_date.month, final_date.day)
+
+    flows = generate_cash_flows(
+        issue_date=anchor_date,
+        maturity_date=final_date,
+        coupon_rate=coupon_rate,
+        coupon_frequency=coupon_frequency,
+        face_value=100.0,  # per 100 par; quoted prices use the same basis
+        settlement_date=None,
+        day_count="ACT/365",
+    )
+
+    if not flows:
+        return None, None, "Coupon calendar could not be generated from the published terms."
+
+    for row in flows:
+        row["source"] = "calculated"
+
+    return flows, "calculated", None
 
 
 # ---------------------------------------------------------------------------

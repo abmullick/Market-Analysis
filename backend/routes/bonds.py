@@ -9,8 +9,9 @@ Government bond routes (CCIL + NSE + RBI pipeline):
   GET  /api/bonds/{isin}/analytics   — retrieve analytics
 
 Corporate bond routes (CDSL pipeline — lazy-loaded, fully separate):
-  GET  /api/bonds/corporate          — list/search corporate bonds
-  GET  /api/bonds/corporate/{isin}   — retrieve corporate bond by ISIN
+  GET  /api/bonds/corporate                 — list/search corporate bonds
+  GET  /api/bonds/corporate/{isin}          — retrieve corporate bond by ISIN
+  GET  /api/bonds/corporate/{isin}/analytics — corporate analytics (CDSL terms)
 
 GET /api/bonds supports opt-in server-side sorting (sort_by/sort_dir) and an
 opt-in pagination envelope (envelope=true → {items, total, limit, offset}).
@@ -208,6 +209,38 @@ async def list_corporate_bonds(
     except ValueError as exc:
         # Unrecognised trade_date input.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/corporate/{isin}/analytics")
+async def get_corporate_bond_analytics(
+    isin: str,
+    trade_date: Optional[str] = Query(
+        None,
+        description=(
+            "CDSL report trade date (e.g. 2026-09-16 or 16-Sep-2026). "
+            "Defaults to the current Indian calendar date."
+        ),
+    ),
+) -> AnalyticsResult:
+    """Compute analytics for a corporate bond by ISIN (CDSL data only).
+
+    Metrics are computed ONLY from source-validated terms (coupon rate,
+    published coupon frequency, interest window, redemption/maturity date).
+    Any metric whose required inputs are missing is returned as ``null``
+    together with a reason in ``unavailable_metrics`` — never fabricated.
+    """
+    service = get_bond_service()
+    try:
+        analytics = await service.get_corporate_analytics(
+            isin, trade_date=trade_date
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if analytics is None:
+        raise HTTPException(
+            status_code=404, detail=f"Corporate bond with ISIN {isin} not found"
+        )
+    return analytics
 
 
 @router.get("/corporate/{isin}")
