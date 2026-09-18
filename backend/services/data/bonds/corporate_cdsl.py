@@ -36,6 +36,7 @@ import csv
 import io
 import json
 import logging
+import re
 import urllib.parse
 from datetime import date, datetime
 from pathlib import Path
@@ -49,7 +50,6 @@ from backend.config.settings import Settings
 from backend.models.bonds import (
     CdslCashFlowEvent,
     CdslCorporateBondPrimaryRawRecord,
-    CdslRatingHistoryRecord,
     CdslCorporateBondSecondaryRawRecord,
     CdslRatingRecord,
     CdslRichCorporateDetail,
@@ -154,6 +154,62 @@ def _parse_date(s: Optional[str]) -> Optional[str]:
     except (KeyError, ValueError):
         return None
     return t
+
+
+class _CdslSearchRetryableError(Exception):
+    """Internal signal: one CDSL search attempt failed; the caller retries."""
+
+
+def _verify_report_heading(page: Any, market_type: str, hidden_date: str) -> None:
+    """Verify the rendered CDSL report heading matches the requested date.
+
+    The server echoes the effective report date in ``#tradedata`` (e.g.
+    ``"Secondary Market Trade Data For 17-Sep-2026"``). Comparison uses
+    whitespace/case normalization. A missing or mismatched heading means
+    the page does not prove it shows the requested report, so rows must
+    not be scraped: raises ``_CdslSearchRetryableError`` for one retry.
+    """
+    fragment = (
+        "Secondary Market Trade Data For"
+        if market_type.upper() == "S"
+        else "Primary Issuance Data For"
+    )
+    try:
+        region_text = page.locator("#tradedata").inner_text(timeout=15_000) or ""
+    except Exception:
+        region_text = ""
+    if not region_text:
+        try:
+            region_text = page.locator("body").inner_text(timeout=15_000) or ""
+        except Exception:
+            region_text = ""
+    expected = _normalize_heading_text(f"{fragment} {hidden_date}")
+    if not _normalize_heading_text(region_text) or expected not in (
+        _normalize_heading_text(region_text)
+    ):
+        raise _CdslSearchRetryableError(
+            f"CDSL report heading did not confirm {hidden_date}; "
+            "refusing to scrape unverified rows."
+        )
+
+
+def _normalize_heading_text(raw: Any) -> str:
+    """Normalize a CDSL report heading for date comparison.
+
+    Collapses whitespace and lowercases so ``"Secondary Market Trade Data
+    For  17-Sep-2026"`` matches ``"secondary market trade data for
+    17-sep-2026"``.
+    """
+    if raw is None:
+        return ""
+    return re.sub(r"\s+", " ", str(raw)).strip().lower()
+
+
+def _report_heading_matches_date(heading: Any, hidden_date: str) -> bool:
+    """Return True when ``heading`` references ``hidden_date`` (DD-Mon-YYYY)."""
+    normalized_heading = _normalize_heading_text(heading)
+    normalized_date = _normalize_heading_text(hidden_date)
+    return bool(normalized_heading) and normalized_date in normalized_heading
 
 
 def _cdsl_date_strings(
@@ -660,13 +716,22 @@ class CdsCorporateBondClient:
             1. ``GET`` the report page.
             2. Set ``#idtradedate`` to the display date
                (e.g. ``"September 16, 2026"``) and ``#idhdndate`` to the
-               hidden form date (e.g. ``"16-Sep-2026"``).
+               hidden form date (e.g. ``"16-Sep-2026"``), dispatching
+               ``input``/``change`` events and verifying both fields.
             3. ``#markettype_select`` = ``market_type`` (``"S"`` secondary,
                ``"P"`` primary) and ``#filter_select`` = ``"A"`` (for all).
                ``#search_text`` is intentionally left untouched because the
                control is hidden for filter ``A``.
             4. Click ``#btnsearch`` and wait for the resulting document.
-            5. Extract the data rows of ``table_selector`` from the rendered
+               A navigation timeout is a retrieval failure: the complete
+               search is retried once, and if the retry also fails a
+               ``CdsCorporateBondLiveError`` is raised. The stale current
+               page is never scraped after a timeout.
+            5. Verify the rendered report heading references the requested
+               hidden date (e.g. ``"Secondary Market Trade Data For
+               17-Sep-2026"``) before scraping any rows. A missing or
+               mismatched heading is a retrieval failure retried once.
+            6. Extract the data rows of ``table_selector`` from the rendered
                DOM.
 
         Each returned row is a list of cells of the form
@@ -704,6 +769,36 @@ class CdsCorporateBondClient:
             table_selector,
         )
 
+        last_error: Optional[CdsCorporateBondLiveError] = None
+        for attempt_no in (1, 2):
+            try:
+                return self._cdsl_search_rows_attempt(
+                    trade_date=(display_date, hidden_date),
+                    market_type=market_type,
+                    table_selector=table_selector,
+                    sync_playwright=sync_playwright,
+                    PlaywrightTimeoutError=PlaywrightTimeoutError,
+                )
+            except _CdslSearchRetryableError as exc:
+                last_error = CdsCorporateBondLiveError(str(exc))
+                log.warning(
+                    "CDSL live search attempt %d/2 failed: %s",
+                    attempt_no,
+                    exc,
+                )
+        assert last_error is not None  # loop always runs; for type-checkers
+        raise last_error
+
+    def _cdsl_search_rows_attempt(  # noqa: C901 - linear page-driving steps
+        self,
+        trade_date: Tuple[str, str],
+        market_type: str,
+        table_selector: str,
+        sync_playwright: Any,
+        PlaywrightTimeoutError: Any,
+    ) -> List[List[HtmlCell]]:
+        """Run one complete CDSL search attempt; raise retryable on failure."""
+        display_date, hidden_date = trade_date
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             try:
@@ -718,11 +813,37 @@ class CdsCorporateBondClient:
 
                     # Trade date: the visible display field plus the hidden
                     # field the page's JavaScript submits with the form.
+                    # Dispatch input/change events so datepicker listeners
+                    # observe the programmatic fill; both fields are then
+                    # verified because the visible field must not be assumed
+                    # to update the hidden field automatically.
                     page.locator("#idtradedate").fill(display_date)
+                    page.locator("#idtradedate").evaluate(
+                        "(el) => {"
+                        " el.dispatchEvent(new Event('input', {bubbles: true}));"
+                        " el.dispatchEvent(new Event('change', {bubbles: true}));"
+                        "}"
+                    )
                     page.locator("#idhdndate").evaluate(
-                        "(el, value) => { el.value = value; }",
+                        "(el, value) => {"
+                        " el.value = value;"
+                        " el.dispatchEvent(new Event('input', {bubbles: true}));"
+                        " el.dispatchEvent(new Event('change', {bubbles: true}));"
+                        "}",
                         hidden_date,
                     )
+                    visible_value = (
+                        page.locator("#idtradedate").input_value() or ""
+                    ).strip()
+                    hidden_value = (
+                        page.locator("#idhdndate").evaluate("(el) => el.value || ''")
+                        or ""
+                    ).strip()
+                    if visible_value != display_date or hidden_value != hidden_date:
+                        raise _CdslSearchRetryableError(
+                            f"CDSL date fields did not accept {hidden_date}: "
+                            f"visible={visible_value!r} hidden={hidden_value!r}."
+                        )
 
                     page.locator("#markettype_select").select_option(market_type)
                     page.locator("#filter_select").select_option("A")
@@ -733,21 +854,57 @@ class CdsCorporateBondClient:
                             timeout=60_000,
                         ):
                             page.locator("#btnsearch").click()
-                    except PlaywrightTimeoutError:
-                        log.warning(
-                            "CDSL search navigation timed out; continuing "
-                            "with the current page state"
-                        )
+                    except PlaywrightTimeoutError as exc:
+                        # A navigation timeout means the requested report may
+                        # not have rendered: never scrape the stale current
+                        # page. Signal a retry of the complete search.
+                        raise _CdslSearchRetryableError(
+                            f"CDSL search navigation timed out for "
+                            f"{hidden_date}; not scraping the current page."
+                        ) from exc
+
+                    _verify_report_heading(page, market_type, hidden_date)
 
                     table = page.locator(table_selector)
-                    table.wait_for(state="attached", timeout=30_000)
 
-                    if table.count() == 0:
-                        raise CdsCorporateBondLiveError(
+                    # CDSL does not render a table when no data exists.
+                    page_text = page.locator("body").inner_text().lower()
+
+                    if "no data is available" in page_text:
+                        log.info(
+                            "CDSL returned no data: market_type=%s trade_date=%s",
+                            market_type,
+                            display_date,
+                        )
+                        return []
+
+                    try:
+                        table.wait_for(
+                            state="attached",
+                            timeout=30_000,
+                        )
+                    except PlaywrightTimeoutError as exc:
+                        raise _CdslSearchRetryableError(
                             "CDSL report table '%s' was not found after "
                             "search (market_type=%r, trade_date=%r): page "
                             "interaction failed"
-                            % (table_selector, market_type, display_date)
+                            % (
+                                table_selector,
+                                market_type,
+                                display_date,
+                            )
+                        ) from exc
+
+                    if table.count() == 0:
+                        raise _CdslSearchRetryableError(
+                            "CDSL report table '%s' was not found after "
+                            "search (market_type=%r, trade_date=%r): page "
+                            "interaction failed"
+                            % (
+                                table_selector,
+                                market_type,
+                                display_date,
+                            )
                         )
 
                     rows: List[List[HtmlCell]] = table.evaluate(
@@ -1119,7 +1276,7 @@ def _post_cdsl_page_method(
         "Accept": "application/json, text/plain, */*",
     }
     log.info("CDSL page-method POST: %s (isin=%s)", url, isin)
-    resp = session.post(
+    resp = session.get(
         url,
         headers=headers,
         data=payload.encode("utf-8"),
@@ -1524,43 +1681,19 @@ def _merge_history_from_page_method(
     detail: CdslRichCorporateDetail,
     history: Any,
 ) -> None:
-    """Merge GetHistorydtls payload into rating_history."""
-
+    """Merge a ``GetHistorydtls`` payload into *detail.record_date_rows*."""
     if not history or not isinstance(history, list):
         return
-
     for row in history[:200]:
-        if not isinstance(row, dict):
-            continue
+        if isinstance(row, dict):
+            detail.record_date_rows.append(
+                {k: _clean_cdsl_text(v) for k, v in row.items()}
+            )
+        elif isinstance(row, (list, tuple)):
+            detail.record_date_rows.append(
+                {str(i): _clean_cdsl_text(v) for i, v in enumerate(row)}
+            )
 
-        def clean(key: str) -> Optional[str]:
-            return _clean_cdsl_text(row.get(key))
-
-        record = CdslRatingHistoryRecord(
-            cra_name=clean("CRA_Name"),
-            credit_rating=clean("Credit_Rating"),
-            credit_rating_date=clean("Credit_Rating_Date"),
-            credit_rating_change_date=clean("Credit_Rating_Change_Date"),
-            credit_rating_status=clean("Credit_Rating_Status"),
-            rating_action=clean("Rating_Action"),
-            verification_date=clean("Verification_Date"),
-        )
-
-        # Ignore completely blank history records.
-        if not any(
-            [
-                record.cra_name,
-                record.credit_rating,
-                record.credit_rating_date,
-                record.credit_rating_change_date,
-                record.credit_rating_status,
-                record.rating_action,
-                record.verification_date,
-            ]
-        ):
-            continue
-
-        detail.rating_history.append(record)
 
 def fetch_detail_live(
     isin: str,

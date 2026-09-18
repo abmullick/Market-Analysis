@@ -403,33 +403,61 @@ class BondService:
 
 
     async def get_bond_by_isin(self, isin: str) -> Optional[Bond]:
-        """Retrieve a single normalized bond by ISIN."""
-        cache_key = f"isin:{isin}"
+        """Retrieve a single normalized bond by ISIN.
+
+        Searches government bonds first, then CDSL corporate bonds.
+        """
+        isin_normalized = isin.strip().upper()
+        cache_key = f"isin:{isin_normalized}"
+
         cached = self._cache.get(cache_key)
         if cached is not None:
             return cached
 
+        # 1. Search government bonds
         all_bonds = await self.refresh_all_sources()
+
         for bond in all_bonds:
-            if bond.isin and bond.isin.upper() == isin.upper():
+            if bond.isin and bond.isin.upper() == isin_normalized:
                 self._cache.put(cache_key, bond)
                 return bond
 
-        # If not found in combined list, try direct provider lookup
-        # (fallback — normally ISINs come from the combined list)
+        # 2. Search CDSL corporate bonds
+        corporate_bond = await self.get_corporate_bond_by_isin(
+            isin_normalized
+        )
+
+        if corporate_bond is not None:
+            self._cache.put(cache_key, corporate_bond)
+            return corporate_bond
+
         return None
 
-    async def get_bond_by_record_id(self, record_id: str) -> Optional[Bond]:
-        """Retrieve a single normalized bond by its source-scoped ``record_id``.
+    async def get_bond_by_record_id(
+        self,
+        record_id: str,
+    ) -> Optional[Bond]:
+        """Retrieve a single bond by source-scoped record_id.
 
-        Needed for records that carry no ISIN (e.g. CCIL market-watch rows);
-        see ``backend.services.bonds.bond_identity``.
+        Searches government bonds first, then CDSL corporate bonds.
         """
+        record_id_normalized = record_id.strip()
+
+        # 1. Search government bonds
         bonds = await self.refresh_all_sources()
-        return next(
-            (bond for bond in bonds if bond.record_id == record_id),
-            None,
-        )
+
+        for bond in bonds:
+            if bond.record_id == record_id_normalized:
+                return bond
+
+        # 2. Search CDSL corporate bonds
+        corporate_bonds = await self.refresh_corporate_sources()
+
+        for bond in corporate_bonds:
+            if bond.record_id == record_id_normalized:
+                return bond
+
+        return None
 
     async def get_market_observation(self, isin: str) -> Optional[Bond]:
         """Retrieve market observation for a bond by ISIN.
@@ -486,27 +514,55 @@ class BondService:
         # The CDSL client is synchronous (browser transport); run the
         # blocking retrievals off the event loop.
         secondary_raw: list = []
+        secondary_ok = False
         try:
             secondary_raw = await asyncio.to_thread(
                 cdsl.fetch_secondary_live, resolved
             )
+            # A successful secondary fetch passed report-heading verification
+            # inside the CDSL client, so the report date is established.
+            secondary_ok = True
         except Exception as exc:
             logger.warning("CDSL secondary live retrieval failed: %s", exc)
 
         primary_raw: list = []
+        primary_ok = False
         try:
             primary_raw = await asyncio.to_thread(
                 cdsl.fetch_primary_live, resolved
             )
+            # A successful primary fetch passed report-heading verification
+            # inside the CDSL client, so the report date is established.
+            primary_ok = True
         except Exception as exc:
             logger.warning("CDSL primary live retrieval failed: %s", exc)
+
+        logger.warning(
+            "CDSL RAW COUNTS: secondary=%d, primary=%d",
+            len(secondary_raw), len(primary_raw),
+        )
 
         secondary_bonds: list[Bond] = []
         for raw in secondary_raw:
             try:
                 bond = normalize_cdsl_corporate_secondary_record(raw)
-                if bond is not None:
-                    secondary_bonds.append(bond)
+                if bond is None:
+                    continue
+                # Date enforcement: a secondary row belongs to the requested
+                # report only when its Trade Date equals the resolved date.
+                # (Primary rows carry Issue Date, not report trade date, and
+                # are exempt.) Mismatches are dropped so a stale/wrong-date
+                # scrape can never be served or cached under this date key.
+                if bond.trade_date != resolved:
+                    logger.warning(
+                        "Dropping CDSL secondary row with mismatched "
+                        "trade_date: requested=%s actual=%s isin=%s",
+                        resolved.isoformat(),
+                        bond.trade_date.isoformat() if bond.trade_date else None,
+                        bond.isin,
+                    )
+                    continue
+                secondary_bonds.append(bond)
             except Exception as exc:
                 logger.warning(
                     "CDSL secondary normalization failed for %s: %s",
@@ -525,21 +581,42 @@ class BondService:
                     raw.isin, exc,
                 )
 
+        logger.warning(
+            "CDSL NORMALIZED COUNTS: secondary=%d, primary=%d",
+            len(secondary_bonds), len(primary_bonds),
+        )
+
         # One normalized corporate Bond per ISIN: secondary rows become the
         # market-observation record, primary rows only fill master fields.
         consolidated = _consolidate_corporate_bonds(
             secondary_bonds, primary_bonds
         )
 
+        logger.warning(
+            "CDSL CONSOLIDATED COUNT: %d",
+            len(consolidated),
+        )
+
         # Do not cache a total provider failure for the full TTL: an empty
         # result means CDSL failed (or returned nothing), so the next
         # request should retry rather than serve emptiness for an hour.
+        # Likewise never cache when neither report's date could be verified
+        # (both live fetches failed): the data cannot be proven to belong
+        # to the requested date, so caching it would poison the date key.
+        date_verified = secondary_ok or primary_ok
         if not consolidated:
             logger.warning(
                 "Corporate bond refresh produced no records "
                 "(secondary=%d, primary=%d); not caching so a subsequent "
                 "request can retry",
                 len(secondary_bonds), len(primary_bonds),
+            )
+            return consolidated
+        if not date_verified:
+            logger.warning(
+                "Corporate bond refresh for %s could not verify the report "
+                "date; not caching",
+                resolved,
             )
             return consolidated
 
