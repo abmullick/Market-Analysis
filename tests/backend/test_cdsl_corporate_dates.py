@@ -101,6 +101,9 @@ class _FakePage:
     def goto(self, *a, **k):
         return None
 
+    def close(self):
+        return None
+
     def locator(self, selector):
         return _FakeLocator(self, selector)
 
@@ -149,6 +152,8 @@ class _Harness:
                         class _Ctx:
                             def new_page(self):
                                 return page
+                            def close(self):
+                                return None
                         return _Ctx()
 
                     def close(self):
@@ -236,6 +241,7 @@ def _pri(isin):
 
 def _run_refresh(monkeypatch, secondary, primary, requested="2026-09-17"):
     service = BondService()
+    service._cache.invalidate()
     fake = SimpleNamespace(fetch_secondary_live=lambda resolved: secondary(resolved) if callable(secondary) else secondary, fetch_primary_live=lambda resolved: primary(resolved) if callable(primary) else primary)
     monkeypatch.setattr(service, "_get_cdsl", lambda: fake)
     async def _fake_to_thread(func, *args, **kwargs):
@@ -279,3 +285,24 @@ class TestRefreshDateEnforcement:
         service, result = _run_refresh(monkeypatch, [_sec("17-Sep-2026", "INE000A00001")], _boom)
         assert len(result) == 1
         assert service._cache.get("corporate:2026-09-17") is not None
+
+    def test_stale_upstream_date_returns_empty_without_poisoning_cache(
+        self, monkeypatch
+    ):
+        """Regression: live CDSL serves the wrong-date report for 2026-09-17.
+
+        Verified live on 2026-09-18 via Playwright against
+        https://www.cdslindia.com/corporatebond/CorporateBondReports.aspx:
+        requesting trade_date=2026-09-17 renders the heading
+        "Secondary Market Trade Data For 18-Sep-2026" with only 18-Sep-2026
+        rows (see /tmp/cdsl_live_20260917.html + /tmp/cdsl_live_20260917_region.txt;
+        the identical 2026-09-18 request renders byte-identical rows). The
+        service must return [] for 2026-09-17 (never leak the wrong date's
+        bonds) and must not cache that empty result under either date key.
+        """
+        service, result = _run_refresh(
+            monkeypatch, [_sec("18-Sep-2026", "INE000A00002")], [], requested="2026-09-17"
+        )
+        assert result == []
+        assert service._cache.get("corporate:2026-09-17") is None
+        assert service._cache.get("corporate:2026-09-18") is None
