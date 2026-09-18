@@ -3,6 +3,7 @@
 Government bond routes (CCIL + NSE + RBI pipeline):
   GET  /api/bonds                    — list/search government bonds
   GET  /api/bonds/record/{record_id} — retrieve bond by record_id (no-ISIN records)
+  GET  /api/bonds/sources/status     — per-source retrieval status (CCIL/NSE/RBI)
   GET  /api/bonds/{isin}             — retrieve bond by ISIN
   GET  /api/bonds/{isin}/market      — retrieve market observation
   GET  /api/bonds/{isin}/analytics   — retrieve analytics
@@ -29,6 +30,7 @@ from backend.models.bonds import (
     Bond,
     BondListQuery,
     BondListResponse,
+    BondSourcesStatusResponse,
     InstrumentType,
 )
 from backend.services.bonds.bond_service import BondService
@@ -109,6 +111,25 @@ async def list_bonds(
         sort_by=sort_by,
         sort_dir=sort_dir or "asc",
     )
+
+
+# ---------------------------------------------------------------------------
+# Source status route (declared before /{isin} so "sources" is never captured
+# as an ISIN)
+# ---------------------------------------------------------------------------
+
+@router.get("/sources/status")
+async def get_bonds_sources_status() -> BondSourcesStatusResponse:
+    """Return the latest retrieval status for every configured source.
+
+    Sources that have not been queried yet are reported as ``not_loaded``
+    (``record_count=0``, ``error=null``). A provider failure is reported as
+    ``error`` with the original provider message, never as a successful empty
+    result. This endpoint returns the latest known status; it does not trigger
+    a new retrieval.
+    """
+    service = get_bond_service()
+    return BondSourcesStatusResponse(sources=service.source_status_report())
 
 
 # ---------------------------------------------------------------------------

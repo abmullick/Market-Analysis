@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -333,6 +333,65 @@ class BondListResponse(BaseModel):
     total: int = Field(default=0, ge=0, description="Total bonds matching the query")
     limit: int = Field(default=50, ge=1, le=200, description="Page size used")
     offset: int = Field(default=0, ge=0, description="Offset used for this page")
+
+
+# ---------------------------------------------------------------------------
+# Source retrieval status
+# ---------------------------------------------------------------------------
+
+class BondSourceStatus(BaseModel):
+    """Retrieval outcome of one configured bond data source.
+
+    A provider that raised during retrieval is reported as ``status="error"``
+    with its original error message, so a failed source is never represented
+    as a successful-but-empty (``[]``) result. ``record_count`` records the
+    number of records retrieved from that source in the latest refresh;
+    successfully retrieved data from other sources is unaffected.
+    """
+
+    source: str = Field(description="Source identifier: CCIL, NSE, or RBI")
+    status: Literal["success", "error"] = Field(
+        description="Outcome of the latest retrieval for this source"
+    )
+    record_count: int = Field(
+        default=0, ge=0, description="Records retrieved from the source"
+    )
+    error: Optional[str] = Field(
+        default=None,
+        description="Provider error message when status is 'error', otherwise null",
+    )
+
+
+class BondSourceStatusView(BaseModel):
+    """API view of a source status, including sources never queried.
+
+    Extends the internal :class:`BondSourceStatus` with the ``not_loaded``
+    state used for configured sources that have not been queried yet.
+    """
+
+    source: str = Field(description="Source identifier: CCIL, NSE, or RBI")
+    status: Literal["success", "error", "not_loaded"] = Field(
+        description="Outcome of the latest retrieval, or 'not_loaded' when never queried"
+    )
+    record_count: int = Field(
+        default=0, ge=0, description="Records retrieved from the source"
+    )
+    error: Optional[str] = Field(
+        default=None,
+        description="Provider error message when status is 'error', otherwise null",
+    )
+
+
+class BondSourcesStatusResponse(BaseModel):
+    """Response envelope for GET /api/bonds/sources/status.
+
+    Lists the latest retrieval status of every configured source, in a fixed
+    order (CCIL, NSE, RBI).
+    """
+
+    sources: list[BondSourceStatusView] = Field(
+        default_factory=list, description="Per-source retrieval status"
+    )
 
 
 

@@ -21,19 +21,18 @@ import re
 import time
 from datetime import date, datetime
 from threading import Lock
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
 from zoneinfo import ZoneInfo
 
 from backend.models.bonds import (
     AnalyticsResult,
     Bond,
     BondListQuery,
-    CcilRawRecord,
+    BondSourceStatus,
+    BondSourceStatusView,
     DataType,
     DayCountConvention,
     InstrumentType,
-    NseRawRecord,
-    RbiRawRecord,
 )
 from backend.services.bonds.bond_analytics import compute_analytics
 from backend.services.bonds.bond_enrichment import enrich_ccil_bonds
@@ -54,6 +53,17 @@ from backend.utils.logging import logger
 # Timezone used to resolve "today" for date-defaulted corporate report
 # requests (CDSL publishes reports on the Indian calendar).
 _IST = ZoneInfo("Asia/Kolkata")
+
+#: Government bond data sources, in retrieval order. Every source is tracked
+#: independently so a provider failure can never be hidden behind an empty list.
+BOND_SOURCES: tuple[str, ...] = ("CCIL", "NSE", "RBI")
+
+
+def _describe_source_error(exc: BaseException) -> str:
+    """Return a meaningful message for a provider failure (type + detail)."""
+    name = type(exc).__name__
+    detail = str(exc).strip()
+    return f"{name}: {detail}" if detail else name
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +147,8 @@ class BondService:
         self._nse: NseClient | None = None
         self._rbi: RbiClient | None = None
         self._cdsl: CdsCorporateBondClient | None = None
+        # Latest retrieval status per source (see refresh_all_sources).
+        self._source_statuses: dict[str, BondSourceStatus] = {}
 
     # ------------------------------------------------------------------
     # Provider lazy initialization
@@ -171,11 +183,90 @@ class BondService:
         return self._cdsl
 
     # ------------------------------------------------------------------
+    # Source retrieval status
+    # ------------------------------------------------------------------
+
+    @property
+    def source_statuses(self) -> dict[str, BondSourceStatus]:
+        """Latest retrieval status per source, for sources already queried."""
+        return dict(self._source_statuses)
+
+    def source_status_report(self) -> list[BondSourceStatusView]:
+        """Every configured source's latest status, in :data:`BOND_SOURCES` order.
+
+        Sources that have not been queried yet are reported as
+        ``status="not_loaded"`` with ``record_count=0`` and ``error=None``.
+        """
+        report: list[BondSourceStatusView] = []
+        for source in BOND_SOURCES:
+            status = self._source_statuses.get(source)
+            if status is None:
+                report.append(BondSourceStatusView(source=source, status="not_loaded"))
+            else:
+                report.append(
+                    BondSourceStatusView(
+                        source=status.source,
+                        status=status.status,
+                        record_count=status.record_count,
+                        error=status.error,
+                    )
+                )
+        return report
+
+    def _status_summary(self) -> str:
+        """Compact, log-friendly summary of the latest per-source statuses."""
+        parts = [
+            f"{source}={status.status}:{status.record_count}"
+            for source, status in self._source_statuses.items()
+        ]
+        return ", ".join(parts) or "no sources queried"
+
+    async def _fetch_source(
+        self,
+        source: str,
+        client_getter: Callable[[], Any],
+    ) -> tuple[list[Any], BondSourceStatus]:
+        """Fetch one provider and record its explicit retrieval status.
+
+        A provider exception is logged with its original message and stored as
+        ``status="error"`` — it is never flattened into an empty list that would
+        look like a successful-but-empty source.
+        """
+        try:
+            records = await client_getter().fetch_all()
+        except Exception as exc:
+            logger.warning("%s refresh failed: %s", source, exc)
+            status = BondSourceStatus(
+                source=source,
+                status="error",
+                record_count=0,
+                error=_describe_source_error(exc),
+            )
+            self._source_statuses[source] = status
+            return [], status
+
+        records = list(records or [])
+        status = BondSourceStatus(
+            source=source,
+            status="success",
+            record_count=len(records),
+            error=None,
+        )
+        self._source_statuses[source] = status
+        return records, status
+
+    # ------------------------------------------------------------------
     # Retrieval + normalization
     # ------------------------------------------------------------------
 
     async def refresh_all_sources(self) -> list[Bond]:
         """Retrieve from all providers, normalize, and cache the result.
+
+        Each source (CCIL, NSE, RBI) is tracked independently: a provider
+        failure is logged with its original exception and recorded in
+        :attr:`source_statuses` as ``status="error"`` instead of being
+        converted into a silent empty list, while records retrieved from the
+        other sources are preserved.
 
         Returns the combined list of normalized Bond records.
         """
@@ -188,11 +279,7 @@ class BondService:
         logger.info("Refreshing bond data from all sources")
 
         # CCIL (primary market observations)
-        ccil_records: list[CcilRawRecord] = []
-        try:
-            ccil_records = await self._get_ccil().fetch_all()
-        except Exception as exc:
-            logger.warning("CCIL refresh failed: %s", exc)
+        ccil_records, _ = await self._fetch_source("CCIL", self._get_ccil)
 
         ccil_bonds: list[Bond] = []
         for raw in ccil_records:
@@ -205,11 +292,7 @@ class BondService:
         # NSE Debt Instruments master (ISIN + reference-field enrichment).
         # NSE failure must not destroy the working CCIL path: enrichment
         # is best-effort and CCIL bonds survive with isin=None.
-        nse_records: list[NseRawRecord] = []
-        try:
-            nse_records = await self._get_nse().fetch_all()
-        except Exception as exc:
-            logger.warning("NSE refresh failed: %s", exc)
+        nse_records, _ = await self._fetch_source("NSE", self._get_nse)
 
         if nse_records:
             try:
@@ -220,11 +303,7 @@ class BondService:
         bonds: list[Bond] = list(ccil_bonds)
 
         # RBI (reference / validation / history)
-        rbi_records: list[RbiRawRecord] = []
-        try:
-            rbi_records = await self._get_rbi().fetch_all()
-        except Exception as exc:
-            logger.warning("RBI refresh failed: %s", exc)
+        rbi_records, _ = await self._fetch_source("RBI", self._get_rbi)
 
         for raw in rbi_records:
             try:
@@ -243,15 +322,16 @@ class BondService:
         # next request should retry rather than serve emptiness for an hour.
         if not deduped:
             logger.warning(
-                "Bond refresh produced no records (CCIL=%d, NSE=%d, RBI=%d); "
-                "not caching so a subsequent request can retry",
-                len(ccil_records), len(nse_records), len(rbi_records),
+                "Bond refresh produced no records (%s); not caching so a "
+                "subsequent request can retry",
+                self._status_summary(),
             )
             return deduped
 
         self._cache.put(cache_key, deduped)
-        logger.info("Bond list refreshed: %d bonds (from %d raw CCIL, %d NSE, %d RBI)",
-                     len(deduped), len(ccil_records), len(nse_records), len(rbi_records))
+        logger.info(
+            "Bond list refreshed: %d bonds (%s)", len(deduped), self._status_summary()
+        )
         return deduped
 
     async def list_bonds(
