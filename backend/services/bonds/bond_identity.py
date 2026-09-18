@@ -1,79 +1,97 @@
-"""Stable record identity for Bond API selection.
+"""Stable, source-scoped identity for normalized bond records.
 
-The Bond detail and analytics endpoints are keyed by identity. When a source
-record carries an ISIN, the ISIN is the identity. CCIL market-watch rows do not
-carry ISINs (confirmed by live validation: all 85 CCIL records had none), so a
-deterministic, source-scoped fallback key is derived from source-provided
-fields only.
+CCIL market-watch records do not carry an ISIN, so the Bond Analysis API needs
+an additional stable identifier to be able to select a single record that has
+no ISIN. The identifier is deliberately *source-scoped*:
 
-Fallback key format::
+    record_id = "<source>|<data_type>|sha1(description|maturity|coupon)[:12]"
 
-    nosin:<source>:<slug(security description)>:<maturity|none>:<coupon|none>
+It is **never** presented as an ISIN and it **never** claims that records from
+two different sources describe the same security.
 
-Limitations (must be documented wherever the key is exposed):
-    - The fallback key is NOT a globally unique security identifier and is NOT
-      an ISIN. It only identifies a record within a single source snapshot.
-    - Identity is source-scoped by design: a CCIL record and an NSE record are
-      never merged or considered the same security because their descriptions
-      match.
-    - If a source changes a description, maturity string, or coupon value, the
-      fallback key changes with it.
-    - Two distinct securities from the same source could theoretically collide
-      if every fallback component is identical; callers must treat the key as
-      opaque and must not parse meaning out of it.
+Documented limitations
+----------------------
+* The source prefix guarantees that CCIL and NSE records can never collide,
+  but it also means the two sources are never merged automatically.
+* Two *distinct* securities from the *same* source that share the same
+  normalized security description, maturity date and coupon rate would produce
+  the same ``record_id``. That residual collision risk is accepted here and is
+  covered by a regression test; an ISIN always takes precedence whenever the
+  source provides one.
+* ``record_id`` is deterministic for a given set of source fields, so it is
+  stable across restarts and cache rebuilds.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
-from typing import Optional
+from typing import Any, Optional
 
-from backend.models.bonds import Bond
+__all__ = [
+    "build_record_id",
+    "describe_identity_limits",
+    "RECORD_ID_FIELDS",
+]
 
-_WS_RE = re.compile(r"\s+")
-_SAFE_RE = re.compile(r"[^a-z0-9]+")
+#: Fields that participate in the fallback digest, in a fixed order.
+RECORD_ID_FIELDS = ("security_name", "maturity_date", "coupon_rate")
+
+_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
 
-def sanitize_key_part(value: Optional[str], fallback: str = "none") -> str:
-    """Normalize one identity component deterministically.
-
-    Lowercases, collapses whitespace to single dashes, and strips characters
-    outside ``[a-z0-9-]``. Empty/None input maps to *fallback*.
-    """
+def _text(value: Any) -> str:
+    """Return a trimmed string for *value*, or an empty string when absent."""
     if value is None:
-        return fallback
-    text = _WS_RE.sub(" ", str(value)).strip().lower()
-    if not text:
-        return fallback
-    slug = _SAFE_RE.sub("-", text)
-    slug = _WS_RE.sub("-", slug).strip("-")
-    return slug or fallback
+        return ""
+    if isinstance(value, (bytes, bytearray)):
+        value = value.decode("utf-8", "replace")
+    return str(value).strip()
 
 
-def bond_record_key(bond: Bond) -> str:
-    """Return the stable identity for *bond*.
+def _normalize(value: Any) -> str:
+    """Case-fold and strip punctuation so cosmetic differences do not fork identity."""
+    return _NON_ALNUM.sub("", _text(value).lower())
 
-    ISIN when the source provides one; otherwise the source-scoped fallback
-    built from security description, maturity date, and coupon rate.
+
+def _enum_value(value: Any) -> str:
+    """Return the lower-cased enum ``value`` (or the plain string) for *value*."""
+    if value is None:
+        return ""
+    raw = getattr(value, "value", value)
+    return _text(raw).lower()
+
+
+def build_record_id(bond: Any) -> Optional[str]:
+    """Build the deterministic, source-scoped identifier for *bond*.
+
+    ``bond`` may be any object exposing the normalized bond attributes
+    (``source``, ``data_type``, ``security_name``, ``maturity_date``,
+    ``coupon_rate``). Missing attributes are treated as absent, never guessed.
+
+    Returns ``None`` only when *bond* carries none of the identifying fields at
+    all, in which case no stable identifier can be derived from the source.
     """
-    isin = (bond.isin or "").strip() if bond.isin else ""
-    if isin:
-        return isin
+    if bond is None:
+        return None
 
-    source = sanitize_key_part(bond.source, fallback="unknown")
-    description = sanitize_key_part(
-        bond.security_name or bond.issuer, fallback="nodesc"
-    )
-    maturity = (
-        bond.maturity_date.isoformat() if bond.maturity_date else "none"
-    )
-    coupon = (
-        f"{bond.coupon_rate:.6g}" if bond.coupon_rate is not None else "none"
-    )
-    return f"nosin:{source}:{description}:{maturity}:{coupon}"
+    source = _enum_value(getattr(bond, "source", None)) or "unknown"
+    data_type = _enum_value(getattr(bond, "data_type", None)) or "unknown"
+
+    parts = [_normalize(getattr(bond, field, None)) for field in RECORD_ID_FIELDS]
+    if not any(parts):
+        return None
+
+    payload = "|".join(parts)
+    digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:12]
+    return f"{source}|{data_type}|{digest}"
 
 
-def key_is_isin(key: str) -> bool:
-    """True when *key* looks like a real ISIN (12 chars, alpha-num pattern)."""
-    text = (key or "").strip()
-    return len(text) == 12 and text[:2].isalpha() and text.isalnum()
+def describe_identity_limits() -> str:
+    """Human-readable description of the fallback identity limitations."""
+    return (
+        "record_id is a source-scoped fallback identifier, not an ISIN. "
+        "Records from different sources are never merged, and two distinct "
+        "securities from the same source that share the same normalized "
+        "security description, maturity date and coupon rate can collide."
+    )

@@ -264,6 +264,13 @@ class BondMarketObservation(BaseModel):
 # Full normalized bond record
 # ---------------------------------------------------------------------------
 
+import pydantic as _pydantic
+_PYDANTIC_V2 = str(_pydantic.VERSION).startswith("2")
+if _PYDANTIC_V2:
+    from pydantic import model_validator as _model_validator
+else:
+    from pydantic import root_validator as _root_validator
+
 class Bond(BondMaster, BondMarketObservation):
     """Normalized bond record combining master data and a market observation.
 
@@ -272,6 +279,31 @@ class Bond(BondMaster, BondMarketObservation):
     analytics layers consume only this model.
     """
 
+    record_id: Optional[str] = None
+
+    if _PYDANTIC_V2:
+
+        @_model_validator(mode="after")
+        def _ensure_record_id(self):
+            from backend.services.bonds.bond_identity import attach_record_id
+
+            return attach_record_id(self)
+
+    else:
+
+        @_root_validator(pre=False, skip_on_failure=True)
+        def _ensure_record_id(cls, values):
+            from backend.services.bonds.bond_identity import compute_record_id
+
+            if not values.get("record_id"):
+                values["record_id"] = compute_record_id(
+                    values.get("source"),
+                    values.get("data_type"),
+                    values.get("security_name"),
+                    values.get("maturity_date"),
+                    values.get("coupon_rate"),
+                )
+            return values
     model_config = ConfigDict(use_attribute_docstrings=True)
 
 
