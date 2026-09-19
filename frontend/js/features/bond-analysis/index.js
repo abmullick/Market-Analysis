@@ -94,13 +94,19 @@ async function searchBonds() {
     const q = $("ba-search-input").value.trim();
     const isCorporate = state.universe === "corporate";
     const type = isCorporate ? "" : $("ba-type-filter").value;
+    // The data-source selector (All Sources | CCIL | NSE | RBI) is a
+    // government-only control: "All Sources" (empty value) adds no parameter,
+    // and the corporate universe never sends one.
+    const sourceFilter = $("ba-source-filter");
+    const source = isCorporate || !sourceFilter ? "" : sourceFilter.value;
 
     // Server-side pagination + sorting (backend-provided values only). The
     // corporate universe is a separate CDSL endpoint and does not support the
-    // government instrument_type filter, so it is never sent there.
+    // government instrument_type/source filters, so they are never sent there.
     const params = new URLSearchParams();
     if (q) params.set("search", q);
     if (type) params.set("instrument_type", type);
+    if (source) params.set("source", source);
     params.set("sort_by", state.sortBy);
     params.set("sort_dir", state.sortDir);
     params.set("limit", String(PAGE_SIZE));
@@ -218,6 +224,10 @@ function updateUniverseControls() {
     const corpFilter = $("ba-corporate-type-filter");
     if (govFilter) govFilter.classList.toggle("hidden", isCorporate);
     if (corpFilter) corpFilter.classList.toggle("hidden", !isCorporate);
+    // The data-source selector (All Sources | CCIL | NSE | RBI) is likewise a
+    // government-only control.
+    const sourceFilter = $("ba-source-filter");
+    if (sourceFilter) sourceFilter.classList.toggle("hidden", isCorporate);
 }
 
 function resetDetailPanel() {
@@ -690,6 +700,17 @@ function init() {
         const debouncedSearch = utils.debounce(searchBonds, 300);
         searchInput.addEventListener("input", debouncedSearch);
         typeFilter.addEventListener("change", () => {
+            state.page = 1;
+            searchBonds();
+        });
+    }
+
+    // Data-source filter (All Sources | CCIL | NSE | RBI) — government-only;
+    // a change restarts the search from the first page, like the other
+    // filter controls.
+    const sourceFilter = $("ba-source-filter");
+    if (sourceFilter) {
+        sourceFilter.addEventListener("change", () => {
             state.page = 1;
             searchBonds();
         });
