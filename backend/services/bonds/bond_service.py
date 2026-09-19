@@ -361,13 +361,14 @@ class BondService:
         instrument_type: Optional[InstrumentType] = None,
         issuer: Optional[str] = None,
         search: Optional[str] = None,
+        source: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
         sort_by: Optional[str] = None,
         sort_dir: str = "asc",
     ) -> list[Bond]:
         """List normalized bonds, with optional filtering and sorting."""
-        results = await self._filtered_bonds(instrument_type, issuer, search)
+        results = await self._filtered_bonds(instrument_type, issuer, search, source)
         results = _sort_bonds(results, sort_by, sort_dir)
         return results[offset: offset + limit]
 
@@ -376,6 +377,7 @@ class BondService:
         instrument_type: Optional[InstrumentType] = None,
         issuer: Optional[str] = None,
         search: Optional[str] = None,
+        source: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
         sort_by: Optional[str] = None,
@@ -387,7 +389,7 @@ class BondService:
         counts every bond matching the filter/search BEFORE the limit and
         offset are applied — i.e. the full available universe for the query.
         """
-        results = await self._filtered_bonds(instrument_type, issuer, search)
+        results = await self._filtered_bonds(instrument_type, issuer, search, source)
         total = len(results)
         results = _sort_bonds(results, sort_by, sort_dir)
         return {
@@ -402,12 +404,15 @@ class BondService:
         instrument_type: Optional[InstrumentType] = None,
         issuer: Optional[str] = None,
         search: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> list[Bond]:
         """Shared filter pipeline for both list endpoints."""
         all_bonds = await self.refresh_all_sources()
 
         results: list[Bond] = []
         for bond in all_bonds:
+            if source and (not bond.source or bond.source.upper() != source.strip().upper()):
+                continue
             if instrument_type is not None and bond.instrument_type != instrument_type:
                 continue
             if issuer and bond.issuer:

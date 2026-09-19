@@ -35,7 +35,8 @@ from backend.models.bonds import (
     InstrumentType,
 )
 from backend.services.bonds.bond_service import BondService
-
+from typing import Literal
+from fastapi import HTTPException
 
 router = APIRouter(tags=["bonds"])
 
@@ -65,6 +66,9 @@ async def list_bonds(
     search: Optional[str] = Query(
         None, description="Search across security name, ISIN, issuer"
     ),
+    source: Optional[Literal["CCIL", "NSE", "RBI"]] = Query(
+        None, description="Filter by data source: CCIL, NSE, or RBI",
+    ),
     limit: int = Query(50, ge=1, le=200, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     sort_by: Optional[str] = Query(
@@ -92,12 +96,22 @@ async def list_bonds(
     search, plus opt-in server-side sorting and a paginated response
     envelope. Results are cached in-process.
     """
+    
+    if source:
+        source = source.strip().upper()
+        if source not in {"CCIL", "NSE", "RBI"}:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid source. Allowed values: CCIL, NSE, RBI",
+            )
+    
     service = get_bond_service()
     if envelope:
         return await service.list_bonds_page(
             instrument_type=instrument_type,
             issuer=issuer,
             search=search,
+            source=source,
             limit=limit,
             offset=offset,
             sort_by=sort_by,
@@ -107,6 +121,7 @@ async def list_bonds(
         instrument_type=instrument_type,
         issuer=issuer,
         search=search,
+        source=source,
         limit=limit,
         offset=offset,
         sort_by=sort_by,
