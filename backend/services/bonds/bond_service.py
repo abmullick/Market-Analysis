@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 import re
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from threading import Lock
 from typing import Any, Callable, Optional, Union
 from zoneinfo import ZoneInfo
@@ -533,8 +533,12 @@ class BondService:
         # Avoid launching Playwright for the current calendar date
         # when no explicit trade date was requested.
         if trade_date is None and resolved.weekday() >= 5:
-            logger.info("Skipping CDSL corporate refresh for non-business date: %s", resolved,)
-            return []
+            previous_business_date = resolved
+            while previous_business_date.weekday() >= 5:
+                previous_business_date -= timedelta(days=1)
+
+            logger.info("Using previous business date for non-business date: %s -> %s", resolved, previous_business_date)
+            resolved = previous_business_date
 
         cache_key = f"corporate:{resolved.isoformat()}"
         cached = self._cache.get(cache_key)
