@@ -2481,7 +2481,7 @@ body[data-page="bond-analysis"] .ba-source-status-panel .pb-count {
 
 /* Light color theme */
 body[data-page="bond-analysis"] {
-    background: #F4F7FB;
+    background: #eef4fb;
 }
 
 /* Bond Summary */
@@ -2519,12 +2519,12 @@ body[data-page="bond-analysis"] .ba-section-body {
 }
 
 body[data-page="bond-analysis"] .ba-kpi {
-    background: #f8fbff;
-    border: 1px solid #dce8f5;
+    background: #f1f7ff;
+    border: 1px solid #cddff2;
     border-radius: 10px;
     padding: 14px;
     min-height: 84px;
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    box-shadow: 0 1px 3px rgba(30, 58, 95, 0.05);
 }
 
 body[data-page="bond-analysis"] .ba-kpi:hover {
@@ -2535,6 +2535,10 @@ body[data-page="bond-analysis"] .ba-kpi:hover {
 body[data-page="bond-analysis"] .ba-kpi-value {
     color: #173b63;
     font-weight: 750;
+}
+
+body[data-page="bond-analysis"] .ba-kpi-label {
+    color: #526b85;
 }
 
 body[data-page="bond-analysis"] .ba-detail-item {
@@ -2605,4 +2609,32 @@ body[data-page="bond-analysis"] .ba-table tbody tr:hover {
     body[data-page="bond-analysis"] .ba-section-body {
         padding: 14px;
     }
+}
+
+
+body[data-page="bond-analysis"] .pb-panel-header,
+body[data-page="bond-analysis"] .ba-panel-head {
+    background: #f3f7fc;
+    border-bottom: 1px solid #dce6f1;
+}
+
+body[data-page="bond-analysis"] .pb-panel-title {
+    color: #173b63;
+    font-weight: 700;
+}
+
+body[data-page="bond-analysis"] .ba-card-head {
+    background: #fffaf0;
+}
+
+body[data-page="bond-analysis"] .ba-analytics-head {
+    background: #f0f9fb;
+}
+
+body[data-page="bond-analysis"] .ba-cashflow-head {
+    background: #f8f3ff;
+}
+
+body[data-page="bond-analysis"] .ba-details-head {
+    background: #f0faf5;
 }
