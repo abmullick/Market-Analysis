@@ -98,7 +98,7 @@ class TestValidCompleteInputs:
             isin="INE-PAST-FUTURE",
             security_name="Past/Future Test Bond",
             issuer="Issuer",
-            instrument_type=InstrumentType.GOVERNMENT,
+            instrument_type=InstrumentType.G_SEC,
             coupon_rate=8.0,
             coupon_frequency=2,
             day_count_convention=DayCountConvention.THIRTY_360,

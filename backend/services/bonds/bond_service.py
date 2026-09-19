@@ -41,6 +41,7 @@ from backend.services.bonds.bond_normalizer import (
     normalize_ccil_record,
     normalize_cdsl_corporate_primary_record,
     normalize_cdsl_corporate_secondary_record,
+    normalize_nse_record,
     normalize_rbi_record,
     parse_date,
     parse_date as _parse_source_date,
@@ -292,9 +293,13 @@ class BondService:
             except Exception as exc:
                 logger.warning("CCIL normalization failed for %s: %s", raw.security_description, exc)
 
-        # NSE Debt Instruments master (ISIN + reference-field enrichment).
-        # NSE failure must not destroy the working CCIL path: enrichment
-        # is best-effort and CCIL bonds survive with isin=None.
+        logger.info("CCIL normalized bonds=%d", len(ccil_bonds))
+
+        # NSE Debt Instruments master: it both enriches CCIL observations
+        # (ISIN + reference fields) and stands alone as a source in its own
+        # right. NSE is therefore normalized independently below — enrichment
+        # alone would discard the entire NSE universe whenever CCIL returns
+        # no observations.
         nse_records, _ = await self._fetch_source("NSE", self._get_nse)
 
         if nse_records:
@@ -303,22 +308,36 @@ class BondService:
             except Exception as exc:
                 logger.warning("NSE enrichment failed: %s", exc)
 
-        bonds: list[Bond] = list(ccil_bonds)
+        nse_bonds = _normalize_nse_bonds(nse_records)
+        logger.info("NSE normalized bonds=%d", len(nse_bonds))
+
+        # CCIL-derived bonds are listed first on purpose: _deduplicate_bonds
+        # keeps the existing record when data-type priority and dates tie, so
+        # the richer CCIL observation is preserved when the NSE master carries
+        # the same ISIN.
+        bonds: list[Bond] = list(ccil_bonds) + nse_bonds
 
         # RBI (reference / validation / history)
         rbi_records, _ = await self._fetch_source("RBI", self._get_rbi)
 
+        rbi_bonds: list[Bond] = []
         for raw in rbi_records:
             try:
                 bond = normalize_rbi_record(raw)
-                if bond is not None:
-                    bonds.append(bond)
             except Exception as exc:
                 logger.warning("RBI normalization failed: %s", exc)
+                continue
+            if bond is not None:
+                rbi_bonds.append(bond)
+
+        logger.info("RBI normalized bonds=%d", len(rbi_bonds))
+        bonds.extend(rbi_bonds)
 
         # De-duplicate by identity (ISIN when published, otherwise the
         # security description — see _deduplicate_bonds).
+        logger.info("Bond aggregation before dedup=%d", len(bonds))
         deduped = _deduplicate_bonds(bonds)
+        logger.info("Bond aggregation after dedup=%d", len(deduped))
 
         # Do not cache a total provider failure for the full TTL: an empty
         # result means every source failed (or returned nothing), so the
@@ -1004,6 +1023,44 @@ def _sort_bonds(bonds: list[Bond], sort_by: Optional[str], sort_dir: str = "asc"
     present.sort(key=lambda triple: (triple[0], triple[1]), reverse=reverse)
 
     return [bond for _, _, bond in present] + absent
+
+
+def _normalize_nse_bonds(records: list[Any]) -> list[Bond]:
+    """Normalize NSE security-master / trade rows into standalone Bonds.
+
+    Each row is normalized independently: a malformed record is counted and
+    skipped instead of aborting the batch, so a single bad master row can
+    never discard the rest of the NSE universe (which is the only data
+    available when CCIL returns no observations). Rows that the normalizer
+    rejects as non-bond instruments simply contribute nothing.
+    """
+    bonds: list[Bond] = []
+    failures = 0
+    first_error: Optional[str] = None
+
+    for raw in records or []:
+        try:
+            bond = normalize_nse_record(raw)
+        except Exception as exc:
+            failures += 1
+            if first_error is None:
+                first_error = (
+                    f"{getattr(raw, 'security_description', None)!r}: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+            continue
+        if bond is not None:
+            bonds.append(bond)
+
+    if failures:
+        logger.warning(
+            "NSE normalization skipped %d/%d records; first error: %s",
+            failures,
+            len(records),
+            first_error,
+        )
+
+    return bonds
 
 
 def _deduplicate_bonds(bonds: list[Bond]) -> list[Bond]:
