@@ -10,6 +10,7 @@
     position: relative;
     display: flex;
     align-items: center;
+
     background: #ffffff;
     border: 1px solid rgba(148, 163, 184, 0.26);
     border-radius: var(--radius-lg);
@@ -1388,6 +1389,7 @@ body[data-page="bond-analysis"] > header.site-header {
 
 .ba-section-body {
     background: #ffffff;
+    padding: 16px;
 }
 
 .ba-section-body.collapsed {
@@ -1511,3 +1513,8 @@ body[data-page="bond-analysis"] > header.site-header {
 .ba-source-badge.is-neutral { background: var(--color-slate-100); color: var(--color-slate-600); border-color: var(--color-slate-200); }
 .ba-source-count { margin-left: auto; font-size: 0.8125rem; color: var(--color-text-light); }
 .ba-source-error { flex-basis: 100%; font-size: 0.8125rem; color: var(--color-red-600); overflow-wrap: anywhere; }
+/* Remove short section accent lines only */
+/* Hide short section accent lines only */
+body[data-page="bond-analysis"] .ba-section-left-accent {
+    visibility: hidden !important;
+}
