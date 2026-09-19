@@ -167,6 +167,15 @@ async function searchBonds() {
 
     $("ba-no-results").classList.toggle("hidden", list.length > 0);
 
+    // Zero bonds (e.g. after a trade-date/filter change): the previous
+    // selection no longer matches this dataset. Clear it and hide the
+    // detail panels so a stale bond does not stay visible next to the
+    // "No bonds found" state.
+    if (list.length === 0) {
+        state.selectedIsin = null;
+        resetDetailPanel();
+    }
+
     // Rows without an ISIN (some CCIL Market Watch entries) cannot be loaded
     // via /api/bonds/{isin}, so they are shown but not selectable.
     $("ba-bond-list").innerHTML = list.map((b) => {

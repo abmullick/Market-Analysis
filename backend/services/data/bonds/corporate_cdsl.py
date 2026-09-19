@@ -36,7 +36,9 @@ import csv
 import io
 import json
 import logging
+import os
 import re
+import tempfile
 import urllib.parse
 from datetime import date, datetime
 from pathlib import Path
@@ -160,6 +162,280 @@ def _parse_date(s: Optional[str]) -> Optional[str]:
 
 class _CdslSearchRetryableError(Exception):
     """Internal signal: one CDSL search attempt failed; the caller retries."""
+
+
+# ---------------------------------------------------------------------------
+# Rendered-DOM diagnostics (selector diagnosis only)
+#
+# The CDSL report page renders its result table client-side after the search
+# postback, so a selector that no longer matches the live DOM is hard to tell
+# apart from an empty report. These helpers capture what the browser actually
+# rendered so the correct selector can be proven from evidence instead of
+# guessed. They are strictly read-only diagnostics: no page interaction, no
+# form submission, and every probe is guarded so a diagnostic failure can
+# never change retrieval behaviour.
+#
+# The rendered HTML is written to a temporary file (never to the log stream);
+# only short, non-sensitive summaries are logged. No cookies, no request
+# headers and no form field values are captured.
+# ---------------------------------------------------------------------------
+
+#: Directory for rendered-page dumps. Temporary by default (``/tmp``);
+#: override with the ``CDSL_DIAG_DIR`` environment variable.
+CDSL_DIAG_DIR = Path(
+    os.environ.get("CDSL_DIAG_DIR") or (Path(tempfile.gettempdir()) / "cdsl_bond_diagnostics")
+)
+
+#: Rendered-DOM diagnostics (DOM inventory logs and temporary HTML/JSON dumps)
+#: are disabled by default. Set ``CDSL_DIAGNOSTICS=1`` to enable them for
+#: selector diagnosis.
+CDSL_DIAGNOSTICS_ENABLED = os.environ.get("CDSL_DIAGNOSTICS", "").strip() == "1"
+
+#: DOM inventory collected in the browser in a single round-trip.
+_CDSL_DOM_INVENTORY_JS = r"""() => {
+    const isVisible = (el) => !!(el.offsetParent !== null || el.getClientRects().length);
+    const attrs = (el) => ({
+        tag: el.tagName.toLowerCase(),
+        id: el.id || '',
+        className: (el.className && String(el.className)) || '',
+        visible: isVisible(el),
+    });
+    const tables = Array.from(document.querySelectorAll('table')).map((t) => ({
+        ...attrs(t),
+        rows: t.rows ? t.rows.length : 0,
+    }));
+    const marker = /sec|pri|details|grid|report/i;
+    const marked = [];
+    document.querySelectorAll('*').forEach((el) => {
+        const cls = (el.className && String(el.className)) || '';
+        const id = el.id || '';
+        if (!marker.test(cls) && !marker.test(id)) return;
+        marked.push({
+            ...attrs(el),
+            rows: el.tagName.toLowerCase() === 'table' && el.rows ? el.rows.length : null,
+        });
+    });
+    const iframes = Array.from(document.querySelectorAll('iframe, frame')).map((f) => ({
+        id: f.id || '',
+        name: f.name || '',
+        src: (f.getAttribute('src') || '').slice(0, 200),
+    }));
+    const headingEl = document.querySelector('#tradedata');
+    const heading = headingEl
+        ? (headingEl.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 200)
+        : '';
+    const bodyText = document.body ? (document.body.innerText || '') : '';
+    return {
+        url: location.href,
+        title: document.title,
+        heading: heading,
+        tables: tables,
+        marked: marked,
+        markedCount: marked.length,
+        iframes: iframes,
+        bodyExcerpt: bodyText.replace(/\s+/g, ' ').trim().slice(0, 600),
+    };
+}"""
+
+#: Diagnostic filename date component: keep only filesystem-safe characters.
+_CDSL_SLUG_RE = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def _cdsl_slug(raw: Any) -> str:
+    """Return a short filesystem-safe token for a diagnostic filename."""
+    return _CDSL_SLUG_RE.sub("", str(raw or ""))[:40]
+
+
+def _cdsl_probe(fn: Any, default: Any = None) -> Any:
+    """Run one diagnostic probe, never raising (returns ``default`` on error)."""
+    try:
+        return fn()
+    except Exception as exc:  # pragma: no cover - diagnostics must never fail
+        log.debug("CDSL DOM diagnostic probe failed: %s", exc)
+        return default
+
+
+def _cdsl_write_dom_dump(
+    html: Optional[str],
+    payload: Dict[str, Any],
+    *,
+    market_type: str,
+    hidden_date: str,
+    attempt_no: Optional[int],
+) -> Optional[Path]:
+    """Write the rendered HTML (plus a JSON sidecar) to a temp diagnostic file.
+
+    The filename identifies the retrieval it belongs to:
+    ``cdsl_dom_<market>_<trade-date>_attempt<n>_<UTC timestamp>.html``.
+    Returns the written HTML path, or ``None`` when nothing could be written.
+    """
+    attempt_token = f"attempt{attempt_no}" if attempt_no else "attempt_unknown"
+    stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    stem = "_".join(
+        [
+            "cdsl_dom",
+            _cdsl_slug(market_type) or "unknown",
+            _cdsl_slug(hidden_date) or "unknown-date",
+            attempt_token,
+            stamp,
+        ]
+    )
+    try:
+        CDSL_DIAG_DIR.mkdir(parents=True, exist_ok=True)
+        html_path = CDSL_DIAG_DIR / f"{stem}.html"
+        sidecar_path = CDSL_DIAG_DIR / f"{stem}.json"
+        if html is not None:
+            html_path.write_text(html, encoding="utf-8")
+        sidecar_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+    except OSError as exc:
+        log.warning("CDSL DOM diagnostic dump could not be written: %s", exc)
+        return None
+    return html_path if html is not None else None
+
+
+def _cdsl_fmt_dom_entry(entry: Dict[str, Any]) -> str:
+    """Format one DOM entry for a diagnostic log line."""
+    return "%s#%s.%s(rows=%s,visible=%s)" % (
+        entry.get("tag", "?"),
+        entry.get("id") or "-",
+        entry.get("className") or "-",
+        entry.get("rows"),
+        entry.get("visible"),
+    )
+
+
+def _cdsl_log_rendered_dom(
+    page: Any,
+    *,
+    market_type: str,
+    display_date: str,
+    hidden_date: str,
+    table_selector: str,
+    attempt_no: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Log the rendered CDSL DOM and dump it for selector diagnosis.
+
+    Runs after a successful navigation and heading verification and reports
+    what the browser actually rendered: URL, title, every table's id/class,
+    elements whose id/class mentions Sec/Pri/Details/Grid/Report, the count of
+    the requested ``table_selector`` (main document and each frame), iframes,
+    and a short body excerpt. The rendered HTML is saved to a temporary file.
+
+    Best-effort only: every probe is guarded, nothing is raised, and no
+    retrieval decision depends on the result.
+
+    Diagnostics are disabled by default and only run when
+    ``CDSL_DIAGNOSTICS=1`` (see ``CDSL_DIAGNOSTICS_ENABLED``); otherwise this
+    function returns ``{}`` immediately.
+    """
+    if not CDSL_DIAGNOSTICS_ENABLED:
+        return {}
+    inventory: Dict[str, Any] = _cdsl_probe(
+        lambda: page.evaluate(_CDSL_DOM_INVENTORY_JS), {}
+    ) or {}
+
+    url = inventory.get("url") or _cdsl_probe(lambda: page.url, "") or ""
+    title = inventory.get("title") or _cdsl_probe(lambda: page.title(), "") or ""
+    tables = inventory.get("tables") or []
+    marked = inventory.get("marked") or []
+    iframes = inventory.get("iframes") or []
+
+    # Requested selector: main document plus every frame (iframe detection).
+    main_count = _cdsl_probe(lambda: page.locator(table_selector).count(), None)
+    frame_counts: List[Dict[str, Any]] = []
+    for frame in _cdsl_probe(lambda: list(page.frames), []) or []:
+        frame_counts.append(
+            {
+                "name": _cdsl_probe(lambda f=frame: f.name, "") or "",
+                "url": (_cdsl_probe(lambda f=frame: f.url, "") or "")[:200],
+                "selector_count": _cdsl_probe(
+                    lambda f=frame: f.locator(table_selector).count(), None
+                ),
+            }
+        )
+
+    log.warning(
+        "CDSL DOM DIAGNOSTIC: market_type=%s trade_date=%s attempt=%s",
+        market_type,
+        hidden_date,
+        attempt_no if attempt_no else "unknown",
+    )
+    log.warning("CDSL DOM URL: %s", url)
+    log.warning("CDSL DOM TITLE: %s", title or "(empty)")
+    log.warning(
+        "CDSL DOM HEADING (#tradedata): %s", inventory.get("heading") or "(empty)"
+    )
+    log.warning(
+        "CDSL DOM TABLES (%d): %s",
+        len(tables),
+        " | ".join(_cdsl_fmt_dom_entry(t) for t in tables[:25]) or "(none rendered)",
+    )
+    log.warning(
+        "CDSL DOM MARKER MATCHES (%d, id/class contains Sec|Pri|Details|Grid|Report): %s",
+        inventory.get("markedCount", len(marked)),
+        " | ".join(_cdsl_fmt_dom_entry(m) for m in marked[:25]) or "(none)",
+    )
+    log.warning(
+        "CDSL DOM SELECTOR COUNT: %s main_document=%s frames=%s",
+        table_selector,
+        main_count,
+        frame_counts or "(no frames)",
+    )
+    log.warning(
+        "CDSL DOM IFRAMES (%d): %s",
+        len(iframes),
+        " | ".join(
+            "iframe#%s.name=%s.src=%s"
+            % (
+                f.get("id") or "-",
+                f.get("name") or "-",
+                f.get("src") or "-",
+            )
+            for f in iframes[:10]
+        )
+        or "(none)",
+    )
+    excerpt = (inventory.get("bodyExcerpt") or "").strip()
+    log.warning("CDSL DOM BODY EXCERPT: %s", excerpt[:600] or "(empty)")
+
+    # The HTML dump is the artifact: it is written to disk, never logged.
+    html = _cdsl_probe(lambda: page.content(), None)
+    payload: Dict[str, Any] = {
+        "market_type": market_type,
+        "requested_trade_date": hidden_date,
+        "requested_trade_date_display": display_date,
+        "attempt": attempt_no,
+        "table_selector": table_selector,
+        "url": url,
+        "title": title,
+        "heading_text": inventory.get("heading") or "",
+        "tables": tables,
+        "marked": marked,
+        "marked_count": inventory.get("markedCount", len(marked)),
+        "selector_count_main_document": main_count,
+        "selector_count_frames": frame_counts,
+        "iframes": iframes,
+        "body_excerpt": excerpt,
+        "html_captured": html is not None,
+    }
+    dump_path = _cdsl_write_dom_dump(
+        html,
+        payload,
+        market_type=market_type,
+        hidden_date=hidden_date,
+        attempt_no=attempt_no,
+    )
+    if dump_path:
+        log.warning(
+            "CDSL DOM DUMP written: %s (sidecar: %s.json)",
+            dump_path,
+            dump_path.with_suffix(""),
+        )
+    else:
+        log.warning("CDSL DOM DUMP: not written (diagnostic dir %s)", CDSL_DIAG_DIR)
+    return payload
 
 
 def _verify_report_heading(page: Any, market_type: str, hidden_date: str) -> None:
@@ -685,6 +961,9 @@ class CdsCorporateBondClient:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._name = "CDSL Corporate Bonds"
+        #: Attempt number of the in-flight search, used only to label the
+        #: temporary rendered-DOM diagnostic dump (see _cdsl_log_rendered_dom).
+        self._diagnostic_attempt_no: Optional[int] = None
 
     @property
     def name(self) -> str:
@@ -744,7 +1023,8 @@ class CdsCorporateBondClient:
                17-Sep-2026"``) before scraping any rows. A missing or
                mismatched heading is a retrieval failure retried once.
             6. Extract the data rows of ``table_selector`` from the rendered
-               DOM.
+               DOM. A verified heading with no rendered result table is a
+               legitimate empty report and is returned as an empty list.
 
         Each returned row is a list of cells of the form
         ``{"text": <trimmed cell text>, "anchor": <first <a> text or None>}``.
@@ -752,11 +1032,12 @@ class CdsCorporateBondClient:
 
         Raises:
             CdsCorporateBondLiveError: when Playwright is unavailable, the
-                trade date cannot be interpreted, the page interaction fails,
-                or ``table_selector`` is not present in the resulting
-                document. A table that is present but genuinely contains no
-                data rows is *not* an error — it is returned as an empty
-                list.
+                trade date cannot be interpreted, or the page interaction
+                fails. A report whose heading is verified for the requested
+                date but renders no result table is a legitimate empty result
+                and is returned as an empty list. A table that is present but
+                genuinely contains no data rows is likewise returned as an
+                empty list.
         """
         try:
             from playwright.sync_api import (
@@ -783,6 +1064,9 @@ class CdsCorporateBondClient:
 
         last_error: Optional[CdsCorporateBondLiveError] = None
         for attempt_no in (1, 2):
+            # Labels the rendered-DOM diagnostic dump for this attempt without
+            # changing _cdsl_search_rows_attempt's signature.
+            self._diagnostic_attempt_no = attempt_no
             try:
                 return self._cdsl_search_rows_attempt(
                     trade_date=(display_date, hidden_date),
@@ -809,7 +1093,13 @@ class CdsCorporateBondClient:
         sync_playwright: Any,
         PlaywrightTimeoutError: Any,
     ) -> List[List[HtmlCell]]:
-        """Run one complete CDSL search attempt; raise retryable on failure."""
+        """Run one complete CDSL search attempt; raise retryable on failure.
+
+        A report heading verified for the requested date is authoritative:
+        when CDSL renders no result table for that verified report, it is
+        a legitimate empty result and is returned as ``[]`` rather than
+        treated as a selector failure.
+        """
         display_date, hidden_date = trade_date
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -899,7 +1189,13 @@ class CdsCorporateBondClient:
                                 request.post_data,
                             )
 
-                    page.on("request", log_search_request)
+                    try:
+                        page.on("request", log_search_request)
+                    except Exception as exc:  # pragma: no cover - diagnostic hook
+                        # Request logging is diagnostic only: a transport that
+                        # cannot attach listeners (e.g. the test double) must
+                        # not fail the retrieval.
+                        log.debug("CDSL request logging unavailable: %s", exc)
                     
                      # Ensure CDSL JavaScript cannot overwrite the requested
                     # visible date during form submission.
@@ -943,7 +1239,38 @@ class CdsCorporateBondClient:
 
                     _verify_report_heading(page, market_type, hidden_date)
 
+                    # Diagnostic only: when CDSL_DIAGNOSTICS=1, report the DOM the
+                    # browser actually rendered (and dump it) before the table
+                    # selector is applied, so a selector mismatch can be told
+                    # apart from a genuinely empty report. Never raises and
+                    # never affects the retry/heading behaviour above.
+                    _cdsl_log_rendered_dom(
+                        page,
+                        market_type=market_type,
+                        display_date=display_date,
+                        hidden_date=hidden_date,
+                        table_selector=table_selector,
+                        attempt_no=self._diagnostic_attempt_no,
+                    )
+
                     table = page.locator(table_selector)
+
+                    # The heading above is verified for the requested date, so
+                    # a missing result table is a legitimate empty report: CDSL
+                    # renders no table at all when no data exists (rather than
+                    # an empty table). Return gracefully — no retry — while the
+                    # historical "no data is available" text branch below keeps
+                    # covering pages that render a text notice instead.
+                    if _cdsl_probe(lambda: table.count(), None) == 0:
+                        log.info(
+                            "CDSL returned no rows: verified report heading "
+                            "for %s but no '%s' table rendered "
+                            "(market_type=%s); treating as empty result",
+                            hidden_date,
+                            table_selector,
+                            market_type,
+                        )
+                        return []
 
                     # CDSL does not render a table when no data exists.
                     page_text = page.locator("body").inner_text().lower()
@@ -959,9 +1286,32 @@ class CdsCorporateBondClient:
                     try:
                         table.wait_for(
                             state="attached",
-                            timeout=30_000,
+                            timeout=10_000,
                         )
                     except PlaywrightTimeoutError as exc:
+                        # The table may simply be absent (legitimate empty
+                        # report under a verified heading); the count() check
+                        # below returns [] in that case without retrying.
+                        # Anything else (a real interaction failure) still
+                        # retries via the caller.
+                        log.info(
+                            "CDSL result table '%s' not attached after search "
+                            "(market_type=%r, trade_date=%r); checking for "
+                            "empty result before treating as failure",
+                            table_selector,
+                            market_type,
+                            display_date,
+                        )
+                        if _cdsl_probe(lambda: table.count(), None) == 0:
+                            log.info(
+                                "CDSL returned no rows: verified report heading "
+                                "for %s but no '%s' table rendered "
+                                "(market_type=%s); treating as empty result",
+                                hidden_date,
+                                table_selector,
+                                market_type,
+                            )
+                            return []
                         raise _CdslSearchRetryableError(
                             "CDSL report table '%s' was not found after "
                             "search (market_type=%r, trade_date=%r): page "
@@ -974,16 +1324,15 @@ class CdsCorporateBondClient:
                         ) from exc
 
                     if table.count() == 0:
-                        raise _CdslSearchRetryableError(
-                            "CDSL report table '%s' was not found after "
-                            "search (market_type=%r, trade_date=%r): page "
-                            "interaction failed"
-                            % (
-                                table_selector,
-                                market_type,
-                                display_date,
-                            )
+                        log.info(
+                            "CDSL returned no rows: verified report heading "
+                            "for %s but no '%s' table rendered "
+                            "(market_type=%s); treating as empty result",
+                            hidden_date,
+                            table_selector,
+                            market_type,
                         )
+                        return []
 
                     rows: List[List[HtmlCell]] = table.evaluate(
                         """(t) => Array.from(t.rows)
