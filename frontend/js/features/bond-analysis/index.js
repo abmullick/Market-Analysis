@@ -89,6 +89,18 @@ function couponFrequencyLabel(freq) {
 // Bond search
 // ---------------------------------------------------------------------------
 
+// Corporate filter values (Trade Date | Issuer) — the corporate-only controls.
+// Both map to supported GET /api/bonds/corporate parameters and are never sent
+// to the government endpoint.
+function readCorporateFilters() {
+    const tradeDate = $("ba-corporate-trade-date");
+    const issuer = $("ba-corporate-issuer");
+    return {
+        tradeDate: tradeDate ? tradeDate.value.trim() : "",
+        issuer: issuer ? issuer.value.trim() : "",
+    };
+}
+
 async function searchBonds() {
     const seq = ++state.searchSeq;
     const q = $("ba-search-input").value.trim();
@@ -100,13 +112,19 @@ async function searchBonds() {
     const sourceFilter = $("ba-source-filter");
     const source = isCorporate || !sourceFilter ? "" : sourceFilter.value;
 
-    // Server-side pagination + sorting (backend-provided values only). The
-    // corporate universe is a separate CDSL endpoint and does not support the
-    // government instrument_type/source filters, so they are never sent there.
+    // Server-side pagination + sorting (backend-provided values only).
     const params = new URLSearchParams();
     if (q) params.set("search", q);
     if (type) params.set("instrument_type", type);
     if (source) params.set("source", source);
+    if (isCorporate) {
+        // The corporate universe is a separate CDSL endpoint: it accepts only
+        // trade_date and issuer (plus search/sorting/pagination) and never the
+        // government instrument_type/source filters.
+        const corp = readCorporateFilters();
+        if (corp.tradeDate) params.set("trade_date", corp.tradeDate);
+        if (corp.issuer) params.set("issuer", corp.issuer);
+    }
     params.set("sort_by", state.sortBy);
     params.set("sort_dir", state.sortDir);
     params.set("limit", String(PAGE_SIZE));
@@ -221,9 +239,11 @@ function updateUniverseControls() {
     // The instrument-type selector (All | G-Sec | SDL | T-Bill) is a
     // government-only control; corporate shows its own filter area instead.
     const govFilter = $("ba-type-filter");
-    const corpFilter = $("ba-corporate-type-filter");
     if (govFilter) govFilter.classList.toggle("hidden", isCorporate);
-    if (corpFilter) corpFilter.classList.toggle("hidden", !isCorporate);
+    // The corporate filter area (Trade Date | Issuer) is the corporate-only
+    // counterpart of the controls above.
+    const corpFilters = $("ba-corporate-filters");
+    if (corpFilters) corpFilters.classList.toggle("hidden", !isCorporate);
     // The data-source selector (All Sources | CCIL | NSE | RBI) is likewise a
     // government-only control.
     const sourceFilter = $("ba-source-filter");
@@ -387,9 +407,15 @@ async function selectBond(isin) {
     // endpoint (analytics computed server-side from CDSL-validated terms);
     // a failed analytics call degrades to the neutral N/A state.
     let bond, market, analytics;
+    // Corporate detail/analytics default to the current report date; the Trade
+    // Date filter pins the same CDSL report the list was filtered by.
+    const corpTradeDate = state.universe === "corporate"
+        ? readCorporateFilters().tradeDate : "";
+    const corpDateQuery = corpTradeDate
+        ? `?trade_date=${encodeURIComponent(corpTradeDate)}` : "";
     try {
         if (state.universe === "corporate") {
-            bond = await api.get(`/bonds/corporate/${encodeURIComponent(isin)}`);
+            bond = await api.get(`/bonds/corporate/${encodeURIComponent(isin)}${corpDateQuery}`);
             market = null;
             analytics = {};
         } else {
@@ -402,7 +428,7 @@ async function selectBond(isin) {
         if (state.universe === "corporate") {
             try {
                 analytics = await api.get(
-                    `/bonds/corporate/${encodeURIComponent(isin)}/analytics`
+                    `/bonds/corporate/${encodeURIComponent(isin)}/analytics${corpDateQuery}`
                 );
             } catch (_aErr) {
                 analytics = {};
@@ -716,14 +742,23 @@ function init() {
         });
     }
 
-    // Corporate filter area (currently "All" only — same shape as the
-    // government filter for the future corporate filter controls).
-    const corpFilter = $("ba-corporate-type-filter");
-    if (corpFilter) {
-        corpFilter.addEventListener("change", () => {
+    // Corporate filter area — Trade Date (CDSL report date) and Issuer. Both
+    // map to supported GET /api/bonds/corporate parameters; a change restarts
+    // the search from the first page, like the other filter controls.
+    const corpTradeDate = $("ba-corporate-trade-date");
+    if (corpTradeDate) {
+        corpTradeDate.addEventListener("change", () => {
             state.page = 1;
             searchBonds();
         });
+    }
+    const corpIssuer = $("ba-corporate-issuer");
+    if (corpIssuer) {
+        // Debounced like the shared search box (same 300 ms convention).
+        corpIssuer.addEventListener("input", utils.debounce(() => {
+            state.page = 1;
+            searchBonds();
+        }, 300));
     }
 
     // Universe switch — Government (default) | Corporate. Each universe is

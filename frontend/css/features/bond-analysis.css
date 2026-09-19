@@ -2638,3 +2638,73 @@ body[data-page="bond-analysis"] .ba-cashflow-head {
 body[data-page="bond-analysis"] .ba-details-head {
     background: #f0faf5;
 }
+
+/* Corporate Bond Filters */
+.ba-corporate-filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    padding: 4px 0;
+}
+
+.ba-corporate-filters label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.ba-corporate-filters input {
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid #d7e0ec;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #334155;
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s ease,
+                box-shadow 0.2s ease;
+}
+
+.ba-corporate-filters input:focus {
+    border-color: #64748b;
+    box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.14);
+}
+
+.ba-corporate-filters input[type="date"] {
+    min-width: 155px;
+}
+
+.ba-corporate-filters input[type="text"] {
+    min-width: 180px;
+}
+
+.ba-corporate-filters input::placeholder {
+    color: #94a3b8;
+}
+
+/* Responsive layout */
+@media (max-width: 640px) {
+    .ba-corporate-filters {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .ba-corporate-filters label {
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .ba-corporate-filters input {
+        flex: 1;
+        min-width: 0 !important;
+    }
+}
