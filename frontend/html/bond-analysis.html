@@ -62,9 +62,43 @@
                                         <option value="SDL">SDL</option>
                                         <option value="T-Bill">T-Bill</option>
                                     </select>
-                                    <select id="ba-corporate-type-filter" class="ba-filter-select hidden" aria-label="Corporate bond filter">
-                                        <option value="" selected>All</option>
+                                    <select
+                                        id="ba-source-filter"
+                                        class="ba-filter-select"
+                                        aria-label="Data source filter">
+
+                                        <option value="" selected>All Sources</option>
+                                        <option value="CCIL">CCIL</option>
+                                        <option value="NSE">NSE</option>
+                                        <option value="RBI">RBI</option>
                                     </select>
+                                      <div
+    id="ba-corporate-filters"
+    class="ba-corporate-filters hidden"
+    aria-label="Corporate bond filters">
+
+    <label class="ba-tool-label" for="ba-corporate-trade-date">
+        Trade Date
+    </label>
+
+    <input
+        type="date"
+        id="ba-corporate-trade-date"
+        class="ba-filter-input"
+        aria-label="Corporate bond trade date">
+
+    <label class="ba-tool-label" for="ba-corporate-issuer">
+        Issuer
+    </label>
+
+    <input
+        type="search"
+        id="ba-corporate-issuer"
+        class="ba-filter-input"
+        placeholder="Filter by issuer"
+        autocomplete="off"
+        aria-label="Corporate bond issuer">
+</div>
                                 </div>
                                 <p id="ba-selector-status" class="ba-section-sub ba-selector-status hidden" role="status" aria-live="polite"></p>
                                 <ul id="ba-bond-list" class="ba-bond-list"></ul>
@@ -77,30 +111,7 @@
                             </section>
                         </div>
                         <div class="ba-analysis-column">
-                            <section class="pb-panel ba-source-status-panel" aria-labelledby="ba-source-status-title" aria-live="polite">
-                                <div class="pb-panel-header ba-panel-head">
-                                    <h2 class="pb-panel-title" id="ba-source-status-title">Data Source Status</h2>
-                                    <span class="pb-count" id="ba-source-status-count"></span>
-                                </div>
-                                <p class="ba-section-sub">Live retrieval status for each configured bond data source.</p>
-                                <ul class="ba-source-status-list" id="ba-source-status-list">
-                                    <li class="ba-source-status-row" data-source="CCIL">
-                                        <span class="ba-source-name">CCIL</span>
-                                        <span class="ba-source-badge is-neutral">Not Loaded</span>
-                                        <span class="ba-source-count">0 records</span>
-                                    </li>
-                                    <li class="ba-source-status-row" data-source="NSE">
-                                        <span class="ba-source-name">NSE</span>
-                                        <span class="ba-source-badge is-neutral">Not Loaded</span>
-                                        <span class="ba-source-count">0 records</span>
-                                    </li>
-                                    <li class="ba-source-status-row" data-source="RBI">
-                                        <span class="ba-source-name">RBI</span>
-                                        <span class="ba-source-badge is-neutral">Not Loaded</span>
-                                        <span class="ba-source-count">0 records</span>
-                                    </li>
-                                </ul>
-                            </section>
+                            
 
                             <div id="ba-results" class="hidden">
                                 <!-- Bond Summary Section -->
