@@ -528,6 +528,14 @@ class BondService:
         ``trade_date`` defaults to the current Indian calendar date.
         """
         resolved = _resolve_corporate_trade_date(trade_date)
+
+        # CDSL reports are not expected on weekends.
+        # Avoid launching Playwright for the current calendar date
+        # when no explicit trade date was requested.
+        if trade_date is None and resolved.weekday() >= 5:
+            logger.info("Skipping CDSL corporate refresh for non-business date: %s", resolved,)
+            return []
+
         cache_key = f"corporate:{resolved.isoformat()}"
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -631,14 +639,29 @@ class BondService:
         # (both live fetches failed): the data cannot be proven to belong
         # to the requested date, so caching it would poison the date key.
         date_verified = secondary_ok or primary_ok
+
+        # Both CDSL reports completed successfully but returned no records.
+        # Cache this verified empty result to avoid repeated browser launches.
+        if not consolidated and secondary_ok and primary_ok:
+            logger.info(
+                "CDSL returned no corporate bonds for %s; "
+                "caching verified empty result",
+                resolved,
+            )
+            self._cache.put(cache_key, consolidated)
+            return consolidated
+
+        # At least one report failed, so do not cache an empty result.
+        # A subsequent request should be allowed to retry.
         if not consolidated:
             logger.warning(
                 "Corporate bond refresh produced no records "
-                "(secondary=%d, primary=%d); not caching so a subsequent "
-                "request can retry",
+                "(secondary=%d, primary=%d); not caching because "
+                "at least one CDSL retrieval failed",
                 len(secondary_bonds), len(primary_bonds),
             )
-            return consolidated
+        return consolidated
+        # If we reach here, there are consolidated results to cache.
         if not date_verified:
             logger.warning(
                 "Corporate bond refresh for %s could not verify the report "

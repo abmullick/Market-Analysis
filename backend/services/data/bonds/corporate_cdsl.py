@@ -45,8 +45,10 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import requests
 
 from bs4 import BeautifulSoup
+logger = logging.getLogger(__name__)
 
 from backend.config.settings import Settings
+
 from backend.models.bonds import (
     CdslCashFlowEvent,
     CdslCorporateBondPrimaryRawRecord,
@@ -184,6 +186,16 @@ def _verify_report_heading(page: Any, market_type: str, hidden_date: str) -> Non
         except Exception:
             region_text = ""
     expected = _normalize_heading_text(f"{fragment} {hidden_date}")
+    
+    logger.warning(
+        "CDSL HEADING DEBUG: market_type=%s, hidden_date=%s, "
+        "expected=%r, actual=%r",
+        market_type,
+        hidden_date,
+        expected,
+        _normalize_heading_text(region_text),
+    )
+    
     if not _normalize_heading_text(region_text) or expected not in (
         _normalize_heading_text(region_text)
     ):
