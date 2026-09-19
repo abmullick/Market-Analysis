@@ -1540,6 +1540,7 @@ body[data-page="bond-analysis"] {
     --ba-divider: rgba(148, 163, 184, 0.22);
 
     /* Type */
+    --ba-text: #334155;
     --ba-navy: #0f172a;
     --ba-navy-control: #1e3a5f;
     --ba-text-muted: #64748b;
@@ -2476,4 +2477,29 @@ body[data-page="bond-analysis"] .ba-source-status-panel .pb-count {
         flex-wrap: wrap;
         gap: 6px 10px;
     }
+}
+
+/* Light color theme */
+body[data-page="bond-analysis"] {
+    background: #F5F7FB;
+}
+
+/* Bond Summary */
+body[data-page="bond-analysis"] .ba-summary {
+    background: #FFFDF7;
+}
+
+/* Analytics */
+body[data-page="bond-analysis"] .ba-analytics {
+    background: #F8FBFF;
+}
+
+/* Cash Flows */
+body[data-page="bond-analysis"] .ba-cash-flows {
+    background: #FBF9FF;
+}
+
+/* Bond Details */
+body[data-page="bond-analysis"] .ba-details {
+    background: #F8FCF9;
 }
