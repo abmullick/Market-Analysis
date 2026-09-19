@@ -528,6 +528,16 @@ class BondService:
         ``trade_date`` defaults to the current Indian calendar date.
         """
         resolved = _resolve_corporate_trade_date(trade_date)
+        
+        # Use the previous business date when no explicit date
+        # is supplied on a weekend, matching the list endpoint.
+        if trade_date is None and resolved.weekday() >= 5:
+            previous_business_date = resolved
+            while previous_business_date.weekday() >= 5:
+                previous_business_date -= timedelta(days=1)
+
+            logger.info("Using previous business date for corporate detail: %s -> %s", resolved, previous_business_date)
+            resolved = previous_business_date
 
         # CDSL reports are not expected on weekends.
         # Avoid launching Playwright for the current calendar date
