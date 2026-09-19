@@ -750,6 +750,23 @@ class BondService:
         pipeline (``refresh_all_sources()``) is never invoked.
         """
         resolved = _resolve_corporate_trade_date(trade_date)
+        
+        # CDSL reports are not expected on weekends.
+        # Use the previous business date when no explicit date was requested.
+        if trade_date is None and resolved.weekday() >= 5:
+            previous_business_date = resolved
+
+            while previous_business_date.weekday() >= 5:
+                previous_business_date -= timedelta(days=1)
+
+            logger.info(
+                "Using previous business date for corporate bond detail: %s -> %s",
+                resolved,
+                previous_business_date,
+            )
+            resolved = previous_business_date
+        
+                    
         cache_key = (
             f"corporate-isin:{resolved.isoformat()}:{isin.strip().upper()}"
         )
