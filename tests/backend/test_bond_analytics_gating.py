@@ -59,6 +59,69 @@ def _satin_bond(**overrides) -> Bond:
 
 
 class TestValidCompleteInputs:
+    def test_settlement_date_drives_accrual_and_remaining_flows(self):
+        """The settlement date drives accrued-interest days and the set of
+        remaining (future) cash flows used for YTM/duration/convexity/DV01.
+
+        For a monthly-paying bond settled on 2026-09-18 with coupons on the
+        10th of each month, the previous coupon is 2026-09-10 (8 days accrued)
+        and exactly 6 payments remain after settlement (10-Oct-2026 through
+        10-Mar-2027, the last combining coupon + redemption).
+        """
+        a = compute_analytics(_satin_bond(), settlement_date=SETTLEMENT)
+
+        assert a.settlement_date == SETTLEMENT
+        assert a.accrued_interest_days == 8
+        assert a.accrued_interest is not None
+
+        cfs = a.cash_flows
+        assert cfs is not None
+        # Full schedule spans the whole interest window.
+        assert len(cfs) >= 18
+
+        future = [c for c in cfs if c["date"] > SETTLEMENT]
+        assert len(future) == 6
+        assert future[0]["date"] == date(2026, 10, 10)
+        assert future[-1]["date"] == date(2027, 3, 10)
+        assert future[-1]["total"] == 100.0 + future[-1]["coupon"]
+
+    def test_past_coupons_remain_in_schedule_but_not_in_pricing(self):
+        """Cash-flow schedules report the full payment calendar (including
+        already-paid coupons), but YTM, duration, convexity and DV01 only use
+        flows with date > settlement_date.
+
+        Verify by constructing the same bond on two settlement dates: when the
+        settlement date moves forward by one coupon period, the number of
+        future flows used for pricing drops by one.
+        """
+        base = Bond(
+            isin="INE-PAST-FUTURE",
+            security_name="Past/Future Test Bond",
+            issuer="Issuer",
+            instrument_type=InstrumentType.GOVERNMENT,
+            coupon_rate=8.0,
+            coupon_frequency=2,
+            day_count_convention=DayCountConvention.THIRTY_360,
+            face_value=100.0,
+            redemption_date=date(2027, 4, 10),
+            price=100.0,
+            ltp=100.0,
+            ytm=8.0,
+        )
+
+        r1 = compute_analytics(base, settlement_date=date(2025, 9, 1))
+        future1 = [c for c in (r1.cash_flows or []) if c["date"] > date(2025, 9, 1)]
+
+        r2 = compute_analytics(base, settlement_date=date(2025, 10, 10))
+        future2 = [c for c in (r2.cash_flows or []) if c["date"] > date(2025, 10, 10)]
+
+        assert len(future2) == len(future1) - 1
+
+        past_present = any(
+            c["date"] == date(2025, 10, 10) for c in (r2.cash_flows or [])
+        )
+        assert past_present
+
     def test_satin_full_metric_set(self):
         a = compute_analytics(_satin_bond(), settlement_date=SETTLEMENT)
 

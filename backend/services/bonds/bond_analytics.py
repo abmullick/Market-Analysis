@@ -257,10 +257,23 @@ def _price_from_yield(
     if not cash_flows:
         return 0.0
 
+    # Only future payments can contribute to a settlement-date price.
+    # Keep the original full schedule available for the periodic path because
+    # _cash_flow_exponents() needs historical coupon dates to determine the
+    # current coupon period and the DSC/E first-period fraction.
+    future_cash_flows = [
+        cf
+        for cf in cash_flows
+        if cf["date"] > settlement_date
+    ]
+
+    if not future_cash_flows:
+        return 0.0
+
     if frequency <= 1:
         total = 0.0
 
-        for cf in cash_flows:
+        for cf in future_cash_flows:
             cf_date = cf["date"]
             amount = float(cf["total"])
 
