@@ -406,6 +406,7 @@ async function searchBonds() {
         $("ba-no-results").classList.add("hidden");
         $("ba-bond-list").innerHTML = "";
         renderPagination(0);
+        $("ba-range-chip").textContent = "";
         $("ba-result-count").textContent = "";
         showError(`Could not load bonds: ${err && err.message ? err.message : err}`);
         return;
@@ -434,10 +435,16 @@ async function searchBonds() {
         list = fetched;
     }
 
-    // Header chip — the universe size, not the page size.
-    $("ba-range-chip").textContent = state.total
-        ? `Showing 1–${Math.min(PAGE_SIZE, state.total)} of ${state.total}`
-        : "";
+    // Header chip — the current page's slice of the result set, not always
+    // the first page. Recomputed on every search so it stays in sync with
+    // range filters, pagination, universe switches and server-side filters.
+    if (state.total > 0) {
+        const start = (state.page - 1) * PAGE_SIZE + 1;
+        const end = Math.min(state.page * PAGE_SIZE, state.total);
+        $("ba-range-chip").textContent = `Showing ${start}–${end} of ${state.total}`;
+    } else {
+        $("ba-range-chip").textContent = "";
+    }
     $("ba-result-count").textContent = state.total
         ? `${state.total} bond${state.total === 1 ? "" : "s"}`
         : "";
