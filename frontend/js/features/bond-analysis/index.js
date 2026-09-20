@@ -35,6 +35,15 @@ const state = {
     total: 0,           // total bonds matching the current query (ACTIVE universe)
     sortBy: "maturity_date",
     sortDir: "asc",
+    // Range filter values (client-side). Defaults match the HTML slider ranges.
+    rangeFilters: {
+        couponMin: 0,     // percent
+        couponMax: 20,    // percent
+        yieldMin: 0,      // percent (corporate only — weighted_average_yield)
+        yieldMax: 20,     // percent (corporate only — weighted_average_yield)
+        maturityFrom: "", // ISO date string or empty
+        maturityTo: "",   // ISO date string or empty
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -101,6 +110,242 @@ function readCorporateFilters() {
     };
 }
 
+// Range filter slider bounds — must match the min/max attributes in the HTML.
+const RANGE_MIN = 0;
+const RANGE_MAX = 20;
+
+// Read range filter values from the HTML controls. Values at the slider
+// extremes mean "no bound on that side", matching the "Any" output labels.
+function readRangeFilters() {
+    const couponMinEl = $("ba-coupon-min");
+    const couponMaxEl = $("ba-coupon-max");
+    const yieldMinEl = $("ba-yield-min");
+    const yieldMaxEl = $("ba-yield-max");
+    const maturityFromEl = $("ba-maturity-from");
+    const maturityToEl = $("ba-maturity-to");
+
+    return {
+        couponMin: couponMinEl ? parseFloat(couponMinEl.value) : RANGE_MIN,
+        couponMax: couponMaxEl ? parseFloat(couponMaxEl.value) : RANGE_MAX,
+        yieldMin: yieldMinEl ? parseFloat(yieldMinEl.value) : RANGE_MIN,
+        yieldMax: yieldMaxEl ? parseFloat(yieldMaxEl.value) : RANGE_MAX,
+        maturityFrom: maturityFromEl ? maturityFromEl.value : "",
+        maturityTo: maturityToEl ? maturityToEl.value : "",
+    };
+}
+
+// Check whether a range filter that APPLIES to the active universe is set.
+// Coupon and maturity apply to both universes; yield applies to corporate only
+// (so a pending corporate yield range never forces a full-universe download
+// while the government universe is active).
+function hasActiveRangeFilters() {
+    const f = state.rangeFilters;
+    if (f.couponMin !== RANGE_MIN || f.couponMax !== RANGE_MAX) return true;
+    if (f.maturityFrom !== "" || f.maturityTo !== "") return true;
+    if (state.universe === "corporate" &&
+        (f.yieldMin !== RANGE_MIN || f.yieldMax !== RANGE_MAX)) return true;
+    return false;
+}
+
+// Apply client-side range filtering to a list of bonds.
+//
+// The backend list endpoints (GET /api/bonds, GET /api/bonds/corporate) expose
+// no range query parameters, so coupon / yield / maturity narrowing happens
+// here, using only backend-provided field values:
+//   coupon_rate              — both universes
+//   ytm                      — government market YTM
+//   weighted_average_yield   — corporate (CDSL) weighted average yield
+//   maturity_date            — both universes
+// A bound sitting at the slider extreme is treated as unbounded, so the
+// default 0–20 positions never exclude bonds outside that numeric window.
+function applyRangeFilters(bonds) {
+    const f = state.rangeFilters;
+    const isCorporate = state.universe === "corporate";
+
+    // A bound at the slider extreme means "no bound on that side".
+    const couponMin = f.couponMin > RANGE_MIN ? f.couponMin : null;
+    const couponMax = f.couponMax < RANGE_MAX ? f.couponMax : null;
+    const yieldMin = f.yieldMin > RANGE_MIN ? f.yieldMin : null;
+    const yieldMax = f.yieldMax < RANGE_MAX ? f.yieldMax : null;
+    const fromMs = f.maturityFrom ? new Date(f.maturityFrom).getTime() : null;
+    const toMs = f.maturityTo ? new Date(f.maturityTo).getTime() : null;
+
+    const couponConstrained = couponMin !== null || couponMax !== null;
+    // The Weighted Average Yield control exists in the corporate universe only
+    // (HTML: #ba-yield-range-group.ba-corporate-range-only), so a yield range
+    // never narrows government results.
+    const yieldConstrained = isCorporate && (yieldMin !== null || yieldMax !== null);
+    const maturityConstrained = fromMs !== null || toMs !== null;
+
+    return bonds.filter((bond) => {
+        // Coupon rate — both universes.
+        if (couponConstrained) {
+            const coupon = toFiniteNumber(bond.coupon_rate);
+            // A constrained field with no usable value cannot be verified, so
+            // the record is excluded rather than assumed to be in range.
+            if (coupon === null) return false;
+            if (couponMin !== null && coupon < couponMin) return false;
+            if (couponMax !== null && coupon > couponMax) return false;
+        }
+
+        // Yield — corporate uses the CDSL Weighted Average Yield (the backend
+        // also mirrors that value into `ytm` for CDSL secondary rows, so the
+        // fallback is the same figure); government uses the source market YTM.
+        // The two universes are never substituted for one another.
+        if (yieldConstrained) {
+            const rawYield = isCorporate
+                ? (bond.weighted_average_yield != null ? bond.weighted_average_yield : bond.ytm)
+                : bond.ytm;
+            const yieldValue = toFiniteNumber(rawYield);
+            if (yieldValue === null) return false;
+            if (yieldMin !== null && yieldValue < yieldMin) return false;
+            if (yieldMax !== null && yieldValue > yieldMax) return false;
+        }
+
+        // Maturity date — both universes.
+        if (maturityConstrained) {
+            const maturityMs = toTimeMs(bond.maturity_date);
+            if (maturityMs === null) return false;
+            if (fromMs !== null && maturityMs < fromMs) return false;
+            if (toMs !== null && maturityMs > toMs) return false;
+        }
+
+        return true;
+    });
+}
+
+// The Weighted Average Yield group is corporate-only: the government bond
+// payload carries a market YTM, not a weighted average yield.
+function syncYieldControlsVisibility() {
+    const yieldGroup = $("ba-yield-range-group");
+    if (yieldGroup) yieldGroup.hidden = state.universe !== "corporate";
+}
+
+// Restore the range controls to their documented defaults — coupon 0–20,
+// yield 0–20, blank maturity dates — and refresh the min/max output labels
+// above each slider (the existing setupRangeOutputs listeners).
+function setRangeControlsToDefaults() {
+    [
+        ["ba-coupon-min", RANGE_MIN],
+        ["ba-coupon-max", RANGE_MAX],
+        ["ba-yield-min", RANGE_MIN],
+        ["ba-yield-max", RANGE_MAX],
+    ].forEach(([id, value]) => {
+        const el = $(id);
+        if (!el) return;
+        el.value = String(value);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    const from = $("ba-maturity-from");
+    if (from) from.value = "";
+    const to = $("ba-maturity-to");
+    if (to) to.value = "";
+}
+
+// --- Safe field coercion -------------------------------------------------
+// Backend list payloads are Bond records: coupon_rate / ytm /
+// weighted_average_yield are numbers-or-null, maturity_date is an ISO date
+// string-or-null. These helpers still accept string values defensively and
+// return null for anything missing, empty or unparseable, so a constrained
+// filter never silently includes an unverifiable record.
+
+function toFiniteNumber(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const n = typeof value === "number" ? value : Number(String(value).trim());
+    return Number.isFinite(n) ? n : null;
+}
+
+function toTimeMs(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const t = new Date(value).getTime();
+    return Number.isFinite(t) ? t : null;
+}
+
+// --- Full-universe retrieval ---------------------------------------------
+// The documented backend maximum for the list `limit` parameter is 200
+// (ge=1, le=200 on both GET /api/bonds and GET /api/bonds/corporate).
+
+const MAX_PAGE_SIZE = 200;
+
+// Download EVERY bond matching the server-side filters by paging at the
+// documented maximum size until the result set is exhausted. The server's
+// search / instrument_type / source / issuer / trade_date / sort parameters
+// are all applied by the backend before anything reaches the browser.
+async function fetchAllBonds(path, baseParams) {
+    const bonds = [];
+    let offset = 0;
+
+    for (;;) {
+        const params = new URLSearchParams(baseParams);
+        params.set("limit", String(MAX_PAGE_SIZE));
+        params.set("offset", String(offset));
+        params.set("envelope", "true");
+
+        const data = await api.get(`${path}?${params.toString()}`);
+        const items = Array.isArray(data)
+            ? data
+            : (data && Array.isArray(data.items) ? data.items : []);
+        const total = Array.isArray(data)
+            ? items.length
+            : (data && typeof data.total === "number" ? data.total : items.length);
+
+        bonds.push(...items);
+        offset += items.length;
+
+        // Stop on an empty page, a short page (last page), or once the
+        // reported total has been reached.
+        if (items.length === 0 || items.length < MAX_PAGE_SIZE || bonds.length >= total) break;
+    }
+
+    return bonds;
+}
+
+// Cache of full server-filtered result sets keyed by filter signature, so
+// range filtering and local pagination never re-download the universe. A
+// request already in flight for the same signature is shared with any
+// concurrent caller instead of being issued a second time. Keying by
+// signature (rather than a single slot) means a slower earlier response can
+// never overwrite the data for the filters currently on screen.
+const UNIVERSE_CACHE_LIMIT = 8;
+const universeCache = new Map();      // signature -> Bond[]
+const universeInflight = new Map();   // signature -> Promise<Bond[]>
+
+function buildFilterSignature(isCorporate, q, type, source, corp) {
+    return JSON.stringify([
+        isCorporate ? "corporate" : "government",
+        q || "",
+        type || "",
+        source || "",
+        corp.tradeDate || "",
+        corp.issuer || "",
+        state.sortBy || "",
+        state.sortDir || "",
+    ]);
+}
+
+async function getUniverseBonds(signature, path, baseParams) {
+    if (universeCache.has(signature)) return universeCache.get(signature);
+    if (universeInflight.has(signature)) return universeInflight.get(signature);
+
+    const request = fetchAllBonds(path, baseParams)
+        .then((bonds) => {
+            universeCache.set(signature, bonds);
+            // Bound the cache so repeated filter edits cannot grow it forever.
+            while (universeCache.size > UNIVERSE_CACHE_LIMIT) {
+                const oldest = universeCache.keys().next().value;
+                universeCache.delete(oldest);
+            }
+            return bonds;
+        })
+        .finally(() => {
+            universeInflight.delete(signature);
+        });
+
+    universeInflight.set(signature, request);
+    return request;
+}
+
 async function searchBonds() {
     const seq = ++state.searchSeq;
     const q = $("ba-search-input").value.trim();
@@ -112,31 +357,49 @@ async function searchBonds() {
     const sourceFilter = $("ba-source-filter");
     const source = isCorporate || !sourceFilter ? "" : sourceFilter.value;
 
-    // Server-side pagination + sorting (backend-provided values only).
-    const params = new URLSearchParams();
-    if (q) params.set("search", q);
-    if (type) params.set("instrument_type", type);
-    if (source) params.set("source", source);
+    // Coupon / yield / maturity ranges are applied client-side: neither list
+    // endpoint accepts range query parameters, so the full server-filtered
+    // result set is downloaded (paged at the documented maximum) and narrowed
+    // in the browser. With no active range filter the original server-side
+    // pagination path is used unchanged.
+    const rangeActive = hasActiveRangeFilters();
+
+    // Server-side filters + sorting (backend-provided parameters only).
+    const corpFilters = isCorporate ? readCorporateFilters() : { tradeDate: "", issuer: "" };
+    const serverParams = new URLSearchParams();
+    if (q) serverParams.set("search", q);
+    if (type) serverParams.set("instrument_type", type);
+    if (source) serverParams.set("source", source);
     if (isCorporate) {
         // The corporate universe is a separate CDSL endpoint: it accepts only
         // trade_date and issuer (plus search/sorting/pagination) and never the
         // government instrument_type/source filters.
-        const corp = readCorporateFilters();
-        if (corp.tradeDate) params.set("trade_date", corp.tradeDate);
-        if (corp.issuer) params.set("issuer", corp.issuer);
+        if (corpFilters.tradeDate) serverParams.set("trade_date", corpFilters.tradeDate);
+        if (corpFilters.issuer) serverParams.set("issuer", corpFilters.issuer);
     }
-    params.set("sort_by", state.sortBy);
-    params.set("sort_dir", state.sortDir);
-    params.set("limit", String(PAGE_SIZE));
-    params.set("offset", String((state.page - 1) * PAGE_SIZE));
-    params.set("envelope", "true");
+    serverParams.set("sort_by", state.sortBy);
+    serverParams.set("sort_dir", state.sortDir);
+
+    const path = isCorporate ? "/bonds/corporate" : "/bonds";
 
     setSelectorStatus('<span class="pb-analysis-loading"><span class="pb-spinner" aria-hidden="true"></span><span>Searching bonds&hellip;</span></span>');
     $("ba-no-results").classList.add("hidden");
 
     let data;
+    let universe = null;
     try {
-        data = await api.get(`${isCorporate ? "/bonds/corporate" : "/bonds"}?${params.toString()}`);
+        if (rangeActive) {
+            // Range filtering needs the whole matching universe; the cache
+            // prevents re-downloading it on every page change.
+            const signature = buildFilterSignature(isCorporate, q, type, source, corpFilters);
+            universe = await getUniverseBonds(signature, path, serverParams);
+        } else {
+            const pageParams = new URLSearchParams(serverParams);
+            pageParams.set("limit", String(PAGE_SIZE));
+            pageParams.set("offset", String((state.page - 1) * PAGE_SIZE));
+            pageParams.set("envelope", "true");
+            data = await api.get(`${path}?${pageParams.toString()}`);
+        }
     } catch (err) {
         if (seq !== state.searchSeq) return;
         setSelectorStatus("");
@@ -152,10 +415,24 @@ async function searchBonds() {
     setSelectorStatus("");
     hideError();
 
-    // Envelope response: {items, total, limit, offset}. A plain array is also
+    // The server returns {items, total, limit, offset}; a plain array is also
     // accepted defensively, though the page always requests the envelope.
-    const list = Array.isArray(data) ? data : (data && Array.isArray(data.items) ? data.items : []);
-    state.total = Array.isArray(data) ? list.length : (data && typeof data.total === "number" ? data.total : list.length);
+    //
+    // With range filters active the cached full universe is narrowed locally
+    // and paginated locally, and `total` reflects the FILTERED result set.
+    // Otherwise the server already returned the requested page and its total.
+    let list;
+    if (rangeActive) {
+        const filtered = applyRangeFilters(universe || []);
+        state.total = filtered.length;
+        list = filtered.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
+    } else {
+        const fetched = Array.isArray(data) ? data : (data && Array.isArray(data.items) ? data.items : []);
+        state.total = Array.isArray(data)
+            ? fetched.length
+            : (data && typeof data.total === "number" ? data.total : fetched.length);
+        list = fetched;
+    }
 
     // Header chip — the universe size, not the page size.
     $("ba-range-chip").textContent = state.total
@@ -257,6 +534,8 @@ function updateUniverseControls() {
     // government-only control.
     const sourceFilter = $("ba-source-filter");
     if (sourceFilter) sourceFilter.classList.toggle("hidden", isCorporate);
+    // The Weighted Average Yield range group is corporate-only.
+    syncYieldControlsVisibility();
 }
 
 function resetDetailPanel() {
@@ -807,6 +1086,32 @@ function init() {
             state.page = 1;
             searchBonds();
         }, 300));
+    }
+
+    // Range filters (coupon / yield / maturity). The sliders and date inputs
+    // only change the PENDING values: nothing is requested until Apply, which
+    // reloads the active universe from page 1 using every selected filter
+    // (search, instrument type, source, corporate trade date/issuer, sort,
+    // and the ranges themselves).
+    const rangeApply = $("ba-range-apply");
+    if (rangeApply) {
+        rangeApply.addEventListener("click", () => {
+            state.rangeFilters = readRangeFilters();
+            state.page = 1;
+            searchBonds();
+        });
+    }
+
+    // Reset restores the documented defaults, clears the active range filters,
+    // and reloads the current universe from the first page.
+    const rangeReset = $("ba-range-reset");
+    if (rangeReset) {
+        rangeReset.addEventListener("click", () => {
+            setRangeControlsToDefaults();
+            state.rangeFilters = readRangeFilters();
+            state.page = 1;
+            searchBonds();
+        });
     }
 
     // Universe switch — Government (default) | Corporate. Each universe is
