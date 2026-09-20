@@ -481,6 +481,11 @@ class NseRawRecord(BaseModel):
 
     report_type: str = Field(default="", description="NSE report family")
     security_description: Optional[str] = None
+    # Full description as published by the source (e.g. NSE WDM `ISSUE_DESC`:
+    # "GOI TBILL 364D-23/10/26", "SDL GUJARAT 8.26% 2031"). Kept separately
+    # from the short `security_description` symbol so classification and
+    # display can use the richer text without losing the source symbol.
+    issue_description: Optional[str] = None
     isin: Optional[str] = None
     maturity_date: Optional[str] = None
     coupon_rate: Optional[str] = None

@@ -37,6 +37,7 @@ from backend.models.bonds import (
 from backend.services.bonds.bond_analytics import compute_analytics
 from backend.services.bonds.bond_enrichment import enrich_ccil_bonds
 from backend.services.bonds.bond_normalizer import (
+    _nse_is_corporate,
     _parse_coupon_frequency as _parse_coupon_frequency_source,
     normalize_ccil_record,
     normalize_cdsl_corporate_primary_record,
@@ -1092,10 +1093,20 @@ def _normalize_nse_bonds(records: list[Any]) -> list[Bond]:
     never discard the rest of the NSE universe (which is the only data
     available when CCIL returns no observations). Rows that the normalizer
     rejects as non-bond instruments simply contribute nothing.
+
+    Observability: every outcome is counted and summarized (raw records,
+    normalized bonds per instrument type, corporate/unsupported records,
+    unknown/unclassified records, validation rejections) so large-scale
+    drops — e.g. master rows classified UNKNOWN — are always visible in the
+    logs instead of silently shrinking the universe.
     """
     bonds: list[Bond] = []
     failures = 0
     first_error: Optional[str] = None
+    type_counts: dict[str, int] = {}
+    unsupported = 0
+    unknown = 0
+    total = len(records or [])
 
     for raw in records or []:
         try:
@@ -1110,6 +1121,12 @@ def _normalize_nse_bonds(records: list[Any]) -> list[Bond]:
             continue
         if bond is not None:
             bonds.append(bond)
+            key = bond.instrument_type.value
+            type_counts[key] = type_counts.get(key, 0) + 1
+        elif _nse_is_corporate(raw, raw.security_description):
+            unsupported += 1
+        else:
+            unknown += 1
 
     if failures:
         logger.warning(
@@ -1118,6 +1135,19 @@ def _normalize_nse_bonds(records: list[Any]) -> list[Bond]:
             len(records),
             first_error,
         )
+    logger.info(
+        "NSE master classification: raw=%d normalized=%d "
+        "(G-Sec=%d T-Bill=%d SDL=%d) corporate_unsupported=%d "
+        "unknown=%d validation_rejected=%d",
+        total,
+        len(bonds),
+        type_counts.get(InstrumentType.G_SEC.value, 0),
+        type_counts.get(InstrumentType.T_BILL.value, 0),
+        type_counts.get(InstrumentType.SDL.value, 0),
+        unsupported,
+        unknown,
+        failures,
+    )
 
     return bonds
 

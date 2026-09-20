@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Optional
+from typing import Dict, Optional
 
 from backend.models.bonds import (
     Bond,
@@ -204,6 +204,169 @@ def normalize_ccil_record(raw: CcilRawRecord) -> Bond:
 # NSE normalization (Debt Instruments security master)
 # ---------------------------------------------------------------------------
 
+# Explicit NSE `SECTYPE` codes observed in the WDM Debt Instruments master
+# ("Securities Available for Trading"). The code is the primary, deterministic
+# classification source whenever it is present and recognized:
+#
+#   SECTYPE=TB -> Treasury Bill      ISSUE_DESC="GOI TBILL 364D-23/10/26"
+#   SECTYPE=GS -> Government Stock
+#   SECTYPE=SG -> State Government loan; classified SDL only when the
+#                 description confirms SDL / state-government wording
+#                 (e.g. "SDL GUJARAT 8.26% 2031"). A plain `SG` code is NOT
+#                 enough: some `SG` rows are state special bonds, not SDLs.
+#
+# Keys are normalized (upper-case, alphanumeric only), so "G-Sec" and "GSEC"
+# both resolve to the same key.
+_NSE_SECTYPE_EXPLICIT: Dict[str, InstrumentType] = {
+    "TB": InstrumentType.T_BILL,
+    "TBILL": InstrumentType.T_BILL,
+    "GS": InstrumentType.G_SEC,
+    "GSEC": InstrumentType.G_SEC,
+    "SDL": InstrumentType.SDL,
+    "SGS": InstrumentType.SDL,
+}
+
+_NSE_SECTYPE_KEY_RE = re.compile(r"[^A-Z0-9]")
+_NSE_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+# SDL confirmation vocabulary (token-aware; never substring matching).
+_NSE_SDL_TOKENS = frozenset({"sdl", "sgs"})
+_NSE_SDL_PHRASES = (
+    frozenset({"state", "development"}),
+    frozenset({"state", "government"}),
+    frozenset({"state", "govt"}),
+    frozenset({"state", "loan"}),
+)
+
+# G-Sec fallback vocabulary (token-aware; "gs" must be a standalone token,
+# never a substring inside a symbol such as "GSIL28").
+_NSE_GSEC_TOKENS = frozenset({"gs", "gsec", "dated"})
+
+
+def _nse_sectype_key(raw: Any) -> Optional[str]:
+    """Return the normalized explicit SECTYPE key, or None when absent."""
+    value = (getattr(raw, "instrument_type", None) or "").strip().upper()
+    if not value:
+        return None
+    return _NSE_SECTYPE_KEY_RE.sub("", value) or None
+
+
+def _nse_tokens(*values: Any) -> frozenset:
+    """Tokenize the given free-text values (lower-case alphanumeric tokens)."""
+    joined = " ".join(str(v) for v in values if v)
+    return frozenset(_NSE_TOKEN_RE.findall(joined.lower()))
+
+
+def _nse_desc_confirms_tbill(tokens: frozenset) -> bool:
+    """True when the token set identifies a Treasury Bill."""
+    if tokens & {"tbill", "tbills", "dtb", "dtbs"}:
+        return True
+    if "t" in tokens and "bill" in tokens:
+        return True
+    if "treasury" in tokens and "bill" in tokens:
+        return True
+    return any(tenor in tokens and "day" in tokens for tenor in ("91", "182", "364"))
+
+
+def _nse_desc_confirms_sdl(tokens: frozenset) -> bool:
+    """True when the token set identifies a State Development Loan."""
+    if tokens & _NSE_SDL_TOKENS:
+        return True
+    return any(phrase <= tokens for phrase in _NSE_SDL_PHRASES)
+
+
+def _nse_desc_confirms_gsec(tokens: frozenset) -> bool:
+    """True when the token set identifies a dated government security."""
+    if tokens & _NSE_GSEC_TOKENS:
+        return True
+    if {"g", "sec"} <= tokens:
+        return True
+    return "government" in tokens
+
+
+def _classify_nse_instrument(
+    raw: NseRawRecord,
+    desc: Optional[str] = None,
+) -> InstrumentType:
+    """Classify one NSE raw record, deterministically and in priority order.
+
+    Precedence (per the instrument-type contract):
+
+        1. T-Bill            (explicit SECTYPE, then description tokens)
+        2. SDL               (explicit SECTYPE confirmed by the description)
+        3. G-Sec             (explicit SECTYPE, then description tokens)
+        4. Corporate / unsupported -> UNKNOWN (excluded by the caller)
+        5. Unknown           -> UNKNOWN (excluded by the caller)
+
+    Rules:
+        * An explicit, recognized ``SECTYPE`` wins outright (TB -> T_BILL,
+          GS -> G_SEC; SDL/SGS -> SDL).
+        * ``SG`` is classified SDL only when the full description
+          (``issue_description``, then the caller-supplied ``desc``, then
+          ``security_description``) confirms SDL / state-government wording.
+        * A present but unrecognized ``SECTYPE`` (e.g. DB, PT, ID, GZ) is NOT
+          run through the keyword fallback: the source already says the
+          instrument is not a recognized government security type, so it
+          stays UNKNOWN.
+        * Fallback keyword matching (report_type / descriptions) runs only
+          when no explicit SECTYPE is available, and is token-aware: the
+          letters "gs" inside a larger token (e.g. "GSIL28") never imply
+          G-Sec.
+    """
+    sectype = _nse_sectype_key(raw)
+    tokens = _nse_tokens(
+        raw.issue_description,
+        desc if desc is not None else raw.security_description,
+        raw.security_description if desc is not None else None,
+        raw.report_type,
+    )
+
+    if sectype == "SG":
+        # State Government loan: SDL only when the description confirms it.
+        if _nse_desc_confirms_sdl(tokens):
+            return InstrumentType.SDL
+        return InstrumentType.UNKNOWN
+
+    explicit = _NSE_SECTYPE_EXPLICIT.get(sectype) if sectype else None
+    if explicit is not None:
+        return explicit
+
+    if sectype is not None:
+        # Explicit but unrecognized SECTYPE: never a government instrument.
+        return InstrumentType.UNKNOWN
+
+    # No explicit SECTYPE: legacy/synthetic reports fall back to tokens.
+    if _nse_desc_confirms_tbill(tokens):
+        return InstrumentType.T_BILL
+    if _nse_desc_confirms_sdl(tokens):
+        return InstrumentType.SDL
+    if _nse_desc_confirms_gsec(tokens):
+        return InstrumentType.G_SEC
+    return InstrumentType.UNKNOWN
+
+
+def _nse_is_corporate(
+    raw: NseRawRecord,
+    desc: Optional[str] = None,
+) -> bool:
+    """True when the record is a corporate / unsupported debt instrument.
+
+    Token-aware counterpart of the legacy substring checks ("corp", "ncd",
+    "debenture", "commercial paper", leading "cp"). Used for observability
+    only: such records are excluded from the government universe either way.
+    """
+    tokens = _nse_tokens(
+        getattr(raw, "instrument_type", None),
+        getattr(raw, "issue_description", None),
+        desc if desc is not None else getattr(raw, "security_description", None),
+        getattr(raw, "report_type", None),
+    )
+    if any(t.startswith("corp") or t == "ncd" or t.startswith("debenture") for t in tokens):
+        return True
+    if "commercial" in tokens and "paper" in tokens:
+        return True
+    return "cp" in tokens
+
 def normalize_nse_record(raw: NseRawRecord) -> Optional[Bond]:
     """Normalize an NSE government-security master or trade row into a Bond.
 
@@ -242,24 +405,31 @@ def normalize_nse_record(raw: NseRawRecord) -> Optional[Bond]:
     return bond
 
 
-def _nse_instrument_type(raw: NseRawRecord, desc: str) -> InstrumentType:
-    text = f"{raw.instrument_type or ''} {raw.report_type or ''} {desc}".lower()
-    if _looks_like_tbill(desc) or "tbill" in text or "t-bill" in text or "treasury bill" in text:
-        return InstrumentType.T_BILL
-    if "sdl" in text or "sgs" in text or "state development" in text:
-        return InstrumentType.SDL
-    if "corp" in text or "ncd" in text or "debenture" in text or "commercial paper" in text or text.strip().startswith("cp "):
-        return InstrumentType.UNKNOWN  # corporate master rows excluded from govt enrichment
-    if "gs" in text or "g-sec" in text or "gsec" in text or "government" in text or "dated" in text:
-        return InstrumentType.G_SEC
-    return InstrumentType.UNKNOWN
+def _nse_instrument_type(
+    raw: NseRawRecord,
+    desc: Optional[str] = None,
+) -> InstrumentType:
+    """Classify an NSE raw record (delegates to the shared classifier).
+
+    Kept as the historical entry point; the rules live in
+    :func:`_classify_nse_instrument` so the normalizer and the enrichment
+    matcher can never drift apart.
+    """
+    return _classify_nse_instrument(raw, desc)
 
 
 def _nse_issuer(raw: NseRawRecord, desc: str, instrument_type: InstrumentType) -> str:
     if raw.issuer and raw.issuer.strip():
         return raw.issuer.strip()
     if instrument_type == InstrumentType.SDL:
-        return _issuer_from_description(desc) or "State Government"
+        # Prefer the full published description (e.g. NSE WDM ISSUE_DESC
+        # "SDL GUJARAT 8.26% 2031") over the short symbol when extracting
+        # the state name.
+        return (
+            _issuer_from_description(raw.issue_description or "")
+            or _issuer_from_description(desc)
+            or "State Government"
+        )
     return "Government of India"
 
 
@@ -478,12 +648,17 @@ def _isin_from_ccil_description(desc: str) -> Optional[str]:
 def _issuer_from_description(desc: str) -> Optional[str]:
     """Attempt to extract state name from SDL description."""
     text = (desc or "").lower()
-    # Common patterns: "State of Maharashtra", "Maharashtra SDL", etc.
+    # Common patterns: "State of Maharashtra", "Maharashtra SDL", "SDL Gujarat 8.26% 2031".
     m = re.search(r"state of ([a-zA-Z ]+)", text)
     if m:
         return "State of " + m.group(1).title()
     m = re.search(r"([a-zA-Z ]+) sdl", text)
     if m:
+        return "State of " + m.group(1).strip().title()
+    # NSE WDM form: the SDL token precedes the state name
+    # ("SDL GUJARAT 8.26% 2031", "SDL Goa 7.14% 2030").
+    m = re.search(r"\bsdl\s+([a-zA-Z ]+?)(?:\s|$|\d)", text)
+    if m and m.group(1).strip():
         return "State of " + m.group(1).strip().title()
     return None
 

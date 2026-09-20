@@ -220,6 +220,14 @@ _HEADER_ALIASES: dict[str, list[str]] = {
         "nameofsecurity",
         "securitydetails",
     ],
+    # Full published description (NSE WDM `ISSUE_DESC`, e.g.
+    # "GOI TBILL 364D-23/10/26", "SDL GUJARAT 8.26% 2031"). Mapped in
+    # addition to `security_description`; never a replacement for it.
+    "issue_description": [
+        "issuedesc",
+        "issuedescription",
+        "descriptionofissue",
+    ],
     "issuer": [
         "issuer",
         "issuername",
@@ -377,6 +385,7 @@ def _normalize_master_row(
     return NseRawRecord(
         report_type=DEBT_MASTER_REPORT_TYPE,
         security_description=desc,
+        issue_description=at("issue_description") or None,
         isin=isin.upper(),
         maturity_date=at("maturity_date") or None,
         coupon_rate=at("coupon_rate") or None,

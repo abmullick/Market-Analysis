@@ -27,10 +27,12 @@ from backend.models.bonds import (
     DayCountConvention,
 )
 from backend.services.bonds.bond_normalizer import (
+    _nse_instrument_type,
     normalize_ccil_record,
     normalize_nse_record,
     normalize_rbi_record,
 )
+from backend.services.data.bonds.nse import parse_debt_instruments_csv
 from backend.services.bonds.bond_cashflows import generate_cash_flows, accrued_interest
 from backend.services.bonds.bond_analytics import compute_analytics, solve_ytm
 
@@ -328,6 +330,143 @@ class TestNseNormalization:
         assert bond.issue_date is None
         assert bond.face_value is None
         assert bond.day_count_convention == DayCountConvention.UNKNOWN  # defaults to UNKNOWN, not None
+
+
+class TestNseWdmMasterClassification:
+    """Real NSE WDM Debt Instruments master rows (SECTYPE-driven classification).
+
+    These mirror the live WDM-SEC-AVAILABLE-FOR-TRADE CSV:
+
+        SECTYPE=TB  SECURITY=364D  ISSUE_DESC="GOI TBILL 364D-23/10/26"
+        SECTYPE=SG  SECURITY=GUJ31 ISSUE_DESC="SDL GUJARAT 8.26% 2031"
+        SECTYPE=SG  SECURITY=UP26  ISSUE_DESC="SPECIAL BOND UP 8.55% 2026"
+        SECTYPE=GS  SECURITY=CG2036
+        SECTYPE=PT  SECURITY=GSIL28  (corporate symbol containing "gs")
+    """
+
+    def _wdm(self, **overrides) -> NseRawRecord:
+        payload = dict(
+            report_type="WDM",
+            security_description="364D",
+            issue_description="GOI TBILL 364D-23/10/26",
+            isin="IN002025Z302",
+            instrument_type="TB",
+            maturity_date="23-Oct-2026",
+            coupon_rate="231026",
+            issue_date="24-Oct-2025",
+            listing_status="Listed",
+        )
+        payload.update(overrides)
+        return NseRawRecord(**payload)
+
+    def test_tb_sectype_classified_as_tbill(self):
+        """Test 1 - SECTYPE=TB classifies as T-Bill."""
+        bond = normalize_nse_record(self._wdm())
+
+        assert bond is not None
+        assert bond.instrument_type == InstrumentType.T_BILL
+        assert bond.source == "NSE"
+        assert bond.data_type == DataType.REFERENCE
+        assert bond.isin == "IN002025Z302"
+
+    def test_sg_sectype_with_sdl_description_classified_as_sdl(self):
+        """Test 2 - SECTYPE=SG with an SDL description classifies as SDL."""
+        raw = self._wdm(
+            instrument_type="SG",
+            security_description="GUJ31",
+            issue_description="SDL GUJARAT 8.26% 2031",
+            isin="IN1520150112",
+            maturity_date="13-Jan-2031",
+            coupon_rate="8.26%",
+        )
+        bond = normalize_nse_record(raw)
+
+        assert bond is not None
+        assert bond.instrument_type == InstrumentType.SDL
+        assert bond.source == "NSE"
+
+    def test_sg_special_bond_is_not_sdl(self):
+        """Test 3 - SECTYPE=SG special bond must not classify as SDL."""
+        raw = self._wdm(
+            instrument_type="SG",
+            security_description="UP26",
+            issue_description="SPECIAL BOND UP 8.55% 2026",
+            isin="IN3320140129",
+            maturity_date="04-Oct-2026",
+            coupon_rate="8.55%",
+        )
+        assert _nse_instrument_type(raw, raw.security_description) != InstrumentType.SDL
+        assert normalize_nse_record(raw) is None
+
+    def test_sg_without_sdl_description_is_unclassified(self):
+        """SECTYPE=SG without SDL/state confirmation must not become SDL."""
+        raw = self._wdm(
+            instrument_type="SG",
+            security_description="UP26",
+            issue_description=None,
+            isin="IN3320140129",
+        )
+        assert _nse_instrument_type(raw, raw.security_description) == InstrumentType.UNKNOWN
+        assert normalize_nse_record(raw) is None
+
+    def test_corporate_symbol_with_gs_substring_is_not_gsec(self):
+        """Test 4 - 'gs' inside a larger token (GSIL28) never implies G-Sec."""
+        raw = self._wdm(
+            report_type="debt-master",
+            instrument_type="PT",
+            security_description="GSIL28",
+            issue_description="GSIL 9.03% 2028",
+            isin="INE08EQ08031",
+            maturity_date="22-Mar-2028",
+            coupon_rate="9.03%",
+        )
+        assert _nse_instrument_type(raw, raw.security_description) != InstrumentType.G_SEC
+        assert normalize_nse_record(raw) is None
+
+    def test_wdm_gs_sectype_classified_as_gsec(self):
+        """SECTYPE=GS classifies as G-Sec without description keywords."""
+        raw = self._wdm(
+            instrument_type="GS",
+            security_description="CG2036",
+            issue_description="GOI LOAN 8.33% 2036",
+            isin="IN0020060045",
+            maturity_date="07-Jun-2036",
+            coupon_rate="8.33%",
+            coupon_frequency="Half Yearly",
+        )
+        bond = normalize_nse_record(raw)
+
+        assert bond is not None
+        assert bond.instrument_type == InstrumentType.G_SEC
+        assert bond.issuer == "Government of India"
+
+    def test_wdm_parser_preserves_issue_description(self):
+        """Test 8 - ISSUE_DESC maps to issue_description; SECURITY stays separate."""
+        csv_text = (
+            "SECTYPE,SECURITY,ISSUE_NAME,ISSUE_DESC,ISSUE_DATE,MAT_DATE,"
+            "Last IP Dt,Next IP Dt,Cpn Freq,Last Traded Date,"
+            "Last Traded Price (in Rs.),ISIN NO.,STATUS\n"
+            "TB,364D,231026,GOI TBILL 364D-23/10/26,24-Oct-2025,23-Oct-2026,"
+            ",, , , ,IN002025Z302,Listed\n"
+            "SG,GUJ31,8.26%,SDL GUJARAT 8.26% 2031,13-Jan-2016,13-Jan-2031,"
+            ",,Half Yearly, , ,IN1520150112,Listed\n"
+        )
+        records = parse_debt_instruments_csv(csv_text)
+
+        assert len(records) == 2
+        tb, sdl = records
+
+        assert tb.issue_description == "GOI TBILL 364D-23/10/26"
+        assert tb.security_description == "364D"
+        assert tb.instrument_type == "TB"
+        assert tb.isin == "IN002025Z302"
+        assert tb.maturity_date == "23-Oct-2026"
+        assert tb.listing_status == "Listed"
+
+        assert sdl.issue_description == "SDL GUJARAT 8.26% 2031"
+        assert sdl.security_description == "GUJ31"
+        assert sdl.instrument_type == "SG"
+        assert sdl.isin == "IN1520150112"
 
 
 # =========================================================================

@@ -17,8 +17,11 @@ status).
 """
 from __future__ import annotations
 import re
+from typing import Optional
+
 from backend.models.bonds import Bond, InstrumentType, NseRawRecord
 from backend.services.bonds.bond_normalizer import (
+    _classify_nse_instrument,
     _parse_coupon_frequency as _parse_freq,
     parse_date,
     parse_float,
@@ -60,17 +63,19 @@ def _extract_tenor(text: str | None) -> str | None:
     m = re.search(r"\b(91|182|364)\b", text or "")
     return m.group(1) if m else None
 
-def _nse_raw_instrument_type(raw: NseRawRecord, desc: str) -> InstrumentType:
-    text = f"{raw.instrument_type or ''} {raw.report_type or ''} {desc}".lower()
-    if "tbill" in text or "t-bill" in text or "treasury bill" in text or "dtb" in text:
-        return InstrumentType.T_BILL
-    if "sdl" in text or "sgs" in text or "state development" in text:
-        return InstrumentType.SDL
-    if "corp" in text or "ncd" in text or "debenture" in text or "commercial paper" in text:
-        return InstrumentType.UNKNOWN
-    if "gs" in text or "gsec" in text or "government" in text or "dated" in text:
-        return InstrumentType.G_SEC
-    return InstrumentType.UNKNOWN
+def _nse_raw_instrument_type(
+    raw: NseRawRecord,
+    desc: Optional[str] = None,
+) -> InstrumentType:
+    """Classify an NSE raw record for enrichment matching.
+
+    Delegates to the shared NSE classifier in ``bond_normalizer`` so the
+    enrichment matcher and the normalization pipeline can never use diverging
+    rules. The explicit NSE ``SECTYPE`` (TB/GS/SG + SDL-confirmation) takes
+    precedence; fallback keyword checks are token-aware ("gs" inside a larger
+    token such as "GSIL28" never implies G-Sec).
+    """
+    return _classify_nse_instrument(raw, desc)
 
 
 def _description_strong_match(ccil_desc: str, nse_desc: str, is_tbill: bool) -> bool:
