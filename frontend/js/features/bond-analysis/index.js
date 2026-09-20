@@ -777,6 +777,60 @@ function detailItem(label, value, mono) {
     </div>`;
 }
 
+// Credit rating for the existing summary card. An authoritative rating
+// (e.g. from the CDSL record) always wins; a Bond Central rating is used
+// only when no authoritative rating is present. Government securities,
+// T-Bills and SDLs are not CRA-rated and always show N/A.
+function summaryCreditRating(bond, isCorporate) {
+    if (!isCorporate) return "N/A";
+    if (bond.credit_rating) return bond.credit_rating;
+    const ratings = Array.isArray(bond.credit_ratings) ? bond.credit_ratings : [];
+    const fallback = ratings.find((r) => r && r.credit_rating);
+    return fallback ? fallback.credit_rating : "N/A";
+}
+
+// Credit ratings from Bond Central (corporate bonds only). Government
+// securities, T-Bills and SDLs are not CRA-rated, so they always render the
+// neutral N/A credit-rating row instead of a corporate CRA rating.
+// Multiple ratings are preserved and each rating date is shown exactly as
+// published, so a historical rating is never presented as current.
+function creditRatingItems(bond, isCorporate) {
+    const ratings = Array.isArray(bond.credit_ratings) ? bond.credit_ratings : [];
+    const rows = isCorporate
+        ? ratings.filter((r) => r && (
+            r.credit_rating || r.credit_rating_agency_name
+            || r.date_of_credit_rating || r.ratings_watch || r.ratings_outlook
+        ))
+        : [];
+
+    if (rows.length === 0) {
+        return detailItem("Credit Rating", "N/A");
+    }
+
+    return rows.map((r) => [
+        detailItem("Rating", r.credit_rating),
+        detailItem("Agency", r.credit_rating_agency_name),
+        detailItem("Rating date", r.date_of_credit_rating),
+        detailItem("Source", r.source || "Bond Central"),
+        r.ratings_outlook ? detailItem("Outlook", r.ratings_outlook) : "",
+        r.ratings_watch ? detailItem("Watch", r.ratings_watch) : "",
+    ].join("")).join("");
+}
+
+// Data-consistency warning: a maturity date that has passed while the source
+// still reports the security as ACTIVE requires verification. The stored
+// status is never changed automatically — this is a display-only warning.
+function maturityStatusWarning(bond) {
+    if (!bond || !bond.maturity_date) return "";
+    const maturity = new Date(bond.maturity_date);
+    if (Number.isNaN(maturity.getTime())) return "";
+    const status = String(bond.security_status || "").trim().toUpperCase();
+    if (status !== "ACTIVE") return "";
+    return maturity.getTime() < Date.now()
+        ? "Maturity date has passed; current security status requires verification."
+        : "";
+}
+
 function renderBond(bond, analytics) {
     if (!bond) {
         $("ba-results").classList.add("hidden");
@@ -817,7 +871,7 @@ function renderBond(bond, analytics) {
         detailItem("ISIN", bond.isin, true),
         detailItem("Instrument Type", bond.instrument_type),
         detailItem("Issuer", bond.issuer),
-        detailItem("Credit Rating", bond.credit_rating),
+        detailItem("Credit Rating", summaryCreditRating(bond, isCorporate)),
         detailItem("Maturity Date", formatDate(bond.maturity_date)),
         detailItem("Coupon Rate", couponLabel),
         detailItem("LTP", formatNum(bond.last_traded_price != null ? bond.last_traded_price : bond.price)),
@@ -844,7 +898,7 @@ function renderBond(bond, analytics) {
     // fields; corporate rows show the CDSL issuance/trade fields instead.
     // Analytics sections that cannot be populated for corporate records stay
     // at their neutral N/A/empty state (no client-side computation).
-    $("ba-details-grid").innerHTML = isCorporate ? [
+    const detailRows = isCorporate ? [
         detailItem("Trade Date", formatDate(bond.trade_date)),
         detailItem("Exchange", bond.exchange),
         detailItem("Issue Date", formatDate(bond.issue_date)),
@@ -852,19 +906,25 @@ function renderBond(bond, analytics) {
         detailItem("Issue Price", formatNum(bond.issue_price)),
         detailItem("Mode of Issuance", bond.mode_of_issuance),
         detailItem("Coupon Frequency", freqLabel),
-    ].join("") : [
+    ] : [
         detailItem("Settlement Date", formatDate(analytics.settlement_date)),
         detailItem("Day-Count Convention", analytics.day_count_convention),
         detailItem("Coupon Frequency", freqLabel),
         detailItem("Face Value", formatNum(bond.face_value)),
         detailItem("Callable", bond.callable === true ? "Yes" : (bond.callable === false ? "No" : "N/A")),
         detailItem("Puttable", bond.puttable === true ? "Yes" : (bond.puttable === false ? "No" : "N/A")),
-    ].join("");
+    ];
+
+    // Credit ratings (Bond Central) are corporate-only; government securities,
+    // T-Bills and SDLs render the neutral N/A credit-rating row instead.
+    $("ba-details-grid").innerHTML = detailRows.join("") + creditRatingItems(bond, isCorporate);
 
     const notes = Array.isArray(analytics.notes) ? analytics.notes : [];
-    $("ba-notes").innerHTML = notes.length
-        ? notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("")
-        : "";
+    const noteItems = notes.map((n) => `<li>${escapeHtml(n)}</li>`);
+    // Display-only warning; the stored security status is never changed.
+    const statusWarning = maturityStatusWarning(bond);
+    if (statusWarning) noteItems.push(`<li>${escapeHtml(statusWarning)}</li>`);
+    $("ba-notes").innerHTML = noteItems.join("");
 }
 
 

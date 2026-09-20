@@ -65,6 +65,63 @@ class DataType(str, Enum):
 
 
 # ---------------------------------------------------------------------------
+# Bond Central credit ratings (corporate bonds)
+# ---------------------------------------------------------------------------
+
+class BondCentralRawRating(BaseModel):
+    """One security/rating row from the Bond Central securities API.
+
+    Raw source values are preserved as published; missing values stay
+    ``None``. Several rows may describe the same ISIN (multiple rating
+    agencies / rating actions) and are kept separately.
+    """
+
+    isin: Optional[str] = None
+    credit_rating: Optional[str] = None
+    credit_rating_agency_name: Optional[str] = None
+    date_of_credit_rating: Optional[str] = None
+    ratings_watch: Optional[str] = None
+    ratings_outlook: Optional[str] = None
+    security_status: Optional[str] = None
+    maturity_date: Optional[str] = None
+    security_name: Optional[str] = None
+    issuer_name: Optional[str] = None
+
+
+class BondCentralRating(BaseModel):
+    """Normalized Bond Central credit-rating observation exposed via the API.
+
+    The rating date is carried exactly as published so a historical rating
+    is never presented as current.
+    """
+
+    credit_rating: Optional[str] = Field(
+        default=None, description="Credit rating (e.g. AAA)"
+    )
+    credit_rating_agency_name: Optional[str] = Field(
+        default=None, description="Rating agency name (e.g. CARE RATINGS LIMITED)"
+    )
+    date_of_credit_rating: Optional[str] = Field(
+        default=None, description="Date the rating was published, as supplied"
+    )
+    ratings_watch: Optional[str] = Field(
+        default=None, description="Ratings watch indicator, as supplied"
+    )
+    ratings_outlook: Optional[str] = Field(
+        default=None, description="Ratings outlook, as supplied"
+    )
+    security_status: Optional[str] = Field(
+        default=None, description="Source-reported security status (e.g. ACTIVE)"
+    )
+    maturity_date: Optional[str] = Field(
+        default=None, description="Maturity date as supplied by Bond Central"
+    )
+    source: str = Field(
+        default="Bond Central", description="Originating source identifier"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Master data
 # ---------------------------------------------------------------------------
 
@@ -138,6 +195,22 @@ class BondMaster(BaseModel):
     )
     exchange: Optional[str] = Field(
         default=None, description="Exchange / listing venue when supplied"
+    )
+
+    # --- Bond Central credit ratings (corporate bonds) ---
+    # Sourced from Bond Central's public securities API for corporate bonds.
+    # All rating observations are preserved (multiple agencies / actions are
+    # never collapsed). Left empty for government securities, T-Bills and
+    # SDLs, which are not CRA-rated.
+    credit_ratings: Optional[list[BondCentralRating]] = Field(
+        default=None, description="Credit rating observations (Bond Central)"
+    )
+    security_status: Optional[str] = Field(
+        default=None,
+        description=(
+            "Source-reported security status (e.g. ACTIVE). Display only — "
+            "never used to change a security's status automatically."
+        ),
     )
 
     # --- Rich CDSL ISIN-detail fields (contract / security terms) ---

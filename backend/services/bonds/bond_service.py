@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 from backend.models.bonds import (
     AnalyticsResult,
     Bond,
+    BondCentralRating,
     BondListQuery,
     BondSourceStatus,
     BondSourceStatusView,
@@ -48,6 +49,7 @@ from backend.services.bonds.bond_normalizer import (
     parse_date as _parse_source_date,
     parse_float,
 )
+from backend.services.data.bonds.bond_central import BondCentralClient
 from backend.services.data.bonds.ccil import CcilClient
 from backend.services.data.bonds.corporate_cdsl import CdsCorporateBondClient
 from backend.services.data.bonds.corporate_cdsl import fetch_detail_live
@@ -152,6 +154,7 @@ class BondService:
         self._nse: NseClient | None = None
         self._rbi: RbiClient | None = None
         self._cdsl: CdsCorporateBondClient | None = None
+        self._bond_central: BondCentralClient | None = None
         # Latest retrieval status per source (see refresh_all_sources).
         self._source_statuses: dict[str, BondSourceStatus] = {}
 
@@ -186,6 +189,13 @@ class BondService:
             settings = Settings()
             self._cdsl = CdsCorporateBondClient(settings)
         return self._cdsl
+
+    def _get_bond_central(self) -> BondCentralClient:
+        if self._bond_central is None:
+            from backend.config.settings import Settings
+            settings = Settings()
+            self._bond_central = BondCentralClient(settings)
+        return self._bond_central
 
     # ------------------------------------------------------------------
     # Source retrieval status
@@ -790,6 +800,21 @@ class BondService:
                         bond.isin,
                         exc,
                     )
+                # Enrich with Bond Central credit ratings (on demand, cached
+                # separately, corporate bonds only). Government securities,
+                # T-Bills and SDLs are not CRA-rated and never reach here.
+                try:
+                    ratings = await self._get_bond_central_ratings(
+                        bond.isin.upper()
+                    )
+                    if ratings:
+                        bond = _merge_bond_central_ratings(bond, ratings)
+                except Exception as exc:
+                    logger.debug(
+                        "Bond Central ratings enrichment skipped for %s: %s",
+                        bond.isin,
+                        exc,
+                    )
                 self._cache.put(cache_key, bond)
                 return bond
 
@@ -820,6 +845,59 @@ class BondService:
                 "CDSL rich detail retrieval failed for %s: %s", isin_norm, exc
             )
             return None
+
+    async def _get_bond_central_ratings(
+        self,
+        isin_norm: str,
+    ) -> list[BondCentralRating]:
+        """Fetch Bond Central credit ratings for *isin_norm*, cached separately.
+
+        One ISIN per request against Bond Central's public securities API.
+        Retrieval is on demand only and never raises: a timeout, HTTP error,
+        empty response or malformed payload yields an empty list so the bond
+        still renders. Duplicate rows are collapsed; distinct ratings are
+        preserved.
+        """
+        cache_key = f"bondcentral-ratings:{isin_norm}"
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        try:
+            raw = await self._get_bond_central().fetch_ratings(isin_norm)
+        except Exception as exc:
+            logger.warning(
+                "Bond Central ratings retrieval failed for %s: %s", isin_norm, exc
+            )
+            raw = []
+
+        ratings: list[BondCentralRating] = []
+        seen: set[tuple] = set()
+        for record in raw:
+            signature = (
+                record.credit_rating,
+                record.credit_rating_agency_name,
+                record.date_of_credit_rating,
+                record.ratings_watch,
+                record.ratings_outlook,
+            )
+            if signature in seen:
+                continue
+            seen.add(signature)
+            ratings.append(
+                BondCentralRating(
+                    credit_rating=record.credit_rating,
+                    credit_rating_agency_name=record.credit_rating_agency_name,
+                    date_of_credit_rating=record.date_of_credit_rating,
+                    ratings_watch=record.ratings_watch,
+                    ratings_outlook=record.ratings_outlook,
+                    security_status=record.security_status,
+                    maturity_date=record.maturity_date,
+                )
+            )
+
+        self._cache.put(cache_key, ratings)
+        return ratings
 
     async def get_corporate_analytics(
         self,
@@ -1320,6 +1398,51 @@ def _merge_rich_detail_into_bond(
     rich_schedule = getattr(rich, "cash_flow_schedule", None)
     if rich_schedule and not bond.cash_flow_schedule:
         bond.cash_flow_schedule = list(rich_schedule)
+
+    return bond
+
+
+def _merge_bond_central_ratings(
+    bond: Bond,
+    ratings: list[BondCentralRating],
+) -> Bond:
+    """Attach Bond Central credit ratings to an existing corporate Bond.
+
+    Every Bond Central observation is preserved (multiple ratings are never
+    collapsed). Ratings already published by an authoritative source (e.g.
+    the CDSL record) are never overwritten: Bond Central only fills fields
+    that are currently missing.
+
+    ``security_status`` is carried for display only (a passed maturity date
+    with an ``ACTIVE`` status is surfaced as a warning); it is never used to
+    change a security's status automatically.
+    """
+    if not ratings:
+        return bond
+
+    # Only genuine rating observations are exposed for display; an "Unrated"
+    # security still contributes its security_status (used for the warning).
+    meaningful = [
+        r for r in ratings
+        if r.credit_rating or r.credit_rating_agency_name
+        or r.date_of_credit_rating or r.ratings_watch or r.ratings_outlook
+    ]
+    bond.credit_ratings = meaningful or None
+
+    def first_of(attr: str) -> Optional[str]:
+        return next(
+            (getattr(r, attr) for r in ratings if getattr(r, attr)), None
+        )
+
+    if not bond.credit_rating:
+        bond.credit_rating = first_of("credit_rating")
+    if not bond.rating_agency:
+        bond.rating_agency = first_of("credit_rating_agency_name")
+    if not bond.credit_rating_outlook:
+        bond.credit_rating_outlook = first_of("ratings_outlook")
+
+    if not bond.security_status:
+        bond.security_status = first_of("security_status")
 
     return bond
 
