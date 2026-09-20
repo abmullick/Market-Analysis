@@ -10,6 +10,23 @@
     <link rel="stylesheet" href="/css/components.css">
     <link rel="stylesheet" href="/css/features/portfolio-builder.css">
     <link rel="stylesheet" href="/css/features/bond-analysis.css">
+    <style>
+        .ba-slider-scale {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: calc(100% - 122px);
+            margin: 4px 0 14px 122px;
+            color: var(--color-text-muted, #718096);
+            font-size: 10px;
+            line-height: 1;
+            pointer-events: none;
+        }
+
+        .ba-slider-scale span {
+            white-space: nowrap;
+        }
+    </style>
 </head>
 <body data-page="bond-analysis">
     <header class="site-header">
@@ -72,6 +89,184 @@
                                         <option value="NSE">NSE</option>
                                         <option value="RBI">RBI</option>
                                     </select>
+                                    </div><details class="ba-range-panel ba-section-card" id="ba-range-panel">
+    <summary class="ba-range-summary ba-section-header">
+        <div class="ba-range-header-main">
+            <span class="ba-range-titlewrap">
+                <span class="ba-range-title">Filter by Range</span>
+                <span class="ba-range-subtitle">Coupon, yield and maturity</span>
+            </span>
+        </div>
+        <div class="ba-range-controls">
+            <span
+    class="ba-range-toggle ba-section-caret-btn"
+    aria-hidden="true"
+>
+    <svg
+        class="ba-range-caret ba-section-caret"
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+    >
+        <path d="M5 7.5L10 12.5L15 7.5"></path>
+    </svg>
+</span>
+        </div>
+    </summary>
+                                                <div id="ba-range-content" class="ba-range-content ba-section-content">
+
+        <!-- Coupon Rate -->
+        <fieldset class="ba-range-group">
+            <legend>Coupon Rate (%)</legend>
+
+            <div class="ba-range-values">
+                <output id="ba-coupon-min-value">Min: Any</output>
+                <output id="ba-coupon-max-value">Max: Any</output>
+            </div>
+
+            <div class="ba-range-slider">
+                <label for="ba-coupon-min">
+                    Minimum coupon
+                </label>
+                <input
+                    type="range"
+                    id="ba-coupon-min"
+                    min="0"
+                    max="20"
+                    step="0.05"
+                    value="0">
+            </div>
+                <div class="ba-slider-scale" aria-hidden="true">
+                    <span>0%</span>
+                    <span>5%</span>
+                    <span>10%</span>
+                    <span>15%</span>
+                    <span>20%</span>
+                </div>
+
+            <div class="ba-range-slider">
+                <label for="ba-coupon-max">
+                    Maximum coupon
+                </label>
+                <input
+                    type="range"
+                    id="ba-coupon-max"
+                    min="0"
+                    max="20"
+                    step="0.05"
+                    value="20">
+            </div>
+                <div class="ba-slider-scale" aria-hidden="true">
+                    <span>0%</span>
+                    <span>5%</span>
+                    <span>10%</span>
+                    <span>15%</span>
+                    <span>20%</span>
+                </div>
+        </fieldset>
+
+        <!-- Corporate Yield -->
+        <fieldset
+            class="ba-range-group ba-corporate-range-only"
+            id="ba-yield-range-group"
+            hidden>
+
+            <legend>Weighted Average Yield (%)</legend>
+
+            <div class="ba-range-values">
+                <output id="ba-yield-min-value">Min: Any</output>
+                <output id="ba-yield-max-value">Max: Any</output>
+            </div>
+
+            <div class="ba-range-slider">
+                <label for="ba-yield-min">
+                    Minimum yield
+                </label>
+                <input
+                    type="range"
+                    id="ba-yield-min"
+                    min="0"
+                    max="20"
+                    step="0.05"
+                    value="0">
+            </div>
+                <div class="ba-slider-scale" aria-hidden="true">
+                    <span>0%</span>
+                    <span>5%</span>
+                    <span>10%</span>
+                    <span>15%</span>
+                    <span>20%</span>
+                </div>
+
+            <div class="ba-range-slider">
+                <label for="ba-yield-max">
+                    Maximum yield
+                </label>
+                <input
+                    type="range"
+                    id="ba-yield-max"
+                    min="0"
+                    max="20"
+                    step="0.05"
+                    value="20">
+            </div>
+                <div class="ba-slider-scale" aria-hidden="true">
+                    <span>0%</span>
+                    <span>5%</span>
+                    <span>10%</span>
+                    <span>15%</span>
+                    <span>20%</span>
+                </div>
+        </fieldset>
+
+        <!-- Maturity -->
+        <fieldset class="ba-range-group">
+            <legend>Maturity Date</legend>
+
+            <div class="ba-date-range">
+                <label for="ba-maturity-from">
+                    From
+                </label>
+                <input
+                    type="date"
+                    id="ba-maturity-from"
+                    class="ba-filter-input">
+            </div>
+
+            <div class="ba-date-range">
+                <label for="ba-maturity-to">
+                    To
+                </label>
+                <input
+                    type="date"
+                    id="ba-maturity-to"
+                    class="ba-filter-input">
+            </div>
+        </fieldset>
+
+        <div class="ba-range-actions">
+            <button
+                type="button"
+                id="ba-range-reset"
+                class="ba-page-btn">
+                Reset
+            </button>
+
+            <button
+                type="button"
+                id="ba-range-apply"
+                class="ba-page-btn ba-primary-btn">
+                Apply
+            </button>
+        </div>
+
+    </div>
+</details>
+
                                       <div
                                         id="ba-corporate-filters"
                                         class="ba-corporate-filters hidden"
@@ -99,7 +294,6 @@
                                             autocomplete="off"
                                             aria-label="Corporate bond issuer">
                                     </div>
-                                </div>
                                 <p id="ba-selector-status" class="ba-section-sub ba-selector-status hidden" role="status" aria-live="polite"></p>
                                 <ul id="ba-bond-list" class="ba-bond-list"></ul>
                                 <div id="ba-pagination" class="ba-pagination hidden"></div>

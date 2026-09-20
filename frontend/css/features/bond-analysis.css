@@ -2708,3 +2708,470 @@ body[data-page="bond-analysis"] .ba-details-head {
         min-width: 0 !important;
     }
 }
+
+
+/* ==========================================================================
+   Bond Analysis — layout correction
+   ========================================================================== */
+
+@media (min-width: 641px) {
+    body[data-page="bond-analysis"] .ba-workspace {
+        display: grid;
+        grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.4fr);
+        gap: 32px;
+        align-items: start;
+        width: 100%;
+    }
+
+    body[data-page="bond-analysis"] .ba-selector-column,
+    body[data-page="bond-analysis"] .ba-analysis-column {
+        min-width: 0;
+        max-width: none;
+        width: auto;
+    }
+
+    body[data-page="bond-analysis"] .ba-selector-column {
+        min-width: 320px;
+    }
+
+    body[data-page="bond-analysis"] .ba-analysis-column {
+        min-width: 0;
+        overflow-y: visible;
+    }
+}
+
+/* Range filter layout */
+.ba-corporate-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+    padding: 12px 0;
+    box-sizing: border-box;
+}
+
+.ba-corporate-filters label {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    min-width: 0;
+    white-space: normal;
+}
+
+.ba-corporate-filters input {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    height: 36px;
+    box-sizing: border-box;
+    border-radius: 8px;
+}
+
+@media (max-width: 640px) {
+    .ba-corporate-filters {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   Bond Analysis — Collapsible Range Filters
+   ========================================================================== */
+
+/* Range values display */
+.ba-range-values {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* =========================================================
+   Bond Range Filter - Portfolio Builder Style
+   ========================================================= */
+
+.ba-range-panel {
+    margin-top: 14px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--btn-shadow);
+    overflow: hidden;
+}
+
+/* Collapsible header - matches Portfolio Metrics card header */
+.ba-range-summary.ba-section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 78px;
+    padding: 14px 16px 14px 18px;
+    background: var(--color-surface);
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    box-shadow: none;
+    list-style: none;
+}
+
+.ba-range-summary.ba-section-header:hover {
+    background: var(--color-slate-100);
+}
+
+.ba-range-summary.ba-section-header:focus-visible {
+    outline: 2px solid var(--color-accent, #0ea5e9);
+    outline-offset: -2px;
+}
+
+.ba-range-summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Header content layout */
+.ba-range-header-main {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.ba-range-titlewrap {
+    flex: 1;
+}
+
+.ba-range-title {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin: 0;
+}
+
+.ba-range-subtitle {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--color-text-light);
+    line-height: 1.4;
+    white-space: normal;
+    margin: 0;
+}
+
+/* Chevron button - prominent circular dark navy button */
+.ba-range-controls {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    justify-content: flex-end;
+    gap: 8px;
+    flex: 0 0 auto;
+    min-width: 44px;
+}
+
+.ba-slider-scale {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 4px 0 12px 122px;
+    color: var(--color-text-muted);
+    font-size: 10px;
+    line-height: 1;
+    width: calc(100% - 122px);
+    margin-left: 122px;
+    padding: 0;
+}
+
+.ba-slider-scale span {
+    white-space: nowrap;
+}
+
+.ba-range-toggle.ba-section-caret-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: #0f172a;
+    color: #ffffff;
+    box-shadow: var(--btn-shadow);
+    cursor: pointer;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    flex-shrink: 0;
+}
+
+.ba-range-toggle.ba-section-caret-btn:hover {
+    background: #1e293b;
+    box-shadow: var(--btn-shadow-hover);
+}
+
+.ba-range-toggle.ba-section-caret-btn:focus {
+    outline: 3px solid var(--color-accent, #0ea5e9);
+    outline-offset: 2px;
+}
+
+.ba-range-caret.ba-section-caret {
+    width: 20px;
+    height: 20px;
+    color: inherit;
+    transition: transform 0.2s ease;
+}
+
+.ba-range-caret.ba-section-caret path {
+    stroke: currentColor;
+    stroke-width: 3;
+}
+
+/* Chevron rotation when expanded */
+.ba-range-panel[open] .ba-range-toggle.ba-section-caret-btn,
+.ba-range-panel[open] .ba-range-caret.ba-section-caret {
+    transform: rotate(180deg);
+}
+
+/* Content area */
+.ba-range-content.ba-section-content {
+    display: block;
+    padding: 16px;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.ba-range-panel[open] .ba-range-content.ba-section-content {
+    display: block;
+}
+
+.ba-range-panel:not([open]) .ba-range-content.ba-section-content {
+    display: none;
+}
+
+/* Slider groups - rounded inner sections */
+.ba-range-group {
+    padding: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    box-shadow: var(--ba-shadow-tile);
+}
+
+.ba-range-group + .ba-range-group {
+    margin-top: 14px;
+}
+
+.ba-range-group legend {
+    padding: 0 6px;
+    color: var(--color-text-light);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Range sliders with blue accent */
+.ba-range-slider {
+    width: 100%;
+    height: 6px;
+    margin: 8px 0 16px;
+    accent-color: var(--color-accent, #0ea5e9);
+    cursor: pointer;
+}
+
+.ba-range-slider:focus-visible {
+    outline: 3px solid var(--color-accent, #0ea5e9);
+    outline-offset: 4px;
+    border-radius: 2px;
+}
+
+.ba-range-slider label,
+.ba-date-range label {
+    font-size: 0.74rem;
+    color: var(--color-text-light);
+}
+
+/* Date controls - fields group in rows for each label+input pair */
+.ba-date-range {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+    margin-top: 10px;
+}
+
+.ba-date-range .ba-filter-input {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-size: 0.8125rem;
+}
+
+.ba-date-range .ba-filter-input:focus {
+    border-color: var(--color-accent, #0ea5e9);
+    outline: 3px solid rgba(14, 165, 233, 0.15);
+}
+
+/* Date controls - clean two-row layout */
+.ba-range-group > .ba-date-range + .ba-date-range {
+    margin-top: 8px;
+}
+
+/* Buttons - aligned to the right */
+.ba-range-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--color-border);
+}
+
+.ba-range-actions button {
+    min-height: 40px;
+    padding: 8px 18px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: var(--font-family);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ba-range-actions button:hover {
+    background: var(--color-slate-100);
+    border-color: rgba(30, 58, 95, 0.2);
+}
+
+.ba-range-actions button:focus-visible {
+    outline: 3px solid var(--color-accent, #0ea5e9);
+    outline-offset: 2px;
+}
+
+.ba-range-actions button.ba-primary-btn {
+    border-color: var(--color-accent, #0ea5e9);
+    background: var(--color-accent, #0ea5e9);
+    color: #ffffff;
+}
+
+.ba-range-actions button.ba-primary-btn:hover {
+    background: var(--color-primary-light, #0284c7);
+    border-color: var(--color-primary-light, #0284c7);
+}
+
+/* Responsive layout */
+@media (max-width: 600px) {
+    .ba-range-header-main {
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: none;
+    }
+
+    .ba-range-titlewrap {
+        min-width: 0;
+    }
+
+    .ba-range-title {
+        font-size: 0.875rem;
+    }
+
+    .ba-range-toggle.ba-section-caret-btn {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 640px) {
+    .ba-range-values {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .ba-range-actions {
+        justify-content: stretch;
+    }
+
+    .ba-range-actions button {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .ba-range-group {
+        padding: 14px;
+    }
+}
+
+.ba-range-slider input[type="range"] {
+    appearance: none;
+    height: 6px;
+    margin: 8px 0;
+    border-radius: 999px;
+    background: #dbe4f0;
+    outline: none;
+}
+
+.ba-range-slider input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    background: var(--color-accent, #0ea5e9);
+    box-shadow: 0 1px 5px rgba(15, 23, 42, 0.25);
+    cursor: grab;
+}
+
+.ba-range-slider input[type="range"]::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.12);
+}
+
+.ba-range-slider input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    background: var(--color-accent, #0ea5e9);
+    box-shadow: 0 1px 5px rgba(15, 23, 42, 0.25);
+    cursor: grab;
+}
+
+.ba-range-slider input[type="range"]:focus-visible {
+    outline: 3px solid rgba(14, 165, 233, 0.3);
+    outline-offset: 4px;
+}
+
+.ba-range-values output {
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: #ffffff;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.ba-range-actions .ba-primary-btn {
+    border-color: var(--color-accent, #0ea5e9);
+    background: var(--color-accent, #0ea5e9);
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 2px 5px rgba(14, 165, 233, 0.18);
+}
+
+.ba-range-actions .ba-primary-btn:hover {
+    filter: brightness(0.94);
+    transform: translateY(-1px);
+}
+
+.ba-range-actions .ba-page-btn:hover {
+    border-color: var(--color-accent, #0ea5e9);
+}
+

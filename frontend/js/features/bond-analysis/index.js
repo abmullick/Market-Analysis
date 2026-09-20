@@ -718,11 +718,50 @@ document.addEventListener("focusin", (e) => {
     }
 });
 
+
+// ---------------------------------------------------------------------------
+// Range filter output labels
+// ---------------------------------------------------------------------------
+
+function setupRangeOutput(inputId, outputId, label, anyAtLimit = false) {
+    const input = $(inputId);
+    const output = $(outputId);
+
+    if (!input || !output) return;
+
+    const updateOutput = () => {
+        const value = Number(input.value);
+        const min = Number(input.min);
+        const max = Number(input.max);
+
+        const isAny =
+            anyAtLimit &&
+            ((label === "Min" && value === min) ||
+             (label === "Max" && value === max));
+
+        output.textContent = isAny
+            ? `${label}: Any`
+            : `${label}: ${value.toFixed(2).replace(/\.?0+$/, "")}%`;
+    };
+
+    input.addEventListener("input", updateOutput);
+    updateOutput();
+}
+
+function setupRangeOutputs() {
+    setupRangeOutput("ba-coupon-min", "ba-coupon-min-value", "Min", true);
+    setupRangeOutput("ba-coupon-max", "ba-coupon-max-value", "Max", true);
+    setupRangeOutput("ba-yield-min", "ba-yield-min-value", "Min", true);
+    setupRangeOutput("ba-yield-max", "ba-yield-max-value", "Max", true);
+}
+
 // ---------------------------------------------------------------------------
 // Event wiring & init
 // ---------------------------------------------------------------------------
 
 function init() {
+    setupRangeOutputs();
+
     // Initial/empty state before a bond is selected.
     $("ba-detail-empty").classList.remove("hidden");
 
@@ -958,5 +997,27 @@ if (typeof searchBonds === "function" && !searchBonds.__baStatusWrapped) {
     searchBonds.__baStatusWrapped = true;
 }
 
+// Sync aria-expanded for the range filter toggle for accessibility.
+(function () {
+    const rangePanel = document.getElementById('ba-range-panel');
+    if (!rangePanel) return;
+    const toggleBtn = rangePanel.querySelector('.ba-range-toggle');
+    const summary = rangePanel.querySelector('.ba-range-summary');
+    const syncAria = () => {
+        const isOpen = rangePanel.hasAttribute('open');
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', String(isOpen));
+        if (summary) summary.setAttribute('aria-expanded', String(isOpen));
+    };
+    // Initial sync
+    syncAria();
+    // Update on toggle via native <details> event
+    rangePanel.addEventListener('toggle', syncAria);
+    // Also handle clicks on the summary for browsers that may not fire toggle
+    if (summary) {
+        summary.addEventListener('click', syncAria);
+    }
+})();
+
 init();
+
 
