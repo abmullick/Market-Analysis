@@ -50,6 +50,12 @@ from backend.services.bonds.bond_normalizer import (
     parse_float,
 )
 from backend.services.data.bonds.bond_central import BondCentralClient
+from backend.services.bonds.bond_central_ratings_index import (
+    get_ratings_index,
+)
+from backend.services.bonds.bond_central_ratings_sync import (
+    BondCentralRatingsSync,
+)
 from backend.services.data.bonds.ccil import CcilClient
 from backend.services.data.bonds.corporate_cdsl import CdsCorporateBondClient
 from backend.services.data.bonds.corporate_cdsl import fetch_detail_live
@@ -133,6 +139,21 @@ class BondCache:
                 "misses": self._misses,
             }
 
+    def invalidate(self, key: str | None = None) -> None:
+        with self._lock:
+            if key is None:
+                self._data.clear()
+            elif key in self._data:
+                del self._data[key]
+
+    def stats(self) -> dict[str, int]:
+        with self._lock:
+            return {
+                "size": len(self._data),
+                "hits": self._hits,
+                "misses": self._misses,
+            }
+
 
 # Module-level cache instance (shared across requests)
 bond_cache = BondCache(ttl_seconds=3600)
@@ -160,6 +181,8 @@ class BondService:
         self._rbi: RbiClient | None = None
         self._cdsl: CdsCorporateBondClient | None = None
         self._bond_central: BondCentralClient | None = None
+        self._ratings_index = get_ratings_index()
+        self._ratings_sync: BondCentralRatingsSync | None = None
         # Latest retrieval status per source (see refresh_all_sources).
         self._source_statuses: dict[str, BondSourceStatus] = {}
 
@@ -233,6 +256,17 @@ class BondService:
                 )
         return report
 
+    def _get_ratings_sync(self) -> BondCentralRatingsSync:
+        if self._ratings_sync is None:
+            from backend.config.settings import Settings
+
+            self._ratings_sync = BondCentralRatingsSync(
+                Settings(),
+                index=self._ratings_index,
+                client=self._get_bond_central(),
+            )
+        return self._ratings_sync
+
     def _status_summary(self) -> str:
         """Compact, log-friendly summary of the latest per-source statuses."""
         parts = [
@@ -240,6 +274,91 @@ class BondService:
             for source, status in self._source_statuses.items()
         ]
         return ", ".join(parts) or "no sources queried"
+
+    def _rating_coverage(self, isin_norm: str) -> tuple[Optional[list[BondCentralRating]], Optional[str]]:
+        """Return (rows, status) for a normalized ISIN from the persistent index.
+
+        *status* is one of:
+
+        * ``"rated"``   — at least one usable Bond Central CRA rating value
+        * ``"unrated"``  — listed by Bond Central with no rating value and no
+          rating metadata (an explicitly reported "no rating")
+        * ``"unknown"``  — listed with rating metadata (agency/date/...) but no
+          usable rating value
+        * ``None``       — not indexed (missing / unavailable — distinct from
+          explicitly unrated)
+        """
+        index = self._ratings_index
+        if not index.is_indexed(isin_norm):
+            return None, None
+        if index.is_known_unrated(isin_norm):
+            return None, "unrated"
+        if index.status_for(isin_norm) == "unknown":
+            return None, "unknown"
+        return index.ratings_for(isin_norm), "rated"
+
+    def _apply_bond_central_ratings(self, bonds: list[Bond]) -> list[Bond]:
+        """Join the persistent Bond Central ratings index into CDSL corporate records.
+
+        CDSL remains the authoritative corporate source:
+
+        * Only corporate records are touched; government / T-Bill / SDL records
+          are returned untouched (they have no ISIN path through Bond Central).
+        * Bond Central fills only ``null`` fields on the existing record — it
+          never overwrites a CDSL-supplied rating, issuer, maturity, etc.
+        * Missing / unavailable index entries (``None`` status) leave the record
+          untouched. They are kept distinct from an explicitly reported
+          ``"Unrated"`` — the latter inflates ``bond.credit_rating`` to the
+          ``"Unrated"`` bucket (see the frontend ``getBondRatingKey`` mapping).
+        * Every retained Bond Central rating observation is kept (multiple
+          agencies / actions); duplicate ISIN/row combinations are skipped.
+        * The deep copy is taken from the CDSL record so the CDSL list cache is
+          never mutated by enrichment (same contract the detail path already
+          follows).
+        """
+        joined: list[Bond] = []
+        total = 0
+        matched = 0
+        for bond in bonds:
+            isin_norm = (bond.isin or "").strip().upper()
+            if not isin_norm:
+                joined.append(bond)
+                continue
+            total += 1
+            rows, status = self._rating_coverage(isin_norm)
+            if status is None:
+                # Not in the Bond Central index at all — unknown / unavailable.
+                # Keep the CDSL-only record. Do NOT reclassify as Unrated.
+                joined.append(bond)
+            elif status == "unrated":
+                matched += 1
+                if not bond.credit_rating:
+                    joined.append(bond.model_copy(deep=True))
+                    joined[-1].credit_rating = "Unrated"
+                else:
+                    joined.append(bond)
+            else:  # "rated"
+                matched += 1
+                joined.append(bond.model_copy(deep=True))
+                _merge_bond_central_ratings(joined[-1], rows)
+        try:
+            self._ratings_index.record_match_stats(total, matched)
+        except Exception as exc:
+            logger.debug(
+                "Bond Central ratings match-stats update skipped: %s", exc
+            )
+        return joined
+
+    def _apply_bond_central_ratings_to_bond(self, bond: Bond) -> None:
+        """Join Bond Central ratings into a single corporate record in place."""
+        if not bond.isin:
+            return
+        isin_norm = bond.isin.upper()
+        rows, status = self._rating_coverage(isin_norm)
+        if status == "unrated" and not bond.credit_rating:
+            bond.credit_rating = "Unrated"
+        elif status == "rated":
+            _merge_bond_central_ratings(bond, rows)
 
     async def _fetch_source(
         self,
@@ -789,14 +908,11 @@ class BondService:
             return consolidated
 
         self._cache.put(cache_key, consolidated)
-        logger.info(
-            "Corporate bond list refreshed: %d bonds for %s "
-            "(from %d secondary, %d primary raw rows)",
-            len(consolidated), resolved,
-            len(secondary_bonds), len(primary_bonds),
-        )
+        try:
+            self._get_ratings_sync().maybe_schedule_refresh("auto")
+        except Exception:
+            pass
         return consolidated
-
     async def list_corporate_bonds(
         self,
         issuer: str | None = None,
@@ -813,6 +929,11 @@ class BondService:
         ``_filtered_bonds()``/``refresh_all_sources()``.
         """
         results = await self.refresh_corporate_sources(trade_date)
+        try:
+            self._get_ratings_sync().maybe_schedule_refresh("auto")
+        except Exception:
+            pass
+        results = self._apply_bond_central_ratings(results)
         results = _filter_corporate_bonds(results, issuer, search)
         results = _sort_bonds(results, sort_by, sort_dir)
         return results[offset: offset + limit]
@@ -833,6 +954,11 @@ class BondService:
         corporate bond matching the filter/search BEFORE limit/offset.
         """
         results = await self.refresh_corporate_sources(trade_date)
+        try:
+            self._get_ratings_sync().maybe_schedule_refresh("auto")
+        except Exception:
+            pass
+        results = self._apply_bond_central_ratings(results)
         results = _filter_corporate_bonds(results, issuer, search)
         total = len(results)
         results = _sort_bonds(results, sort_by, sort_dir)
@@ -842,6 +968,27 @@ class BondService:
             "limit": limit,
             "offset": offset,
         }
+
+    # ------------------------------------------------------------------
+    # Bond Central ratings index (refresh + status)
+    # ------------------------------------------------------------------
+
+    async def refresh_bond_central_ratings(self, reason: str = "manual") -> dict:
+        """Sweep Bond Central now and rebuild the persistent ratings index.
+
+        Returns the resulting index metadata. Use
+        :meth:`schedule_bond_central_ratings_refresh` to run the same sweep in
+        the background (the sweep walks every page, so it takes minutes).
+        """
+        return await self._get_ratings_sync().refresh(reason=reason)
+
+    def schedule_bond_central_ratings_refresh(self, reason: str = "manual") -> bool:
+        """Start a background Bond Central ratings sweep; ``False`` if one runs."""
+        return self._get_ratings_sync().schedule_refresh(reason=reason)
+
+    def bond_central_ratings_status(self) -> dict:
+        """Bond Central ratings index cache metadata (last refresh, counters)."""
+        return self._get_ratings_sync().status()
 
     async def get_corporate_bond_by_isin(
         self,
@@ -884,13 +1031,21 @@ class BondService:
         )
         cached = self._cache.get(cache_key)
         if cached is not None:
-            return cached
+            bond = cached.model_copy(deep=True)
+            self._apply_bond_central_ratings_to_bond(bond)
+            return bond
 
         all_corporate = await self.refresh_corporate_sources(
             resolved if trade_date is not None else None
         )
-        for bond in all_corporate:
-            if bond.isin and bond.isin.upper() == isin.strip().upper():
+        for list_bond in all_corporate:
+            if list_bond.isin and list_bond.isin.upper() == isin.strip().upper():
+                # Enrichment runs on a DEEP COPY: ``list_bond`` is the shared
+                # object held in the ``corporate:<trade_date>`` list cache, so
+                # merging the on-demand detail / rating data in place would
+                # leak this ISIN's enrichment into every later list and search
+                # response. Only the copy is cached under the detail key.
+                bond = list_bond.model_copy(deep=True)
                 self._cache.put(cache_key, bond)
                 # Enrich with CDSL rich ISIN detail (on demand, cached separately).
                 try:
@@ -903,21 +1058,9 @@ class BondService:
                         bond.isin,
                         exc,
                     )
-                # Enrich with Bond Central credit ratings (on demand, cached
-                # separately, corporate bonds only). Government securities,
-                # T-Bills and SDLs are not CRA-rated and never reach here.
-                try:
-                    ratings = await self._get_bond_central_ratings(
-                        bond.isin.upper()
-                    )
-                    if ratings:
-                        bond = _merge_bond_central_ratings(bond, ratings)
-                except Exception as exc:
-                    logger.debug(
-                        "Bond Central ratings enrichment skipped for %s: %s",
-                        bond.isin,
-                        exc,
-                    )
+                # Enrich with Bond Central credit ratings from the persistent
+                # index (no per-ISIN call: ``_get_bond_central_ratings`` is gone).
+                self._apply_bond_central_ratings_to_bond(bond)
                 self._cache.put(cache_key, bond)
                 return bond
 
@@ -948,59 +1091,6 @@ class BondService:
                 "CDSL rich detail retrieval failed for %s: %s", isin_norm, exc
             )
             return None
-
-    async def _get_bond_central_ratings(
-        self,
-        isin_norm: str,
-    ) -> list[BondCentralRating]:
-        """Fetch Bond Central credit ratings for *isin_norm*, cached separately.
-
-        One ISIN per request against Bond Central's public securities API.
-        Retrieval is on demand only and never raises: a timeout, HTTP error,
-        empty response or malformed payload yields an empty list so the bond
-        still renders. Duplicate rows are collapsed; distinct ratings are
-        preserved.
-        """
-        cache_key = f"bondcentral-ratings:{isin_norm}"
-        cached = self._cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        try:
-            raw = await self._get_bond_central().fetch_ratings(isin_norm)
-        except Exception as exc:
-            logger.warning(
-                "Bond Central ratings retrieval failed for %s: %s", isin_norm, exc
-            )
-            raw = []
-
-        ratings: list[BondCentralRating] = []
-        seen: set[tuple] = set()
-        for record in raw:
-            signature = (
-                record.credit_rating,
-                record.credit_rating_agency_name,
-                record.date_of_credit_rating,
-                record.ratings_watch,
-                record.ratings_outlook,
-            )
-            if signature in seen:
-                continue
-            seen.add(signature)
-            ratings.append(
-                BondCentralRating(
-                    credit_rating=record.credit_rating,
-                    credit_rating_agency_name=record.credit_rating_agency_name,
-                    date_of_credit_rating=record.date_of_credit_rating,
-                    ratings_watch=record.ratings_watch,
-                    ratings_outlook=record.ratings_outlook,
-                    security_status=record.security_status,
-                    maturity_date=record.maturity_date,
-                )
-            )
-
-        self._cache.put(cache_key, ratings)
-        return ratings
 
     async def get_corporate_analytics(
         self,

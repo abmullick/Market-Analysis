@@ -51,6 +51,9 @@ BOND_CENTRAL_SECURITIES_URL = f"{BOND_CENTRAL_BASE}/securities/"
 _REQUEST_PAGE = 1
 _REQUEST_SIZE = 10
 
+#: The API rejects ``size`` values above 100 (HTTP 422).
+_MAX_PAGE_SIZE = 100
+
 # Public JSON API — no cookie/session priming is required.
 _HEADERS = {
     "User-Agent": (
@@ -131,6 +134,39 @@ def _security_payload(row: dict) -> dict:
         return {}
     inner = row.get("data")
     return inner if isinstance(inner, dict) else row
+
+
+class BondCentralFetchError(RuntimeError):
+    """Raised when a Bond Central securities page cannot be retrieved."""
+
+
+class BondCentralRateLimited(BondCentralFetchError):
+    """Raised when Bond Central throttles the client (HTTP 429)."""
+
+    def __init__(self, message: str, retry_after: Optional[float] = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+def _retry_after_seconds(response: Any) -> Optional[float]:
+    """Best-effort parse of a ``Retry-After`` header (seconds)."""
+    try:
+        raw = response.headers.get("Retry-After")
+    except AttributeError:
+        return None
+    if not raw:
+        return None
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return None
+
+
+def _pagination_info(payload: Any) -> dict[str, Any]:
+    """Return the API's ``pagination_info`` object (empty when absent)."""
+    if isinstance(payload, dict) and isinstance(payload.get("pagination_info"), dict):
+        return dict(payload["pagination_info"])
+    return {}
 
 
 def _rating_entries(security: dict) -> list[dict]:
@@ -291,3 +327,66 @@ class BondCentralClient:
             "Bond Central returned %d rating row(s) for %s", len(records), isin_norm
         )
         return records
+
+    async def fetch_securities_page(
+        self,
+        page: int = 1,
+        size: int = _MAX_PAGE_SIZE,
+    ) -> tuple[list[BondCentralRawRating], dict[str, Any]]:
+        """Retrieve ONE page of the Bond Central securities index.
+
+        Used by the ratings-index synchronization service, which walks the
+        pages with the API's own pagination metadata instead of issuing one
+        request per ISIN.
+
+        Unlike :meth:`fetch_ratings` this method RAISES on failure so a partial
+        sweep can be reported through the index metadata instead of silently
+        looking like an empty result:
+
+        * :class:`BondCentralRateLimited` on HTTP 429 (carries ``Retry-After``)
+        * :class:`BondCentralFetchError` on timeouts, HTTP errors and
+          unreadable/invalid payloads
+        """
+        page = max(1, int(page))
+        size = max(1, min(int(size), _MAX_PAGE_SIZE))
+
+        try:
+            client = await self._get_client()
+            response = await client.get(
+                BOND_CENTRAL_SECURITIES_URL,
+                params={"page": page, "size": size},
+            )
+            if response.status_code == 429:
+                raise BondCentralRateLimited(
+                    "Bond Central rate limit (HTTP 429)",
+                    _retry_after_seconds(response),
+                )
+            response.raise_for_status()
+            payload = response.json()
+        except BondCentralRateLimited:
+            raise
+        except httpx.TimeoutException as exc:
+            raise BondCentralFetchError(f"timeout after {self._timeout}s: {exc}") from exc
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code if exc.response is not None else "error"
+            raise BondCentralFetchError(f"HTTP {status}") from exc
+        except httpx.HTTPError as exc:
+            raise BondCentralFetchError(f"request failed: {exc}") from exc
+        except ValueError as exc:
+            # response.json() raises (a subclass of) ValueError on bad JSON.
+            raise BondCentralFetchError(f"unreadable payload: {exc}") from exc
+
+        if payload is None:
+            raise BondCentralFetchError("empty response body")
+
+        records: list[BondCentralRawRating] = []
+        for row in _rows(payload):
+            records.extend(_extract_rows(_security_payload(row)))
+        info = _pagination_info(payload)
+        logger.debug(
+            "Bond Central page %d returned %d rating row(s) (info=%s)",
+            page,
+            len(records),
+            info,
+        )
+        return records, info

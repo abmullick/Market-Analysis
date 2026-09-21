@@ -10,6 +10,8 @@ Government bond routes (CCIL + NSE + RBI pipeline):
 
 Corporate bond routes (CDSL pipeline — lazy-loaded, fully separate):
   GET  /api/bonds/corporate                 — list/search corporate bonds
+  GET  /api/bonds/corporate/ratings/status  — Bond Central ratings index metadata
+  POST /api/bonds/corporate/ratings/refresh — rebuild the Bond Central ratings index
   GET  /api/bonds/corporate/{isin}          — retrieve corporate bond by ISIN
   GET  /api/bonds/corporate/{isin}/analytics — corporate analytics (CDSL terms)
 
@@ -224,6 +226,48 @@ async def list_corporate_bonds(
     except ValueError as exc:
         # Unrecognised trade_date input.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Bond Central ratings index (supplementary ratings for the CDSL universe)
+# Declared BEFORE /corporate/{isin} so "ratings" is never read as an ISIN.
+# ---------------------------------------------------------------------------
+
+@router.get("/corporate/ratings/status")
+async def get_corporate_ratings_status() -> dict:
+    """Bond Central ratings index cache metadata.
+
+    Reports the last successful refresh timestamp, the number of Bond Central
+    records processed, the number of rating rows stored, how many CDSL
+    corporate ISINs were matched, and the refresh status/error. Never triggers
+    a Bond Central request.
+    """
+    return get_bond_service().bond_central_ratings_status()
+
+
+@router.post("/corporate/ratings/refresh")
+async def refresh_corporate_ratings(
+    wait: bool = Query(
+        False,
+        description=(
+            "Await completion of the full sweep. The sweep walks every Bond "
+            "Central page (~256 requests), so the default runs it in the "
+            "background; poll /corporate/ratings/status for progress."
+        ),
+    ),
+) -> dict:
+    """Refresh the Bond Central credit-ratings index.
+
+    The sweep is independent of bond list/detail requests: list endpoints are
+    served from the persistent SQLite index and never call Bond Central.
+    """
+    service = get_bond_service()
+    if wait:
+        return await service.refresh_bond_central_ratings(reason="manual")
+    scheduled = service.schedule_bond_central_ratings_refresh()
+    status = service.bond_central_ratings_status()
+    status["scheduled"] = scheduled
+    return status
 
 
 @router.get("/corporate/{isin}/analytics")
