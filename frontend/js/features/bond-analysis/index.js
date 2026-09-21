@@ -44,6 +44,9 @@ const state = {
         maturityFrom: "", // ISO date string or empty
         maturityTo: "",   // ISO date string or empty
     },
+    // Credit-rating selections (corporate-only, applied client-side).
+    // Stored as an array of canonical rating keys; empty means no restriction.
+    creditRatings: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -107,12 +110,60 @@ function readCorporateFilters() {
     return {
         tradeDate: tradeDate ? tradeDate.value.trim() : "",
         issuer: issuer ? issuer.value.trim() : "",
-    };
+        };
 }
+
+// Normalise a bond's credit_rating value into a canonical key that matches the
+// CREDIT_RATING_OPTIONS vocabulary. null / empty / "-" / NA-like sentinels map
+// to "Unrated" (a bond with no verifiable rating is, by definition, unrated);
+// the CDSL normalizer already collapses "N/A"/"NA"/"-" to null, so this also
+// covers those. A literal "N/A" string (e.g. from Bond Central) is preserved
+// as "N/A" so it stays a distinct selection from "Unrated".
+function getBondRatingKey(rating) {
+    if (rating == null) return "Unrated";
+    const s = String(rating).trim().toUpperCase();
+    if (s === "") return "Unrated";
+    if (s === "NA") return "N/A";
+    if (s === "UNRATED") return "Unrated";
+    // Standard rating notation (AAA, AA+, A-, etc.) — pass through upper-cased.
+    return s;
+}
+
+// True when the corporate credit-rating filter has at least one selection.
+// Government bonds (T-Bills, G-Secs, SDLs) never carry a corporate rating, so
+// the filter is a no-op outside the corporate universe.
+function hasActiveCreditRatingFilter() {
+    return state.universe === "corporate" && state.creditRatings.length > 0;
+}
+
+// Apply the client-side credit-rating filter (OR logic across selected
+// ratings). A bond matches when its canonical rating key is one of the
+// selected keys. Called as a post-step on the already range-filtered list so
+// it composes cleanly with coupon / yield / maturity narrowing without adding
+// any server requests. No active selection returns the list untouched.
+function applyCreditRatingFilter(bonds) {
+    if (!hasActiveCreditRatingFilter()) return bonds;
+    const selected = new Set(state.creditRatings);
+    return bonds.filter((bond) => selected.has(getBondRatingKey(bond.credit_rating)));
+}
+
 
 // Range filter slider bounds — must match the min/max attributes in the HTML.
 const RANGE_MIN = 0;
 const RANGE_MAX = 20;
+
+// Credit rating options offered by the Advanced Bond Filters multi-select.
+// Mirrors the back-end rating vocabulary (CDSL / Bond Central). The list is
+// rendered once and filtered client-side by `credit_rating` on each bond
+// record — no per-bond API calls are made.
+const CREDIT_RATING_OPTIONS = [
+    "AAA", "AA+", "AA", "AA-", "A+", "A", "A-",
+    "BBB+", "BBB", "BBB-",
+    "BB+", "BB", "BB-",
+    "B+", "B", "B-", "C", "D",
+    "Unrated", "N/A",
+];
+
 
 // Read range filter values from the HTML controls. Values at the slider
 // extremes mean "no bound on that side", matching the "Any" output labels.
@@ -357,12 +408,14 @@ async function searchBonds() {
     const sourceFilter = $("ba-source-filter");
     const source = isCorporate || !sourceFilter ? "" : sourceFilter.value;
 
-    // Coupon / yield / maturity ranges are applied client-side: neither list
-    // endpoint accepts range query parameters, so the full server-filtered
-    // result set is downloaded (paged at the documented maximum) and narrowed
-    // in the browser. With no active range filter the original server-side
-    // pagination path is used unchanged.
-    const rangeActive = hasActiveRangeFilters();
+    // Coupon / yield / maturity ranges AND the corporate credit-rating filter
+    // are applied client-side: neither list endpoint accepts range or rating
+    // query parameters, so the full server-filtered result set is downloaded
+    // (paged at the documented maximum) and narrowed in the browser. With no
+    // active local filter the original server-side pagination path is used
+    // unchanged. The credit-rating filter is corporate-only and is never sent
+    // to the backend (it reads bond.credit_rating from the loaded records).
+    const rangeActive = hasActiveRangeFilters() || hasActiveCreditRatingFilter();
 
     // Server-side filters + sorting (backend-provided parameters only).
     const corpFilters = isCorporate ? readCorporateFilters() : { tradeDate: "", issuer: "" };
@@ -424,7 +477,10 @@ async function searchBonds() {
     // Otherwise the server already returned the requested page and its total.
     let list;
     if (rangeActive) {
-        const filtered = applyRangeFilters(universe || []);
+        // Range filters narrow the cached full universe first, then the
+        // corporate credit-rating filter (OR logic) applies client-side on
+        // the result — no extra API requests are issued for ratings.
+        const filtered = applyCreditRatingFilter(applyRangeFilters(universe || []));
         state.total = filtered.length;
         list = filtered.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
     } else {
@@ -1068,6 +1124,297 @@ document.addEventListener("focusin", (e) => {
 
 
 // ---------------------------------------------------------------------------
+// Credit Rating multi-select (Advanced Bond Filters — corporate only)
+// ---------------------------------------------------------------------------
+// The rating list is rendered ONCE from CREDIT_RATING_OPTIONS and narrowed by
+// the in-dropdown search. Selections live on the option elements themselves
+// (aria-selected), so filtering the visible list never drops a selection.
+// Nothing is fetched per rating: the chosen keys are matched client-side
+// against bond.credit_rating by applyCreditRatingFilter().
+
+// Index (within the currently visible options) of the roving tab stop.
+let creditRatingActiveIdx = -1;
+
+// Render the full option list. Options are never removed on search — they are
+// hidden — so a selection survives an in-dropdown search.
+function renderCreditRatingOptions() {
+    const list = $("ba-credit-rating-listbox");
+    if (!list) return;
+    list.innerHTML = CREDIT_RATING_OPTIONS.map((rating, index) => `
+        <li role="option"
+            id="ba-credit-rating-option-${index}"
+            class="ba-multiselect-option"
+            data-rating="${escapeHtml(rating)}"
+            aria-selected="false"
+            tabindex="-1">
+            <span class="ba-multiselect-checkbox" aria-hidden="true"></span>
+            <span class="ba-multiselect-option-label">${escapeHtml(rating)}</span>
+        </li>
+    `).join("");
+}
+
+// Currently visible (unfiltered) options, in document order.
+function visibleCreditRatingOptions() {
+    const list = $("ba-credit-rating-listbox");
+    if (!list) return [];
+    return Array.from(list.querySelectorAll('[role="option"]'))
+        .filter((el) => !el.classList.contains("hidden"));
+}
+
+// The pending selection, read straight from the option elements.
+function readCreditRatingState() {
+    const list = $("ba-credit-rating-listbox");
+    if (!list) return [];
+    return Array.from(list.querySelectorAll('[role="option"][aria-selected="true"]'))
+        .map((el) => el.getAttribute("data-rating"))
+        .filter(Boolean);
+}
+
+// Move the roving tab stop to the given visible option index and focus it.
+function focusCreditRatingOption(index) {
+    const options = visibleCreditRatingOptions();
+    if (!options.length) return;
+    const clamped = Math.max(0, Math.min(index, options.length - 1));
+    options.forEach((el) => el.setAttribute("tabindex", "-1"));
+    creditRatingActiveIdx = clamped;
+    const target = options[clamped];
+    target.setAttribute("tabindex", "0");
+    target.focus();
+}
+
+// Show/hide options by the in-dropdown search term and reset the tab stop.
+function filterCreditRatingOptions(query) {
+    const list = $("ba-credit-rating-listbox");
+    if (!list) return;
+    const q = String(query || "").trim().toLowerCase();
+    Array.from(list.querySelectorAll('[role="option"]')).forEach((el) => {
+        const rating = (el.getAttribute("data-rating") || "").toLowerCase();
+        el.classList.toggle("hidden", Boolean(q) && !rating.includes(q));
+    });
+
+    const options = visibleCreditRatingOptions();
+    Array.from(list.querySelectorAll('[role="option"]')).forEach((el) => {
+        el.setAttribute("tabindex", "-1");
+    });
+    if (options.length) options[0].setAttribute("tabindex", "0");
+    creditRatingActiveIdx = options.length ? 0 : -1;
+
+    const field = $("ba-credit-rating");
+    if (field && field.dataset.state === "open") positionCreditRatingDropdown();
+}
+
+// Selected ratings surface as compact chips (up to three), otherwise a count.
+function renderCreditRatingDisplay() {
+    const display = $("ba-credit-rating-display");
+    if (!display) return;
+    const selected = readCreditRatingState();
+    if (!selected.length) {
+        display.innerHTML = '<span class="ba-multiselect-summary">Select ratings&hellip;</span>';
+        return;
+    }
+    if (selected.length <= 3) {
+        display.innerHTML = selected
+            .map((rating) => `<span class="ba-multiselect-chip">${escapeHtml(rating)}</span>`)
+            .join("");
+        return;
+    }
+    display.innerHTML = `<span class="ba-multiselect-summary">${selected.length} ratings selected</span>`;
+}
+
+function toggleCreditRatingOption(optionEl) {
+    if (!optionEl) return;
+    const next = optionEl.getAttribute("aria-selected") !== "true";
+    optionEl.setAttribute("aria-selected", next ? "true" : "false");
+    renderCreditRatingDisplay();
+}
+
+function clearCreditRatingSelections() {
+    const list = $("ba-credit-rating-listbox");
+    if (!list) return;
+    Array.from(list.querySelectorAll('[role="option"]')).forEach((el) => {
+        el.setAttribute("aria-selected", "false");
+    });
+    renderCreditRatingDisplay();
+}
+
+// Position the fixed-position panel against the trigger. The panel uses
+// position: fixed so it is not clipped by the overflow: hidden filter card;
+// it flips above the trigger when there is not enough room below.
+function positionCreditRatingDropdown() {
+    const trigger = $("ba-credit-rating-trigger");
+    const dropdown = $("ba-credit-rating-dropdown");
+    if (!trigger || !dropdown) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const gap = 4;
+    const panelHeight = Math.min(dropdown.getBoundingClientRect().height || 288, 288);
+    const roomBelow = window.innerHeight - rect.bottom;
+    const flipUp = roomBelow < panelHeight + gap && rect.top > panelHeight + gap;
+
+    dropdown.style.top = flipUp
+        ? `${Math.round(rect.top - panelHeight - gap)}px`
+        : `${Math.round(rect.bottom + gap)}px`;
+    dropdown.style.left = `${Math.round(rect.left)}px`;
+    dropdown.style.width = `${Math.round(rect.width)}px`;
+}
+
+function openCreditRatingDropdown() {
+    const field = $("ba-credit-rating");
+    const dropdown = $("ba-credit-rating-dropdown");
+    const trigger = $("ba-credit-rating-trigger");
+    const search = $("ba-credit-rating-search");
+    if (!field || !dropdown || !trigger) return;
+
+    field.dataset.state = "open";
+    dropdown.classList.remove("hidden");
+    dropdown.setAttribute("aria-hidden", "false");
+    trigger.setAttribute("aria-expanded", "true");
+    if (search) {
+        search.value = "";
+        filterCreditRatingOptions("");
+    }
+    // Measure/position only once the panel is visible.
+    positionCreditRatingDropdown();
+    if (search) search.focus();
+}
+
+function closeCreditRatingDropdown() {
+    const field = $("ba-credit-rating");
+    const dropdown = $("ba-credit-rating-dropdown");
+    const trigger = $("ba-credit-rating-trigger");
+    if (!field || !dropdown || !trigger) return;
+
+    field.dataset.state = "closed";
+    dropdown.classList.add("hidden");
+    dropdown.setAttribute("aria-hidden", "true");
+    trigger.setAttribute("aria-expanded", "false");
+}
+
+// Reset clears every rating selection plus the in-dropdown search term.
+function resetCreditRatingFilter() {
+    clearCreditRatingSelections();
+    const search = $("ba-credit-rating-search");
+    if (search) search.value = "";
+    filterCreditRatingOptions("");
+}
+
+function setupCreditRatingFilter() {
+    const field = $("ba-credit-rating");
+    const trigger = $("ba-credit-rating-trigger");
+    const dropdown = $("ba-credit-rating-dropdown");
+    const search = $("ba-credit-rating-search");
+    const list = $("ba-credit-rating-listbox");
+    const clearBtn = $("ba-credit-rating-clear");
+    if (!field || !trigger || !list) return;
+
+    renderCreditRatingOptions();
+    filterCreditRatingOptions("");
+    renderCreditRatingDisplay();
+
+    // Trigger — click or Down/Up arrow opens the dropdown (search focused).
+    trigger.addEventListener("click", () => {
+        if (field.dataset.state === "open") closeCreditRatingDropdown();
+        else openCreditRatingDropdown();
+    });
+    trigger.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            openCreditRatingDropdown();
+        }
+    });
+
+    // In-dropdown search narrows the visible options.
+    if (search) {
+        search.addEventListener("input", () => filterCreditRatingOptions(search.value));
+        search.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                focusCreditRatingOption(0);
+            } else if (e.key === "Escape") {
+                e.preventDefault();
+                closeCreditRatingDropdown();
+                trigger.focus();
+            }
+        });
+    }
+
+    // Option selection (delegated) + keyboard navigation.
+    list.addEventListener("click", (e) => {
+        const option = e.target.closest('[role="option"]');
+        if (!option) return;
+        e.preventDefault();
+        toggleCreditRatingOption(option);
+    });
+    list.addEventListener("keydown", (e) => {
+        const option = e.target.closest('[role="option"]');
+        if (!option) return;
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            focusCreditRatingOption(creditRatingActiveIdx + 1);
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            focusCreditRatingOption(creditRatingActiveIdx - 1);
+        } else if (e.key === "Home") {
+            e.preventDefault();
+            focusCreditRatingOption(0);
+        } else if (e.key === "End") {
+            e.preventDefault();
+            focusCreditRatingOption(visibleCreditRatingOptions().length - 1);
+        } else if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleCreditRatingOption(option);
+        } else if (e.key === "Escape") {
+            e.preventDefault();
+            closeCreditRatingDropdown();
+            trigger.focus();
+        }
+    });
+
+    // Clear every selection without leaving the dropdown.
+    if (clearBtn) {
+        clearBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            clearCreditRatingSelections();
+            if (search) {
+                search.value = "";
+                filterCreditRatingOptions("");
+                search.focus();
+            }
+        });
+    }
+
+    // Escape closes the dropdown from anywhere inside the field.
+    field.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && field.dataset.state === "open") {
+            e.preventDefault();
+            closeCreditRatingDropdown();
+            trigger.focus();
+        }
+    });
+
+    // A click outside the field closes the dropdown.
+    document.addEventListener("click", (e) => {
+        if (!field.contains(e.target)) closeCreditRatingDropdown();
+    });
+
+    // The panel is position: fixed, so it would detach from the trigger on a
+    // scroll or resize — close it instead (scrolls inside the panel are kept).
+    window.addEventListener("resize", () => {
+        if (field.dataset.state === "open") closeCreditRatingDropdown();
+    });
+    window.addEventListener("scroll", (e) => {
+        if (field.dataset.state !== "open") return;
+        if (dropdown && dropdown.contains(e.target)) return;
+        closeCreditRatingDropdown();
+    }, true);
+
+    // Keep the panel anchored to the field while open.
+    if (dropdown) {
+        dropdown.addEventListener("click", (e) => e.stopPropagation());
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Range filter output labels
 // ---------------------------------------------------------------------------
 
@@ -1109,6 +1456,8 @@ function setupRangeOutputs() {
 
 function init() {
     setupRangeOutputs();
+    // Credit-rating multi-select (corporate-only, client-side filter).
+    setupCreditRatingFilter();
 
     // Initial/empty state before a bond is selected.
     $("ba-detail-empty").classList.remove("hidden");
@@ -1166,18 +1515,23 @@ function init() {
     if (rangeApply) {
         rangeApply.addEventListener("click", () => {
             state.rangeFilters = readRangeFilters();
+            // Commit pending credit-rating selections (corporate-only).
+            state.creditRatings = readCreditRatingState();
             state.page = 1;
             searchBonds();
         });
     }
 
     // Reset restores the documented defaults, clears the active range filters,
-    // and reloads the current universe from the first page.
+    // AND clears credit-rating selections, then reloads the current universe
+    // from the first page.
     const rangeReset = $("ba-range-reset");
     if (rangeReset) {
         rangeReset.addEventListener("click", () => {
             setRangeControlsToDefaults();
             state.rangeFilters = readRangeFilters();
+            resetCreditRatingFilter();
+            state.creditRatings = [];
             state.page = 1;
             searchBonds();
         });

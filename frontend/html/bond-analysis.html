@@ -93,8 +93,8 @@
     <summary class="ba-range-summary ba-section-header">
         <div class="ba-range-header-main">
             <span class="ba-range-titlewrap">
-                <span class="ba-range-title">Filter by Range</span>
-                <span class="ba-range-subtitle">Coupon, yield and maturity</span>
+                <span class="ba-range-title">Advanced Bond Filters</span>
+                <span class="ba-range-subtitle">Coupon, yield, maturity &amp; ratings</span>
             </span>
         </div>
         <div class="ba-range-controls">
@@ -248,6 +248,86 @@
             </div>
         </fieldset>
 
+        <div
+            id="ba-corporate-filters"
+            class="ba-corporate-filters hidden"
+            aria-label="Corporate bond filters">
+
+            <label class="ba-tool-label" for="ba-corporate-trade-date">
+                Trade Date
+            </label>
+
+            <input
+                type="date"
+                id="ba-corporate-trade-date"
+                class="ba-filter-input"
+                aria-label="Corporate bond trade date">
+
+            <label class="ba-tool-label" for="ba-corporate-issuer">
+                Issuer
+            </label>
+
+            <input
+                type="search"
+                id="ba-corporate-issuer"
+                class="ba-filter-input"
+                placeholder="Filter by issuer"
+                autocomplete="off"
+                aria-label="Corporate bond issuer">
+
+            <label class="ba-tool-label ba-credit-rating-label" for="ba-credit-rating-trigger">
+                Credit Rating
+            </label>
+            <div id="ba-credit-rating"
+                 class="ba-credit-rating-field"
+                 role="group"
+                 aria-label="Credit rating filter"
+                 data-state="closed">
+                <button type="button"
+                        id="ba-credit-rating-trigger"
+                        class="ba-multiselect-trigger"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-controls="ba-credit-rating-dropdown"
+                        aria-label="Credit Rating"
+                        autocomplete="off">
+                    <span id="ba-credit-rating-display" class="ba-multiselect-display">
+                        <span class="ba-multiselect-summary">Select ratings…</span>
+                    </span>
+                    <svg class="ba-multiselect-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M5 7.5L10 12.5L15 7.5"></path>
+                    </svg>
+                </button>
+                <div id="ba-credit-rating-dropdown"
+                     class="ba-multiselect-dropdown hidden"
+                     role="dialog"
+                     aria-hidden="true"
+                     aria-labelledby="ba-credit-rating-trigger">
+                    <div class="ba-multiselect-search-wrap">
+                        <input type="search"
+                               id="ba-credit-rating-search"
+                               class="ba-multiselect-search"
+                               placeholder="Search ratings…"
+                               autocomplete="off"
+                               aria-label="Search credit ratings">
+                    </div>
+                    <ul id="ba-credit-rating-listbox"
+                        class="ba-multiselect-list"
+                        role="listbox"
+                        aria-multiselectable="true"
+                        tabindex="-1">
+                    </ul>
+                    <div class="ba-multiselect-footer">
+                        <button type="button"
+                                id="ba-credit-rating-clear"
+                                class="ba-page-btn">
+                            Clear all
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="ba-range-actions">
             <button
                 type="button"
@@ -266,34 +346,6 @@
 
     </div>
 </details>
-
-                                      <div
-                                        id="ba-corporate-filters"
-                                        class="ba-corporate-filters hidden"
-                                        aria-label="Corporate bond filters">
-
-                                        <label class="ba-tool-label" for="ba-corporate-trade-date">
-                                            Trade Date
-                                        </label>
-
-                                        <input
-                                            type="date"
-                                            id="ba-corporate-trade-date"
-                                            class="ba-filter-input"
-                                            aria-label="Corporate bond trade date">
-
-                                        <label class="ba-tool-label" for="ba-corporate-issuer">
-                                            Issuer
-                                        </label>
-
-                                        <input
-                                            type="search"
-                                            id="ba-corporate-issuer"
-                                            class="ba-filter-input"
-                                            placeholder="Filter by issuer"
-                                            autocomplete="off"
-                                            aria-label="Corporate bond issuer">
-                                    </div>
                                 <p id="ba-selector-status" class="ba-section-sub ba-selector-status hidden" role="status" aria-live="polite"></p>
                                 <ul id="ba-bond-list" class="ba-bond-list"></ul>
                                 <div id="ba-pagination" class="ba-pagination hidden"></div>
