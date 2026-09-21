@@ -114,16 +114,16 @@ function readCorporateFilters() {
 }
 
 // Normalise a bond's credit_rating value into a canonical key that matches the
-// CREDIT_RATING_OPTIONS vocabulary. null / empty / "-" / NA-like sentinels map
-// to "Unrated" (a bond with no verifiable rating is, by definition, unrated);
-// the CDSL normalizer already collapses "N/A"/"NA"/"-" to null, so this also
-// covers those. A literal "N/A" string (e.g. from Bond Central) is preserved
-// as "N/A" so it stays a distinct selection from "Unrated".
+// CREDIT_RATING_OPTIONS vocabulary. null / undefined / empty / NA-like
+// sentinels ("-", "--", "NA", "N/A") map to "Unknown" (rating unavailable —
+// distinct from an explicit "Unrated"); the CDSL normalizer already collapses
+// most of those sentinels to null, so this also covers them defensively.
+// A literal "Unrated" string maps to "Unrated". Standard rating notation
+// (AAA, AA+, A-, etc.) passes through upper-cased.
 function getBondRatingKey(rating) {
-    if (rating == null) return "Unrated";
+    if (rating == null) return "Unknown";
     const s = String(rating).trim().toUpperCase();
-    if (s === "") return "Unrated";
-    if (s === "NA") return "N/A";
+    if (s === "" || s === "-" || s === "--" || s === "NA" || s === "N/A" || s === "UNKNOWN") return "Unknown";
     if (s === "UNRATED") return "Unrated";
     // Standard rating notation (AAA, AA+, A-, etc.) — pass through upper-cased.
     return s;
@@ -155,14 +155,21 @@ const RANGE_MAX = 20;
 // Credit rating options offered by the Advanced Bond Filters multi-select.
 // Mirrors the back-end rating vocabulary (CDSL / Bond Central). The list is
 // rendered once and filtered client-side by `credit_rating` on each bond
-// record — no per-bond API calls are made.
+// record — no per-bond API calls are made. "Unknown" is the value stored for
+// missing ratings and is displayed as "Rating unavailable".
 const CREDIT_RATING_OPTIONS = [
     "AAA", "AA+", "AA", "AA-", "A+", "A", "A-",
     "BBB+", "BBB", "BBB-",
     "BB+", "BB", "BB-",
     "B+", "B", "B-", "C", "D",
-    "Unrated", "N/A",
+    "Unrated", "Unknown",
 ];
+
+// Display label for a rating option value. "Unknown" surfaces as
+// "Rating unavailable"; every other value renders as itself.
+function creditRatingLabel(rating) {
+    return rating === "Unknown" ? "Rating unavailable" : rating;
+}
 
 
 // Read range filter values from the HTML controls. Values at the slider
@@ -1136,7 +1143,9 @@ document.addEventListener("focusin", (e) => {
 let creditRatingActiveIdx = -1;
 
 // Render the full option list. Options are never removed on search — they are
-// hidden — so a selection survives an in-dropdown search.
+// hidden — so a selection survives an in-dropdown search. The "Unknown" value
+// is labelled "Rating unavailable" while its data-rating stays "Unknown" so
+// it matches getBondRatingKey() output.
 function renderCreditRatingOptions() {
     const list = $("ba-credit-rating-listbox");
     if (!list) return;
@@ -1148,7 +1157,7 @@ function renderCreditRatingOptions() {
             aria-selected="false"
             tabindex="-1">
             <span class="ba-multiselect-checkbox" aria-hidden="true"></span>
-            <span class="ba-multiselect-option-label">${escapeHtml(rating)}</span>
+            <span class="ba-multiselect-option-label">${escapeHtml(creditRatingLabel(rating))}</span>
         </li>
     `).join("");
 }
@@ -1183,13 +1192,16 @@ function focusCreditRatingOption(index) {
 }
 
 // Show/hide options by the in-dropdown search term and reset the tab stop.
+// Matching runs against both the stored value and its display label, so
+// typing "unavailable" still finds the "Rating unavailable" option.
 function filterCreditRatingOptions(query) {
     const list = $("ba-credit-rating-listbox");
     if (!list) return;
     const q = String(query || "").trim().toLowerCase();
     Array.from(list.querySelectorAll('[role="option"]')).forEach((el) => {
         const rating = (el.getAttribute("data-rating") || "").toLowerCase();
-        el.classList.toggle("hidden", Boolean(q) && !rating.includes(q));
+        const label = creditRatingLabel(el.getAttribute("data-rating") || "").toLowerCase();
+        el.classList.toggle("hidden", Boolean(q) && !rating.includes(q) && !label.includes(q));
     });
 
     const options = visibleCreditRatingOptions();
@@ -1204,6 +1216,7 @@ function filterCreditRatingOptions(query) {
 }
 
 // Selected ratings surface as compact chips (up to three), otherwise a count.
+// The "Unknown" value renders as "Rating unavailable".
 function renderCreditRatingDisplay() {
     const display = $("ba-credit-rating-display");
     if (!display) return;
@@ -1214,11 +1227,19 @@ function renderCreditRatingDisplay() {
     }
     if (selected.length <= 3) {
         display.innerHTML = selected
-            .map((rating) => `<span class="ba-multiselect-chip">${escapeHtml(rating)}</span>`)
+            .map((rating) => `<span class="ba-multiselect-chip">${escapeHtml(creditRatingLabel(rating))}</span>`)
             .join("");
         return;
     }
     display.innerHTML = `<span class="ba-multiselect-summary">${selected.length} ratings selected</span>`;
+}
+
+// Commit the pending (DOM) rating selection into state and immediately
+// re-run the search so a toggle filters the corporate list at once.
+function commitCreditRatingSelection() {
+    state.creditRatings = readCreditRatingState();
+    state.page = 1;
+    searchBonds();
 }
 
 function toggleCreditRatingOption(optionEl) {
@@ -1226,6 +1247,7 @@ function toggleCreditRatingOption(optionEl) {
     const next = optionEl.getAttribute("aria-selected") !== "true";
     optionEl.setAttribute("aria-selected", next ? "true" : "false");
     renderCreditRatingDisplay();
+    commitCreditRatingSelection();
 }
 
 function clearCreditRatingSelections() {
@@ -1370,7 +1392,8 @@ function setupCreditRatingFilter() {
         }
     });
 
-    // Clear every selection without leaving the dropdown.
+    // Clear every selection without leaving the dropdown. Commits immediately
+    // so the list reverts to unfiltered without waiting for Apply.
     if (clearBtn) {
         clearBtn.addEventListener("click", (e) => {
             e.preventDefault();
@@ -1380,6 +1403,7 @@ function setupCreditRatingFilter() {
                 filterCreditRatingOptions("");
                 search.focus();
             }
+            commitCreditRatingSelection();
         });
     }
 
