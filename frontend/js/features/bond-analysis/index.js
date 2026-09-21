@@ -780,9 +780,10 @@ function detailItem(label, value, mono) {
 // Credit rating for the existing summary card. An authoritative rating
 // (e.g. from the CDSL record) always wins; a Bond Central rating is used
 // only when no authoritative rating is present. Government securities,
-// T-Bills and SDLs are not CRA-rated and always show N/A.
+// T-Bills and SDLs are not CRA-rated and always show N/A. Never throws:
+// null/undefined bonds and non-array `credit_ratings` render N/A.
 function summaryCreditRating(bond, isCorporate) {
-    if (!isCorporate) return "N/A";
+    if (!isCorporate || !bond) return "N/A";
     if (bond.credit_rating) return bond.credit_rating;
     const ratings = Array.isArray(bond.credit_ratings) ? bond.credit_ratings : [];
     const fallback = ratings.find((r) => r && r.credit_rating);
@@ -793,9 +794,10 @@ function summaryCreditRating(bond, isCorporate) {
 // securities, T-Bills and SDLs are not CRA-rated, so they always render the
 // neutral N/A credit-rating row instead of a corporate CRA rating.
 // Multiple ratings are preserved and each rating date is shown exactly as
-// published, so a historical rating is never presented as current.
+// published, so a historical rating is never presented as current. Never
+// throws: null/undefined bonds and non-array `credit_ratings` render N/A.
 function creditRatingItems(bond, isCorporate) {
-    const ratings = Array.isArray(bond.credit_ratings) ? bond.credit_ratings : [];
+    const ratings = (bond && Array.isArray(bond.credit_ratings)) ? bond.credit_ratings : [];
     const rows = isCorporate
         ? ratings.filter((r) => r && (
             r.credit_rating || r.credit_rating_agency_name

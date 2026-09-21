@@ -65,6 +65,11 @@ _IST = ZoneInfo("Asia/Kolkata")
 #: independently so a provider failure can never be hidden behind an empty list.
 BOND_SOURCES: tuple[str, ...] = ("CCIL", "NSE", "RBI")
 
+#: Business-day lookback for the default corporate dataset. When no explicit
+#: trade date is requested and the resolved date's CDSL reports yield no
+#: records, previous business days are checked in turn (most recent first).
+_CORPORATE_LATEST_LOOKBACK_DAYS = 7
+
 
 def _describe_source_error(exc: BaseException) -> str:
     """Return a meaningful message for a provider failure (type + detail)."""
@@ -537,6 +542,13 @@ class BondService:
         loaded only when a corporate endpoint explicitly requests it.
 
         ``trade_date`` defaults to the current Indian calendar date.
+
+        When no explicit trade date is given and the CDSL reports for the
+        resolved date contain no records (e.g. a report not yet published),
+        the most recent previous business date with records is used instead
+        (up to 7 business days back) so the corporate list does not stay
+        empty. Explicit trade dates always resolve to exactly the requested
+        date.
         """
         resolved = _resolve_corporate_trade_date(trade_date)
         
@@ -561,12 +573,75 @@ class BondService:
             logger.info("Using previous business date for non-business date: %s -> %s", resolved, previous_business_date)
             resolved = previous_business_date
 
+        # With no explicit date requested, fall back to the most recent
+        # previous business date that actually yields records (up to 7
+        # business days back). A missing/unpublished CDSL report must never
+        # leave the corporate list permanently empty.
+        if trade_date is None:
+            return await self._refresh_corporate_latest_available(resolved)
+
         cache_key = f"corporate:{resolved.isoformat()}"
         cached = self._cache.get(cache_key)
         if cached is not None:
             logger.debug("Corporate bond list cache hit (%s)", cache_key)
             return cached
 
+        return await self._fetch_corporate_for_date(resolved)
+
+    async def _refresh_corporate_latest_available(
+        self,
+        resolved: date,
+    ) -> list[Bond]:
+        """Return the most recent available corporate dataset.
+
+        Checks ``resolved`` first, then walks back over previous business
+        days (up to 7), returning the first result set that is non-empty.
+        Cache hits short-circuit the walk; each business date is still
+        served/cached under its own ``corporate:<date>`` key, and explicit
+        trade dates never fall back.
+        """
+        checked = resolved
+        for _ in range(_CORPORATE_LATEST_LOOKBACK_DAYS):
+            while checked.weekday() >= 5:
+                checked -= timedelta(days=1)
+            cached = self._cache.get(f"corporate:{checked.isoformat()}")
+            # Skip verified-empty datasets: nothing was published on that
+            # date, so keep walking back to the latest date with bonds.
+            # (An empty list is falsy; only non-empty datasets short-
+            # circuit the walk, since caching an [] would mean verified-
+            # empty and must be skipped too.)
+            if cached:
+                if checked != resolved:
+                    logger.info(
+                        "Corporate bonds served from latest available report: "
+                        "requested=%s served=%s",
+                        resolved.isoformat(),
+                        checked.isoformat(),
+                    )
+                return cached
+            fetched = await self._fetch_corporate_for_date(checked)
+            if fetched:
+                if checked != resolved:
+                    logger.info(
+                        "Corporate bonds served from latest available report: "
+                        "requested=%s served=%s",
+                        resolved.isoformat(),
+                        checked.isoformat(),
+                    )
+                return fetched
+            checked -= timedelta(days=1)
+        return []
+
+    async def _fetch_corporate_for_date(
+        self,
+        resolved: date,
+    ) -> list[Bond]:
+        """Fetch, normalize and cache the corporate dataset for one date.
+
+        Existing contract: only a date-verified, non-empty result set is
+        cached; failures and unverified dates retry on the next request.
+        """
+        cache_key = f"corporate:{resolved.isoformat()}"
         logger.info("Refreshing corporate bond data from CDSL for %s", resolved)
 
         cdsl = self._get_cdsl()
@@ -603,6 +678,7 @@ class BondService:
         )
 
         secondary_bonds: list[Bond] = []
+        mismatched_rows = 0
         for raw in secondary_raw:
             try:
                 bond = normalize_cdsl_corporate_secondary_record(raw)
@@ -614,6 +690,7 @@ class BondService:
                 # are exempt.) Mismatches are dropped so a stale/wrong-date
                 # scrape can never be served or cached under this date key.
                 if bond.trade_date != resolved:
+                    mismatched_rows += 1
                     logger.warning(
                         "Dropping CDSL secondary row with mismatched "
                         "trade_date: requested=%s actual=%s isin=%s",
@@ -663,10 +740,26 @@ class BondService:
         # Likewise never cache when neither report's date could be verified
         # (both live fetches failed): the data cannot be proven to belong
         # to the requested date, so caching it would poison the date key.
+        # Mismatched live rows (a wrong-date report sneaking past heading
+        # verification) prove the upstream report is not for this date: every
+        # row was dropped by date enforcement, so nothing may be cached under
+        # this date key and the latest-available lookup keeps walking back.
+        # This preserves the regression contract: a wrong-date report yields
+        # [] for the requested date and poisons neither date's cache.
+        if mismatched_rows and not consolidated:
+            logger.warning(
+                "CDSL served a wrong-date report for %s "
+                "(%d mismatched rows dropped); not caching",
+                resolved.isoformat(),
+                mismatched_rows,
+            )
+            return consolidated
+
         date_verified = secondary_ok or primary_ok
 
         # Both CDSL reports completed successfully but returned no records.
-        # Cache this verified empty result to avoid repeated browser launches.
+        # Cache this verified empty result to avoid repeated browser
+        # launches; the latest-available lookup keeps walking back past it.
         if not consolidated and secondary_ok and primary_ok:
             logger.info(
                 "CDSL returned no corporate bonds for %s; "
@@ -685,7 +778,7 @@ class BondService:
                 "at least one CDSL retrieval failed",
                 len(secondary_bonds), len(primary_bonds),
             )
-        return consolidated
+            return consolidated
         # If we reach here, there are consolidated results to cache.
         if not date_verified:
             logger.warning(
@@ -759,6 +852,13 @@ class BondService:
 
         Searches ONLY the corporate cached/live dataset; the government
         pipeline (``refresh_all_sources()``) is never invoked.
+
+        With no explicit trade date, the most recent available CDSL dataset
+        is searched (``refresh_corporate_sources(None)``), so bond selection
+        cannot miss a bond that exists in an earlier report. The per-ISIN
+        cache key below pins the resolved report date only when the caller
+        asked for a specific date; otherwise it resolves through the same
+        latest-available lookup.
         """
         resolved = _resolve_corporate_trade_date(trade_date)
         
@@ -776,16 +876,19 @@ class BondService:
                 previous_business_date,
             )
             resolved = previous_business_date
-        
-                    
+
         cache_key = (
             f"corporate-isin:{resolved.isoformat()}:{isin.strip().upper()}"
+            if trade_date is not None
+            else f"corporate-isin:latest:{isin.strip().upper()}"
         )
         cached = self._cache.get(cache_key)
         if cached is not None:
             return cached
 
-        all_corporate = await self.refresh_corporate_sources(resolved)
+        all_corporate = await self.refresh_corporate_sources(
+            resolved if trade_date is not None else None
+        )
         for bond in all_corporate:
             if bond.isin and bond.isin.upper() == isin.strip().upper():
                 self._cache.put(cache_key, bond)
