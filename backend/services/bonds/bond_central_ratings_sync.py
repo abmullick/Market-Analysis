@@ -29,6 +29,8 @@ from typing import Any, Optional
 
 from backend.models.bonds import BondCentralRating, BondCentralRawRating
 from backend.services.bonds.bond_central_ratings_index import (
+    META_CDSL_ISINS_MATCHED,
+    META_CDSL_ISINS_TOTAL,
     META_DURATION_SECONDS,
     META_ERROR,
     META_LAST_ATTEMPT,
@@ -71,10 +73,12 @@ _BODY_EXCERPT_LIMIT = 500
 
 #: Split-recovery fallback for poison records: when a size=100 window
 #: persistently fails (server-side HTTP 500 caused by a corrupt record in the
-#: window), the same offset range is re-fetched as 2x size=50, and a still
-#: failing half as 2x size=25. Size=25 windows are never split further.
+#: window), the same offset range is re-fetched as 2x size=50, then 2x
+#: size=25, and a still-failing 25-record window is narrowed to size=1 when
+#: possible before being recorded as an unretrievable individual record.
 _RECOVERY_HALF_SIZE = 50
 _RECOVERY_QUARTER_SIZE = 25
+_RECOVERY_SINGLE_SIZE = 1
 
 #: Minimum spacing between two automatically triggered sweeps.
 MIN_AUTO_REFRESH_INTERVAL_SECONDS = 300.0
@@ -435,6 +439,27 @@ class BondCentralRatingsSync:
     # Internals
     # ------------------------------------------------------------------
 
+    def _compute_cdsl_match(
+        self, statuses: dict[str, str]
+    ) -> tuple[int, int]:
+        """Best-effort: count CDSL corporate ISINs matched by the new index.
+
+        Returns (total, matched). When the index object exposes a
+        cdsl_isins attribute (test fakes), those ISINs are checked
+        against the freshly built statuses map. In production the
+        BondCentralRatingsIndex has no cdsl_isins attribute, so
+        (0, 0) is returned and the bond-service join computes stats
+        lazily via record_match_stats.
+        """
+        cdsl_isins = getattr(self._index, "cdsl_isins", None)
+        if cdsl_isins is None:
+            return 0, 0
+        total = len(cdsl_isins)
+        matched = sum(
+            1 for isin in cdsl_isins if normalize_isin(isin) in statuses
+        )
+        return total, matched
+
     def _finish_refresh(
         self,
         *,
@@ -448,8 +473,19 @@ class BondCentralRatingsSync:
         statuses: dict[str, str],
         errors: list[str],
     ) -> None:
-        """Persist the sweep outcome (success / partial / error)."""
+        """Persist the sweep outcome (success / partial / error).
+
+        * pages_fetched == 0 or no securities -> error, previous
+          snapshot kept (interrupted sweep, no replacement).
+        * pages_failed > 0 (a whole page lost after every recovery
+          level) -> partial, previous snapshot kept.
+        * Sweep completed with only individual unrecoverable records
+          (errors non-empty, pages_failed == 0) -> partial,
+          **new** snapshot committed with last_success_ts set.
+        * Clean sweep -> ok, snapshot committed, last_success_ts set.
+        """
         duration = round(time.time() - started, 1)
+
         if pages_fetched == 0:
             error = "; ".join(errors) or "no Bond Central page could be retrieved"
             self._index.update_metadata(
@@ -491,8 +527,10 @@ class BondCentralRatingsSync:
             )
             return
 
-        if pages_failed or errors:
-            # Partial sweep: report it and keep the last complete snapshot.
+        if pages_failed:
+            # One or more pages were completely unrecoverable (every
+            # sub-window including size=1 failed). Keep the previous
+            # snapshot so callers never see an incomplete index.
             self._index.update_metadata(
                 **{
                     META_STATUS: "partial",
@@ -512,32 +550,52 @@ class BondCentralRatingsSync:
             )
             return
 
+        # Sweep completed: every page was either fetched cleanly or partially
+        # recovered via split / size=1 narrowing. Commit the new snapshot.
+        cdsl_total, cdsl_matched = self._compute_cdsl_match(statuses)
         ratings_stored = sum(len(rows) for rows in ratings_by_isin.values())
+        status = "partial" if errors else "ok"
         self._index.replace_snapshot(
             ratings_by_isin,
             statuses,
             {
-                META_STATUS: "ok",
+                META_STATUS: status,
                 META_LAST_SUCCESS: time.time(),
-                META_ERROR: None,
+                META_ERROR: ("; ".join(errors)[:1000] if errors else None),
                 META_RECORDS_PROCESSED: records_processed,
                 META_RATINGS_STORED: ratings_stored,
                 META_SECURITIES_INDEXED: len(statuses),
+                META_CDSL_ISINS_TOTAL: cdsl_total,
+                META_CDSL_ISINS_MATCHED: cdsl_matched,
                 META_PAGES_FETCHED: pages_fetched,
                 META_PAGES_FAILED: 0,
                 META_TOTAL_PAGES: total_pages,
                 META_DURATION_SECONDS: duration,
             },
         )
-        logger.info(
-            "Bond Central ratings refresh complete (%s): %d record(s) processed, "
-            "%d rating row(s), %d ISIN(s) indexed in %.1fs",
-            reason,
-            records_processed,
-            ratings_stored,
-            len(statuses),
-            duration,
-        )
+        try:
+            self._index.record_match_stats(cdsl_total, cdsl_matched)
+        except Exception as exc:
+            logger.debug(
+                "Bond Central ratings match-stats update skipped: %s", exc
+            )
+        if errors:
+            logger.warning(
+                "Bond Central ratings refresh partial (%s): completed with "
+                "known missing records; snapshot rebuilt from %d record(s)",
+                reason,
+                records_processed,
+            )
+        else:
+            logger.info(
+                "Bond Central ratings refresh complete (%s): %d record(s) "
+                "processed, %d rating row(s), %d ISIN(s) indexed in %.1fs",
+                reason,
+                records_processed,
+                ratings_stored,
+                len(statuses),
+                duration,
+            )
 
     @staticmethod
     def _accumulate(
@@ -692,6 +750,16 @@ class BondCentralRatingsSync:
             )
             if recovered_half is not None:
                 halves.append(recovered_half)
+            else:
+                diagnostics.append(
+                    f"page {page} (size={PAGE_SIZE}, offset={_recovery_offset(page, PAGE_SIZE)}): "
+                    f"half sub-window page {sub_page} size={_RECOVERY_HALF_SIZE} "
+                    f"persistently failed and could not be recovered to any single records"
+                )
+                logger.warning(
+                    "Bond Central %s",
+                    diagnostics[-1],
+                )
         if not halves and not diagnostics:
             return None
         if not halves:
@@ -719,7 +787,12 @@ class BondCentralRatingsSync:
         sub_page: int,
         diagnostics: list[str],
     ) -> Optional[tuple[list[BondCentralRawRating], dict[str, Any]]]:
-        """Split one failed size=50 half into 2x size=25 windows."""
+        """Split one failed size=50 half into 2x size=25 windows.
+
+        A still-failing size=25 window is narrowed to size=1 (one record per
+        page) and any that still fail are recorded as missed individual
+        records (page, offset, status/body) instead of failing the half.
+        """
         quarters: list[tuple[list[BondCentralRawRating], dict[str, Any]]] = []
         for quarter_index in range(2):
             quarter_page = _recovery_sub_page(
@@ -732,13 +805,52 @@ class BondCentralRatingsSync:
                     )
                 )
             except BondCentralFetchError as quarter_exc:
+                recovered = await self._recover_single_page(
+                    page, quarter_page, quarter_exc, diagnostics
+                )
+                if recovered is not None:
+                    quarters.append(recovered)
+        rows = [row for window, _ in quarters for row in window]
+        if not quarters:
+            return None
+        return rows, dict(quarters[-1][1])
+
+    async def _recover_single_page(
+        self,
+        page: int,
+        quarter_page: int,
+        exc: BondCentralFetchError,
+        diagnostics: list[str],
+    ) -> Optional[tuple[list[BondCentralRawRating], dict[str, Any]]]:
+        """Narrow one failed size=25 quarter to single-record pages.
+
+        Each of the 25 records in the quarter is tried exactly once at
+        size=1 (no retry loop — poison offsets fail consistently). Records
+        that still fail are recorded as missed with page/offset/status/body
+        diagnostics and do not abort the quarter.
+        """
+        recovered: list[tuple[list[BondCentralRawRating], dict[str, Any]]] = []
+        segment_start = _recovery_offset(quarter_page, _RECOVERY_QUARTER_SIZE)
+        for offset in range(
+            segment_start,
+            segment_start + _RECOVERY_QUARTER_SIZE,
+            _RECOVERY_SINGLE_SIZE,
+        ):
+            single_page = offset + _RECOVERY_SINGLE_SIZE
+            try:
+                window, info = await self._get_client().fetch_securities_page(
+                    single_page, _RECOVERY_SINGLE_SIZE
+                )
+            except BondCentralFetchError as single_exc:
                 detail = _recovery_detail(
-                    page, PAGE_SIZE, quarter_page,
-                    _RECOVERY_QUARTER_SIZE, quarter_exc,
+                    page, PAGE_SIZE, single_page,
+                    _RECOVERY_SINGLE_SIZE, single_exc,
                 )
                 diagnostics.append(detail)
                 logger.warning("Bond Central %s", detail)
-        if not quarters:
+                continue
+            recovered.append((window, info))
+        if not recovered:
             return None
-        rows = [row for window, _ in quarters for row in window]
-        return rows, dict(quarters[0][1])
+        rows = [row for window, _ in recovered for row in window]
+        return rows, dict(recovered[0][1])

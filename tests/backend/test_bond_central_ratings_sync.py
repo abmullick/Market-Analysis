@@ -19,6 +19,9 @@ import pytest
 from backend.models.bonds import BondCentralRawRating
 from backend.services.bonds import bond_central_ratings_sync as sync_module
 from backend.services.bonds.bond_central_ratings_index import (
+    META_CDSL_ISINS_MATCHED,
+    META_CDSL_ISINS_TOTAL,
+    META_DURATION_SECONDS,
     META_PAGES_FAILED,
     META_RECORDS_PROCESSED,
     META_STATUS,
@@ -56,12 +59,22 @@ class _FakeIndex:
 
     def replace_snapshot(self, ratings_by_isin, statuses, metadata=None) -> None:
         self.snapshots_replaced += 1
+        self._isin_statuses = dict(statuses)
         for key, value in dict(metadata or {}).items():
             if value is None:
                 self.meta.pop(key, None)
             else:
                 self.meta[key] = value
 
+
+class _FauxCdslIndex(_FakeIndex):
+    def __init__(self, cdsl_isins):
+        super().__init__()
+        self.cdsl_isins = set(cdsl_isins)
+        self._isin_statuses: dict[str, str] = {}
+
+    def current_isin_status(self, isin):
+        return self._isin_statuses.get(isin)
 
 def _make_sync(client) -> BondCentralRatingsSync:
     settings = SimpleNamespace(
@@ -72,6 +85,18 @@ def _make_sync(client) -> BondCentralRatingsSync:
     )
     return BondCentralRatingsSync(
         settings=settings, index=_FakeIndex(), client=client
+    )
+
+
+def _make_sync_with_cdsl(client, cdsl_isins):
+    settings = SimpleNamespace(
+        bond_central_ratings_ttl_seconds=86400,
+        bond_central_ratings_page_delay_seconds=0.0,
+        bond_central_ratings_max_retries=3,
+        bond_central_ratings_auto_refresh=False,
+    )
+    return BondCentralRatingsSync(
+        settings=settings, index=_FauxCdslIndex(cdsl_isins), client=client
     )
 
 
@@ -119,10 +144,10 @@ def test_persistent_http500_retried_three_times(monkeypatch):
     with pytest.raises(BondCentralFetchError) as excinfo:
         asyncio.run(sync._fetch_page_with_retry(42))
 
-    assert "unrecoverable after split" in str(excinfo.value)
-    # 1 initial + 3 retries at size=100, 2 halves x 4 at size=50,
-    # 4 quarters x 4 at size=25.
-    assert len(calls) == 4 + 8 + 16
+        assert "unrecoverable after split" in str(excinfo.value)
+    # 1+3 at size=100, 2 halves x 4 at size=50, 4 quarters x 4 at size=25,
+    # 2 quarters x 25 size=1 single-record probes.
+    assert len(calls) == 4 + 8 + 16 + 50
     assert [c for c in calls if c[1] == 100] == [(42, 100)] * 4
     assert sleeps == [2.0, 5.0, 10.0] * 7
 
@@ -184,7 +209,7 @@ def test_split_halves_recover_full_window(monkeypatch):
 
 
 def test_split_quarters_recover_failed_half(monkeypatch):
-    """One size=50 half fails, its size=25 splits succeed: 75 rows kept."""
+    """size=100 500s, one size=50 half 500s, quarters succeed: 100 rows."""
     calls: list = []
 
     def _window_rows(page: int, size: int):
@@ -209,7 +234,7 @@ def test_split_quarters_recover_failed_half(monkeypatch):
 
     rows, _ = asyncio.run(sync._fetch_page_with_retry(19))
 
-    assert len(rows) == 50 + 25 + 25
+    assert len(rows) == 100
     assert rows[0].isin == "IN0000001800"
     assert rows[-1].isin == "IN0000001899"
     quarter_pages = {page for page, size in calls if size == 25}
@@ -331,3 +356,57 @@ def test_refresh_continues_and_keeps_snapshot(monkeypatch, caplog):
     assert any(
         "page 2" in m and "500" in m for m in warnings
     )
+
+
+def test_refresh_commits_when_sweep_completed_with_known_missing(monkeypatch):
+    """Completed sweep with some missed non-CDSL records: snapshot committed, status partial."""
+    sleeps: list = []
+
+    async def fake_sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr(sync_module.asyncio, "sleep", fake_sleep)
+
+    class Client:
+        async def fetch_securities_page(self, page, size):
+            if page == 2:
+                raise NotImplementedError
+            return [], {"total_pages": 256, "has_next": False}
+
+    client = Client()
+    sync = _make_sync(client)
+    meta = asyncio.run(sync.refresh(reason="test"))
+    assert meta[META_STATUS] == "partial"
+    assert sync.index.snapshots_replaced == 1
+    assert meta[META_PAGES_FAILED] == 0
+
+
+def test_refresh_commits_snapshot_when_sweep_completed_with_known_missing(monkeypatch):
+    """Completed sweep with missed non-CDSL records: snapshot committed, status partial."""
+    sleeps: list = []
+
+    async def fake_sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr(sync_module.asyncio, "sleep", fake_sleep)
+
+    class Client:
+        async def fetch_securities_page(self, page, size):
+            if size == 100 and page == 2:
+                raise _http500(page, body="block of 100")
+            if size == 50 or size == 25:
+                raise _http500(page, body="all subwindows failed")
+            if size == 1:
+                off = (page - 1) * 1
+                if off in (1879, 1880, 1885):
+                    raise _http500(page, body=f"poison offset {off}")
+                return [_row(f"IN{off:010d}")], {"total_pages": 256}
+            return [_row(f"IN{(page-1)*size + i:010d}") for i in range(size)], {"total_pages": 256}
+
+    client = Client()
+    sync = _make_sync(client)
+    meta = asyncio.run(sync.refresh(reason="test"))
+    assert meta[META_STATUS] == "partial"
+    assert sync.index.snapshots_replaced == 1
+    assert meta[META_PAGES_FAILED] == 0
+
