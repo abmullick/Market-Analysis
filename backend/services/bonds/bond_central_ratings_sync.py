@@ -15,7 +15,9 @@ The index is refreshed independently of bond list/detail requests:
 
 Failures are contained: HTTP errors, timeouts, invalid payloads and HTTP 429
 rate limiting are retried with backoff (honouring ``Retry-After``) and reported
-through the index metadata instead of raising into request handling.
+through the index metadata instead of raising into request handling. A
+persistently failing size=100 window is split into 2x size=50 (then 2x
+size=25) so server-side poison records cost only their own sub-window.
 """
 
 from __future__ import annotations
@@ -57,8 +59,22 @@ PAGE_SIZE = 100
 #: Safety bound on the sweep (the API reports ~25.5k records => ~256 pages).
 MAX_PAGES = 500
 
-_MAX_BACKOFF_SECONDS = 8.0
 _MAX_RETRY_AFTER_SECONDS = 30.0
+
+#: Per-page retry policy for transient failures (e.g. HTTP 500 on pages
+#: 19/42/200/209/239/253): at most 3 retries with exponential backoff.
+_MAX_PAGE_RETRIES = 3
+_RETRY_BACKOFF_SECONDS: tuple[float, ...] = (2.0, 5.0, 10.0)
+
+#: Max characters of a response body kept in persistent-failure diagnostics.
+_BODY_EXCERPT_LIMIT = 500
+
+#: Split-recovery fallback for poison records: when a size=100 window
+#: persistently fails (server-side HTTP 500 caused by a corrupt record in the
+#: window), the same offset range is re-fetched as 2x size=50, and a still
+#: failing half as 2x size=25. Size=25 windows are never split further.
+_RECOVERY_HALF_SIZE = 50
+_RECOVERY_QUARTER_SIZE = 25
 
 #: Minimum spacing between two automatically triggered sweeps.
 MIN_AUTO_REFRESH_INTERVAL_SECONDS = 300.0
@@ -86,6 +102,64 @@ def _has_rating_metadata(row: BondCentralRawRating) -> bool:
         or row.date_of_credit_rating
         or row.ratings_watch
         or row.ratings_outlook
+    )
+
+
+def _failure_status(exc: BaseException) -> Any:
+    """Best-effort HTTP status carried by a page-fetch failure."""
+    return getattr(exc, "status_code", "unknown")
+
+
+def _failure_body(exc: BaseException) -> str:
+    """Normalized body excerpt carried by a page-fetch failure."""
+    body = getattr(exc, "body_excerpt", None)
+    if body is None:
+        return "-"
+    text = " ".join(str(body).split())
+    excerpt = text[:_BODY_EXCERPT_LIMIT]
+    return excerpt or "-"
+
+
+def _failure_detail(page: int, exc: BaseException) -> str:
+    """Persistent-failure detail: page number, HTTP status and body excerpt."""
+    return (
+        f"page {page}: HTTP {_failure_status(exc)}: {exc}; "
+        f"body={_failure_body(exc)}"
+    )
+
+
+def _retry_delay_seconds(retry_index: int) -> float:
+    """Exponential backoff delay for a 0-based retry index (2s, 5s, 10s)."""
+    if retry_index < len(_RETRY_BACKOFF_SECONDS):
+        return _RETRY_BACKOFF_SECONDS[retry_index]
+    return _RETRY_BACKOFF_SECONDS[-1]
+
+
+def _recovery_sub_page(page: int, size: int, half_index: int) -> int:
+    """1-based sub-page covering half ``half_index`` (0/1) of a ``size`` window."""
+    half = size // 2
+    return (page - 1) * (size // half) + half_index + 1
+
+
+def _recovery_offset(page: int, size: int) -> int:
+    """0-based record offset of a (page, size) window."""
+    return (page - 1) * size
+
+
+def _recovery_detail(
+    page: int,
+    page_size: int,
+    sub_page: int,
+    sub_size: int,
+    exc: BaseException,
+) -> str:
+    """Diagnostic for an irretrievable sub-window of a split page."""
+    offset = _recovery_offset(sub_page, sub_size)
+    return (
+        f"page {page} (size={page_size}, offset={_recovery_offset(page, page_size)}): "
+        f"sub-window page {sub_page} size={sub_size} offset={offset} "
+        f"persistently failed: HTTP {_failure_status(exc)}: {exc}; "
+        f"body={_failure_body(exc)}"
     )
 
 
@@ -160,10 +234,19 @@ class BondCentralRatingsSync:
         try:
             return max(
                 0,
-                int(getattr(self._settings, "bond_central_ratings_max_retries", 3)),
+                min(
+                    int(
+                        getattr(
+                            self._settings,
+                            "bond_central_ratings_max_retries",
+                            _MAX_PAGE_RETRIES,
+                        )
+                    ),
+                    _MAX_PAGE_RETRIES,
+                ),
             )
         except (TypeError, ValueError):
-            return 3
+            return _MAX_PAGE_RETRIES
 
     @property
     def auto_refresh_enabled(self) -> bool:
@@ -283,9 +366,15 @@ class BondCentralRatingsSync:
                     rows, info = await self._fetch_page_with_retry(page)
                 except BondCentralFetchError as exc:
                     pages_failed += 1
-                    errors.append(f"page {page}: {exc}")
+                    detail = _failure_detail(page, exc)
+                    errors.append(detail)
                     logger.warning(
-                        "Bond Central ratings page %d failed: %s", page, exc
+                        "Bond Central ratings page %d failed "
+                        "(status=%s): %s; body=%s",
+                        page,
+                        _failure_status(exc),
+                        exc,
+                        _failure_body(exc),
                     )
                     if page == 1:
                         break
@@ -296,6 +385,16 @@ class BondCentralRatingsSync:
                 records_processed += len(rows)
                 if isinstance(info.get("total_pages"), int):
                     total_pages = info["total_pages"]
+                recovery_warning = info.get("_recovery_warnings")
+                if recovery_warning is not None:
+                    errors.append(
+                        f"page {page} partially recovered: {recovery_warning}"
+                    )
+                    logger.warning(
+                        "Bond Central ratings page %d partially recovered: %s",
+                        page,
+                        recovery_warning,
+                    )
                 self._accumulate(rows, ratings_by_isin, statuses, seen)
 
                 if not rows:
@@ -489,31 +588,157 @@ class BondCentralRatingsSync:
         self,
         page: int,
     ) -> tuple[list[BondCentralRawRating], dict[str, Any]]:
-        """Fetch one page, retrying rate limits and transient failures."""
+        """Fetch one page, retrying rate limits and transient failures.
+
+        At most 3 retries per page with exponential backoff (2s, 5s, 10s).
+        HTTP 500 and other fetch errors are retried; when the size=100
+        window still fails, it is split into 2x size=50 (and a failing half
+        into 2x size=25) so poison records cost only their own sub-window.
+        Callers keep sweeping later pages when a page still fails, and the
+        snapshot is replaced only when every page succeeded.
+        """
+        try:
+            return await self._fetch_one(page, PAGE_SIZE)
+        except BondCentralFetchError as exc:
+            if PAGE_SIZE == _RECOVERY_HALF_SIZE * 2:
+                recovered = await self._recover_split_page(page, exc)
+                if recovered is not None:
+                    return recovered
+            raise
+
+    async def _fetch_one(
+        self,
+        page: int,
+        size: int,
+    ) -> tuple[list[BondCentralRawRating], dict[str, Any]]:
+        """Fetch one (page, size) window with the existing retry policy."""
         attempts = self.max_retries
+        last_exc: Optional[BondCentralFetchError] = None
         for attempt in range(attempts + 1):
             try:
                 return await self._get_client().fetch_securities_page(
-                    page, PAGE_SIZE
+                    page, size
                 )
             except BondCentralRateLimited as exc:
+                last_exc = exc
                 if attempt >= attempts:
-                    raise
+                    break
                 delay = (
                     exc.retry_after
                     if exc.retry_after
-                    else min(2.0 ** attempt, _MAX_BACKOFF_SECONDS)
+                    else _retry_delay_seconds(attempt)
                 )
                 delay = min(max(float(delay), 0.0), _MAX_RETRY_AFTER_SECONDS)
                 logger.info(
-                    "Bond Central rate limited on page %d; retrying in %.1fs",
+                    "Bond Central rate limited on page %d size=%d; "
+                    "retrying in %.1fs (attempt %d/%d)",
                     page,
+                    size,
                     delay,
+                    attempt + 1,
+                    attempts,
                 )
                 await asyncio.sleep(delay)
-            except BondCentralFetchError:
+            except BondCentralFetchError as exc:
+                last_exc = exc
                 if attempt >= attempts:
-                    raise
-                await asyncio.sleep(min(2.0 ** attempt, _MAX_BACKOFF_SECONDS))
+                    break
+                delay = _retry_delay_seconds(attempt)
+                logger.info(
+                    "Bond Central page %d size=%d failed (status=%s): %s; "
+                    "retrying in %.1fs (attempt %d/%d)",
+                    page,
+                    size,
+                    _failure_status(exc),
+                    exc,
+                    delay,
+                    attempt + 1,
+                    attempts,
+                )
+                await asyncio.sleep(delay)
 
-        raise BondCentralFetchError(f"page {page}: retries exhausted")
+        if last_exc is not None:
+            raise last_exc
+        raise BondCentralFetchError(
+            f"page {page} size={size}: retries exhausted"
+        )
+
+    async def _recover_split_page(
+        self,
+        page: int,
+        exc: BondCentralFetchError,
+    ) -> Optional[tuple[list[BondCentralRawRating], dict[str, Any]]]:
+        """Split a persistently failed size=100 window into smaller reads."""
+        logger.info(
+            "Bond Central page %d failed persistently (status=%s); "
+            "splitting into 2x size=%d",
+            page,
+            _failure_status(exc),
+            _RECOVERY_HALF_SIZE,
+        )
+        halves: list[tuple[list[BondCentralRawRating], dict[str, Any]]] = []
+        diagnostics: list[str] = []
+        for half_index in range(2):
+            sub_page = _recovery_sub_page(page, PAGE_SIZE, half_index)
+            try:
+                halves.append(
+                    await self._fetch_one(sub_page, _RECOVERY_HALF_SIZE)
+                )
+                continue
+            except BondCentralFetchError:
+                pass
+            recovered_half = await self._recover_half_page(
+                page, sub_page, diagnostics
+            )
+            if recovered_half is not None:
+                halves.append(recovered_half)
+        if not halves and not diagnostics:
+            return None
+        if not halves:
+            raise BondCentralFetchError(
+                f"page {page}: unrecoverable after split; "
+                + "; ".join(diagnostics),
+                status_code=_failure_status(exc),
+                body_excerpt=getattr(exc, "body_excerpt", None),
+            ) from exc
+        rows = [row for window, _ in halves for row in window]
+        info = dict(halves[0][1])
+        if diagnostics:
+            chained: Any = BondCentralFetchError(
+                "; ".join(diagnostics),
+                status_code=_failure_status(exc),
+                body_excerpt=getattr(exc, "body_excerpt", None),
+            )
+            chained.__cause__ = exc
+            info["_recovery_warnings"] = chained
+        return rows, info
+
+    async def _recover_half_page(
+        self,
+        page: int,
+        sub_page: int,
+        diagnostics: list[str],
+    ) -> Optional[tuple[list[BondCentralRawRating], dict[str, Any]]]:
+        """Split one failed size=50 half into 2x size=25 windows."""
+        quarters: list[tuple[list[BondCentralRawRating], dict[str, Any]]] = []
+        for quarter_index in range(2):
+            quarter_page = _recovery_sub_page(
+                sub_page, _RECOVERY_HALF_SIZE, quarter_index
+            )
+            try:
+                quarters.append(
+                    await self._fetch_one(
+                        quarter_page, _RECOVERY_QUARTER_SIZE
+                    )
+                )
+            except BondCentralFetchError as quarter_exc:
+                detail = _recovery_detail(
+                    page, PAGE_SIZE, quarter_page,
+                    _RECOVERY_QUARTER_SIZE, quarter_exc,
+                )
+                diagnostics.append(detail)
+                logger.warning("Bond Central %s", detail)
+        if not quarters:
+            return None
+        rows = [row for window, _ in quarters for row in window]
+        return rows, dict(quarters[0][1])

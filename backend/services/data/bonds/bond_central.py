@@ -139,13 +139,55 @@ def _security_payload(row: dict) -> dict:
 class BondCentralFetchError(RuntimeError):
     """Raised when a Bond Central securities page cannot be retrieved."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: Any = None,
+        body_excerpt: Any = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.body_excerpt = body_excerpt
+
 
 class BondCentralRateLimited(BondCentralFetchError):
     """Raised when Bond Central throttles the client (HTTP 429)."""
 
-    def __init__(self, message: str, retry_after: Optional[float] = None) -> None:
-        super().__init__(message)
+    def __init__(
+        self,
+        message: str,
+        retry_after: Optional[float] = None,
+        *,
+        status_code: Any = 429,
+        body_excerpt: Any = None,
+    ) -> None:
+        super().__init__(
+            message, status_code=status_code, body_excerpt=body_excerpt
+        )
         self.retry_after = retry_after
+
+
+def _body_excerpt(response: Any, limit: int = 500) -> Optional[str]:
+    """Best-effort excerpt of an HTTP response body for diagnostics."""
+    if response is None:
+        return None
+    try:
+        body: Any = getattr(response, "text", None)
+        if not isinstance(body, str):
+            content = getattr(response, "content", None)
+            if isinstance(content, (bytes, bytearray)):
+                body = bytes(content).decode("utf-8", errors="replace")
+            elif content is not None:
+                body = str(content)
+            else:
+                return None
+        if not body:
+            return None
+        excerpt = " ".join(str(body).split())
+        return excerpt[:limit] or None
+    except Exception:
+        return None
 
 
 def _retry_after_seconds(response: Any) -> Optional[float]:
@@ -360,6 +402,7 @@ class BondCentralClient:
                 raise BondCentralRateLimited(
                     "Bond Central rate limit (HTTP 429)",
                     _retry_after_seconds(response),
+                    body_excerpt=_body_excerpt(response),
                 )
             response.raise_for_status()
             payload = response.json()
@@ -369,7 +412,11 @@ class BondCentralClient:
             raise BondCentralFetchError(f"timeout after {self._timeout}s: {exc}") from exc
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code if exc.response is not None else "error"
-            raise BondCentralFetchError(f"HTTP {status}") from exc
+            raise BondCentralFetchError(
+                f"HTTP {status} for page {page}",
+                status_code=status,
+                body_excerpt=_body_excerpt(exc.response),
+            ) from exc
         except httpx.HTTPError as exc:
             raise BondCentralFetchError(f"request failed: {exc}") from exc
         except ValueError as exc:
