@@ -711,6 +711,15 @@ button.ba-bond-item:focus-visible {
     min-width: 0;
 }
 
+/* Record IDs are opaque identifiers (pipe-delimited digests) that must wrap
+   in full inside list rows and summary chips rather than overflow. */
+.ba-bond-meta-record {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
 .ba-bond-item-inert .ba-bond-meta-isin {
     color: var(--ba-ink-muted);
 }
@@ -1200,6 +1209,10 @@ body[data-page="bond-analysis"] .pb-spinner {
     display: none;
 }
 
+.ba-section-body.expanded {
+    display: block;
+}
+
 .ba-section-sub {
     font-size: 0.8rem;
     line-height: 1.6;
@@ -1241,6 +1254,12 @@ body[data-page="bond-analysis"] .pb-spinner {
     border-radius: var(--ba-radius-pill);
     padding: 3px 10px;
     max-width: 100%;
+}
+
+.ba-multiselect-option-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .ba-bond-meta-chip .ba-bond-meta-isin {
