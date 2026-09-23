@@ -1,877 +1,912 @@
-/* ==========================================================================
-   Bond Analysis — feature styles.
-   Uses the SAME visual system as Mutual Fund Portfolio Builder: same tokens
-   (base.css variables), same card language (pb-* classes), same tooltip
-   pattern (.tooltip-trigger). Only bond-specific layout glue lives here.
-   ========================================================================== */
+/* ===========================================================================
+ * Bond Analysis — single source of truth for the page (frontend/html/bond-analysis.html)
+ * ---------------------------------------------------------------------------
+ * Loaded ONLY by the Bond Analysis page, so the shared-shell classes it uses
+ * (.pb-panel, .container, .hidden, …) may be tuned here without affecting any
+ * other page.
+ *
+ * Sections:
+ *   1. Design tokens
+ *   2. Page shell & two-column research layout
+ *   3. Discovery column — filters & result list
+ *   4. Bond result rows
+ *   5. Pagination, empty / loading / error states, data sources
+ *   6. Detail column — sections, summary metrics, analytics, cash flows
+ *   7. Tooltips
+ *   8. Responsive & motion
+ * ========================================================================= */
 
-/* ---- Bond selector (mirrors .pfs-search-bar / .pfs-filter-select) ------- */
-.ba-search-bar {
-    position: relative;
-    display: flex;
-    align-items: center;
-
-    background: #ffffff;
-    border: 1px solid rgba(148, 163, 184, 0.26);
-    border-radius: var(--radius-lg);
-    padding: 0 16px;
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+/* ---------------------------------------------------------------------------
+ * 1. Design tokens
+ * ------------------------------------------------------------------------ */
+body[data-page="bond-analysis"] {
+    /* Surfaces */
+    --ba-page: #eef1f6;
+    --ba-surface: #ffffff;
+    --ba-surface-muted: #f6f8fb;
+    --ba-surface-sunken: #f1f4f9;
+    /* Lines */
+    --ba-border: #d9e0ea;
+    --ba-border-strong: #c3cddb;
+    --ba-divider: #e6ebf2;
+    /* Text */
+    --ba-ink: #101828;
+    --ba-ink-soft: #3d4c63;
+    --ba-ink-muted: #67758c;
+    --ba-ink-subtle: #8b98ad;
+    /* One restrained accent (controls, links, focus) */
+    --ba-accent: #1e5aa8;
+    --ba-accent-strong: #16467d;
+    --ba-accent-soft: #eef4fc;
+    /* Muted gold — fixed-income emphasis only */
+    --ba-gold: #a97b1a;
+    --ba-gold-strong: #8a6412;
+    --ba-gold-soft: #fdf7e7;
+    /* Semantic — green: healthy, red: warning/error only */
+    --ba-green: #0f7b4f;
+    --ba-green-soft: #eaf7f0;
+    --ba-red: #b3261e;
+    --ba-red-soft: #fdf0ef;
+    /* Shape & depth — restrained */
+    --ba-radius: 10px;
+    --ba-radius-sm: 7px;
+    --ba-radius-pill: 999px;
+    --ba-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --ba-shadow-md: 0 1px 3px rgba(16, 24, 40, 0.07), 0 6px 16px -8px rgba(16, 24, 40, 0.14);
+    --ba-ring: 0 0 0 3px rgba(30, 90, 168, 0.18);
+    --ba-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
-.ba-search-bar:focus-within {
-    border-color: rgba(30, 58, 95, 0.4);
-    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12), 0 2px 6px rgba(15, 23, 42, 0.05);
+body[data-page="bond-analysis"] {
+    background: var(--ba-page);
+    color: var(--ba-ink-soft);
 }
 
-.ba-search-icon {
-    width: 20px;
-    height: 20px;
-    color: var(--color-slate-400);
-    flex-shrink: 0;
-    margin-right: 12px;
+/* ---------------------------------------------------------------------------
+ * 2. Page shell & two-column research layout
+ * ------------------------------------------------------------------------ */
+.ba-page-head {
+    padding: 4px 0 14px;
 }
 
-.ba-search-input {
-    flex: 1;
-    border: none;
-    background: transparent;
-    padding: 14px 0;
-    font-size: 1rem;
-    font-family: var(--font-family);
-    font-weight: 500;
-    color: var(--color-primary);
-    outline: none;
+.mf-page-title {
+    font-size: 1.85rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+    color: var(--ba-ink);
+}
+
+.mf-page-subtitle {
+    margin-top: 5px;
+    font-size: 0.9rem;
+    color: var(--ba-ink-muted);
+    max-width: 78ch;
+}
+
+.pb-stage {
+    padding-bottom: 8px;
+}
+
+/* One application, two working areas: discovery (left) + detail (right). */
+.ba-workspace {
+    display: grid;
+    grid-template-columns: minmax(330px, 37%) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.ba-selector-column,
+.ba-analysis-column {
     min-width: 0;
 }
 
-.ba-search-input::placeholder {
-    color: var(--color-slate-400);
-    font-weight: 400;
-}
-
-.ba-filter-select {
-    margin-left: 10px;
-    padding: 8px 14px;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    border-radius: var(--radius-pill);
-    background: var(--color-bg);
-    color: var(--color-text);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    font-family: var(--font-family);
-    min-width: 96px;
-    cursor: pointer;
-    outline: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.ba-filter-select:focus {
-    border-color: rgba(30, 58, 95, 0.4);
-    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
-}
-
-.ba-filter-select:hover {
-    border-color: rgba(148, 163, 184, 0.5);
-    background: #ffffff;
-}
-
-/* Bond category accent — the landing-card gold, used only as the card
-   border-left accent so the page still belongs to the shared system. */
-.ba-card-gold {
-    border-left-color: var(--color-gold-500);
-}
-
-/* ---- Bond result list (mirrors .pfs-fund-card rows) --------------------- */
-.ba-bond-list {
-    list-style: none;
+.ba-analysis-column {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin: 16px 0 0;
-    padding: 0;
 }
 
-.ba-bond-item {
+/* Shared panel shell used by the discovery column. */
+body[data-page="bond-analysis"] .pb-panel {
+    background: var(--ba-surface);
+    border: 1px solid var(--ba-border);
+    border-radius: var(--ba-radius);
+    box-shadow: var(--ba-shadow-sm);
+    overflow: hidden;
+}
+
+body[data-page="bond-analysis"] .pb-panel-header {
+    background: var(--ba-surface-muted);
+    border-bottom: 1px solid var(--ba-divider);
+    padding: 12px 14px;
+}
+
+body[data-page="bond-analysis"] .pb-panel-title {
+    font-size: 0.95rem;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    color: var(--ba-ink);
+}
+
+body[data-page="bond-analysis"] .pb-count {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--ba-ink-muted);
+    background: var(--ba-surface-sunken);
+    border: 1px solid var(--ba-border);
+    border-radius: var(--ba-radius-pill);
+    padding: 3px 9px;
+}
+
+.ba-panel-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 12px 16px;
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease;
-    text-align: left;
-    width: 100%;
-    font-family: var(--font-family);
-}
-
-.ba-bond-item[aria-disabled="true"] {
-    cursor: default;
-    opacity: 0.62;
-}
-
-.ba-bond-item:hover {
-    border-color: rgba(37, 99, 235, 0.3);
-    background: #ffffff;
-}
-
-.ba-bond-item.selected {
-    border-color: var(--color-gold-600);
-    background: var(--color-gold-50);
-}
-
-.ba-bond-info {
-    min-width: 0;
-    flex: 1;
-}
-
-.ba-bond-name {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--color-primary);
-    line-height: 1.4;
-    overflow-wrap: break-word;
-}
-
-.ba-bond-meta {
-    display: flex;
-    flex-wrap: wrap;
     gap: 10px;
-    margin-top: 3px;
-    font-size: 0.75rem;
-    color: var(--color-text-light);
+    flex-wrap: wrap;
 }
 
-.ba-bond-meta-isin {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: var(--color-slate-400);
-}
-
-.ba-bond-yield {
-    flex-shrink: 0;
-    font-size: 0.875rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-/* ---- Summary card field grid -------------------------------------------- */
-.ba-detail-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px 24px;
-    margin-top: 16px;
-}
-
-.ba-detail-item {
-    min-width: 0;
-    padding: 10px 12px;
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-}
-
-.ba-detail-label {
-    display: block;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-text-light);
-    margin-bottom: 2px;
-}
-
-.ba-detail-value {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--color-primary);
-    overflow-wrap: break-word;
-    font-variant-numeric: tabular-nums;
-}
-
-.ba-detail-value.ba-value-mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.875rem;
-}
-
-/* ---- KPI cards ----------------------------------------------------------- */
-.ba-kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 12px;
-    margin-top: 16px;
-}
-
-.ba-kpi {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    padding: 12px;
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-}
-
-.ba-kpi-value {
-    font-size: 1.0625rem;
-    font-weight: 700;
-    line-height: 1.25;
-    color: var(--color-primary);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-.ba-kpi-value.is-muted {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--color-text-light);
-}
-
-.ba-kpi-label {
-    display: inline-flex;
-    align-items: center;
-    font-size: 0.6875rem;
-    font-weight: 500;
-    color: var(--color-text-light);
-    line-height: 1.3;
-}
-
-/* ---- Cash-flow table (application table treatment) ---------------------- */
-.ba-table-wrap {
-    margin-top: 16px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
-.ba-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.875rem;
-}
-
-.ba-table th {
-    text-align: left;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-text-light);
-    background: var(--color-slate-100);
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--color-border);
-    white-space: nowrap;
-}
-
-.ba-table td {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--color-border);
-    color: var(--color-text);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-.ba-table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.ba-table .ba-num {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-}
-
-/* ---- Calculation notes --------------------------------------------------- */
-.ba-notes {
-    margin: 12px 0 0;
-    padding-left: 20px;
-    font-size: 0.8125rem;
-    color: var(--color-text-light);
-}
-
-.ba-notes li {
-    margin-bottom: 4px;
-}
-
-/* ---- Section subtitle inside pb-panel / pb-section-card ------------------ */
-.ba-section-sub {
-    font-size: 0.8125rem;
-    color: var(--color-text-light);
-}
-
-/* ---- Data-source indicator ---------------------------------------------- */
-.ba-source-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    line-height: 1;
-    padding: 4px 10px;
-    border-radius: var(--radius-pill);
-    background: var(--color-slate-100);
-    border: 1px solid var(--color-border);
-    color: var(--color-slate-600);
-    white-space: nowrap;
-}
-
-.ba-source-badge.is-traded {
-    background: var(--color-green-50);
-    border-color: var(--color-green-500);
-    color: var(--color-green-700);
-}
-
-.ba-source-badge.is-stale {
-    background: var(--color-amber-50);
-    border-color: var(--color-gold-600);
-    color: var(--color-gold-700);
-}
-
-/* ---- Empty / no-results state (mirrors .pfs-empty-state) ----------------- */
-.ba-empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 48px 24px;
-    text-align: center;
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    border-radius: var(--radius-lg);
-    background: linear-gradient(180deg, #f9fbfe 0%, #f3f7fc 100%);
-}
-
-.ba-empty-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 56px;
-    height: 56px;
-    color: #1e3a5f;
-    background: rgba(30, 58, 95, 0.08);
-    border-radius: 50%;
-    margin-bottom: 16px;
-}
-
-.ba-empty-icon svg {
-    width: 26px;
-    height: 26px;
-}
-
-.ba-empty-state h3 {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--color-primary);
-    margin-bottom: 8px;
-}
-
-.ba-empty-state p {
-    color: var(--color-text-light);
-    max-width: 360px;
-    line-height: 1.6;
-}
-
-/* ---- Results toggle button (secondary, matches .pfs-btn-add family) ----- */
-.ba-btn-secondary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    height: 36px;
-    padding: 0 16px;
-    border-radius: var(--radius-pill);
-    font-size: 0.875rem;
-    font-weight: 500;
-    font-family: var(--font-family);
-    background: #1e3a5f;
-    color: #ffffff;
-    border: none;
-    cursor: pointer;
-    transition: background 0.2s ease, box-shadow 0.2s ease;
-    box-shadow: var(--btn-shadow);
-}
-
-.ba-btn-secondary:hover {
-    background: #2a4a75;
-    box-shadow: var(--btn-shadow-hover);
-}
-
-/* ---- Page surface (subtle differentiation from the app default) -------------- */
-/* Kept deliberately muted: still the same palette, just a touch more presence
-   so the page doesn't feel washed out. No new colors introduced. */
-body[data-page="bond-analysis"] {
-    background:
-        radial-gradient(120% 80% at 50% 0%, rgba(30, 58, 95, 0.04), rgba(30, 58, 95, 0.015) 60%, transparent 100%),
-        linear-gradient(180deg, #fbfcff 0%, #f6f9fe 100%);
-}
-
-/* Thin gold accent under the page header so the page reads as "Bond" without
-   introducing a separate visual language. */
-body[data-page="bond-analysis"] > header.site-header {
-    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-}
-
-/* ---- Selector toolbar surface (functional area differentiation) ------------ */
-.ba-panel-head {
-    background: linear-gradient(180deg, #fbfdff 0%, #f4f8fe 100%);
-    border-bottom: 1px solid rgba(30, 58, 95, 0.14);
-}
-
-.ba-panel-head::after {
-    content: "";
-    display: block;
-    height: 3px;
-    margin: 0 0 0 auto;
-    background: linear-gradient(90deg, var(--color-gold-500), rgba(212, 175, 55, 0.0));
-    opacity: 0.85;
-    width: 120px;
-    border-radius: 3px;
-}
-
-.ba-toolbar {
-    background: #ffffff;
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    border-radius: var(--radius-md);
-    padding: 8px 14px;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
-}
-
-/* Section header hierarchy — slightly stronger contrast than the palette base */
-.ba-panel-head .pb-panel-title,
-.ba-card-head .pb-panel-title {
-    color: #1e3a5f;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-}
-
-/* Sort/filter tool labels — same for all controls, subtle but legible */
-.ba-tool-label {
-    display: inline-flex;
-    align-items: center;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--color-text);
-    margin-right: 8px;
-    white-space: nowrap;
-}
-
-/* Sort-by select + direction button — compact pill row, aligned with filter chips */
 .ba-header-tools {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
     gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ba-discovery {
+    display: flex;
+    flex-direction: column;
+}
+
+.ba-discovery > * {
+    padding-left: 14px;
+    padding-right: 14px;
+}
+
+.ba-discovery > .pb-panel-header {
+    padding-left: 14px;
+    padding-right: 14px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 3. Discovery column — universe switch, filters, toolbar
+ * ------------------------------------------------------------------------ */
+
+/* Universe switch: primary navigation — reads as a segmented control, both
+   options are always enabled and visually equal until one is active. */
+.ba-universe-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin: 12px 14px 0;
+    padding: 4px;
+    background: var(--ba-surface-sunken);
+    border: 1px solid var(--ba-border);
+    border-radius: var(--ba-radius-sm);
+}
+
+.ba-universe-btn {
+    appearance: none;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--ba-ink-soft);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.ba-universe-btn:hover {
+    background: var(--ba-surface);
+    color: var(--ba-ink);
+}
+
+.ba-universe-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--ba-ring);
+}
+
+.ba-universe-btn.is-active {
+    background: var(--ba-surface);
+    border-color: var(--ba-border-strong);
+    color: var(--ba-accent-strong);
+    box-shadow: var(--ba-shadow-sm);
+}
+
+.ba-toolbar {
+    margin-top: 12px;
+}
+
+.ba-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    background: var(--ba-surface);
+    border: 1px solid var(--ba-border-strong);
+    border-radius: var(--ba-radius-sm);
+    padding: 6px 8px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ba-search-bar:focus-within {
+    border-color: var(--ba-accent);
+    box-shadow: var(--ba-ring);
+}
+
+.ba-search-icon {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 auto;
+    color: var(--ba-ink-subtle);
+}
+
+.ba-search-input {
+    flex: 1 1 130px;
+    min-width: 110px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 0.86rem;
+    color: var(--ba-ink);
+    padding: 4px 0;
+}
+
+.ba-search-input::placeholder {
+    color: var(--ba-ink-subtle);
+}
+
+.ba-filter-select,
+.ba-filter-input {
+    font-family: inherit;
+    font-size: 0.82rem;
+    color: var(--ba-ink);
+    background: var(--ba-surface-muted);
+    border: 1px solid var(--ba-border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    max-width: 100%;
+}
+
+.ba-filter-select:hover,
+.ba-filter-input:hover {
+    border-color: var(--ba-border-strong);
+}
+
+.ba-filter-select:focus-visible,
+.ba-filter-input:focus-visible {
+    outline: none;
+    border-color: var(--ba-accent);
+    box-shadow: var(--ba-ring);
 }
 
 .ba-sort-select {
-    min-width: 150px;
+    min-width: 132px;
+}
+
+.ba-list-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 10px;
+}
+
+.ba-tool-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ba-ink-muted);
+    white-space: nowrap;
 }
 
 .ba-sort-dir {
+    appearance: none;
+    width: 30px;
+    height: 30px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-pill);
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    background: #ffffff;
-    color: #1e3a5f;
-    font-size: 0.9375rem;
-    font-weight: 600;
+    border: 1px solid var(--ba-border);
+    border-radius: 6px;
+    background: var(--ba-surface-muted);
+    color: var(--ba-ink-soft);
+    font-size: 0.85rem;
+    font-weight: 700;
     cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-    padding: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .ba-sort-dir:hover {
-    border-color: rgba(30, 58, 95, 0.45);
-    background: #f4f8fe;
+    border-color: var(--ba-accent);
+    color: var(--ba-accent-strong);
+    background: var(--ba-accent-soft);
 }
 
 .ba-sort-dir:focus-visible {
     outline: none;
-    border-color: rgba(30, 58, 95, 0.45);
-    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.14);
+    box-shadow: var(--ba-ring);
 }
 
-/* Range chip — shows "Showing 1-15 of 78" beside the result-count chip */
 .ba-range-chip {
-    display: inline-block;
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--ba-ink-muted);
+}
+
+/* Advanced filters: one compact disclosure, grouped fields, explicit apply. */
+.ba-range-panel {
+    margin-top: 10px;
+    border: 1px solid var(--ba-border);
+    border-radius: var(--ba-radius-sm);
+    background: var(--ba-surface-muted);
+}
+
+.ba-range-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 12px;
+    cursor: pointer;
+    list-style: none;
+    border-radius: var(--ba-radius-sm);
+}
+
+.ba-range-summary::-webkit-details-marker {
+    display: none;
+}
+
+.ba-range-summary:hover {
+    background: var(--ba-surface);
+}
+
+.ba-range-summary:focus-visible {
+    outline: none;
+    box-shadow: var(--ba-ring);
+}
+
+.ba-range-titlewrap {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
     min-width: 0;
-    padding: 6px 10px;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--color-text);
-    background: rgba(30, 58, 95, 0.05);
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    border-radius: var(--radius-pill);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.4;
 }
 
-/* Keep the sort-by select slightly wider so "Instrument Type" fits cleanly */
-.ba-sort-select {
-    min-width: 158px;
+.ba-range-title {
+    font-size: 0.84rem;
+    font-weight: 650;
+    color: var(--ba-ink);
 }
 
-/* Compact, clear selected-row state — erase default button chrome so the row
-   reads as a tinted list item, with a gold left edge to anchor the selection. */
-.ba-bond-item {
-    border-left: 3px solid transparent;
-    background-clip: padding-box;
+.ba-range-subtitle {
+    font-size: 0.72rem;
+    color: var(--ba-ink-muted);
 }
 
-.ba-bond-item.selected {
-    border-left-color: var(--color-gold-600);
-    border-color: var(--color-gold-500);
-    background: var(--color-gold-50);
-    box-shadow: 0 0 0 1px var(--color-gold-100) inset;
+.ba-range-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    color: var(--ba-ink-muted);
 }
 
-.ba-filter-select:hover {
-    border-color: rgba(30, 58, 95, 0.45);
-    background: #f4f8fe;
+.ba-range-caret {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.18s ease;
 }
 
-.ba-filter-select:focus {
-    border-color: rgba(30, 58, 95, 0.5);
-    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.14);
+.ba-range-panel[open] .ba-range-caret {
+    transform: rotate(180deg);
 }
 
-/* Compact, clear selected-row state */
-.ba-bond-item.selected {
-    border-color: var(--color-gold-600);
-    background: var(--color-gold-50);
-    box-shadow: 0 0 0 1px var(--color-gold-100) inset;
+.ba-range-content {
+    padding: 4px 12px 12px;
+    border-top: 1px solid var(--ba-divider);
+    background: var(--ba-surface);
 }
 
-.ba-bond-item.selected .ba-bond-yield {
-    color: var(--color-gold-700);
+.ba-range-group {
+    border: none;
+    margin: 0 0 10px;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--ba-divider);
 }
 
-/* Yield prominence — restrained but clearly the key figure on each row */
-.ba-bond-yield {
-    font-size: 1rem;
+.ba-range-group:first-of-type {
+    border-top: none;
+}
+
+.ba-range-group legend {
+    font-size: 0.7rem;
     font-weight: 700;
-    color: var(--color-primary);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-    flex-shrink: 0;
-    padding: 0 10px;
-    line-height: 1.4;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ba-ink-muted);
+    padding: 0;
+    margin-bottom: 8px;
 }
 
-.ba-bond-item:hover .ba-bond-yield,
-.ba-bond-item:focus-visible .ba-bond-yield {
-    color: var(--color-accent, #0ea5e9);
+.ba-range-values {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
 }
 
-.ba-bond-item[aria-disabled="true"] .ba-bond-yield {
-    color: var(--color-text-light);
+.ba-range-values output {
+    font-family: var(--ba-mono);
+    font-size: 0.74rem;
     font-weight: 600;
+    color: var(--ba-ink);
 }
 
-/* Row name hierarchy — stronger than meta, softer than yield */
-.ba-bond-name {
-    font-size: 0.9375rem;
+.ba-range-slider {
+    display: grid;
+    grid-template-columns: 118px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.ba-range-slider label {
+    font-size: 0.76rem;
+    color: var(--ba-ink-muted);
+}
+
+.ba-range-slider input[type="range"] {
+    width: 100%;
+    accent-color: var(--ba-accent);
+}
+
+.ba-slider-scale {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: calc(100% - 126px);
+    margin: 2px 0 8px 126px;
+    color: var(--ba-ink-subtle);
+    font-size: 9.5px;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.ba-slider-scale span {
+    white-space: nowrap;
+}
+
+.ba-date-range {
+    display: grid;
+    grid-template-columns: 118px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+}
+
+.ba-date-range label {
+    font-size: 0.76rem;
+    color: var(--ba-ink-muted);
+}
+
+.ba-corporate-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+    padding: 10px 0 2px;
+    border-top: 1px solid var(--ba-divider);
+}
+
+.ba-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.ba-credit-rating-label {
+    display: block;
+}
+
+.ba-range-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--ba-divider);
+}
+
+/* Apply carries the primary action weight; Reset stays secondary. */
+.ba-primary-btn,
+body[data-page="bond-analysis"] .ba-primary-btn {
+    background: var(--ba-accent);
+    border-color: var(--ba-accent);
+    color: #ffffff;
+    font-weight: 650;
+}
+
+.ba-primary-btn:hover {
+    background: var(--ba-accent-strong);
+    border-color: var(--ba-accent-strong);
+    color: #ffffff;
+}
+
+.ba-primary-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--ba-ring);
+}
+
+body[data-page="bond-analysis"] .ba-page-btn {
+    appearance: none;
+    font-family: inherit;
+    font-size: 0.8rem;
     font-weight: 600;
-    color: var(--color-primary);
-    letter-spacing: -0.01em;
-    line-height: 1.35;
+    color: var(--ba-ink-soft);
+    background: var(--ba-surface);
+    border: 1px solid var(--ba-border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+body[data-page="bond-analysis"] .ba-page-btn:hover:not(:disabled) {
+    border-color: var(--ba-accent);
+    color: var(--ba-accent-strong);
+    background: var(--ba-accent-soft);
+}
+
+body[data-page="bond-analysis"] .ba-page-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--ba-ring);
+}
+
+body[data-page="bond-analysis"] .ba-page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------------
+ * 4. Bond result rows — every row is interactive; the inert fallback is the
+ *    only non-clickable case (no published identifier at all).
+ * ------------------------------------------------------------------------ */
+.ba-bond-list {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0 0 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ba-bond-row {
+    margin: 0;
+}
+
+/* Reset native button chrome so a row reads as a terminal-style list item. */
+button.ba-bond-item {
+    font-family: inherit;
+    text-align: left;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+
+.ba-bond-item {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    background: var(--ba-surface);
+    border: 1px solid var(--ba-border);
+    border-left: 4px solid var(--ba-border-strong);
+    border-radius: var(--ba-radius-sm);
+    box-shadow: var(--ba-shadow-sm);
+    padding: 10px 12px 10px 11px;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+button.ba-bond-item {
+    cursor: pointer;
+}
+
+button.ba-bond-item:hover {
+    border-color: var(--ba-accent);
+    border-left-color: var(--ba-accent);
+    background: var(--ba-accent-soft);
+    box-shadow: var(--ba-shadow-md);
+}
+
+button.ba-bond-item:focus-visible {
+    outline: none;
+    border-color: var(--ba-accent);
+    border-left-color: var(--ba-accent);
+    box-shadow: var(--ba-ring);
+}
+
+/* Selected row: gold identity edge + tinted surface + stronger yield + check. */
+.ba-bond-item.selected {
+    border-color: var(--ba-gold);
+    border-left: 4px solid var(--ba-gold);
+    background: var(--ba-gold-soft);
+    box-shadow: var(--ba-shadow-md);
+}
+
+.ba-bond-item.selected:hover {
+    border-color: var(--ba-gold-strong);
+    border-left-color: var(--ba-gold-strong);
+    background: var(--ba-gold-soft);
+}
+
+.ba-bond-item.selected:focus-visible {
+    box-shadow: var(--ba-ring), var(--ba-shadow-md);
+}
+
+/* Genuinely inert fallback: a record the backend published with neither an
+   ISIN nor a record_id. Readable, never disabled-looking-buttons-in-disguise. */
+.ba-bond-item-inert {
+    cursor: default;
+    background: var(--ba-surface-muted);
+    border-left-color: var(--ba-border);
 }
 
 .ba-bond-info {
-    min-width: 0;
-    flex: 1;
-    line-height: 1.4;
-}
-
-/* Meta line — quiet, scannable */
-.ba-bond-meta {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px 10px;
-    font-size: 0.8125rem;
-    color: var(--color-text-light);
-    margin-top: 3px;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
-.ba-bond-meta span {
+.ba-bond-name {
+    font-size: 0.92rem;
+    font-weight: 650;
+    letter-spacing: 0.005em;
+    line-height: 1.3;
+    color: var(--ba-ink);
+    overflow-wrap: anywhere;
+}
+
+.ba-bond-item-inert .ba-bond-name {
+    color: var(--ba-ink-soft);
+}
+
+.ba-bond-identity {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.74rem;
+    min-width: 0;
+}
+
+.ba-bond-id-label {
+    flex: 0 0 auto;
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ba-ink-muted);
+    background: var(--ba-surface-sunken);
+    border: 1px solid var(--ba-border);
+    border-radius: 4px;
+    padding: 1px 5px;
     white-space: nowrap;
 }
 
 .ba-bond-meta-isin {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: var(--color-slate-400);
-    font-size: 0.8125rem;
-}
-
-/* KPI emphasis — compact, restrained, strong numeric value */
-.ba-kpi {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 12px 12px 12px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: #ffffff;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
-}
-
-.ba-kpi-value {
-    font-size: 1.125rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    line-height: 1.2;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-}
-
-.ba-kpi-value.is-muted {
-    color: var(--color-text-light);
-}
-
-.ba-kpi-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.75rem;
+    font-family: var(--ba-mono);
     font-weight: 600;
-    color: var(--color-text-light);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    color: var(--ba-accent-strong);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
 }
 
-/* Analytics KPI row sits on its own subtle surface for separation */
-.ba-analytics {
-    background: linear-gradient(180deg, #f7fbff 0%, #f1f7fd 100%);
+.ba-bond-item-inert .ba-bond-meta-isin {
+    color: var(--ba-ink-muted);
 }
 
-/* Pagination — compact, aligned with the selector area */
-.ba-pagination {
+.ba-bond-meta {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(148, 163, 184, 0.22);
+    gap: 4px 6px;
+    font-size: 0.76rem;
+    color: var(--ba-ink-muted);
+    line-height: 1.45;
 }
 
-.ba-page-info {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--color-text);
-    padding: 6px 10px;
-    background: rgba(30, 58, 95, 0.05);
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    border-radius: var(--radius-pill);
-    white-space: nowrap;
+.ba-bond-meta-sep {
+    color: var(--ba-ink-subtle);
+}
+
+.ba-bond-rating {
+    font-weight: 700;
+    color: var(--ba-gold-strong);
+}
+
+.ba-bond-quote {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+    flex: 0 0 auto;
+    min-width: 86px;
+    padding-left: 10px;
+    border-left: 1px solid var(--ba-divider);
+}
+
+.ba-bond-yield {
+    font-size: 1.13rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    color: var(--ba-ink);
     font-variant-numeric: tabular-nums;
 }
 
-.ba-page-btn {
-    display: inline-flex;
+button.ba-bond-item:hover .ba-bond-yield,
+button.ba-bond-item:focus-visible .ba-bond-yield {
+    color: var(--ba-accent-strong);
+}
+
+.ba-bond-item.selected .ba-bond-yield {
+    color: var(--ba-gold-strong);
+}
+
+.ba-bond-yield-caption {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ba-ink-subtle);
+}
+
+.ba-bond-flag {
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border-radius: var(--ba-radius-pill);
+    padding: 1px 7px;
+    border: 1px solid transparent;
+}
+
+.ba-bond-flag.is-traded {
+    color: var(--ba-green);
+    background: var(--ba-green-soft);
+    border-color: #bfe6d3;
+}
+
+.ba-bond-flag.is-indicative {
+    color: var(--ba-accent-strong);
+    background: var(--ba-accent-soft);
+    border-color: #c3d9f2;
+}
+
+.ba-bond-flag.is-stale {
+    color: var(--ba-gold-strong);
+    background: var(--ba-gold-soft);
+    border-color: #ecd9a6;
+}
+
+/* Selection check — shown only on the selected row. */
+.ba-bond-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: none;
     align-items: center;
     justify-content: center;
-    min-width: 34px;
-    height: 34px;
-    padding: 0 10px;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    border-radius: var(--radius-pill);
-    background: #ffffff;
-    color: var(--color-text);
-    font-size: 0.8125rem;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--ba-gold);
+    color: #ffffff;
+}
+
+.ba-bond-check svg {
+    width: 12px;
+    height: 12px;
+}
+
+.ba-bond-item.selected .ba-bond-check {
+    display: inline-flex;
+}
+
+.ba-bond-item.selected .ba-bond-quote {
+    padding-right: 22px;
+}
+
+/* List-level loading: rows stay visible but dimmed while reloading. */
+.ba-bond-list.is-loading {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.ba-selector-status {
+    font-size: 0.8rem;
+    color: var(--ba-ink-muted);
+    margin: 12px 0 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * 5. Pagination, empty / loading / error states, data sources
+ * ------------------------------------------------------------------------ */
+.ba-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 12px 0 2px;
+    border-top: 1px solid var(--ba-divider);
+}
+
+.ba-pagination.is-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.ba-page-info {
+    flex-basis: 100%;
+    text-align: center;
+    font-size: 0.74rem;
     font-weight: 600;
-    font-family: var(--font-family);
-    cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-    white-space: nowrap;
+    color: var(--ba-ink-muted);
+    margin-bottom: 2px;
 }
 
-.ba-page-btn:hover:not(:disabled) {
-    border-color: rgba(30, 58, 95, 0.45);
-    background: #f4f8fe;
-    color: #1e3a5f;
-}
-
-.ba-page-btn:focus-visible {
-    outline: none;
-    border-color: rgba(30, 58, 95, 0.45);
-    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.14);
-}
-
-.ba-page-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-    background: #f7f9fc;
-    border-color: rgba(148, 163, 184, 0.22);
-}
-
-.ba-page-btn.is-active {
-    background: #1e3a5f;
-    border-color: #1e3a5f;
+body[data-page="bond-analysis"] .ba-page-btn.is-active {
+    background: var(--ba-accent-strong);
+    border-color: var(--ba-accent-strong);
     color: #ffffff;
 }
 
 .ba-page-gap {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 34px;
-    height: 34px;
-    color: var(--color-slate-400);
-    font-weight: 600;
+    color: var(--ba-ink-subtle);
 }
 
 .ba-page-nav {
-    font-weight: 600;
+    min-width: 66px;
 }
 
-/* Functional section cards — subtle surface differentiation */
-.ba-card-gold {
-    border-left: 3px solid var(--color-gold-500);
+/* Empty / no-result / error states share one restrained card language. */
+.ba-empty-state {
+    margin: 12px 0 0;
+    padding: 30px 20px;
+    text-align: center;
+    background: var(--ba-surface);
+    border: 1px solid var(--ba-border);
+    border-radius: var(--ba-radius);
 }
 
-.ba-card-head {
-    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-}
-
-.ba-card-body {
-    background: #ffffff;
-}
-
-.ba-card-gold.ba-analytics .ba-card-body {
-    background: linear-gradient(180deg, #f7fbff 0%, #f1f7fd 100%);
-}
-
-/* Summary field grid — clearer value prominence */
-.ba-detail-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px 18px;
-}
-
-.ba-detail-grid > div {
-    min-width: 0;
-}
-
-.ba-field-label {
-    display: block;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--color-text-light);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 4px;
-}
-
-.ba-field-value {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-    line-height: 1.3;
-}
-
-.ba-field-value.is-small {
-    font-size: 0.9375rem;
-}
-
-.ba-field-value.is-muted {
-    color: var(--color-text-light);
-    font-weight: 600;
-}
-
-/* Cash-flow table — stronger header, clearer numeric alignment */
-.ba-table th {
-    text-align: left;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    color: var(--color-text-light);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--color-border);
-    background: #f7f9fc;
-}
-
-.ba-table td {
-    padding: 11px 12px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-    font-size: 0.9375rem;
-    color: var(--color-text);
-}
-
-.ba-table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.ba-table .ba-num {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    color: var(--color-primary);
-}
-
-.ba-table tbody tr:hover td {
-    background: rgba(30, 58, 95, 0.04);
-}
-
-/* Notes list — compact, quiet */
-.ba-notes {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.ba-notes li {
-    position: relative;
-    padding: 5px 0 5px 18px;
-    font-size: 0.875rem;
-    color: var(--color-text-light);
-    line-height: 1.5;
-}
-
-.ba-notes li::before {
-    content: "";
-    position: absolute;
-    left: 4px;
-    top: 10px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--color-gold-500);
-    opacity: 0.7;
-}
-
-/* Initial empty state — clearer hierarchy without being large */
-.ba-detail-empty h3 {
-    font-size: 1.0625rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    margin-bottom: 6px;
-}
-
-.ba-detail-empty p {
-    font-size: 0.875rem;
-    color: var(--color-text-light);
-    max-width: 420px;
-    line-height: 1.55;
+#ba-no-results.ba-empty-state {
+    border-style: dashed;
+    background: var(--ba-surface-muted);
 }
 
 .ba-empty-icon {
-    width: 48px;
-    height: 48px;
-    margin-bottom: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    margin-bottom: 10px;
+    border-radius: 12px;
+    background: var(--ba-accent-soft);
+    color: var(--ba-accent-strong);
 }
 
 .ba-empty-icon svg {
@@ -879,2526 +914,1038 @@ body[data-page="bond-analysis"] > header.site-header {
     height: 24px;
 }
 
-/* Source badge — slightly stronger for visibility */
-.ba-source-badge {
-    font-size: 0.75rem;
-    font-weight: 600;
-    padding: 4px 10px;
-}
-
-.ba-source-badge.is-traded {
-    background: var(--color-green-50);
-    border-color: var(--color-green-500);
-    color: var(--color-green-700);
-}
-
-.ba-source-badge.is-stale {
-    background: var(--color-amber-50);
-    border-color: var(--color-gold-600);
-    color: var(--color-gold-700);
-}
-
-/* Clear status chip when loading/search active */
-.ba-selector-status {
-    padding: 6px 10px;
-    background: rgba(30, 58, 95, 0.04);
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    border-radius: var(--radius-pill);
-    margin-top: 10px;
-}
-
-.ba-selector-status .pb-spinner {
-    width: 14px;
-    height: 14px;
-    margin-right: 6px;
-    vertical-align: middle;
-}
-
-/* Mobile: keep controls and rows usable */
-@media (max-width: 640px) {
-    .ba-search-bar {
-        flex-wrap: wrap;
-        padding: 0 12px;
-    }
-
-    .ba-search-input {
-        flex: 1 1 100%;
-    }
-
-    .ba-filter-select {
-        margin: 8px 0;
-        flex: 1 1 auto;
-        width: 100%;
-        min-width: 0;
-    }
-
-    .ba-bond-item {
-        flex-wrap: wrap;
-        align-items: flex-start;
-    }
-
-    .ba-bond-yield {
-        margin-left: auto;
-        width: 100%;
-        text-align: right;
-    }
-
-    .ba-kpi-grid,
-    .ba-detail-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .ba-header-tools {
-        width: 100%;
-    }
-
-    .ba-sort-select {
-        flex: 1 1 auto;
-        min-width: 0;
-    }
-
-    .ba-range-chip {
-        flex: 1 1 auto;
-    }
-
-    .ba-pagination {
-        gap: 6px;
-    }
-
-    .ba-page-btn {
-        min-width: 30px;
-        height: 32px;
-        padding: 0 8px;
-        font-size: 0.75rem;
-    }
-
-    .ba-page-info {
-        font-size: 0.75rem;
-        padding: 5px 8px;
-    }
-
-    .ba-bond-meta {
-        flex-direction: column;
-        gap: 2px;
-    }
-}
-
-@media (max-width: 400px) {
-    .ba-kpi-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* ---- Page-title base (same values as .mf-page-title in
-   mutual-fund-analysis.css — the full 107KB stylesheet is not loaded here) - */
-.mf-page-title {
-    font-size: 1.75rem;
+.ba-empty-state h3 {
+    font-size: 1.02rem;
     font-weight: 700;
-    color: var(--color-primary);
-    letter-spacing: -0.02em;
-    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+    color: var(--ba-ink);
+    margin: 0 0 6px;
 }
 
-.mf-page-subtitle {
-    font-size: 0.9375rem;
-    color: var(--color-text-light);
-    font-weight: 400;
-    max-width: 64ch;
+.ba-empty-state p {
+    font-size: 0.83rem;
+    line-height: 1.6;
+    color: var(--ba-ink-muted);
+    margin: 0 auto;
+    max-width: 42ch;
 }
 
-/* Section card body — always-visible counterpart of .pb-section-content
-   (which is display:none unless its collapsible section is open). */
-.ba-card-body {
-    padding: 4px 18px 18px;
+.ba-after-panel {
+    margin-bottom: 14px;
 }
 
-/* ---- Tooltips — the application's existing .tooltip-trigger pattern -----
-   Same classes/markup as Mutual Fund Analysis; the definitions ride along
-   here because the shared tooltip CSS lives in that feature stylesheet,
-   which this page does not (and should not) load in full. */
-.tooltip-trigger {
+body[data-page="bond-analysis"] .pb-analysis-error {
+    background: var(--ba-red-soft);
+    border: 1px solid #f0c4c1;
+    border-left: 4px solid var(--ba-red);
+    border-radius: var(--ba-radius-sm);
+    color: #7a201b;
+    font-size: 0.83rem;
+    line-height: 1.55;
+    padding: 12px 14px;
+    margin-top: 12px;
+}
+
+body[data-page="bond-analysis"] .pb-analysis-loading {
     display: inline-flex;
-    position: relative;
-    cursor: help;
-    color: inherit;
-    text-decoration: none;
+    align-items: center;
+    gap: 8px;
 }
 
-.tooltip-content {
-    position: absolute;
-    z-index: 50;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    margin-bottom: 8px;
-    padding: 8px 12px;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    line-height: 1.45;
-    color: var(--color-primary);
-    background: #1e3a5f;
-    border-radius: var(--radius-sm);
-    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
-    white-space: normal;
-    max-width: 260px;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.15s ease, visibility 0.15s ease;
-    pointer-events: none;
+body[data-page="bond-analysis"] .pb-spinner {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 2px solid #c3d9f2;
+    border-top-color: var(--ba-accent);
+    animation: ba-spin 0.7s linear infinite;
 }
 
-.tooltip-content::before {
-    content: "";
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-bottom-color: var(--color-primary);
+@keyframes ba-spin {
+    to { transform: rotate(360deg); }
 }
 
-.tooltip-trigger:hover .tooltip-content,
-.tooltip-trigger:focus .tooltip-content {
-    opacity: 1;
-    visibility: visible;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .tooltip-content {
-        transition: none;
-    }
-}
-
-/* ---- Responsive ---------------------------------------------------------- */
-@media (max-width: 960px) {
-    .ba-kpi-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .ba-detail-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 640px) {
-    .ba-search-bar {
-        flex-wrap: wrap;
-        padding: 0 12px;
-    }
-
-    .ba-search-input {
-        flex: 1 1 100%;
-    }
-
-    .ba-filter-select {
-        margin: 8px 0;
-        flex: 1 1 auto;
-        width: 100%;
-        min-width: 0;
-    }
-
-    .ba-bond-item {
-        flex-wrap: wrap;
-        align-items: flex-start;
-    }
-
-    .ba-bond-yield {
-        margin-left: auto;
-        width: 100%;
-        text-align: right;
-    }
-
-    .ba-kpi-grid,
-    .ba-detail-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .ba-header-tools {
-        width: 100%;
-    }
-
-    .ba-sort-select {
-        flex: 1 1 auto;
-        min-width: 0;
-    }
-
-    .ba-range-chip {
-        flex: 1 1 auto;
-    }
-
-    .ba-pagination {
-        gap: 6px;
-    }
-
-    .ba-page-btn {
-        min-width: 30px;
-        height: 32px;
-        padding: 0 8px;
-        font-size: 0.75rem;
-    }
-
-    .ba-page-info {
-        font-size: 0.75rem;
-        padding: 5px 8px;
-    }
-
-    .ba-bond-meta {
-        flex-direction: column;
-        gap: 2px;
-    }
-}
-
-@media (max-width: 400px) {
-    .ba-kpi-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* Two-column layout for desktop */
-@media (min-width: 641px) {
-    .ba-workspace {
-        display: flex;
-        gap: 24px;
-        align-items: flex-start;
-    }
-    .ba-selector-column {
-        flex: 0 0 40%;
-        max-width: 40%;
-    }
-    .ba-analysis-column {
-        flex: 0 0 58%;
-        max-width: 58%;
-    }
-    /* Control the height of the bond list and make it scrollable */
-    .ba-bond-list {
-        max-height: 60vh;
-        overflow-y: auto;
-        margin-bottom: 0;
-    }
-    .ba-bond-item {
-        width: 100%;
-    }
-}
-
-/* Improve bond row contrast */
-.ba-bond-item {
-    border: 1px solid var(--color-border);
-    background: var(--color-bg);
-    transition: border-color 0.15s ease, background 0.15s ease;
-}
-.ba-bond-item:hover {
-    border-color: rgba(30, 58, 95, 0.4);
-    background: #ffffff;
-}
-.ba-bond-item.selected {
-    border-color: var(--color-gold-600);
-    background: var(--color-gold-50);
-    box-shadow: 0 0 0 1px var(--color-gold-100) inset;
-    border-left-color: var(--color-gold-600);
-}
-.ba-bond-item[aria-disabled="true"] {
-    opacity: 0.62;
-    cursor: default;
-}
-
-/* T-Bill rows: ensure they are readable */
-.ba-bond-item[aria-disabled="true"] {
-    opacity: 0.8;
-    background: var(--color-bg);
-    border-color: rgba(148, 163, 184, 0.3);
-}
-.ba-bond-item[aria-disabled="true"] .ba-bond-name,
-.ba-bond-item[aria-disabled="true"] .ba-bond-meta,
-.ba-bond-item[aria-disabled="true"] .ba-bond-yield {
-    opacity: 1;
-}
-
-/* Selected state: make it obvious */
-.ba-bond-item.selected {
-    border-left: 3px solid var(--color-gold-600);
-    border-color: var(--color-gold-600);
-    background: var(--color-gold-50);
-    box-shadow: 0 0 0 1px var(--color-gold-100) inset;
-}
-
-/* Improve KPI cards readability */
-.ba-kpi {
-    background: #ffffff;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
-}
-.ba-kpi-value {
-    color: var(--color-primary);
-    font-weight: 700;
-}
-.ba-kpi-label {
-    color: var(--color-text-light);
-    font-weight: 600;
-}
-
-/* Improve cash flow table readability */
-.ba-table th {
-    background: #f7f9fc;
-    border-bottom: 1px solid var(--color-border);
-    font-weight: 700;
-    color: var(--color-text-light);
-}
-.ba-table td {
-    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-    color: var(--color-text);
-}
-.ba-table tbody tr:hover td {
-    background: rgba(30, 58, 95, 0.04);
-}
-.ba-table .ba-num {
-    color: var(--color-primary);
-    font-weight: 600;
-}
-
-/* Improve details section */
-.ba-notes {
-    color: var(--color-text-light);
-}
-.ba-notes li::before {
-    background: var(--color-gold-500);
-    opacity: 0.7;
-}
-
-/* Ensure the analysis column is scrollable if needed */
-.ba-analysis-column {
-    overflow-y: auto;
-}
-
-/* Adjust the bond list header (sort, search, etc.) to be sticky or at least visible */
-.ba-panel-head {
-    position: sticky;
-    top: 0;
-    background: linear-gradient(180deg, #fbfdff 0%, #f4f8fe 100%);
-    z-index: 10;
-}
-
-/* Make the bond list container have some padding at the bottom for the sticky header */
-.ba-bond-list {
-    margin-bottom: 16px;
-}
-
-/* Adjust the gap between columns on larger screens */
-@media (min-width: 1024px) {
-    .ba-workspace {
-        gap: 32px;
-    }
-    .ba-selector-column {
-        flex: 0 0 38%;
-        max-width: 38%;
-    }
-    .ba-analysis-column {
-        flex: 0 0 60%;
-        max-width: 60%;
-    }
-}
-
-/* Collapsible sections styles */
-.ba-section {
-    margin-bottom: 16px;
-    border-radius: var(--radius-md);
+/* Data-source health strip at the foot of the discovery panel. */
+.ba-source-panel {
+    margin: 12px 0 14px;
+    border: 1px solid var(--ba-border);
+    border-radius: var(--ba-radius-sm);
+    background: var(--ba-surface-muted);
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    background: #ffffff;
-    border-left: 4px solid var(--section-accent, var(--color-primary));
 }
 
-.ba-section[data-section="summary"] {
-    --section-accent: var(--color-gold-500);
+.ba-source-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--ba-divider);
 }
 
-.ba-section[data-section="analytics"] {
-    --section-accent: var(--color-blue-500, var(--color-accent));
+.ba-source-panel-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ba-ink-muted);
 }
 
-.ba-section[data-section="cashflows"] {
-    --section-accent: var(--color-purple-500, var(--color-accent));
+.ba-source-status-count {
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--ba-ink-muted);
 }
 
-.ba-section[data-section="details"] {
-    --section-accent: var(--color-green-500, var(--color-accent));
+.ba-source-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 12px 8px;
+    display: flex;
+    flex-direction: column;
+}
+
+.ba-source-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--ba-divider);
+    font-size: 0.78rem;
+}
+
+.ba-source-row:last-child {
+    border-bottom: none;
+}
+
+.ba-source-name {
+    font-weight: 700;
+    color: var(--ba-ink);
+    min-width: 44px;
+}
+
+.ba-source-count {
+    color: var(--ba-ink-muted);
+    flex: 1 1 auto;
+}
+
+.ba-source-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-radius: var(--ba-radius-pill);
+    padding: 2px 9px;
+    border: 1px solid transparent;
+}
+
+.ba-source-badge.is-success {
+    color: var(--ba-green);
+    background: var(--ba-green-soft);
+    border-color: #bfe6d3;
+}
+
+.ba-source-badge.is-error {
+    color: var(--ba-red);
+    background: var(--ba-red-soft);
+    border-color: #f0c4c1;
+}
+
+.ba-source-badge.is-neutral {
+    color: var(--ba-ink-muted);
+    background: var(--ba-surface-sunken);
+    border-color: var(--ba-border);
+}
+
+.ba-source-error {
+    flex-basis: 100%;
+    font-size: 0.72rem;
+    color: var(--ba-red);
+}
+
+/* ---------------------------------------------------------------------------
+ * 6. Detail column — sections, summary metrics, analytics, cash flows
+ * ------------------------------------------------------------------------ */
+#ba-results {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+#ba-results.is-loading .ba-section-body {
+    position: relative;
+    opacity: 0.65;
+}
+
+.ba-section {
+    background: var(--ba-surface);
+    border: 1px solid var(--ba-border);
+    border-radius: var(--ba-radius);
+    box-shadow: var(--ba-shadow-sm);
+    overflow: hidden;
 }
 
 .ba-section-header {
     display: flex;
     align-items: center;
-    padding: 12px 16px;
-    cursor: pointer;
-    user-select: none;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    gap: 12px;
+    background: var(--ba-surface-muted);
+    border-bottom: 1px solid var(--ba-divider);
+    padding: 11px 14px;
 }
 
-.ba-section-left-accent {
-    width: 4px;
-    height: 24px;
-    flex-shrink: 0;
-    margin-right: 12px;
+.ba-section:has(.ba-section-body.collapsed) .ba-section-header {
+    border-bottom-color: transparent;
 }
+
+/* One identity accent per section; tint chosen inline via --color-* fallbacks
+   kept in the markup (gold summary / blue analytics / violet flows / green). */
+.ba-section-left-accent {
+    width: 5px;
+    align-self: stretch;
+    min-height: 40px;
+    border-radius: 3px;
+    background: var(--section-accent, var(--ba-accent));
+    flex: 0 0 auto;
+}
+
+.ba-section[data-section="summary"] { --section-accent: var(--ba-gold); }
+.ba-section[data-section="analytics"] { --section-accent: var(--ba-accent); }
+.ba-section[data-section="cashflows"] { --section-accent: #6d28d9; }
+.ba-section[data-section="details"] { --section-accent: var(--ba-green); }
 
 .ba-section-content {
-    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1 1 auto;
     min-width: 0;
 }
 
 .ba-section-title {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--color-primary);
-    margin: 0 0 4px 0;
+    font-size: 0.98rem;
+    font-weight: 700;
+    letter-spacing: 0.005em;
+    color: var(--ba-ink);
+    line-height: 1.25;
 }
 
 .ba-section-desc {
-    font-size: 0.875rem;
-    color: var(--color-text-light);
-    margin: 0;
+    font-size: 0.74rem;
+    color: var(--ba-ink-muted);
+    line-height: 1.4;
+}
+
+.ba-section-source-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--ba-ink-muted);
+    margin-top: 3px;
+}
+
+.ba-section-source-badge:empty {
+    display: none;
+}
+
+.ba-section-source-badge.is-traded {
+    color: var(--ba-green);
+}
+
+.ba-section-source-badge.is-stale {
+    color: var(--ba-gold-strong);
+}
+
+.ba-section-source-badge.is-unavailable {
+    color: var(--ba-red);
 }
 
 .ba-section-toggle {
-    display: flex;
+    appearance: none;
+    flex: 0 0 auto;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
-    margin-left: auto;
-    padding: 0;
-    border: none;
-    background: transparent;
-    color: var(--color-text-light);
-    font-size: 0.875rem;
-    border-radius: var(--radius-pill);
-    transition: background-color 0.2s ease, color 0.2s ease;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--ba-border);
+    border-radius: 6px;
+    background: var(--ba-surface);
+    color: var(--ba-ink-muted);
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
 }
 
 .ba-section-toggle:hover {
-    background-color: rgba(30, 58, 95, 0.05);
-    color: var(--color-primary);
+    border-color: var(--ba-accent);
+    color: var(--ba-accent-strong);
 }
 
-.ba-section-toggle[aria-expanded="true"] .ba-chevron {
-    transform: rotate(180deg);
+.ba-section-toggle:focus-visible {
+    outline: none;
+    box-shadow: var(--ba-ring);
 }
 
 .ba-chevron {
-    transition: transform 0.2s ease;
+    width: 15px;
+    height: 15px;
+    transition: transform 0.18s ease;
 }
 
 .ba-section-body {
-    background: #ffffff;
-    padding: 16px;
+    padding: 14px;
 }
 
 .ba-section-body.collapsed {
     display: none;
 }
 
-.ba-section-body:not(.collapsed) {
-    display: block;
-    animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Improve Bond Summary layout */
-.ba-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-}
-
-@media (min-width: 641px) {
-    .ba-summary-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-}
-
-/* Improve KPI cards contrast */
-.ba-kpi {
-    background: #ffffff;
-    border: 1px solid var(--color-border);
-}
-
-/* Improve cash flow table */
-.ba-table {
-    width: 100%;
-}
-
-.ba-table th {
-    background: #f7f9fc;
-}
-
-.ba-table td {
-    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
-}
-
-/* Improve details section */
-.ba-details-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-}
-
-@media (min-width: 641px) {
-    .ba-details-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-}
-
-/* Improve notes */
-.ba-notes {
-    margin: 16px 0 0;
-    padding: 0;
-    list-style: none;
-}
-
-.ba-notes li {
-    padding: 8px 0 8px 20px;
-    position: relative;
-}
-
-.ba-notes li::before {
-    left: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 8px;
-    height: 8px;
-}
-
-/* Improve selected row for better visibility */
-.ba-bond-item.selected {
-    border-left-width: 4px;
-}
-
-/* Improve T-Bill row treatment */
-.ba-bond-item[aria-disabled="true"] {
-    opacity: 0.9;
-    background: var(--color-bg);
-    border-color: rgba(148, 163, 184, 0.2);
-}
-
-.ba-bond-item[aria-disabled="true"] .ba-bond-name {
-    font-weight: 600;
-    color: var(--color-primary);
-}
-
-.ba-bond-item[aria-disabled="true"] .ba-bond-meta {
-    color: var(--color-text);
-}
-
-.ba-bond-item[aria-disabled="true"] .ba-bond-yield {
-    font-weight: 700;
-    color: var(--color-primary);
-}/* Data Source Status */
-.ba-source-status-panel { margin-top: 16px; }
-.ba-source-status-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; grid-template-columns: 1fr; }
-@media (min-width: 720px) { .ba-source-status-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-.ba-source-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 14px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
-.ba-source-name { font-weight: 700; color: var(--color-primary); font-size: 0.875rem; letter-spacing: 0.02em; }
-.ba-source-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: var(--radius-pill); font-size: 0.75rem; font-weight: 600; border: 1px solid transparent; }
-.ba-source-badge.is-success { background: var(--color-green-50); color: var(--color-green-700); border-color: var(--color-green-100); }
-.ba-source-badge.is-error { background: var(--color-red-50); color: var(--color-red-700); border-color: var(--color-red-100); }
-.ba-source-badge.is-neutral { background: var(--color-slate-100); color: var(--color-slate-600); border-color: var(--color-slate-200); }
-.ba-source-count { margin-left: auto; font-size: 0.8125rem; color: var(--color-text-light); }
-.ba-source-error { flex-basis: 100%; font-size: 0.8125rem; color: var(--color-red-600); overflow-wrap: anywhere; }
-/* Remove short section accent lines only */
-/* Hide short section accent lines only */
-body[data-page="bond-analysis"] .ba-section-left-accent {
-    visibility: hidden !important;
-}
-
-/* ==========================================================================
-   [POLISH LAYER] Bond Analysis — premium fixed-income presentation.
-   Appended deliberately last: these refinements win the cascade over the
-   iterative override blocks above. Visual-only — no structural, behavioural,
-   data or calculation changes.
-   ========================================================================== */
-
-/* ---- [P1] Page-scoped palette -------------------------------------------
-   Scoped to the Bond Analysis page body, so no other page is affected.
-   Deep navy = primary text / active controls, soft slate = page + surfaces,
-   muted gold = bond identity, blue-teal = analytics, emerald = healthy
-   sources, restrained purple / amber = supporting accents. */
-body[data-page="bond-analysis"] {
-    /* Structural surfaces */
-    --ba-page-bg: #f4f6fa;
-    --ba-surface: #ffffff;
-    --ba-surface-muted: #f8fafc;
-    --ba-border: rgba(148, 163, 184, 0.28);
-    --ba-divider: rgba(148, 163, 184, 0.22);
-
-    /* Type */
-    --ba-text: #334155;
-    --ba-navy: #0f172a;
-    --ba-navy-control: #1e3a5f;
-    --ba-text-muted: #64748b;
-    --ba-text-subtle: #94a3b8;
-
-    /* Restrained semantic accents */
-    --ba-blue: #0e7490;
-    --ba-purple: #6d28d9;
-    --ba-emerald: #047857;
-    --ba-amber: #b45309;
-
-    /* Standard elevation / radius */
-    --ba-radius-card: var(--radius-md);
-    --ba-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 6px rgba(15, 23, 42, 0.05);
-    --ba-shadow-tile: 0 1px 2px rgba(15, 23, 42, 0.03);
-    --ba-shadow-hover: 0 6px 18px rgba(15, 23, 42, 0.08);
-
-    /* Muted gold — the page's bond identity colour, replacing the brighter
-       amber default for this page only (identity, not status). */
-    --color-gold-500: #b8860b;
-    --color-gold-600: #9c7009;
-    --color-gold-700: #7d5a07;
-
-    /* Tokens the markup already references via var(--color-blue-500, ...) and
-       var(--color-purple-500, ...) but that base.css never defined. */
-    --color-blue-500: var(--ba-blue);
-    --color-purple-500: var(--ba-purple);
-}
-
-/* Page background: flat soft slate instead of layered gradients. */
-body[data-page="bond-analysis"] {
-    background: var(--ba-page-bg);
-}
-
-body[data-page="bond-analysis"] > header.site-header {
-    background: var(--ba-surface);
-    border-bottom: 1px solid var(--ba-divider);
-}
-
-/* ---- [P1] Shared card foundation --------------------------------------- */
-body[data-page="bond-analysis"] .pb-panel,
-.ba-section {
-    background: var(--ba-surface);
-    border: 1px solid var(--ba-border);
-    border-radius: var(--ba-radius-card);
-    box-shadow: var(--ba-shadow-card);
-}
-
-/* Let the analysis panels match the width of the section cards below them. */
-body[data-page="bond-analysis"] .pb-panel {
-    max-width: none;
-}
-
-/* Long vertical section border — preserved; colour comes from --section-accent. */
-.ba-section {
-    border-left: 4px solid var(--section-accent, var(--ba-navy-control));
-    overflow: hidden;
-}
-
-/* Per-section accents: muted gold / blue-teal / restrained purple / emerald. */
-.ba-section[data-section="summary"] { --section-accent: var(--color-gold-500); }
-.ba-section[data-section="analytics"] { --section-accent: var(--ba-blue); }
-.ba-section[data-section="cashflows"] { --section-accent: var(--ba-purple); }
-.ba-section[data-section="details"] { --section-accent: var(--ba-emerald); }
-
-/* ---- [P1] Typography hierarchy ----------------------------------------- */
-body[data-page="bond-analysis"] .mf-page-title {
-    font-size: 1.75rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--ba-navy);
-}
-
-body[data-page="bond-analysis"] .mf-page-subtitle {
-    font-size: 0.9375rem;
-    color: var(--ba-text-muted);
-}
-
-/* Section / panel titles: one consistent level above descriptions. */
-.ba-panel-head .pb-panel-title,
-.ba-card-head .pb-panel-title,
-.ba-section-title {
-    font-size: 1.0625rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    color: var(--ba-navy);
-}
-
-.ba-section-title {
-    margin: 0;
-}
-
-.ba-section-desc {
-    margin: 2px 0 0;
-    font-size: 0.8125rem;
-    font-weight: 400;
-    color: var(--ba-text-muted);
-}
-
-/* Quiet supporting copy used beside titles and tables. */
 .ba-section-sub {
-    font-size: 0.8125rem;
-    color: var(--ba-text-muted);
-}
-
-/* Selector toolbar header — flat slate surface, keeps its gold hairline. */
-body[data-page="bond-analysis"] .ba-panel-head {
-    background: var(--ba-surface-muted);
-    border-bottom: 1px solid var(--ba-divider);
-}
-
-body[data-page="bond-analysis"] .ba-panel-head::after {
-    background: var(--color-gold-500);
-    opacity: 0.3;
-    height: 3px;
-    width: 96px;
-    border-radius: var(--radius-pill);
-}
-
-/* ---- [P1] Section chrome + expand/collapse consistency ------------------ */
-.ba-section-header {
-    padding: 14px 18px 13px;
-    background: var(--ba-surface);
-    border-bottom: none;
-}
-
-.ba-section-header:hover {
-    background: var(--ba-surface-muted);
-}
-
-/* The hidden short accent bars keep their slot in the DOM (they stay hidden
-   exactly as before) but no longer reserve a 16px gutter, so each section
-   title lines up with the content beneath it. */
-body[data-page="bond-analysis"] .ba-section-left-accent {
-    width: 0;
-    margin-right: 0;
-}
-
-/* The header/content divider lives on the body, so a collapsed section no
-   longer shows a divider hanging below its header. */
-.ba-section-body {
-    padding: 16px 18px 18px;
-    background: var(--ba-surface);
-}
-
-.ba-section-body:not(.collapsed) {
-    border-top: 1px solid var(--ba-divider);
-}
-
-.ba-section-toggle {
-    width: 32px;
-    height: 32px;
-    color: var(--ba-text-muted);
-    border: 1px solid transparent;
-    border-radius: var(--radius-pill);
-    cursor: pointer;
-}
-
-.ba-section-toggle:hover {
-    background: var(--ba-surface-muted);
-    border-color: var(--ba-border);
-    color: var(--ba-navy);
-}
-
-.ba-section-toggle:focus-visible {
-    outline: none;
-    border-color: var(--ba-navy-control);
-    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.14);
-}
-
-/* Full-bleed panel headers so each panel reads as one card (the 24px padding
-   of .pb-panel is cancelled by the matching negative margin). */
-body[data-page="bond-analysis"] .pb-panel > .ba-panel-head {
-    margin: -24px -24px 12px;
-    padding: 16px 24px 14px;
-    border-radius: var(--ba-radius-card) var(--ba-radius-card) 0 0;
-}
-
-/* ---- [P2] Data Source Status --------------------------------------------
-   The panel's position is owned by the markup (first in the analysis column,
-   before Bond Summary) — only its appearance is refined here. */
-body[data-page="bond-analysis"] .ba-source-status-panel {
-    margin: 0 0 16px;
-}
-
-.ba-source-status-list {
-    gap: 10px;
-    margin-top: 4px;
-}
-
-/* One source per tile: name + status badge on top, record count beneath. */
-.ba-source-status-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 8px 10px;
-    padding: 12px 14px;
-    background: var(--ba-surface-muted);
-    border: 1px solid var(--ba-border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--ba-shadow-tile);
-}
-
-.ba-source-name {
-    grid-column: 1;
-    min-width: 0;
-    font-size: 0.875rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    color: var(--ba-navy);
-}
-
-.ba-source-badge {
-    grid-column: 2;
-    justify-self: end;
-}
-
-.ba-source-count {
-    grid-column: 1 / -1;
-    margin: 0;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--ba-text-muted);
-    font-variant-numeric: tabular-nums;
-}
-
-.ba-source-error {
-    grid-column: 1 / -1;
-    font-size: 0.75rem;
-    color: var(--color-red-700);
-    overflow-wrap: anywhere;
-}
-
-/* Status badges — semantic, restrained, with a matching state dot.
-   These reflect retrieval state only; they are never a market judgement. */
-.ba-source-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 10px;
-    border-radius: var(--radius-pill);
-    border: 1px solid transparent;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+    font-size: 0.8rem;
     line-height: 1.6;
-    white-space: nowrap;
+    color: var(--ba-ink-muted);
+    margin: 0 0 10px;
 }
 
-.ba-source-badge::before {
-    content: "";
-    width: 6px;
-    height: 6px;
-    flex-shrink: 0;
-    border-radius: 50%;
-    background: currentColor;
-    opacity: 0.8;
-}
-
-.ba-source-badge.is-success {
-    background: var(--color-green-50);
-    border-color: rgba(4, 120, 87, 0.3);
-    color: var(--ba-emerald);
-}
-
-.ba-source-badge.is-error {
-    background: var(--color-red-50);
-    border-color: rgba(185, 28, 28, 0.25);
-    color: var(--color-red-700);
-}
-
-.ba-source-badge.is-neutral {
-    background: var(--color-slate-100);
-    border-color: var(--color-slate-200);
-    color: var(--color-slate-600);
-}
-
-/* Panel counter chip ("2/3 healthy" / "Status unavailable" — text is set by
-   the existing renderBondSourceStatus; only its styling changes). */
-body[data-page="bond-analysis"] .ba-source-status-panel .pb-count {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--ba-navy-control);
-    background: var(--ba-surface);
-    border: 1px solid var(--ba-border);
-    font-variant-numeric: tabular-nums;
-}
-
-/* ---- [P3] Bond Summary --------------------------------------------------
-   Values and N/A behaviour are unchanged — only identity hierarchy and the
-   scannability of the metric grid. */
-#ba-summary-name {
-    font-size: 1.125rem;
+/* ---- Summary: prominent name, compact chips, hero metrics, metric grid -- */
+#ba-results .ba-bond-name {
+    font-size: 1.32rem;
     font-weight: 700;
     letter-spacing: -0.015em;
-    line-height: 1.3;
-    color: var(--ba-navy);
+    line-height: 1.25;
+    color: var(--ba-ink);
+    margin: 0 0 8px;
+    overflow-wrap: anywhere;
 }
 
 #ba-summary-meta {
-    margin-top: 4px;
-    font-size: 0.8125rem;
-    color: var(--ba-text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
 }
 
-#ba-summary-grid {
-    margin-top: 14px;
-}
-
-/* Metric tiles: quiet uppercase label above a strong numeric value. */
-.ba-detail-item {
-    padding: 10px 12px;
-    background: var(--ba-surface-muted);
-    border: 1px solid var(--ba-border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--ba-shadow-tile);
-}
-
-.ba-detail-label {
-    display: block;
-    margin-bottom: 3px;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--ba-text-muted);
-}
-
-.ba-detail-value {
-    display: block;
-    font-size: 1rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    color: var(--ba-navy);
-    font-variant-numeric: tabular-nums;
-    overflow-wrap: break-word;
-}
-
-.ba-detail-value.ba-value-mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.875rem;
-    font-weight: 600;
-    letter-spacing: 0;
-    color: var(--ba-navy-control);
-}
-
-/* Restrained emphasis on the headline yield tile. In both universes the last
-   summary field is the market yield figure (Market YTM / Weighted Avg Yield);
-   the accent marks the field, never a good/bad direction. */
-#ba-summary-grid > .ba-detail-item:last-child {
-    background: var(--color-gold-50);
-    border-color: rgba(184, 134, 11, 0.32);
-    box-shadow: 0 1px 2px rgba(184, 134, 11, 0.08);
-}
-
-#ba-summary-grid > .ba-detail-item:last-child .ba-detail-label {
-    color: var(--color-gold-700);
-}
-
-#ba-summary-grid > .ba-detail-item:last-child .ba-detail-value {
-    font-size: 1.125rem;
-}
-
-/* ---- [P3] Section source badges -----------------------------------------
-   The markup uses .ba-section-source-badge (distinct from the status
-   .ba-source-badge). It is empty for Analytics / Cash Flows / Details, so the
-   empty pill is hidden; the populated Bond Summary badge gets the shared
-   badge treatment plus the backend-reported traded / freshness states. */
-.ba-section-source-badge:empty {
+#ba-summary-meta:empty {
     display: none;
 }
 
-.ba-section-source-badge {
+.ba-bond-meta-chip {
     display: inline-flex;
     align-items: center;
-    max-width: 100%;
-    margin-top: 6px;
-    padding: 3px 10px;
-    border: 1px solid var(--color-slate-200);
-    border-radius: var(--radius-sm);
-    background: var(--color-slate-100);
-    color: var(--color-slate-600);
-    font-size: 0.6875rem;
+    gap: 5px;
+    font-size: 0.74rem;
     font-weight: 600;
-    letter-spacing: 0.01em;
-    line-height: 1.5;
+    color: var(--ba-ink-soft);
+    background: var(--ba-surface-muted);
+    border: 1px solid var(--ba-border);
+    border-radius: var(--ba-radius-pill);
+    padding: 3px 10px;
+    max-width: 100%;
+}
+
+.ba-bond-meta-chip .ba-bond-meta-isin {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ba-hero-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.ba-hero-metric {
+    background: var(--ba-ink);
+    color: #ffffff;
+    border-radius: var(--ba-radius-sm);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ba-hero-metric.is-muted {
+    background: var(--ba-surface-sunken);
+    border: 1px dashed var(--ba-border-strong);
+}
+
+.ba-hero-value {
+    font-size: 1.45rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ba-hero-metric.is-muted .ba-hero-value {
+    color: var(--ba-ink-subtle);
+}
+
+.ba-hero-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #c8d3e3;
+}
+
+.ba-hero-metric.is-muted .ba-hero-label {
+    color: var(--ba-ink-muted);
+}
+
+.ba-hero-caption {
+    font-size: 0.7rem;
+    color: #aab9cf;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ba-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.ba-metric {
+    background: var(--ba-surface-muted);
+    border: 1px solid var(--ba-border);
+    border-radius: var(--ba-radius-sm);
+    padding: 9px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.ba-metric.is-emphasis {
+    background: var(--ba-gold-soft);
+    border-color: #e6cf95;
+}
+
+.ba-metric-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ba-ink-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ba-metric-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ba-ink);
+    font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
 }
 
-.ba-section-source-badge.is-traded {
-    background: var(--color-green-50);
-    border-color: rgba(4, 120, 87, 0.28);
-    color: var(--ba-emerald);
+.ba-metric.is-emphasis .ba-metric-value {
+    color: var(--ba-gold-strong);
 }
 
-.ba-section-source-badge.is-stale {
-    background: var(--color-amber-50);
-    border-color: rgba(180, 83, 9, 0.3);
-    color: var(--color-amber-700);
+.ba-metric.is-missing .ba-metric-value {
+    color: var(--ba-ink-subtle);
+    font-weight: 600;
 }
 
-/* ---- [P3] Retained empty states (flat surface, no gradient) ------------- */
-.ba-empty-state {
-    background: var(--ba-surface);
-    border: 1px dashed var(--ba-border);
-    border-radius: var(--ba-radius-card);
-    box-shadow: none;
-}
-
-.ba-empty-icon {
-    color: var(--ba-navy-control);
-    background: rgba(30, 58, 95, 0.07);
-}
-
-.ba-empty-state h3,
-.ba-detail-empty h3 {
-    color: var(--ba-navy);
-    font-weight: 700;
-}
-
-.ba-empty-state p,
-.ba-detail-empty p {
-    color: var(--ba-text-muted);
-}
-
-/* ---- [P4] Analytics KPIs -------------------------------------------------
-   Values, units and calculation behaviour are untouched — presentation only. */
+/* ---- Analytics KPI cards: larger, cleaner, emphasis on price/yield ------ */
 .ba-kpi-grid {
-    gap: 12px;
-    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
 }
 
 .ba-kpi {
     position: relative;
-    overflow: hidden;
-    gap: 4px;
-    padding: 14px 14px 13px;
-    background: var(--ba-surface);
+    background: var(--ba-surface-muted);
     border: 1px solid var(--ba-border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--ba-shadow-tile);
+    border-radius: var(--ba-radius-sm);
+    padding: 11px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
 }
-
-/* Category accent: a 3px rail clipped by the card radius. The colour marks
-   the metric's family only — it never encodes a good/bad direction. */
-.ba-kpi::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    right: 0;
-    left: 0;
-    height: 3px;
-    background: var(--ba-kpi-accent, transparent);
-    opacity: 0.85;
-}
-
-/* Yield family (Current Yield, Calculated YTM, Market YTM) → blue-teal.
-   Accrual (Accrued Interest) → amber.
-   Risk family (Macaulay/Modified Duration, Convexity, DV01) → purple.
-   Order mirrors the fixed order rendered by renderKpis(). */
-.ba-kpi:nth-child(-n + 3) { --ba-kpi-accent: var(--ba-blue); }
-.ba-kpi:nth-child(4) { --ba-kpi-accent: var(--ba-amber); }
-.ba-kpi:nth-child(n + 5) { --ba-kpi-accent: var(--ba-purple); }
 
 .ba-kpi-value {
-    display: block;
-    font-size: 1.1875rem;
+    font-size: 1.22rem;
     font-weight: 700;
-    line-height: 1.25;
     letter-spacing: -0.015em;
-    color: var(--ba-navy);
+    color: var(--ba-ink);
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-    max-width: 100%;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
 }
 
 .ba-kpi-value.is-muted {
-    font-size: 0.8125rem;
+    color: var(--ba-ink-subtle);
     font-weight: 600;
-    color: var(--ba-text-subtle);
 }
 
 .ba-kpi-label {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    line-height: 1.4;
-    text-transform: uppercase;
-    color: var(--ba-text-muted);
-}
-
-/* ---- [P4] Info / tooltip affordance -------------------------------------
-   One consistent 14px circular icon for KPI labels and for N/A explanations,
-   matching the Mutual Fund Analysis pattern. Positioning is fixed in CSS
-   only: the existing positionTooltip() helper already computes viewport
-   coordinates from getBoundingClientRect(), so the tooltip must be
-   viewport-anchored. No JS change is required. */
-.tooltip-trigger {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 14px;
-    height: 14px;
-    flex-shrink: 0;
-    font-size: 0.625rem;
+    gap: 4px;
+    font-size: 0.66rem;
     font-weight: 700;
-    line-height: 1;
-    color: var(--ba-text-subtle);
-    background: rgba(148, 163, 184, 0.16);
-    border-radius: 50%;
-    cursor: help;
-    vertical-align: middle;
-    transition: background-color 0.15s ease, color 0.15s ease;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ba-ink-muted);
 }
 
-.tooltip-trigger:hover,
-.tooltip-trigger:focus {
-    background: var(--ba-navy-control);
+/* Headline price/yield cards get the dark terminal treatment … */
+.ba-kpi.is-emphasis {
+    background: var(--ba-ink);
+    border-color: var(--ba-ink);
+}
+
+.ba-kpi.is-emphasis .ba-kpi-value {
     color: #ffffff;
-    outline: none;
+    font-size: 1.34rem;
 }
 
-.tooltip-content {
-    position: fixed;
-    top: 0;
-    bottom: auto;
-    left: 0;
-    z-index: 9999;
-    width: 260px;
-    max-width: 260px;
-    margin: 6px 0 0;
-    padding: 8px 10px;
-    background: var(--ba-navy-control);
-    color: #ffffff;
-    font-size: 0.75rem;
-    font-weight: 400;
-    line-height: 1.45;
-    border-radius: var(--radius-sm);
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.22);
-    opacity: 0;
-    visibility: hidden;
-    transform: none;
-    pointer-events: none;
-    white-space: normal;
-    transition: opacity 0.15s ease, visibility 0.15s ease;
+.ba-kpi.is-emphasis .ba-kpi-label {
+    color: #c8d3e3;
 }
 
-.tooltip-content::before {
-    content: "";
-    position: absolute;
-    top: -5px;
-    bottom: auto;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-bottom-color: var(--ba-navy-control);
+/* …but a muted emphasis card is a neutral unavailable tile, not a trophy. */
+.ba-kpi.is-emphasis.is-muted {
+    background: var(--ba-surface-muted);
+    border: 1px dashed var(--ba-border-strong);
 }
 
-/* ---- [P5] Cash Flows table ----------------------------------------------
-   Existing cash-flow values only — no totals or derived metrics are added. */
-.ba-table-wrap {
-    margin-top: 14px;
-    background: var(--ba-surface);
-    border: 1px solid var(--ba-border);
-    border-radius: var(--radius-md);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+.ba-kpi.is-emphasis.is-muted .ba-kpi-value {
+    color: var(--ba-ink-subtle);
 }
 
-/* The schedule-provenance note is rendered inside the same wrap. */
-.ba-table-wrap > .ba-section-sub {
+.ba-kpi.is-emphasis.is-muted .ba-kpi-label {
+    color: var(--ba-ink-muted);
+}
+
+.ba-kpi-notice {
+    grid-column: 1 / -1;
     margin: 0;
-    padding: 12px 14px 0;
+    font-size: 0.83rem;
+    font-weight: 700;
+    color: var(--ba-red);
+    background: var(--ba-red-soft);
+    border: 1px solid #f0c4c1;
+    border-left: 4px solid var(--ba-red);
+    border-radius: var(--ba-radius-sm);
+    padding: 10px 12px;
+    line-height: 1.5;
 }
 
-.ba-table-wrap > .ba-notes {
-    margin: 8px 0 0;
-    padding: 0 14px 12px;
+.ba-kpi-notice-detail {
+    font-weight: 400;
+    color: #7a201b;
+}
+
+/* ---- Cash-flow table: scannable, final redemption highlighted ----------- */
+.ba-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--ba-border);
+    border-radius: var(--ba-radius-sm);
 }
 
 .ba-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.875rem;
+    font-size: 0.82rem;
+    background: var(--ba-surface);
 }
 
-.ba-table th {
-    padding: 10px 14px;
-    background: var(--ba-surface-muted);
-    border-bottom: 1px solid var(--ba-border);
-    font-size: 0.6875rem;
+.ba-table thead th {
+    font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--ba-text-muted);
+    color: #ffffff;
+    background: var(--ba-ink);
     text-align: left;
+    padding: 9px 12px;
     white-space: nowrap;
 }
 
-.ba-table td {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--ba-divider);
-    font-size: 0.875rem;
-    color: var(--ba-text);
+.ba-table tbody td {
+    padding: 8px 12px;
+    border-top: 1px solid var(--ba-divider);
+    color: var(--ba-ink-soft);
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
+    vertical-align: middle;
 }
 
-.ba-table tbody tr:last-child td {
-    border-bottom: none;
+.ba-table tbody tr.is-alt td {
+    background: var(--ba-surface-muted);
 }
 
 .ba-table tbody tr:hover td {
-    background: rgba(30, 58, 95, 0.035);
+    background: var(--ba-accent-soft);
 }
 
-/* Numeric columns: right-aligned, tabular, navy. */
 .ba-table .ba-num {
     text-align: right;
-    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.ba-table tbody tr.is-final td {
     font-weight: 600;
-    color: var(--ba-navy);
+    color: var(--ba-ink);
 }
 
-/* The trailing column is the existing "Total Cash Flow" column — emphasised
-   only, never recomputed. */
-.ba-table tbody td:last-child {
+.ba-table tbody tr.is-redemption td {
+    background: var(--ba-gold-soft);
     font-weight: 700;
-    color: var(--ba-navy);
+    color: var(--ba-ink);
+    border-top: 2px solid var(--ba-gold);
 }
 
-/* ---- [P5] Bond Details & methodology ------------------------------------ */
-#ba-details-grid {
-    margin-top: 14px;
+.ba-table tbody tr.is-redemption:hover td {
+    background: var(--ba-gold-soft);
 }
 
-#ba-notes {
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid var(--ba-divider);
+.ba-cf-tag {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ba-gold-strong);
+    background: #ffffff;
+    border: 1px solid var(--ba-gold);
+    border-radius: var(--ba-radius-pill);
+    padding: 1px 7px;
+    vertical-align: 1px;
 }
 
-#ba-notes:empty {
-    display: none;
+/* ---- Details / methodology grid + notes --------------------------------- */
+.ba-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.ba-detail-item {
+    border-left: 3px solid var(--ba-divider);
+    padding: 2px 0 2px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ba-detail-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ba-ink-muted);
+}
+
+.ba-detail-value {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--ba-ink);
+    overflow-wrap: anywhere;
+}
+
+.ba-value-mono {
+    font-family: var(--ba-mono);
+    font-size: 0.79rem;
+    font-weight: 600;
+}
+
+.ba-notes {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
 }
 
 .ba-notes li {
-    font-size: 0.8125rem;
-    color: var(--ba-text-muted);
+    position: relative;
+    font-size: 0.77rem;
     line-height: 1.55;
-}
-
-/* ---- [P5] Bond selector -------------------------------------------------
-   Scrolling, sorting, pagination, search and universe filters are untouched. */
-.ba-toolbar {
-    background: var(--ba-surface);
-    border: 1px solid var(--ba-border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--ba-shadow-tile);
-}
-
-.ba-search-bar:focus-within {
-    border-color: rgba(30, 58, 95, 0.45);
-    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
-}
-
-.ba-tool-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--ba-text-muted);
-}
-
-.ba-filter-select {
-    background: var(--ba-surface);
-    border: 1px solid var(--ba-border);
-    border-radius: var(--radius-pill);
-    color: var(--ba-text);
-    font-weight: 600;
-}
-
-.ba-filter-select:hover {
-    border-color: rgba(30, 58, 95, 0.4);
-    background: var(--ba-surface);
-    color: var(--ba-navy-control);
-}
-
-.ba-sort-dir {
-    background: var(--ba-surface);
-    border: 1px solid var(--ba-border);
-    color: var(--ba-navy-control);
-}
-
-.ba-sort-dir:hover {
-    border-color: rgba(30, 58, 95, 0.4);
+    color: var(--ba-ink-muted);
     background: var(--ba-surface-muted);
-}
-
-/* Rows: quiet card-like list items with a clear hover lift. */
-.ba-bond-item {
-    padding: 12px 16px;
-    background: var(--ba-surface);
     border: 1px solid var(--ba-border);
-    border-left: 3px solid transparent;
-    border-radius: var(--radius-md);
-    box-shadow: var(--ba-shadow-tile);
-    background-clip: padding-box;
-    transition: border-color 0.15s ease, background-color 0.15s ease,
-        box-shadow 0.15s ease;
+    border-left: 3px solid var(--ba-border-strong);
+    border-radius: 6px;
+    padding: 8px 10px 8px 12px;
 }
 
-.ba-bond-item:hover {
-    border-color: rgba(30, 58, 95, 0.35);
-    border-left-color: rgba(30, 58, 95, 0.35);
-    background: var(--ba-surface);
-    box-shadow: var(--ba-shadow-hover);
-}
-
-.ba-bond-item:focus-visible {
-    outline: none;
-    border-color: var(--ba-navy-control);
-    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.14);
-}
-
-.ba-bond-item:hover .ba-bond-yield,
-.ba-bond-item:focus-visible .ba-bond-yield {
-    color: var(--ba-blue);
-}
-
-/* Text hierarchy: name → meta → headline yield. */
-.ba-bond-info {
+/* The detail column stays useful before selection: a compact research panel. */
+.ba-detail-empty {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    flex: 1;
-    min-width: 0;
-}
-
-.ba-bond-name {
-    display: block;
-    font-size: 0.9375rem;
-    font-weight: 600;
-    letter-spacing: -0.005em;
-    line-height: 1.35;
-    color: var(--ba-navy);
-}
-
-.ba-bond-meta {
+    align-items: center;
+    background: var(--ba-ink);
+    color: #dbe4f0;
+    border: 1px solid var(--ba-ink);
+    border-radius: var(--ba-radius);
+    box-shadow: var(--ba-shadow-md);
+    padding: 44px 28px;
     margin: 0;
-    font-size: 0.75rem;
-    color: var(--ba-text-muted);
 }
 
-.ba-bond-meta-isin {
-    color: var(--ba-text-subtle);
+.ba-detail-empty .ba-empty-icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #f2c14e;
+    margin-bottom: 14px;
 }
 
-.ba-bond-yield {
+.ba-detail-empty .ba-empty-icon svg {
+    width: 30px;
+    height: 30px;
+}
+
+.ba-detail-empty h3 {
+    font-size: 1.18rem;
     font-weight: 700;
     letter-spacing: -0.01em;
-    color: var(--ba-navy);
-}
-
-/* Selected: the muted-gold identity edge on a slate-tinted surface — the row
-   reads as selected without flooding the list with colour. */
-.ba-bond-item.selected {
-    border-color: rgba(30, 58, 95, 0.25);
-    border-left: 4px solid var(--color-gold-500);
-    background: rgba(30, 58, 95, 0.05);
-    box-shadow: var(--ba-shadow-tile);
-}
-
-.ba-bond-item.selected:hover {
-    border-color: rgba(30, 58, 95, 0.3);
-    border-left-color: var(--color-gold-600);
-    background: rgba(30, 58, 95, 0.07);
-    box-shadow: var(--ba-shadow-hover);
-}
-
-.ba-bond-item.selected .ba-bond-yield,
-.ba-bond-item.selected:hover .ba-bond-yield {
-    color: var(--color-gold-700);
-}
-
-/* Rows the source reports without an ISIN stay readable but clearly inert. */
-.ba-bond-item[aria-disabled="true"] {
-    opacity: 1;
-    background: var(--ba-surface-muted);
-    border-color: var(--ba-border);
-    box-shadow: none;
-    cursor: default;
-}
-
-.ba-bond-item[aria-disabled="true"] .ba-bond-name {
-    color: var(--ba-text);
-    font-weight: 600;
-}
-
-.ba-bond-item[aria-disabled="true"] .ba-bond-meta {
-    color: var(--ba-text-muted);
-}
-
-.ba-bond-item[aria-disabled="true"] .ba-bond-yield {
-    color: var(--ba-text-muted);
-    font-weight: 600;
-}
-
-/* ---- [P5] Pagination ---------------------------------------------------- */
-.ba-pagination {
-    padding-top: 12px;
-    border-top: 1px solid var(--ba-divider);
-}
-
-.ba-page-btn {
-    border: 1px solid var(--ba-border);
-    background: var(--ba-surface);
-    color: var(--ba-text);
-    font-weight: 600;
-}
-
-.ba-page-btn:hover:not(:disabled) {
-    border-color: rgba(30, 58, 95, 0.4);
-    background: var(--ba-surface-muted);
-    color: var(--ba-navy-control);
-}
-
-.ba-page-btn.is-active {
-    background: var(--ba-navy-control);
-    border-color: var(--ba-navy-control);
     color: #ffffff;
-    box-shadow: 0 1px 3px rgba(30, 58, 95, 0.25);
+    margin: 0 0 7px;
 }
 
-.ba-page-btn:disabled {
-    opacity: 0.5;
-    background: var(--ba-surface-muted);
-    border-color: var(--ba-border);
-    color: var(--ba-text-subtle);
-    cursor: not-allowed;
+.ba-detail-empty p {
+    font-size: 0.86rem;
+    color: #aab9cf;
+    max-width: 44ch;
 }
 
-.ba-range-chip,
-.ba-page-info {
-    background: var(--ba-surface-muted);
-    border: 1px solid var(--ba-border);
-    color: var(--ba-text-muted);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-/* ---- [P5] Motion -------------------------------------------------------
-   Sections now fade in without the previous translate, which also keeps the
-   viewport-anchored tooltips stable while content expands. */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .ba-section-body:not(.collapsed) {
-        animation: none;
-    }
-
-    .ba-chevron,
-    .ba-bond-item,
-    .ba-section-toggle,
-    .tooltip-content {
-        transition: none;
-    }
-}
-
-/* ---- [P5] Responsive safety -------------------------------------------- */
-@media (max-width: 960px) {
-    .ba-table th,
-    .ba-table td {
-        padding: 9px 12px;
-    }
-}
-
-@media (max-width: 640px) {
-    body[data-page="bond-analysis"] .pb-panel > .ba-panel-head {
-        margin: -24px -24px 10px;
-        padding: 14px 18px 12px;
-    }
-
-    .ba-section-header {
-        padding: 12px 14px 11px;
-    }
-
-    .ba-section-body {
-        padding: 14px;
-    }
-
-    /* Re-asserted after the base rules above so the compact mobile row
-       spacing is not shadowed by the later base declarations. */
-    .ba-bond-meta {
-        flex-direction: column;
-        gap: 2px;
-    }
-
-    .ba-kpi {
-        padding: 12px;
-    }
-
-    .ba-kpi-value {
-        font-size: 1.0625rem;
-    }
-
-    .ba-detail-grid,
-    #ba-summary-grid,
-    #ba-details-grid {
-        gap: 10px;
-    }
-
-    .ba-table th,
-    .ba-table td {
-        padding: 8px 10px;
-    }
-
-    .ba-table-wrap > .ba-section-sub {
-        padding: 10px 10px 0;
-    }
-
-    .ba-table-wrap > .ba-notes {
-        padding: 0 10px 10px;
-    }
-
-    body[data-page="bond-analysis"] .ba-source-status-panel .pb-panel-header {
-        flex-wrap: wrap;
-        gap: 6px 10px;
-    }
-}
-
-/* Light color theme */
-body[data-page="bond-analysis"] {
-    background: #eef4fb;
-}
-
-/* Bond Summary */
-body[data-page="bond-analysis"] .ba-summary {
-    background: #FFFDF7;
-}
-
-/* Analytics */
-body[data-page="bond-analysis"] .ba-analytics {
-    background: #F8FBFF;
-}
-
-/* Cash Flows */
-body[data-page="bond-analysis"] .ba-cash-flows {
-    background: #FBF9FF;
-}
-
-/* Bond Details */
-body[data-page="bond-analysis"] .ba-details {
-    background: #F8FCF9;
-}
-
-
-body[data-page="bond-analysis"] .ba-section {
-    background: #ffffff;
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    border-left: 4px solid var(--section-accent, #1e3a5f);
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-    overflow: hidden;
-}
-
-body[data-page="bond-analysis"] .ba-section-body {
-    padding: 20px;
-}
-
-body[data-page="bond-analysis"] .ba-kpi {
-    background: #f1f7ff;
-    border: 1px solid #cddff2;
-    border-radius: 10px;
-    padding: 14px;
-    min-height: 84px;
-    box-shadow: 0 1px 3px rgba(30, 58, 95, 0.05);
-}
-
-body[data-page="bond-analysis"] .ba-kpi:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(30, 58, 95, 0.10);
-}
-
-body[data-page="bond-analysis"] .ba-kpi-value {
-    color: #173b63;
-    font-weight: 750;
-}
-
-body[data-page="bond-analysis"] .ba-kpi-label {
-    color: #526b85;
-}
-
-body[data-page="bond-analysis"] .ba-detail-item {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 12px 14px;
-}
-
-body[data-page="bond-analysis"] .ba-detail-label {
-    color: #64748b;
-    font-size: 0.68rem;
-    letter-spacing: 0.05em;
-}
-
-body[data-page="bond-analysis"] .ba-detail-value {
-    color: #1e293b;
-    margin-top: 4px;
-}
-
-body[data-page="bond-analysis"] .ba-source-status-panel {
-    background: #f7fcfa;
-    border-color: #d6ebe1;
-}
-
-body[data-page="bond-analysis"] .ba-source-status-panel .ba-panel-head {
-    background: #effaf4;
-    border-bottom-color: #d6ebe1;
-}
-
-body[data-page="bond-analysis"] .ba-section-header {
-    padding: 16px 20px;
-    background: #fbfcfe;
-    border-bottom: 1px solid #e5eaf1;
-}
-
-body[data-page="bond-analysis"] .ba-section-content h2,
-body[data-page="bond-analysis"] .ba-section-content h3 {
-    color: #173b63;
-    font-weight: 700;
-}
-
-body[data-page="bond-analysis"] .ba-table th {
-    background: #edf3f9;
-    color: #475569;
-    font-weight: 700;
-}
-
-body[data-page="bond-analysis"] .ba-table tbody tr:nth-child(even) {
-    background: #fafcff;
-}
-
-body[data-page="bond-analysis"] .ba-table tbody tr:hover {
-    background: #f0f6ff;
-}
-
-@media (max-width: 1200px) {
-    body[data-page="bond-analysis"] .ba-kpi-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 700px) {
-    body[data-page="bond-analysis"] .ba-kpi-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    body[data-page="bond-analysis"] .ba-section-body {
-        padding: 14px;
-    }
-}
-
-
-body[data-page="bond-analysis"] .pb-panel-header,
-body[data-page="bond-analysis"] .ba-panel-head {
-    background: #f3f7fc;
-    border-bottom: 1px solid #dce6f1;
-}
-
-body[data-page="bond-analysis"] .pb-panel-title {
-    color: #173b63;
-    font-weight: 700;
-}
-
-body[data-page="bond-analysis"] .ba-card-head {
-    background: #fffaf0;
-}
-
-body[data-page="bond-analysis"] .ba-analytics-head {
-    background: #f0f9fb;
-}
-
-body[data-page="bond-analysis"] .ba-cashflow-head {
-    background: #f8f3ff;
-}
-
-body[data-page="bond-analysis"] .ba-details-head {
-    background: #f0faf5;
-}
-
-/* Corporate Bond Filters */
-.ba-corporate-filters {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    width: 100%;
-    padding: 4px 0;
-}
-
-.ba-corporate-filters label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #64748b;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-}
-
-.ba-corporate-filters input {
-    height: 40px;
-    padding: 0 12px;
-    border: 1px solid #d7e0ec;
-    border-radius: 999px;
-    background: #ffffff;
-    color: #334155;
-    font-family: inherit;
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.2s ease,
-                box-shadow 0.2s ease;
-}
-
-.ba-corporate-filters input:focus {
-    border-color: #64748b;
-    box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.14);
-}
-
-.ba-corporate-filters input[type="date"] {
-    min-width: 155px;
-}
-
-.ba-corporate-filters input[type="text"] {
-    min-width: 180px;
-}
-
-.ba-corporate-filters input::placeholder {
-    color: #94a3b8;
-}
-
-/* Responsive layout */
-@media (max-width: 640px) {
-    .ba-corporate-filters {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .ba-corporate-filters label {
-        justify-content: space-between;
-        width: 100%;
-    }
-
-    .ba-corporate-filters input {
-        flex: 1;
-        min-width: 0 !important;
-    }
-}
-
-
-/* ==========================================================================
-   Bond Analysis — layout correction
-   ========================================================================== */
-
-@media (min-width: 641px) {
-    body[data-page="bond-analysis"] .ba-workspace {
-        display: grid;
-        grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.4fr);
-        gap: 32px;
-        align-items: start;
-        width: 100%;
-    }
-
-    body[data-page="bond-analysis"] .ba-selector-column,
-    body[data-page="bond-analysis"] .ba-analysis-column {
-        min-width: 0;
-        max-width: none;
-        width: auto;
-    }
-
-    body[data-page="bond-analysis"] .ba-selector-column {
-        min-width: 320px;
-    }
-
-    body[data-page="bond-analysis"] .ba-analysis-column {
-        min-width: 0;
-        overflow-y: visible;
-    }
-}
-
-/* Range filter layout */
-.ba-corporate-filters {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    width: 100%;
-    padding: 12px 0;
-    box-sizing: border-box;
-}
-
-.ba-corporate-filters label {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 5px;
-    min-width: 0;
-    white-space: normal;
-}
-
-.ba-corporate-filters input {
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    height: 36px;
-    box-sizing: border-box;
-    border-radius: 8px;
-}
-
-@media (max-width: 640px) {
-    .ba-corporate-filters {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* ==========================================================================
-   Bond Analysis — Collapsible Range Filters
-   ========================================================================== */
-
-/* Range values display */
-.ba-range-values {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 10px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--color-text);
-}
-
-/* =========================================================
-   Bond Range Filter - Portfolio Builder Style
-   ========================================================= */
-
-.ba-range-panel {
-    margin-top: 14px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--btn-shadow);
-    overflow: hidden;
-}
-
-/* Collapsible header - matches Portfolio Metrics card header */
-.ba-range-summary.ba-section-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    min-height: 78px;
-    padding: 14px 16px 14px 18px;
-    background: var(--color-surface);
-    border: none;
-    border-radius: 0;
-    cursor: pointer;
-    transition: background-color 0.15s ease;
-    box-shadow: none;
+.ba-empty-list {
     list-style: none;
-}
-
-.ba-range-summary.ba-section-header:hover {
-    background: var(--color-slate-100);
-}
-
-.ba-range-summary.ba-section-header:focus-visible {
-    outline: 2px solid var(--color-accent, #0ea5e9);
-    outline-offset: -2px;
-}
-
-.ba-range-summary::-webkit-details-marker {
-    display: none;
-}
-
-/* Header content layout */
-.ba-range-header-main {
-    display: flex;
-    align-items: center;
+    margin: 16px 0 0;
+    padding: 14px 0 0;
     width: 100%;
-}
-
-.ba-range-titlewrap {
-    flex: 1;
-}
-
-.ba-range-title {
-    font-size: 0.9375rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    margin: 0;
-}
-
-.ba-range-subtitle {
-    font-size: 0.75rem;
-    font-weight: 400;
-    color: var(--color-text-light);
-    line-height: 1.4;
-    white-space: normal;
-    margin: 0;
-}
-
-/* Chevron button - prominent circular dark navy button */
-.ba-range-controls {
-    display: flex;
-    align-items: center;
-    margin-left: auto;
-    justify-content: flex-end;
-    gap: 8px;
-    flex: 0 0 auto;
-    min-width: 44px;
-}
-
-.ba-slider-scale {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: 4px 0 12px 122px;
-    color: var(--color-text-muted);
-    font-size: 10px;
-    line-height: 1;
-    width: calc(100% - 122px);
-    margin-left: 122px;
-    padding: 0;
-}
-
-.ba-slider-scale span {
-    white-space: nowrap;
-}
-
-.ba-range-toggle.ba-section-caret-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 42px;
-    height: 42px;
-    padding: 0;
-    border: none;
-    border-radius: 50%;
-    background: #0f172a;
-    color: #ffffff;
-    box-shadow: var(--btn-shadow);
-    cursor: pointer;
-    transition: background-color 0.15s ease, box-shadow 0.15s ease;
-    flex-shrink: 0;
-}
-
-.ba-range-toggle.ba-section-caret-btn:hover {
-    background: #1e293b;
-    box-shadow: var(--btn-shadow-hover);
-}
-
-.ba-range-toggle.ba-section-caret-btn:focus {
-    outline: 3px solid var(--color-accent, #0ea5e9);
-    outline-offset: 2px;
-}
-
-.ba-range-caret.ba-section-caret {
-    width: 20px;
-    height: 20px;
-    color: inherit;
-    transition: transform 0.2s ease;
-}
-
-.ba-range-caret.ba-section-caret path {
-    stroke: currentColor;
-    stroke-width: 3;
-}
-
-/* Chevron rotation when expanded */
-.ba-range-panel[open] .ba-range-toggle.ba-section-caret-btn,
-.ba-range-panel[open] .ba-range-caret.ba-section-caret {
-    transform: rotate(180deg);
-}
-
-/* Content area */
-.ba-range-content.ba-section-content {
-    display: block;
-    padding: 16px;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-surface);
-}
-
-.ba-range-panel[open] .ba-range-content.ba-section-content {
-    display: block;
-}
-
-.ba-range-panel:not([open]) .ba-range-content.ba-section-content {
-    display: none;
-}
-
-/* Slider groups - rounded inner sections */
-.ba-range-group {
-    padding: 16px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: var(--color-surface);
-    box-shadow: var(--ba-shadow-tile);
-}
-
-.ba-range-group + .ba-range-group {
-    margin-top: 14px;
-}
-
-.ba-range-group legend {
-    padding: 0 6px;
-    color: var(--color-text-light);
-    font-size: 0.8125rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-/* Range sliders with blue accent */
-.ba-range-slider {
-    width: 100%;
-    height: 6px;
-    margin: 8px 0 16px;
-    accent-color: var(--color-accent, #0ea5e9);
-    cursor: pointer;
-}
-
-.ba-range-slider:focus-visible {
-    outline: 3px solid var(--color-accent, #0ea5e9);
-    outline-offset: 4px;
-    border-radius: 2px;
-}
-
-.ba-range-slider label,
-.ba-date-range label {
-    font-size: 0.74rem;
-    color: var(--color-text-light);
-}
-
-/* Date controls - fields group in rows for each label+input pair */
-.ba-date-range {
+    max-width: 360px;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    min-width: 0;
-    margin-top: 10px;
+    gap: 8px;
+    text-align: left;
 }
 
-.ba-date-range .ba-filter-input {
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    box-sizing: border-box;
-    padding: 8px 10px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    color: var(--color-text);
-    font: inherit;
-    font-size: 0.8125rem;
-}
-
-.ba-date-range .ba-filter-input:focus {
-    border-color: var(--color-accent, #0ea5e9);
-    outline: 3px solid rgba(14, 165, 233, 0.15);
-}
-
-/* Date controls - clean two-row layout */
-.ba-range-group > .ba-date-range + .ba-date-range {
-    margin-top: 8px;
-}
-
-/* Buttons - aligned to the right */
-.ba-range-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 18px;
-    padding-top: 14px;
-    border-top: 1px solid var(--color-border);
-}
-
-.ba-range-actions button {
-    min-height: 40px;
-    padding: 8px 18px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    color: var(--color-text);
-    font-size: 0.8125rem;
-    font-weight: 600;
-    font-family: var(--font-family);
-    cursor: pointer;
-    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.ba-range-actions button:hover {
-    background: var(--color-slate-100);
-    border-color: rgba(30, 58, 95, 0.2);
-}
-
-.ba-range-actions button:focus-visible {
-    outline: 3px solid var(--color-accent, #0ea5e9);
-    outline-offset: 2px;
-}
-
-.ba-range-actions button.ba-primary-btn {
-    border-color: var(--color-accent, #0ea5e9);
-    background: var(--color-accent, #0ea5e9);
-    color: #ffffff;
-}
-
-.ba-range-actions button.ba-primary-btn:hover {
-    background: var(--color-primary-light, #0284c7);
-    border-color: var(--color-primary-light, #0284c7);
-}
-
-/* Responsive layout */
-@media (max-width: 600px) {
-    .ba-range-header-main {
-        flex: 0 1 auto;
-        min-width: 0;
-        max-width: none;
-    }
-
-    .ba-range-titlewrap {
-        min-width: 0;
-    }
-
-    .ba-range-title {
-        font-size: 0.875rem;
-    }
-
-    .ba-range-toggle.ba-section-caret-btn {
-        width: 38px;
-        height: 38px;
-    }
-}
-
-@media (max-width: 640px) {
-    .ba-range-values {
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .ba-range-actions {
-        justify-content: stretch;
-    }
-
-    .ba-range-actions button {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .ba-range-group {
-        padding: 14px;
-    }
-}
-
-.ba-range-slider input[type="range"] {
-    appearance: none;
-    height: 6px;
-    margin: 8px 0;
-    border-radius: 999px;
-    background: #dbe4f0;
-    outline: none;
-}
-
-.ba-range-slider input[type="range"]::-webkit-slider-thumb {
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border: 3px solid #ffffff;
-    border-radius: 50%;
-    background: var(--color-accent, #0ea5e9);
-    box-shadow: 0 1px 5px rgba(15, 23, 42, 0.25);
-    cursor: grab;
-}
-
-.ba-range-slider input[type="range"]::-webkit-slider-thumb:active {
-    cursor: grabbing;
-    transform: scale(1.12);
-}
-
-.ba-range-slider input[type="range"]::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border: 3px solid #ffffff;
-    border-radius: 50%;
-    background: var(--color-accent, #0ea5e9);
-    box-shadow: 0 1px 5px rgba(15, 23, 42, 0.25);
-    cursor: grab;
-}
-
-.ba-range-slider input[type="range"]:focus-visible {
-    outline: 3px solid rgba(14, 165, 233, 0.3);
-    outline-offset: 4px;
-}
-
-.ba-range-values output {
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: #ffffff;
-    color: var(--color-text);
-    font-variant-numeric: tabular-nums;
-}
-
-.ba-range-actions .ba-primary-btn {
-    border-color: var(--color-accent, #0ea5e9);
-    background: var(--color-accent, #0ea5e9);
-    color: #ffffff;
-    font-weight: 700;
-    box-shadow: 0 2px 5px rgba(14, 165, 233, 0.18);
-}
-
-.ba-range-actions .ba-primary-btn:hover {
-    filter: brightness(0.94);
-    transform: translateY(-1px);
-}
-
-.ba-range-actions .ba-page-btn:hover {
-    border-color: var(--color-accent, #0ea5e9);
-}
-
-/* ==========================================================================
-   Credit Rating — searchable multi-select (inside Advanced Bond Filters card)
-   ========================================================================== */
-#ba-credit-rating {
+.ba-empty-list li {
     position: relative;
-    --ba-ms-bg: #ffffff;
-    --ba-ms-border: #d7e0ec;
-    --ba-ms-border-focus: #64748b;
-    --ba-ms-chip-bg: #eef2ff;
-    --ba-ms-chip-text: #3730a3;
-    --ba-ms-chip-border: #c7d2fe;
-    grid-column: 1 / -1;
+    font-size: 0.8rem;
+    color: #dbe4f0;
+    padding-left: 22px;
+    line-height: 1.5;
 }
 
-.ba-corporate-filters .ba-credit-rating-label {
-    grid-column: 1 / -1;
+.ba-empty-list li::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #f2c14e;
+}
+
+.ba-footnote {
+    margin-top: 12px;
+}
+
+body[data-page="bond-analysis"] .pb-page-note {
+    font-size: 0.76rem;
+    line-height: 1.6;
+    color: var(--ba-ink-muted);
+    background: var(--ba-surface-muted);
+    border: 1px solid var(--ba-border);
+    border-radius: var(--ba-radius-sm);
+    padding: 10px 12px;
+}
+
+/* ---- Credit-rating multi-select ----------------------------------------- */
+.ba-credit-rating-field {
+    position: relative;
 }
 
 .ba-multiselect-trigger {
-    display: inline-flex;
+    appearance: none;
+    width: 100%;
+    display: flex;
     align-items: center;
     justify-content: space-between;
-    width: 100%;
-    min-height: 36px;
-    gap: 6px;
-    padding: 0 12px;
-    border: 1px solid var(--ba-ms-border);
-    border-radius: 8px;
-    background: var(--ba-ms-bg);
-    color: #334155;
+    gap: 8px;
     font-family: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: text;
-    outline: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    box-sizing: border-box;
+    font-size: 0.8rem;
+    color: var(--ba-ink);
+    background: var(--ba-surface-muted);
+    border: 1px solid var(--ba-border);
+    border-radius: 6px;
+    padding: 6px 9px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .ba-multiselect-trigger:hover {
-    border-color: var(--ba-ms-border-focus);
+    border-color: var(--ba-border-strong);
 }
 
 .ba-multiselect-trigger:focus-visible {
-    border-color: var(--ba-ms-border-focus);
-    box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.14);
-}
-
-.ba-multiselect-trigger:focus-within {
-    border-color: var(--ba-ms-border-focus);
-    box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.14);
+    outline: none;
+    border-color: var(--ba-accent);
+    box-shadow: var(--ba-ring);
 }
 
 .ba-multiselect-display {
-    display: inline-flex;
-    flex-wrap: wrap;
+    display: flex;
     align-items: center;
-    gap: 4px;
-    flex: 1 1 auto;
+    gap: 5px;
+    flex-wrap: wrap;
     min-width: 0;
 }
 
 .ba-multiselect-summary {
-    color: #94a3b8;
-    font-size: 13px;
+    color: var(--ba-ink-muted);
+}
+
+.ba-multiselect-chip {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--ba-gold-strong);
+    background: var(--ba-gold-soft);
+    border: 1px solid #e6cf95;
+    border-radius: var(--ba-radius-pill);
+    padding: 1px 8px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .ba-multiselect-caret {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-    margin-left: 6px;
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+    color: var(--ba-ink-muted);
 }
 
-/* Chips for selected ratings */
-.ba-multiselect-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border: 1px solid var(--ba-ms-chip-border);
-    border-radius: 999px;
-    background: var(--ba-ms-chip-bg);
-    color: var(--ba-ms-chip-text);
-    font-size: 12px;
-    font-weight: 600;
-}
-
-/* Dropdown panel.
-   position: fixed because the enclosing Advanced Bond Filters <details> card
-   uses overflow: hidden — an absolutely-positioned panel would be clipped.
-   openCreditRatingDropdown() supplies top/left/width from the trigger rect. */
 .ba-multiselect-dropdown {
     position: fixed;
-    z-index: 1200;
-    width: 100%;
-    min-width: 180px;
-    max-height: 288px;
-    background: var(--ba-ms-bg);
-    border: 1px solid var(--ba-ms-border);
-    border-radius: 8px;
-    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.15);
+    z-index: 400;
+    background: var(--ba-surface);
+    border: 1px solid var(--ba-border-strong);
+    border-radius: var(--ba-radius-sm);
+    box-shadow: var(--ba-shadow-md);
     display: flex;
     flex-direction: column;
+    max-height: 288px;
     overflow: hidden;
-    box-sizing: border-box;
 }
 
 .ba-multiselect-search-wrap {
-    padding: 8px;
-    border-bottom: 1px solid var(--ba-ms-border);
-    box-sizing: border-box;
+    padding: 8px 8px 4px;
 }
 
 .ba-multiselect-search {
     width: 100%;
-    padding: 6px 10px;
-    border: 1px solid var(--ba-ms-border);
-    border-radius: 6px;
-    background: #f8fafc;
-    color: #334155;
     font-family: inherit;
-    font-size: 13px;
+    font-size: 0.8rem;
+    color: var(--ba-ink);
+    background: var(--ba-surface-muted);
+    border: 1px solid var(--ba-border);
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+
+.ba-multiselect-search:focus-visible {
     outline: none;
-    box-sizing: border-box;
+    border-color: var(--ba-accent);
+    box-shadow: var(--ba-ring);
 }
 
-.ba-multiselect-search:focus {
-    border-color: var(--ba-ms-border-focus);
-    background: #ffffff;
-    box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.12);
-}
-
-.ba-multiselect-search::placeholder {
-    color: #94a3b8;
-}
-
-/* Options list */
 .ba-multiselect-list {
     list-style: none;
-    margin: 0;
-    padding: 4px 0;
+    margin: 4px 0 0;
+    padding: 0 4px 4px;
     overflow-y: auto;
-    flex: 1 1 auto;
 }
 
 .ba-multiselect-option {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 14px;
-    cursor: pointer;
-    border: none;
-    background: transparent;
-    color: #334155;
-    font-family: inherit;
-    font-size: 13px;
-    text-align: left;
-    border-radius: 0;
-}
-
-.ba-multiselect-option:hover {
-    background: rgba(59, 130, 246, 0.05);
-}
-
-.ba-multiselect-option[aria-selected="true"] {
-    color: #1d4ed8;
+    gap: 9px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
     font-weight: 600;
+    color: var(--ba-ink-soft);
+    cursor: pointer;
+}
+
+.ba-multiselect-option:hover,
+.ba-multiselect-option:focus-visible {
+    background: var(--ba-accent-soft);
+    outline: none;
+}
+
+.ba-multiselect-checkbox {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+    border: 1.5px solid var(--ba-border-strong);
+    border-radius: 4px;
+    background: var(--ba-surface);
 }
 
 .ba-multiselect-option[aria-selected="true"] .ba-multiselect-checkbox {
-    background: #2563eb;
-    border-color: #2563eb;
+    background: var(--ba-accent);
+    border-color: var(--ba-accent);
+    box-shadow: inset 0 0 0 2.5px #ffffff;
 }
 
-.ba-multiselect-option[aria-selected="true"] .ba-multiselect-checkbox::after {
-    opacity: 1;
+.ba-multiselect-option[aria-selected="true"] {
+    color: var(--ba-accent-strong);
 }
 
-/* Visually-drawn checkbox: the option row owns the interaction, while this
-   span supplies the familiar checkbox affordance. */
-.ba-multiselect-checkbox {
-    position: relative;
-    flex-shrink: 0;
-    width: 15px;
-    height: 15px;
-    border: 1.5px solid #cbd5e1;
-    border-radius: 4px;
-    background: #ffffff;
-    box-sizing: border-box;
-    transition: background-color 0.12s ease, border-color 0.12s ease;
+.ba-multiselect-footer {
+    display: flex;
+    justify-content: flex-end;
+    border-top: 1px solid var(--ba-divider);
+    padding: 7px 8px;
 }
 
-.ba-multiselect-checkbox::after {
-    content: "";
-    position: absolute;
-    left: 4px;
-    top: 1px;
-    width: 4px;
-    height: 8px;
-    border: solid #ffffff;
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
-    opacity: 0;
-    transition: opacity 0.12s ease;
+/* ---------------------------------------------------------------------------
+ * 7. Tooltips — fixed-position pattern (no tooltip library)
+ * ------------------------------------------------------------------------ */
+.tooltip-trigger {
+    position: static;
+    display: inline-block;
+    color: var(--ba-ink-subtle);
+    font-weight: 700;
+    cursor: help;
 }
 
-.ba-multiselect-option-label {
-    flex: 1 1 auto;
-    min-width: 0;
+.tooltip-trigger .tooltip-content {
+    display: none;
+    position: fixed;
+    z-index: 500;
+    width: 250px;
+    max-width: calc(100vw - 16px);
+    background: var(--ba-ink);
+    color: #f2f5fa;
+    font-size: 0.72rem;
+    font-weight: 400;
+    line-height: 1.55;
+    border-radius: 8px;
+    padding: 9px 11px;
+    box-shadow: var(--ba-shadow-md);
+    white-space: normal;
 }
 
-/* Keyboard focus ring for the roving option tab stop. */
-.ba-multiselect-option:focus-visible {
+.tooltip-trigger:hover .tooltip-content,
+.tooltip-trigger:focus .tooltip-content,
+.tooltip-trigger:focus-visible .tooltip-content {
+    display: block;
+}
+
+.tooltip-trigger:focus-visible {
     outline: none;
-    background: rgba(37, 99, 235, 0.08);
-    box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.35);
+    box-shadow: var(--ba-ring);
+    border-radius: 50%;
 }
 
-/* Empty search result */
-.ba-multiselect-option.hidden {
-    display: none !important;
+/* ---------------------------------------------------------------------------
+ * 8. Responsive & motion
+ * ------------------------------------------------------------------------ */
+@media (max-width: 1180px) {
+    .ba-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .ba-hero-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .ba-metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .ba-detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
+/* Narrow widths: the two columns stack — list first, detail second. */
+@media (max-width: 1020px) {
+    .ba-workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .ba-hero-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .mf-page-title {
+        font-size: 1.5rem;
+    }
+    .ba-search-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .ba-search-input {
+        flex-basis: auto;
+    }
+    .ba-filter-select,
+    .ba-filter-input {
+        width: 100%;
+    }
+    .ba-range-slider {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .ba-slider-scale {
+        width: 100%;
+        margin-left: 0;
+    }
+    .ba-date-range {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .ba-bond-quote {
+        min-width: 74px;
+    }
+    .ba-bond-yield {
+        font-size: 1rem;
+    }
+    .ba-hero-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .ba-kpi-grid,
+    .ba-metric-grid,
+    .ba-detail-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .ba-range-actions {
+        justify-content: stretch;
+    }
+    .ba-range-actions .ba-page-btn {
+        flex: 1 1 auto;
+    }
+    .ba-section-body {
+        padding: 12px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body[data-page="bond-analysis"] * {
+        transition: none !important;
+        animation: none !important;
+    }
+}

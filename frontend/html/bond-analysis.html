@@ -10,23 +10,6 @@
     <link rel="stylesheet" href="/css/components.css">
     <link rel="stylesheet" href="/css/features/portfolio-builder.css">
     <link rel="stylesheet" href="/css/features/bond-analysis.css">
-    <style>
-        .ba-slider-scale {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: calc(100% - 122px);
-            margin: 4px 0 14px 122px;
-            color: var(--color-text-muted, #718096);
-            font-size: 10px;
-            line-height: 1;
-            pointer-events: none;
-        }
-
-        .ba-slider-scale span {
-            white-space: nowrap;
-        }
-    </style>
 </head>
 <body data-page="bond-analysis">
     <header class="site-header">
@@ -39,42 +22,35 @@
     <main class="container">
         <div class="page-header">
             <div id="bond-analysis-content">
-                <div class="pb-page-header-text">
+                <div class="pb-page-header-text ba-page-head">
                     <h1 class="mf-page-title">Bond Analysis</h1>
-                    <p class="mf-page-subtitle">Market prices, yields and fixed-income analytics for government and corporate bonds.</p>
+                    <p class="mf-page-subtitle">Market prices, yields, cash flows and risk analytics for government and corporate bonds.</p>
                 </div>
                 <div class="pb-stage" id="ba-stage">
                     <div class="ba-workspace">
-                        <div class="ba-selector-column">
-                            <section class="pb-panel" aria-labelledby="ba-selector-title">
+                        <!-- ================= LEFT — discovery, filtering, list ================= -->
+                        <aside class="ba-selector-column">
+                            <section class="pb-panel ba-discovery" aria-labelledby="ba-selector-title">
                                 <div class="pb-panel-header ba-panel-head">
-                                    <h2 class="pb-panel-title" id="ba-selector-title">Find a Bond</h2>
+                                    <h2 class="pb-panel-title" id="ba-selector-title">Bond Universe</h2>
                                     <div class="ba-header-tools">
-                                        <label class="ba-tool-label" for="ba-sort-select">Sort by</label>
-                                        <select id="ba-sort-select" class="ba-filter-select ba-sort-select" aria-label="Sort bonds by">
-                                            <option value="maturity_date" selected>Maturity Date</option>
-                                            <option value="market_ytm">Market YTM</option>
-                                            <option value="clean_price">Clean Price</option>
-                                            <option value="coupon_rate">Coupon Rate</option>
-                                            <option value="security_name">Security Name</option>
-                                            <option value="instrument_type">Instrument Type</option>
-                                        </select>
-                                        <button type="button" id="ba-sort-dir" class="ba-sort-dir" aria-label="Sort ascending" title="Sort direction">&uarr;</button>
                                         <span class="ba-range-chip" id="ba-range-chip" aria-live="polite"></span>
                                         <span class="pb-count" id="ba-result-count"></span>
                                     </div>
                                 </div>
-                                <p class="ba-section-sub">Search by security name, ISIN or issuer, then select a bond to see its market data and analytics.</p>
-                                <div id="ba-universe-switch" class="ba-header-tools" role="group" aria-label="Bond universe">
-                                    <span class="ba-tool-label">Universe</span>
-                                    <button type="button" class="ba-page-btn ba-universe-btn is-active" id="ba-universe-government" data-universe="government" aria-pressed="true">Government Bonds</button>
-                                    <button type="button" class="ba-page-btn ba-universe-btn" id="ba-universe-corporate" data-universe="corporate" aria-pressed="false">Corporate Bonds</button>
+
+                                <!-- Universe switch: the primary navigation control — it changes the whole dataset. -->
+                                <div id="ba-universe-switch" class="ba-universe-switch" role="group" aria-label="Bond universe">
+                                    <button type="button" class="ba-universe-btn is-active" id="ba-universe-government" data-universe="government" aria-pressed="true">Government Bonds</button>
+                                    <button type="button" class="ba-universe-btn" id="ba-universe-corporate" data-universe="corporate" aria-pressed="false">Corporate Bonds</button>
                                 </div>
+
+                                <!-- Search + server-side filters -->
                                 <div class="ba-search-bar ba-toolbar">
                                     <svg class="ba-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                                    <input type="search" id="ba-search-input" class="ba-search-input" placeholder="Search bonds by name, ISIN, or issuer..." autocomplete="off" aria-label="Search bonds">
+                                    <input type="search" id="ba-search-input" class="ba-search-input" placeholder="Search by name, ISIN or issuer..." autocomplete="off" aria-label="Search bonds">
                                     <select id="ba-type-filter" class="ba-filter-select" aria-label="Instrument type filter">
-                                        <option value="" selected>All</option>
+                                        <option value="" selected>All types</option>
                                         <option value="G-Sec">G-Sec</option>
                                         <option value="SDL">SDL</option>
                                         <option value="T-Bill">T-Bill</option>
@@ -83,290 +59,222 @@
                                         id="ba-source-filter"
                                         class="ba-filter-select"
                                         aria-label="Data source filter">
-
                                         <option value="" selected>All Sources</option>
                                         <option value="CCIL">CCIL</option>
                                         <option value="NSE">NSE</option>
                                         <option value="RBI">RBI</option>
                                     </select>
-                                    </div><details class="ba-range-panel ba-section-card" id="ba-range-panel">
-    <summary class="ba-range-summary ba-section-header">
-        <div class="ba-range-header-main">
-            <span class="ba-range-titlewrap">
-                <span class="ba-range-title">Advanced Bond Filters</span>
-                <span class="ba-range-subtitle">Coupon, yield, maturity &amp; ratings</span>
-            </span>
-        </div>
-        <div class="ba-range-controls">
-            <span
-    class="ba-range-toggle ba-section-caret-btn"
-    aria-hidden="true"
->
-    <svg
-        class="ba-range-caret ba-section-caret"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-    >
-        <path d="M5 7.5L10 12.5L15 7.5"></path>
-    </svg>
-</span>
-        </div>
-    </summary>
-                                                <div id="ba-range-content" class="ba-range-content ba-section-content">
+                                </div>
 
-        <!-- Coupon Rate -->
-        <fieldset class="ba-range-group">
-            <legend>Coupon Rate (%)</legend>
+                                <!-- Sort toolbar + result position -->
+                                <div class="ba-list-toolbar">
+                                    <label class="ba-tool-label" for="ba-sort-select">Sort</label>
+                                    <select id="ba-sort-select" class="ba-filter-select ba-sort-select" aria-label="Sort bonds by">
+                                        <option value="maturity_date" selected>Maturity Date</option>
+                                        <option value="market_ytm">Market YTM</option>
+                                        <option value="clean_price">Clean Price</option>
+                                        <option value="coupon_rate">Coupon Rate</option>
+                                        <option value="security_name">Security Name</option>
+                                        <option value="instrument_type">Instrument Type</option>
+                                    </select>
+                                    <button type="button" id="ba-sort-dir" class="ba-sort-dir" aria-label="Sort ascending" title="Sort direction">&uarr;</button>
+                                </div>
+                                <!-- Advanced filters: compact, grouped, applied explicitly -->
+                                <details class="ba-range-panel" id="ba-range-panel">
+                                    <summary class="ba-range-summary">
+                                        <span class="ba-range-titlewrap">
+                                            <span class="ba-range-title">Advanced Filters</span>
+                                            <span class="ba-range-subtitle">Coupon, yield, maturity &amp; ratings</span>
+                                        </span>
+                                        <span class="ba-range-toggle" aria-hidden="true">
+                                            <svg class="ba-range-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                <path d="M5 7.5L10 12.5L15 7.5"></path>
+                                            </svg>
+                                        </span>
+                                    </summary>
+                                    <div id="ba-range-content" class="ba-range-content">
 
-            <div class="ba-range-values">
-                <output id="ba-coupon-min-value">Min: Any</output>
-                <output id="ba-coupon-max-value">Max: Any</output>
-            </div>
+                                        <!-- Coupon Rate -->
+                                        <fieldset class="ba-range-group">
+                                            <legend>Coupon Rate (%)</legend>
+                                            <div class="ba-range-values">
+                                                <output id="ba-coupon-min-value">Min: Any</output>
+                                                <output id="ba-coupon-max-value">Max: Any</output>
+                                            </div>
+                                            <div class="ba-range-slider">
+                                                <label for="ba-coupon-min">Minimum coupon</label>
+                                                <input type="range" id="ba-coupon-min" min="0" max="20" step="0.05" value="0">
+                                            </div>
+                                            <div class="ba-slider-scale" aria-hidden="true">
+                                                <span>0%</span><span>5%</span><span>10%</span><span>15%</span><span>20%</span>
+                                            </div>
+                                            <div class="ba-range-slider">
+                                                <label for="ba-coupon-max">Maximum coupon</label>
+                                                <input type="range" id="ba-coupon-max" min="0" max="20" step="0.05" value="20">
+                                            </div>
+                                            <div class="ba-slider-scale" aria-hidden="true">
+                                                <span>0%</span><span>5%</span><span>10%</span><span>15%</span><span>20%</span>
+                                            </div>
+                                        </fieldset>
 
-            <div class="ba-range-slider">
-                <label for="ba-coupon-min">
-                    Minimum coupon
-                </label>
-                <input
-                    type="range"
-                    id="ba-coupon-min"
-                    min="0"
-                    max="20"
-                    step="0.05"
-                    value="0">
-            </div>
-                <div class="ba-slider-scale" aria-hidden="true">
-                    <span>0%</span>
-                    <span>5%</span>
-                    <span>10%</span>
-                    <span>15%</span>
-                    <span>20%</span>
-                </div>
+                                        <!-- Corporate Yield -->
+                                        <fieldset
+                                            class="ba-range-group ba-corporate-range-only"
+                                            id="ba-yield-range-group"
+                                            hidden>
+                                            <legend>Weighted Average Yield (%)</legend>
+                                            <div class="ba-range-values">
+                                                <output id="ba-yield-min-value">Min: Any</output>
+                                                <output id="ba-yield-max-value">Max: Any</output>
+                                            </div>
+                                            <div class="ba-range-slider">
+                                                <label for="ba-yield-min">Minimum yield</label>
+                                                <input type="range" id="ba-yield-min" min="0" max="20" step="0.05" value="0">
+                                            </div>
+                                            <div class="ba-slider-scale" aria-hidden="true">
+                                                <span>0%</span><span>5%</span><span>10%</span><span>15%</span><span>20%</span>
+                                            </div>
+                                            <div class="ba-range-slider">
+                                                <label for="ba-yield-max">Maximum yield</label>
+                                                <input type="range" id="ba-yield-max" min="0" max="20" step="0.05" value="20">
+                                            </div>
+                                            <div class="ba-slider-scale" aria-hidden="true">
+                                                <span>0%</span><span>5%</span><span>10%</span><span>15%</span><span>20%</span>
+                                            </div>
+                                        </fieldset>
 
-            <div class="ba-range-slider">
-                <label for="ba-coupon-max">
-                    Maximum coupon
-                </label>
-                <input
-                    type="range"
-                    id="ba-coupon-max"
-                    min="0"
-                    max="20"
-                    step="0.05"
-                    value="20">
-            </div>
-                <div class="ba-slider-scale" aria-hidden="true">
-                    <span>0%</span>
-                    <span>5%</span>
-                    <span>10%</span>
-                    <span>15%</span>
-                    <span>20%</span>
-                </div>
-        </fieldset>
+                                        <!-- Maturity -->
+                                        <fieldset class="ba-range-group">
+                                            <legend>Maturity Date</legend>
+                                            <div class="ba-date-range">
+                                                <label for="ba-maturity-from">From</label>
+                                                <input type="date" id="ba-maturity-from" class="ba-filter-input">
+                                            </div>
+                                            <div class="ba-date-range">
+                                                <label for="ba-maturity-to">To</label>
+                                                <input type="date" id="ba-maturity-to" class="ba-filter-input">
+                                            </div>
+                                        </fieldset>
+                                        <!-- Corporate-only server filters -->
+                                        <div
+                                            id="ba-corporate-filters"
+                                            class="ba-corporate-filters hidden"
+                                            aria-label="Corporate bond filters">
+                                            <div class="ba-field">
+                                                <label class="ba-tool-label" for="ba-corporate-trade-date">Trade Date</label>
+                                                <input type="date" id="ba-corporate-trade-date" class="ba-filter-input" aria-label="Corporate bond trade date">
+                                            </div>
+                                            <div class="ba-field">
+                                                <label class="ba-tool-label" for="ba-corporate-issuer">Issuer</label>
+                                                <input type="search" id="ba-corporate-issuer" class="ba-filter-input" placeholder="Filter by issuer" autocomplete="off" aria-label="Corporate bond issuer">
+                                            </div>
+                                            <div class="ba-field">
+                                                <label class="ba-tool-label ba-credit-rating-label" for="ba-credit-rating-trigger">Credit Rating</label>
+                                                <div id="ba-credit-rating"
+                                                     class="ba-credit-rating-field"
+                                                     role="group"
+                                                     aria-label="Credit rating filter"
+                                                     data-state="closed">
+                                                    <button type="button"
+                                                            id="ba-credit-rating-trigger"
+                                                            class="ba-multiselect-trigger"
+                                                            aria-haspopup="listbox"
+                                                            aria-expanded="false"
+                                                            aria-controls="ba-credit-rating-dropdown"
+                                                            aria-label="Credit Rating"
+                                                            autocomplete="off">
+                                                        <span id="ba-credit-rating-display" class="ba-multiselect-display">
+                                                            <span class="ba-multiselect-summary">Select ratings...</span>
+                                                        </span>
+                                                        <svg class="ba-multiselect-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                            <path d="M5 7.5L10 12.5L15 7.5"></path>
+                                                        </svg>
+                                                    </button>
+                                                    <div id="ba-credit-rating-dropdown"
+                                                         class="ba-multiselect-dropdown hidden"
+                                                         role="dialog"
+                                                         aria-hidden="true"
+                                                         aria-labelledby="ba-credit-rating-trigger">
+                                                        <div class="ba-multiselect-search-wrap">
+                                                            <input type="search"
+                                                                   id="ba-credit-rating-search"
+                                                                   class="ba-multiselect-search"
+                                                                   placeholder="Search ratings..."
+                                                                   autocomplete="off"
+                                                                   aria-label="Search credit ratings">
+                                                        </div>
+                                                        <ul id="ba-credit-rating-listbox"
+                                                            class="ba-multiselect-list"
+                                                            role="listbox"
+                                                            aria-multiselectable="true"
+                                                            tabindex="-1">
+                                                        </ul>
+                                                        <div class="ba-multiselect-footer">
+                                                            <button type="button"
+                                                                    id="ba-credit-rating-clear"
+                                                                    class="ba-page-btn">
+                                                                Clear all
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
 
-        <!-- Corporate Yield -->
-        <fieldset
-            class="ba-range-group ba-corporate-range-only"
-            id="ba-yield-range-group"
-            hidden>
-
-            <legend>Weighted Average Yield (%)</legend>
-
-            <div class="ba-range-values">
-                <output id="ba-yield-min-value">Min: Any</output>
-                <output id="ba-yield-max-value">Max: Any</output>
-            </div>
-
-            <div class="ba-range-slider">
-                <label for="ba-yield-min">
-                    Minimum yield
-                </label>
-                <input
-                    type="range"
-                    id="ba-yield-min"
-                    min="0"
-                    max="20"
-                    step="0.05"
-                    value="0">
-            </div>
-                <div class="ba-slider-scale" aria-hidden="true">
-                    <span>0%</span>
-                    <span>5%</span>
-                    <span>10%</span>
-                    <span>15%</span>
-                    <span>20%</span>
-                </div>
-
-            <div class="ba-range-slider">
-                <label for="ba-yield-max">
-                    Maximum yield
-                </label>
-                <input
-                    type="range"
-                    id="ba-yield-max"
-                    min="0"
-                    max="20"
-                    step="0.05"
-                    value="20">
-            </div>
-                <div class="ba-slider-scale" aria-hidden="true">
-                    <span>0%</span>
-                    <span>5%</span>
-                    <span>10%</span>
-                    <span>15%</span>
-                    <span>20%</span>
-                </div>
-        </fieldset>
-
-        <!-- Maturity -->
-        <fieldset class="ba-range-group">
-            <legend>Maturity Date</legend>
-
-            <div class="ba-date-range">
-                <label for="ba-maturity-from">
-                    From
-                </label>
-                <input
-                    type="date"
-                    id="ba-maturity-from"
-                    class="ba-filter-input">
-            </div>
-
-            <div class="ba-date-range">
-                <label for="ba-maturity-to">
-                    To
-                </label>
-                <input
-                    type="date"
-                    id="ba-maturity-to"
-                    class="ba-filter-input">
-            </div>
-        </fieldset>
-
-        <div
-            id="ba-corporate-filters"
-            class="ba-corporate-filters hidden"
-            aria-label="Corporate bond filters">
-
-            <label class="ba-tool-label" for="ba-corporate-trade-date">
-                Trade Date
-            </label>
-
-            <input
-                type="date"
-                id="ba-corporate-trade-date"
-                class="ba-filter-input"
-                aria-label="Corporate bond trade date">
-
-            <label class="ba-tool-label" for="ba-corporate-issuer">
-                Issuer
-            </label>
-
-            <input
-                type="search"
-                id="ba-corporate-issuer"
-                class="ba-filter-input"
-                placeholder="Filter by issuer"
-                autocomplete="off"
-                aria-label="Corporate bond issuer">
-
-            <label class="ba-tool-label ba-credit-rating-label" for="ba-credit-rating-trigger">
-                Credit Rating
-            </label>
-            <div id="ba-credit-rating"
-                 class="ba-credit-rating-field"
-                 role="group"
-                 aria-label="Credit rating filter"
-                 data-state="closed">
-                <button type="button"
-                        id="ba-credit-rating-trigger"
-                        class="ba-multiselect-trigger"
-                        aria-haspopup="listbox"
-                        aria-expanded="false"
-                        aria-controls="ba-credit-rating-dropdown"
-                        aria-label="Credit Rating"
-                        autocomplete="off">
-                    <span id="ba-credit-rating-display" class="ba-multiselect-display">
-                        <span class="ba-multiselect-summary">Select ratings…</span>
-                    </span>
-                    <svg class="ba-multiselect-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M5 7.5L10 12.5L15 7.5"></path>
-                    </svg>
-                </button>
-                <div id="ba-credit-rating-dropdown"
-                     class="ba-multiselect-dropdown hidden"
-                     role="dialog"
-                     aria-hidden="true"
-                     aria-labelledby="ba-credit-rating-trigger">
-                    <div class="ba-multiselect-search-wrap">
-                        <input type="search"
-                               id="ba-credit-rating-search"
-                               class="ba-multiselect-search"
-                               placeholder="Search ratings…"
-                               autocomplete="off"
-                               aria-label="Search credit ratings">
-                    </div>
-                    <ul id="ba-credit-rating-listbox"
-                        class="ba-multiselect-list"
-                        role="listbox"
-                        aria-multiselectable="true"
-                        tabindex="-1">
-                    </ul>
-                    <div class="ba-multiselect-footer">
-                        <button type="button"
-                                id="ba-credit-rating-clear"
-                                class="ba-page-btn">
-                            Clear all
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="ba-range-actions">
-            <button
-                type="button"
-                id="ba-range-reset"
-                class="ba-page-btn">
-                Reset
-            </button>
-
-            <button
-                type="button"
-                id="ba-range-apply"
-                class="ba-page-btn ba-primary-btn">
-                Apply
-            </button>
-        </div>
-
-    </div>
-</details>
-                                <p id="ba-selector-status" class="ba-section-sub ba-selector-status hidden" role="status" aria-live="polite"></p>
-                                <ul id="ba-bond-list" class="ba-bond-list"></ul>
+                                        <div class="ba-range-actions">
+                                            <button type="button" id="ba-range-reset" class="ba-page-btn">Reset</button>
+                                            <button type="button" id="ba-range-apply" class="ba-page-btn ba-primary-btn">Apply filters</button>
+                                        </div>
+                                    </div>
+                                </details>
+                                <!-- Results: every bond here is selectable -->
+                                <p id="ba-selector-status" class="ba-selector-status hidden" role="status" aria-live="polite"></p>
+                                <ul id="ba-bond-list" class="ba-bond-list" aria-label="Bond results"></ul>
                                 <div id="ba-pagination" class="ba-pagination hidden"></div>
                                 <div id="ba-no-results" class="ba-empty-state ba-after-panel hidden">
                                     <span class="ba-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></span>
                                     <h3>No bonds found</h3>
-                                    <p>No bonds match your search. Try a different name, ISIN or issuer, or change the instrument type filter.</p>
+                                    <p>No bonds match the current search and filters. Try a different name, ISIN or issuer, or widen the coupon / maturity range.</p>
+                                </div>
+
+                                <!-- Source health (GET /api/bonds/sources/status) -->
+                                <div class="ba-source-panel">
+                                    <div class="ba-source-panel-head">
+                                        <span class="ba-source-panel-title">Data sources</span>
+                                        <span class="ba-source-status-count" id="ba-source-status-count"></span>
+                                    </div>
+                                    <ul class="ba-source-list" id="ba-source-status-list">
+                                        <li class="ba-source-row" data-source="CCIL">
+                                            <span class="ba-source-name">CCIL</span>
+                                            <span class="ba-source-count">0 records</span>
+                                            <span class="ba-source-badge is-neutral">Not Loaded</span>
+                                        </li>
+                                        <li class="ba-source-row" data-source="NSE">
+                                            <span class="ba-source-name">NSE</span>
+                                            <span class="ba-source-count">0 records</span>
+                                            <span class="ba-source-badge is-neutral">Not Loaded</span>
+                                        </li>
+                                        <li class="ba-source-row" data-source="RBI">
+                                            <span class="ba-source-name">RBI</span>
+                                            <span class="ba-source-count">0 records</span>
+                                            <span class="ba-source-badge is-neutral">Not Loaded</span>
+                                        </li>
+                                    </ul>
                                 </div>
                             </section>
-                        </div>
-                        <div class="ba-analysis-column">
-                            
+                        </aside>
+
+                        <!-- ================= RIGHT — selected bond detail & analytics ================= -->
+                        <section class="ba-analysis-column" aria-label="Bond detail and analytics">
 
                             <div id="ba-results" class="hidden">
-                                <!-- Bond Summary Section -->
+                                <!-- Bond Summary -->
                                 <div class="ba-section" data-section="summary">
                                     <div class="ba-section-header">
                                         <div class="ba-section-left-accent" style="background-color: var(--color-gold-500);"></div>
                                         <div class="ba-section-content">
                                             <h3 class="ba-section-title">Bond Summary</h3>
-                                            <p class="ba-section-desc">Key bond metrics</p>
+                                            <p class="ba-section-desc">Identity, terms and headline market metrics</p>
                                             <span class="ba-section-source-badge" id="ba-section-header-badge"></span>
                                         </div>
                                         <button class="ba-section-toggle" aria-expanded="true" aria-label="Collapse Bond Summary">
@@ -375,19 +283,21 @@
                                             </svg>
                                         </button>
                                     </div>
-                                    <div class="ba-section-body">
+                                    <div class="ba-section-body expanded">
                                         <h3 id="ba-summary-name" class="ba-bond-name"></h3>
                                         <div class="ba-bond-meta" id="ba-summary-meta"></div>
-                                        <div class="ba-detail-grid" id="ba-summary-grid"></div>
+                                        <div class="ba-hero-grid" id="ba-summary-hero"></div>
+                                        <div class="ba-metric-grid" id="ba-summary-grid"></div>
                                     </div>
                                 </div>
-                                <!-- Analytics Section -->
+
+                                <!-- Analytics -->
                                 <div class="ba-section" data-section="analytics">
                                     <div class="ba-section-header">
                                         <div class="ba-section-left-accent" style="background-color: var(--color-blue-500, var(--color-accent));"></div>
                                         <div class="ba-section-content">
                                             <h3 class="ba-section-title">Analytics</h3>
-                                            <p class="ba-section-desc">Yield and risk metrics</p>
+                                            <p class="ba-section-desc">Yield and risk metrics computed by the analytics engine</p>
                                             <span class="ba-section-source-badge" id="ba-section-header-badge2"></span>
                                         </div>
                                         <button class="ba-section-toggle" aria-expanded="true" aria-label="Collapse Analytics">
@@ -396,17 +306,18 @@
                                             </svg>
                                         </button>
                                     </div>
-                                    <div class="ba-section-body">
+                                    <div class="ba-section-body expanded">
                                         <div class="ba-kpi-grid" id="ba-kpi-grid"></div>
                                     </div>
                                 </div>
-                                <!-- Cash Flows Section -->
+
+                                <!-- Cash Flows -->
                                 <div class="ba-section" data-section="cashflows">
                                     <div class="ba-section-header">
                                         <div class="ba-section-left-accent" style="background-color: var(--color-purple-500, var(--color-accent));"></div>
                                         <div class="ba-section-content">
                                             <h3 class="ba-section-title">Cash Flows</h3>
-                                            <p class="ba-section-desc">Payment schedule</p>
+                                            <p class="ba-section-desc">Payment schedule per INR 100 face value</p>
                                             <span class="ba-section-source-badge"></span>
                                         </div>
                                         <button class="ba-section-toggle" aria-expanded="false" aria-label="Expand Cash Flows">
@@ -415,52 +326,70 @@
                                             </svg>
                                         </button>
                                     </div>
-                                    <div class="ba-section-body">
+                                    <div class="ba-section-body collapsed">
                                         <div class="ba-table-wrap" id="ba-cashflow-wrap"></div>
                                     </div>
                                 </div>
-                                <!-- Details & Methodology Section -->
+
+                                <!-- Details & Methodology -->
                                 <div class="ba-section" data-section="details">
                                     <div class="ba-section-header">
                                         <div class="ba-section-left-accent" style="background-color: var(--color-green-500, var(--color-accent));"></div>
                                         <div class="ba-section-content">
-                                            <h3 class="ba-section-title">Bond Details & Methodology</h3>
-                                            <p class="ba-section-desc">Additional bond information</p>
+                                            <h3 class="ba-section-title">Bond Details &amp; Methodology</h3>
+                                            <p class="ba-section-desc">Issuance terms, conventions and data notes</p>
                                             <span class="ba-section-source-badge"></span>
                                         </div>
-                                        <button class="ba-section-toggle" aria-expanded="false" aria-label="Expand Bond Details & Methodology">
+                                        <button class="ba-section-toggle" aria-expanded="false" aria-label="Expand Bond Details &amp; Methodology">
                                             <svg class="ba-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                                 <polyline points="6 9 12 15 18 9"></polyline>
                                             </svg>
                                         </button>
                                     </div>
-                                    <div class="ba-section-body">
+                                    <div class="ba-section-body collapsed">
                                         <div class="ba-detail-grid" id="ba-details-grid"></div>
                                         <ul class="ba-notes" id="ba-notes"></ul>
                                     </div>
                                 </div>
                             </div>
+
                             <div id="ba-error" class="pb-analysis-error ba-after-panel hidden" role="alert"></div>
-                            <div id="ba-detail-empty" class="ba-empty-state ba-after-panel hidden">
-                                <span class="ba-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 9h8M8 13h8M8 17h5"></path></svg></span>
+
+                            <!-- Empty state: useful before anything is selected -->
+                            <div id="ba-detail-empty" class="ba-empty-state ba-detail-empty hidden">
+                                <span class="ba-empty-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M4 19V5"></path>
+                                        <path d="M4 19h16"></path>
+                                        <path d="M8 19v-6"></path>
+                                        <path d="M13 19V8"></path>
+                                        <path d="M18 19v-9"></path>
+                                        <path d="M4 9.5l5-3 4.5 2.5L20 5"></path>
+                                    </svg>
+                                </span>
                                 <h3>Select a bond to begin</h3>
-                                <p>Search for a bond above and select it to view its market data and analytics.</p>
+                                <p>Select a bond from the list to view market data and analytics.</p>
+                                <ul class="ba-empty-list">
+                                    <li>Market price and source-reported yield</li>
+                                    <li>Calculated YTM, duration, convexity and DV01</li>
+                                    <li>Coupon schedule and redemption cash flows</li>
+                                </ul>
                             </div>
-                            
-                            <p class="pb-page-note" style="margin-top: 16px;">Prices are clean prices; accrued interest is reported separately. Market YTM is as reported by the source; Calculated YTM is computed by the analytics engine.</p>
-                        </div>
+
+                            <p class="pb-page-note ba-footnote">Prices are clean prices; accrued interest is reported separately. Market YTM is as reported by the source; Calculated YTM is computed by the analytics engine.</p>
+                        </section>
                     </div>
                 </div>
             </div>
         </div>
     </main>
-    <a href="/help.html" class="help-link" title="Help & Methodology">
+    <a href="/help.html" class="help-link" title="Help &amp; Methodology">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
             <line x1="12" y1="17" x2="12.01" y2="17"></line>
         </svg>
-        <span>Help & Methodology</span>
+        <span>Help &amp; Methodology</span>
     </a>
     <footer class="site-footer">
         <div class="container">

@@ -2,11 +2,17 @@
 // Wires the page to the EXISTING bond APIs (no new backend, no client-side
 // financial computation):
 //   GET /api/bonds                       — list/search government bonds
+//   GET /api/bonds/record/{record_id}    — government bond with no ISIN
 //   GET /api/bonds/corporate             — list/search corporate bonds (CDSL)
 //   GET /api/bonds/{isin}                — government bond by ISIN
 //   GET /api/bonds/{isin}/market         — market observation
 //   GET /api/bonds/{isin}/analytics      — computed analytics
 //   GET /api/bonds/corporate/{isin}      — corporate bond by ISIN
+//
+// EVERY listed bond is selectable. Identity priority is ISIN first, then the
+// backend's own source-scoped `record_id` for records that publish no ISIN
+// (CCIL market-watch rows). No identifier is ever fabricated in the browser
+// and no bond is disabled merely because it has no ISIN.
 //
 // Government and Corporate are SEPARATE lazy-loaded universes: only the
 // active universe is ever requested, never both together.
@@ -25,7 +31,10 @@ const PAGE_SIZE = 12; // bonds per selector page (12–15 per spec)
 const state = {
     searchSeq: 0,       // guards against out-of-order search responses
     loadSeq: 0,         // guards against out-of-order bond loads
-    selectedIsin: null,
+    // Identity of the bond shown in the detail column: "isin:<ISIN>" or
+    // "record:<record_id>" (source records that publish no ISIN). Never a
+    // fabricated ISIN.
+    selectedKey: null,
     universe: "government", // active universe: "government" | "corporate"
     universes: {            // per-universe pagination state (lazy-loaded)
         government: { page: 1, total: 0, visited: true },
@@ -95,6 +104,178 @@ function couponFrequencyLabel(freq) {
     if (freq === null || freq === undefined) return "N/A";
     const map = { 1: "Annual", 2: "Semi-annual", 4: "Quarterly", 12: "Monthly" };
     return map[Number(freq)] || `${freq}/year`;
+}
+
+// ---------------------------------------------------------------------------
+// Bond identity & endpoint selection
+// ---------------------------------------------------------------------------
+// Identity priority (never a fabricated identifier):
+//   1. ISIN when the record publishes one
+//   2. the backend's own source-scoped `record_id` otherwise
+// The record_id comes straight from the API payload (the Bond model attaches
+// it); the browser never derives or invents one.
+
+function bondIdentity(bond) {
+    const isin = bond && bond.isin ? String(bond.isin).trim() : "";
+    const recordId = bond && bond.record_id ? String(bond.record_id).trim() : "";
+    if (isin) return { kind: "isin", isin: isin, recordId: recordId };
+    if (recordId) return { kind: "record", isin: "", recordId: recordId };
+    return { kind: "none", isin: "", recordId: "" };
+}
+
+// Stable selection key for a bond record ("isin:…" / "record:…").
+function bondSelectionKey(bond) {
+    const identity = bondIdentity(bond);
+    if (identity.kind === "isin") return "isin:" + identity.isin;
+    if (identity.kind === "record") return "record:" + identity.recordId;
+    return "";
+}
+
+// Endpoint plan mapping one identity onto the EXISTING API routes. Pure: it
+// declares which existing endpoints a detail load needs and never invents an
+// identifier. `analytics` is null when the analytics endpoints cannot serve
+// the record (they are ISIN-based).
+function bondDetailPlan(identity, universe, tradeDate) {
+    const isCorporate = universe === "corporate";
+    const kind = identity && identity.kind ? identity.kind : "none";
+    const isin = identity && identity.isin ? identity.isin : "";
+    const recordId = identity && identity.recordId ? identity.recordId : "";
+    const dateQuery = isCorporate && tradeDate
+        ? "?trade_date=" + encodeURIComponent(tradeDate)
+        : "";
+
+    if (kind === "isin") {
+        const encoded = encodeURIComponent(isin);
+        if (isCorporate) {
+            return {
+                key: "isin:" + isin,
+                kind: "isin",
+                label: "ISIN",
+                detail: "/bonds/corporate/" + encoded + dateQuery,
+                market: null,
+                analytics: "/bonds/corporate/" + encoded + "/analytics" + dateQuery,
+            };
+        }
+        return {
+            key: "isin:" + isin,
+            kind: "isin",
+            label: "ISIN",
+            detail: "/bonds/" + encoded,
+            market: "/bonds/" + encoded + "/market",
+            analytics: "/bonds/" + encoded + "/analytics",
+        };
+    }
+
+    if (kind === "record") {
+        return {
+            key: "record:" + recordId,
+            kind: "record",
+            label: "Record ID",
+            detail: "/bonds/record/" + encodeURIComponent(recordId),
+            market: null,
+            analytics: null,
+        };
+    }
+
+    return null;
+}
+
+// Market indicator for a list row — backend-provided fields only
+// (data_type / freshness_days). Returns null when there is nothing to show.
+function bondMarketFlag(bond) {
+    const dt = String((bond && bond.data_type) || "").toLowerCase();
+    if (dt === "traded") return { label: "Traded", className: "is-traded" };
+    if (dt === "indicative") return { label: "Indicative", className: "is-indicative" };
+    const fresh = bond ? bond.freshness_days : null;
+    if (typeof fresh === "number" && fresh > 7) {
+        return { label: "Stale " + fresh + "d", className: "is-stale" };
+    }
+    return null;
+}
+
+// One selectable bond row. Pure (no DOM access) so the identity resolution,
+// endpoint-agnostic rendering and the "no ISIN → Record ID" labelling are
+// directly testable.
+//
+// Layout: name / identity (ISIN or Record ID) / instrument · issuer · maturity
+//         with the headline yield and market flag on the right.
+function renderBondListRow(bond, selectedKey, isCorporate) {
+    const identity = bondIdentity(bond);
+    const key = bondSelectionKey(bond);
+    const name = (bond && bond.security_name) || identity.isin || identity.recordId || "Unnamed security";
+
+    // Government rows keep using the market YTM exactly as before; corporate
+    // (CDSL) rows may fall back to the weighted-average yield.
+    const ytmValue = bond && bond.ytm != null
+        ? bond.ytm
+        : (isCorporate && bond && bond.weighted_average_yield != null ? bond.weighted_average_yield : null);
+    const ytm = ytmValue != null ? formatPct(ytmValue) : "N/A";
+    const flag = bondMarketFlag(bond);
+
+    const identityHtml = identity.kind === "record"
+        ? '<span class="ba-bond-id-label">Record ID</span><span class="ba-bond-meta-isin ba-bond-meta-record">' + escapeHtml(identity.recordId) + "</span>"
+        : (identity.kind === "isin"
+            ? '<span class="ba-bond-id-label">ISIN</span><span class="ba-bond-meta-isin">' + escapeHtml(identity.isin) + "</span>"
+            : '<span class="ba-bond-id-label">No identifier</span>');
+
+    const meta = [
+        bond && bond.instrument_type ? escapeHtml(bond.instrument_type) : "",
+        bond && bond.credit_rating ? '<span class="ba-bond-rating">' + escapeHtml(bond.credit_rating) + "</span>" : "",
+        bond && bond.issuer ? escapeHtml(bond.issuer) : "",
+        bond && bond.maturity_date ? "Matures " + escapeHtml(formatDate(bond.maturity_date)) : "",
+    ].filter(Boolean).join('<span class="ba-bond-meta-sep" aria-hidden="true">&middot;</span>');
+
+    const inner = '<span class="ba-bond-info">'
+        + '<span class="ba-bond-name">' + escapeHtml(name) + "</span>"
+        + '<span class="ba-bond-identity">' + identityHtml + "</span>"
+        + '<span class="ba-bond-meta">' + meta + "</span>"
+        + "</span>"
+        + '<span class="ba-bond-quote">'
+        + '<span class="ba-bond-yield">' + escapeHtml(ytm) + "</span>"
+        + '<span class="ba-bond-yield-caption">YTM</span>'
+        + (flag ? '<span class="ba-bond-flag ' + flag.className + '">' + escapeHtml(flag.label) + "</span>" : "")
+        + "</span>";
+
+    if (!key) {
+        // Neither ISIN nor record_id was published, so there is genuinely no
+        // endpoint that can load this record — the only case where a row is
+        // rendered inert. No identifier is fabricated to make it clickable.
+        return '<li class="ba-bond-row"><div class="ba-bond-item ba-bond-item-inert" aria-disabled="true"'
+            + ' title="No identifier published for this record">' + inner + "</div></li>";
+    }
+
+    const selected = key === selectedKey;
+    return '<li class="ba-bond-row">'
+        + '<button type="button" class="ba-bond-item' + (selected ? " selected" : "") + '"'
+        + ' data-isin="' + escapeAttr(identity.isin) + '"'
+        + ' data-record-id="' + escapeAttr(identity.recordId) + '"'
+        + ' aria-pressed="' + (selected ? "true" : "false") + '"'
+        + ' title="' + escapeAttr("View details for " + name) + '">'
+        + inner
+        + '<span class="ba-bond-check" aria-hidden="true">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+        + "</span>"
+        + "</button></li>";
+}
+
+// Selection key carried by a rendered row button (same vocabulary as
+// bondSelectionKey, read back from the DOM).
+function elementSelectionKey(el) {
+    const isin = el && el.dataset && el.dataset.isin ? el.dataset.isin : "";
+    const recordId = el && el.dataset && el.dataset.recordId ? el.dataset.recordId : "";
+    if (isin) return "isin:" + isin;
+    if (recordId) return "record:" + recordId;
+    return "";
+}
+
+// Reflect the selection on the already-rendered rows (no re-fetch, no
+// re-render of the list): used on click so the selected state is immediate.
+function markSelectedRow(key) {
+    document.querySelectorAll(".ba-bond-item").forEach((el) => {
+        const selected = Boolean(key) && elementSelectionKey(el) === key;
+        el.classList.toggle("selected", selected);
+        if (el.tagName === "BUTTON") el.setAttribute("aria-pressed", String(selected));
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -444,6 +625,7 @@ async function searchBonds() {
 
     setSelectorStatus('<span class="pb-analysis-loading"><span class="pb-spinner" aria-hidden="true"></span><span>Searching bonds&hellip;</span></span>');
     $("ba-no-results").classList.add("hidden");
+    setListLoading(true);
 
     let data;
     let universe = null;
@@ -463,6 +645,7 @@ async function searchBonds() {
     } catch (err) {
         if (seq !== state.searchSeq) return;
         setSelectorStatus("");
+        setListLoading(false);
         $("ba-no-results").classList.add("hidden");
         $("ba-bond-list").innerHTML = "";
         renderPagination(0);
@@ -474,6 +657,7 @@ async function searchBonds() {
 
     if (seq !== state.searchSeq) return; // a newer search superseded this one
     setSelectorStatus("");
+    setListLoading(false);
     hideError();
 
     // The server returns {items, total, limit, offset}; a plain array is also
@@ -519,38 +703,17 @@ async function searchBonds() {
     // detail panels so a stale bond does not stay visible next to the
     // "No bonds found" state.
     if (list.length === 0) {
-        state.selectedIsin = null;
+        state.selectedKey = null;
         resetDetailPanel();
     }
 
-    // Rows without an ISIN (some CCIL Market Watch entries) cannot be loaded
-    // via /api/bonds/{isin}, so they are shown but not selectable.
-    $("ba-bond-list").innerHTML = list.map((b) => {
-        const isin = b.isin || "";
-        const name = b.security_name || isin || "Unnamed security";
-        // Government rows keep using the market YTM exactly as before;
-        // corporate (CDSL) rows may fall back to the weighted-average yield.
-        const ytmValue = b.ytm != null ? b.ytm
-            : (isCorporate && b.weighted_average_yield != null ? b.weighted_average_yield : null);
-        const ytm = ytmValue != null ? formatPct(ytmValue) : "N/A";
-        const meta = [
-            isin ? `<span class="ba-bond-meta-isin">${escapeHtml(isin)}</span>` : '<span>No ISIN reported</span>',
-            b.instrument_type ? `<span>${escapeHtml(b.instrument_type)}</span>` : "",
-            b.credit_rating ? `<span>${escapeHtml(b.credit_rating)}</span>` : "",
-            b.issuer ? `<span>${escapeHtml(b.issuer)}</span>` : "",
-            b.maturity_date ? `<span>Matures ${escapeHtml(formatDate(b.maturity_date))}</span>` : "",
-        ].join("");
-        const inner = `<span class="ba-bond-info">
-                <span class="ba-bond-name">${escapeHtml(name)}</span>
-                <span class="ba-bond-meta">${meta}</span>
-            </span>
-            <span class="ba-bond-yield">${escapeHtml(ytm)}</span>`;
-        if (!isin) {
-            return `<li><div class="ba-bond-item" aria-disabled="true" title="Details unavailable — this source entry has no ISIN">${inner}</div></li>`;
-        }
-        const selected = isin === state.selectedIsin ? " selected" : "";
-        return `<li><button type="button" class="ba-bond-item${selected}" data-isin="${escapeAttr(isin)}">${inner}</button></li>`;
-    }).join("");
+    // EVERY row is selectable. Identity is the ISIN when the record
+    // publishes one and the backend's own record_id otherwise (CCIL
+    // market-watch rows) — see bondDetailPlan. A missing ISIN never
+    // disables a bond.
+    $("ba-bond-list").innerHTML = list.map(
+        (b) => renderBondListRow(b, state.selectedKey, isCorporate)
+    ).join("");
 
     renderPagination(state.total);
 }
@@ -560,6 +723,19 @@ function setSelectorStatus(html) {
     if (!el) return;
     el.innerHTML = html;
     el.classList.toggle("hidden", !html);
+}
+
+// Loading state for the selector list: the current rows stay visible (dimmed)
+// while a new page/universe is in flight, and the busy state is exposed to
+// assistive technology.
+function setListLoading(loading) {
+    const list = $("ba-bond-list");
+    if (list) {
+        list.classList.toggle("is-loading", Boolean(loading));
+        list.setAttribute("aria-busy", loading ? "true" : "false");
+    }
+    const pagination = $("ba-pagination");
+    if (pagination) pagination.classList.toggle("is-loading", Boolean(loading));
 }
 
 function showError(message) {
@@ -637,7 +813,7 @@ function setUniverse(next) {
     // the previous universe's dataset.
     state.searchSeq++;
     state.loadSeq++;
-    state.selectedIsin = null;
+    state.selectedKey = null;
 
     updateUniverseControls();
     resetDetailPanel();
@@ -708,94 +884,104 @@ function goToPage(page) {
 
 
 // ---------------------------------------------------------------------------
-// Selected bond load — /{isin}, /{isin}/market and /{isin}/analytics
+// Selected bond load — ISIN records use /{isin} (+/market, /analytics);
+// records with no ISIN use the existing /record/{record_id} route; corporate
+// records use /bonds/corporate/{isin}. The endpoint choice is made by
+// bondDetailPlan() — this function only executes the plan.
 // ---------------------------------------------------------------------------
 
-async function selectBond(isin) {
-    if (!isin) return;
-    const seq = ++state.loadSeq;
-    state.selectedIsin = isin;
+// Section collapse states applied when a bond is selected: Bond Summary and
+// Analytics are open (the analytical headline), Cash Flows and Details start
+// collapsed.
+const DEFAULT_OPEN_SECTIONS = ["summary", "analytics"];
 
-    document.querySelectorAll(".ba-bond-item").forEach((btn) => {
-        btn.classList.toggle("selected", btn.dataset.isin === isin);
+function resetSectionStates() {
+    document.querySelectorAll(".ba-section").forEach((section) => {
+        const toggle = section.querySelector(".ba-section-toggle");
+        const body = section.querySelector(".ba-section-body");
+        if (!toggle || !body) return;
+        const sectionId = section.getAttribute("data-section");
+        const open = DEFAULT_OPEN_SECTIONS.indexOf(sectionId) !== -1;
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        body.classList.toggle("collapsed", !open);
+        body.classList.toggle("expanded", open);
+        const chevron = toggle.querySelector(".ba-chevron");
+        if (chevron) chevron.style.transform = open ? "rotate(180deg)" : "rotate(0deg)";
     });
+}
+
+async function selectBond(bondRef) {
+    // Identity comes from the row (ISIN when present, otherwise the
+    // backend's record_id). Both are carried by the list payload.
+    const identity = bondIdentity({
+        isin: bondRef && bondRef.isin ? bondRef.isin : "",
+        record_id: bondRef && bondRef.recordId ? bondRef.recordId : "",
+    });
+    if (identity.kind === "none") return;
+
+    // Corporate detail/analytics default to the current report date; the
+    // Trade Date filter pins the same CDSL report the list was filtered by.
+    const corpTradeDate = state.universe === "corporate"
+        ? readCorporateFilters().tradeDate : "";
+    const plan = bondDetailPlan(identity, state.universe, corpTradeDate);
+    if (!plan) return;
+
+    const seq = ++state.loadSeq;
+    state.selectedKey = plan.key;
+    markSelectedRow(plan.key);
 
     $("ba-detail-empty").classList.add("hidden");
     $("ba-error").classList.add("hidden");
     $("ba-results").classList.remove("hidden");
+    $("ba-results").classList.add("is-loading");
     $("ba-summary-name").textContent = "Loading bond…";
     $("ba-summary-meta").innerHTML = "";
+    $("ba-summary-hero").innerHTML = "";
     $("ba-summary-grid").innerHTML = "";
     $("ba-kpi-grid").innerHTML = '<div class="pb-analysis-loading"><span class="pb-spinner" aria-hidden="true"></span><span>Loading analytics&hellip;</span></div>';
     $("ba-cashflow-wrap").innerHTML = "";
     $("ba-details-grid").innerHTML = "";
     $("ba-notes").innerHTML = "";
     $("ba-section-header-badge").textContent = "";
+    $("ba-section-header-badge2").textContent = "";
 
-    // Reset section collapse states when a new bond is selected
-    const sections = document.querySelectorAll(".ba-section");
-    sections.forEach((section) => {
-        const toggle = section.querySelector(".ba-section-toggle");
-        const body = section.querySelector(".ba-section-body");
-        if (toggle && body) {
-            // Bond Summary: OPEN by default, others: CLOSED by default
-            const sectionId = section.getAttribute("data-section");
-            if (sectionId === "summary") {
-                toggle.setAttribute("aria-expanded", "true");
-                body.classList.remove("collapsed");
-                body.classList.add("expanded");
-                if (toggle.querySelector(".ba-chevron")) {
-                    toggle.querySelector(".ba-chevron").style.transform = "rotate(180deg)";
-                }
-            } else {
-                toggle.setAttribute("aria-expanded", "false");
-                body.classList.add("collapsed");
-                body.classList.remove("expanded");
-                if (toggle.querySelector(".ba-chevron")) {
-                    toggle.querySelector(".ba-chevron").style.transform = "rotate(0deg)";
-                }
-            }
-        }
-    });
+    resetSectionStates();
 
     // Market YTM (source observation) and Calculated YTM (analytics) come
     // from their own endpoints; the frontend never derives one from the other.
-    // Government bonds use the three government endpoints. Corporate bonds
-    // use the corporate detail endpoint plus the corporate analytics
-    // endpoint (analytics computed server-side from CDSL-validated terms);
-    // a failed analytics call degrades to the neutral N/A state.
-    let bond, market, analytics;
-    // Corporate detail/analytics default to the current report date; the Trade
-    // Date filter pins the same CDSL report the list was filtered by.
-    const corpTradeDate = state.universe === "corporate"
-        ? readCorporateFilters().tradeDate : "";
-    const corpDateQuery = corpTradeDate
-        ? `?trade_date=${encodeURIComponent(corpTradeDate)}` : "";
+    let bond = null;
+    let market = null;
+    let analytics = null;
     try {
-        if (state.universe === "corporate") {
-            bond = await api.get(`/bonds/corporate/${encodeURIComponent(isin)}${corpDateQuery}`);
-            market = null;
-            analytics = {};
-        } else {
+        if (plan.market && plan.analytics) {
+            // Government ISIN records: master + market observation + analytics.
             [bond, market, analytics] = await Promise.all([
-                api.get(`/bonds/${encodeURIComponent(isin)}`),
-                api.get(`/bonds/${encodeURIComponent(isin)}/market`),
-                api.get(`/bonds/${encodeURIComponent(isin)}/analytics`),
+                api.get(plan.detail),
+                api.get(plan.market),
+                api.get(plan.analytics),
             ]);
-        }
-        if (state.universe === "corporate") {
-            try {
-                analytics = await api.get(
-                    `/bonds/corporate/${encodeURIComponent(isin)}/analytics${corpDateQuery}`
-                );
-            } catch (_aErr) {
-                analytics = {};
+        } else {
+            // Records with no ISIN (record_id) and corporate (CDSL) records:
+            // the detail route is authoritative; analytics are requested only
+            // when the identity supports them (they are ISIN-based).
+            bond = await api.get(plan.detail);
+            if (plan.analytics) {
+                try {
+                    analytics = await api.get(plan.analytics);
+                } catch (_aErr) {
+                    // Analytics unavailable for this record: the detail view
+                    // stays useful and the metric cards show unavailable.
+                    analytics = null;
+                }
             }
         }
     } catch (err) {
         if (seq !== state.loadSeq) return;
         $("ba-results").classList.add("hidden");
+        $("ba-results").classList.remove("is-loading");
         $("ba-detail-empty").classList.remove("hidden");
+        state.selectedKey = null;
+        markSelectedRow(null);
         showError(`Could not load bond data: ${err && err.message ? err.message : err}`);
         return;
     }
@@ -804,7 +990,12 @@ async function selectBond(isin) {
     // /{isin}/market returns the same normalized record with emphasis on the
     // observation fields; prefer it for market-specific values when present.
     const merged = Object.assign({}, bond || {}, pickMarketFields(market));
-    renderBond(merged, analytics || {});
+    $("ba-results").classList.remove("is-loading");
+    renderBond(merged, analytics || {}, {
+        // false → the analytics endpoints cannot serve this record (no ISIN).
+        analyticsAvailable: plan.analytics !== null,
+        identityKind: plan.kind,
+    });
 }
 
 // Only market-observation fields are taken from the market endpoint; master
@@ -896,12 +1087,43 @@ function maturityStatusWarning(bond) {
         : "";
 }
 
-function renderBond(bond, analytics) {
+// Emphasis tile for the headline numbers (price / yield), kept distinct from
+// the compact metadata tiles so the important figures read first.
+function heroMetric(label, value, caption) {
+    const shown = value === null || value === undefined || value === "" ? "N/A" : value;
+    const muted = shown === "N/A";
+    return `<div class="ba-hero-metric${muted ? " is-muted" : ""}">
+        <span class="ba-hero-value">${escapeHtml(shown)}</span>
+        <span class="ba-hero-label">${escapeHtml(label)}</span>
+        ${caption ? `<span class="ba-hero-caption">${escapeHtml(caption)}</span>` : ""}
+    </div>`;
+}
+
+// Compact metadata tile (label above value) for the summary metric grid.
+function metricTile(label, value, options) {
+    const opts = options || {};
+    const missing = value === null || value === undefined || value === "";
+    return `<div class="ba-metric${missing ? " is-missing" : ""}${opts.emphasis ? " is-emphasis" : ""}">
+        <span class="ba-metric-label">${escapeHtml(label)}</span>
+        <span class="ba-metric-value">${escapeHtml(na(value))}</span>
+    </div>`;
+}
+
+function renderBond(bond, analytics, options) {
+    const opts = options || {};
+    const isCorporate = state.universe === "corporate";
+    // false when the record publishes no ISIN and the ISIN-based analytics
+    // endpoints cannot serve it — the analytics sections then render a clean
+    // unavailable state instead of an unexplained blank.
+    const analyticsAvailable = opts.analyticsAvailable !== false;
+
     if (!bond) {
         $("ba-results").classList.add("hidden");
         $("ba-detail-empty").classList.remove("hidden");
         return;
     }
+
+    const identity = bondIdentity(bond);
 
     // Source indicator (backend-provided source/freshness only)
     const badge = $("ba-section-header-badge");
@@ -916,12 +1138,33 @@ function renderBond(bond, analytics) {
     badge.classList.toggle("is-traded", dt === "traded");
     badge.classList.toggle("is-stale", stale);
 
-    // C. Summary card
-    $("ba-summary-name").textContent = bond.security_name || bond.isin || "Unnamed security";
+    // Analytics provenance: the engine's settlement date when it ran,
+    // otherwise an explicit reason instead of a silent blank.
+    const analyticsBadge = $("ba-section-header-badge2");
+    if (analyticsBadge) {
+        analyticsBadge.textContent = analyticsAvailable
+            ? (analytics.settlement_date
+                ? `Settlement ${formatDate(analytics.settlement_date)}`
+                : "Computed by the analytics engine")
+            : "Unavailable — no ISIN on this record";
+        analyticsBadge.classList.toggle("is-unavailable", !analyticsAvailable);
+    }
+
+    // C. Summary — prominent name, compact identity/metadata chips, then the
+    // headline price/yield metrics and the metric grid.
+    $("ba-summary-name").textContent = bond.security_name || identity.isin || identity.recordId || "Unnamed security";
+
+    const identityChip = identity.kind === "record"
+        ? `<span class="ba-bond-meta-chip"><span class="ba-bond-id-label">Record ID</span>${escapeHtml(identity.recordId)}</span>`
+        : (identity.kind === "isin"
+            ? `<span class="ba-bond-meta-chip"><span class="ba-bond-id-label">ISIN</span><span class="ba-bond-meta-isin">${escapeHtml(identity.isin)}</span></span>`
+            : "");
     $("ba-summary-meta").innerHTML = [
-        bond.instrument_type ? `<span>${escapeHtml(bond.instrument_type)}</span>` : "",
-        bond.issuer ? `<span>${escapeHtml(bond.issuer)}</span>` : "",
-    ].join("");
+        identityChip,
+        bond.instrument_type ? `<span class="ba-bond-meta-chip">${escapeHtml(bond.instrument_type)}</span>` : "",
+        bond.issuer ? `<span class="ba-bond-meta-chip">${escapeHtml(bond.issuer)}</span>` : "",
+        bond.maturity_date ? `<span class="ba-bond-meta-chip">Matures ${escapeHtml(formatDate(bond.maturity_date))}</span>` : "",
+    ].filter(Boolean).join("");
 
     // T-Bills are zero-coupon: coupon/frequency shown as neutral N/A values.
     const isTBill = (bond.instrument_type || "").toUpperCase() === "T-BILL";
@@ -929,41 +1172,52 @@ function renderBond(bond, analytics) {
     const freqLabel = isTBill ? "N/A (zero-coupon)" : couponFrequencyLabel(bond.coupon_frequency);
 
     // Corporate records (CDSL) render the fields the corporate endpoint
-    // actually supplies — LTP/VWAP/weighted-average yield — using their real
-    // names; the government rendering below is unchanged.
-    const isCorporate = state.universe === "corporate";
-    $("ba-summary-grid").innerHTML = isCorporate ? [
-        detailItem("ISIN", bond.isin, true),
-        detailItem("Instrument Type", bond.instrument_type),
-        detailItem("Issuer", bond.issuer),
-        detailItem("Credit Rating", summaryCreditRating(bond, isCorporate)),
-        detailItem("Maturity Date", formatDate(bond.maturity_date)),
-        detailItem("Coupon Rate", couponLabel),
-        detailItem("LTP", formatNum(bond.last_traded_price != null ? bond.last_traded_price : bond.price)),
-        detailItem("VWAP", formatNum(bond.weighted_average_price)),
-        detailItem("Weighted Avg Yield", formatPct(bond.weighted_average_yield)),
-    ].join("") : [
-        detailItem("ISIN", bond.isin, true),
-        detailItem("Instrument Type", bond.instrument_type),
-        detailItem("Issuer", bond.issuer),
-        detailItem("Maturity Date", formatDate(bond.maturity_date)),
-        detailItem("Coupon Rate", couponLabel),
-        detailItem("Coupon Frequency", freqLabel),
-        detailItem("Clean Price", formatNum(bond.clean_price != null ? bond.clean_price : bond.price)),
-        detailItem("Market YTM", formatPct(bond.ytm)),
-    ].join("");
+    // actually supplies — LTP / VWAP / weighted-average yield — using their
+    // real names; the government rendering is unchanged.
+    $("ba-summary-hero").innerHTML = (isCorporate ? [
+        heroMetric("LTP", formatNum(bond.last_traded_price != null ? bond.last_traded_price : bond.price), "Last traded price"),
+        heroMetric("Market YTM", formatPct(bond.ytm), "As reported by the source"),
+        heroMetric("Weighted Avg Yield", formatPct(bond.weighted_average_yield), "CDSL trade-weighted yield"),
+    ] : [
+        heroMetric("Clean Price", formatNum(bond.clean_price != null ? bond.clean_price : bond.price), "Per ₹100 face value"),
+        heroMetric("Market YTM", formatPct(bond.ytm), "As reported by the source"),
+        heroMetric("Coupon Rate", isTBill ? "N/A" : formatPct(bond.coupon_rate), isTBill ? "Zero-coupon instrument" : "Annual coupon"),
+    ]).join("");
+
+    $("ba-summary-grid").innerHTML = (isCorporate ? [
+        metricTile("Credit Rating", summaryCreditRating(bond, isCorporate), { emphasis: true }),
+        metricTile("Maturity Date", formatDate(bond.maturity_date)),
+        metricTile("Coupon Rate", couponLabel),
+        metricTile("VWAP", formatNum(bond.weighted_average_price)),
+        metricTile("Trade Date", formatDate(bond.trade_date)),
+        metricTile("Instrument Type", bond.instrument_type),
+    ] : [
+        metricTile("Credit Rating", summaryCreditRating(bond, isCorporate)),
+        metricTile("Maturity Date", formatDate(bond.maturity_date), { emphasis: true }),
+        metricTile("Coupon Rate", couponLabel),
+        metricTile("Coupon Frequency", freqLabel),
+        metricTile("Instrument Type", bond.instrument_type),
+        metricTile("Issuer", bond.issuer),
+    ]).join("");
 
     // D. Analytics KPIs
-    renderKpis(analytics);
+    renderKpis(analytics, bond, analyticsAvailable);
 
     // E. Cash flows
-    renderCashFlows(analytics);
+    renderCashFlows(analytics, analyticsAvailable);
 
     // F. Details / methodology — government rows keep the analytics-backed
     // fields; corporate rows show the CDSL issuance/trade fields instead.
     // Analytics sections that cannot be populated for corporate records stay
     // at their neutral N/A/empty state (no client-side computation).
+    // The identity row shows the ISIN when the record publishes one and the
+    // backend's own Record ID otherwise (never a fabricated value).
+    const identityDetail = identity.kind === "record"
+        ? detailItem("Record ID", identity.recordId, true)
+        : detailItem("ISIN", identity.isin, true);
+
     const detailRows = isCorporate ? [
+        identityDetail,
         detailItem("Trade Date", formatDate(bond.trade_date)),
         detailItem("Exchange", bond.exchange),
         detailItem("Issue Date", formatDate(bond.issue_date)),
@@ -972,6 +1226,7 @@ function renderBond(bond, analytics) {
         detailItem("Mode of Issuance", bond.mode_of_issuance),
         detailItem("Coupon Frequency", freqLabel),
     ] : [
+        identityDetail,
         detailItem("Settlement Date", formatDate(analytics.settlement_date)),
         detailItem("Day-Count Convention", analytics.day_count_convention),
         detailItem("Coupon Frequency", freqLabel),
@@ -986,12 +1241,21 @@ function renderBond(bond, analytics) {
 
     const notes = Array.isArray(analytics.notes) ? analytics.notes : [];
     const noteItems = notes.map((n) => `<li>${escapeHtml(n)}</li>`);
+    // Records with no ISIN cannot be served by the ISIN-based analytics
+    // endpoints: state that plainly instead of leaving a silent gap.
+    if (!analyticsAvailable) {
+        noteItems.push(`<li>${escapeHtml(ANALYTICS_UNAVAILABLE_REASON)}</li>`);
+    }
     // Display-only warning; the stored security status is never changed.
     const statusWarning = maturityStatusWarning(bond);
     if (statusWarning) noteItems.push(`<li>${escapeHtml(statusWarning)}</li>`);
     $("ba-notes").innerHTML = noteItems.join("");
 }
 
+
+// Shown wherever the analytics engine cannot produce metrics for the selected
+// record (its endpoints are ISIN-based; some source records publish no ISIN).
+const ANALYTICS_UNAVAILABLE_REASON = "Analytics unavailable for this record: the analytics engine requires an ISIN and this source record publishes none. The bond details and the source-reported market values are shown as published.";
 
 // KPI metadata — concise hover/help text, following the application's
 // .tooltip-trigger pattern (no tooltip library).
@@ -1006,7 +1270,10 @@ const KPI_HELP = {
     dv01: "Dollar value of one basis point — price change for a 0.01% yield move, per 100 of face value.",
 };
 
-function kpiCard(key, label, value, muted, unavailableReason) {
+// One analytics metric card. `emphasis` promotes the headline price/yield
+// metrics; `unavailableReason` explains a muted N/A value via the existing
+// tooltip pattern.
+function kpiCard(key, label, value, muted, unavailableReason, emphasis) {
     const help = KPI_HELP[key] || "";
     const helpHtml = help
         ? `<span class="tooltip-trigger" tabindex="0" role="button" aria-label="More information about ${escapeAttr(label)}"><span class="tooltip-content">${escapeHtml(help)}</span>ⓘ</span>`
@@ -1017,33 +1284,56 @@ function kpiCard(key, label, value, muted, unavailableReason) {
     const naHtml = muted && unavailableReason
         ? `<span class="tooltip-trigger" tabindex="0" role="button" aria-label="Why is ${escapeAttr(label)} unavailable?"><span class="tooltip-content">${escapeHtml(unavailableReason)}</span>ⓘ</span>`
         : "";
-    return `<div class="ba-kpi">
+    return `<div class="ba-kpi${emphasis ? " is-emphasis" : ""}${muted ? " is-muted" : ""}">
         <span class="ba-kpi-value${muted ? " is-muted" : ""}">${escapeHtml(na(value))}${naHtml}</span>
         <span class="ba-kpi-label">${escapeHtml(label)}${helpHtml}</span>
     </div>`;
 }
 
-function renderKpis(a) {
-    const reasons = (a && a.unavailable_metrics) || {};
+// Analytics metric grid. `analyticsAvailable === false` renders the eight
+// metric cards in their unavailable state with a single explicit reason and
+// keeps the source-reported Market YTM visible (a backend value from the
+// record itself — nothing is computed in the browser).
+function renderKpis(a, bond, analyticsAvailable) {
+    const available = analyticsAvailable !== false;
+    const analytics = a || {};
+    const reasons = analytics.unavailable_metrics || {};
+    const reasonFor = (key) => (available ? reasons[key] : ANALYTICS_UNAVAILABLE_REASON);
+
+    // Market YTM is reported by the source observation, so it survives even
+    // when the analytics engine cannot run for the record.
+    const marketYtm = available
+        ? analytics.market_ytm
+        : (bond && bond.ytm != null ? bond.ytm : null);
+
     $("ba-kpi-grid").innerHTML = [
-        kpiCard("current_yield", "Current Yield", formatPct(a.current_yield), a.current_yield == null, reasons.current_yield),
-        kpiCard("calculated_ytm", "Calculated YTM", formatPct(a.calculated_ytm), a.calculated_ytm == null, reasons.calculated_ytm),
-        kpiCard("market_ytm", "Market YTM", formatPct(a.market_ytm), a.market_ytm == null, reasons.market_ytm),
-        kpiCard("accrued_interest", "Accrued Interest", formatNum(a.accrued_interest), a.accrued_interest == null, reasons.accrued_interest),
-        kpiCard("macaulay_duration", "Macaulay Duration", formatNum(a.macaulay_duration), a.macaulay_duration == null, reasons.macaulay_duration),
-        kpiCard("modified_duration", "Modified Duration", formatNum(a.modified_duration), a.modified_duration == null, reasons.modified_duration),
-        kpiCard("convexity", "Convexity", formatNum(a.convexity), a.convexity == null, reasons.convexity),
-        kpiCard("dv01", "DV01", formatNum(a.dv01), a.dv01 == null, reasons.dv01),
+        available ? "" : `<p class="ba-kpi-notice">Analytics unavailable for this record <span class="ba-kpi-notice-detail">— ${escapeHtml(ANALYTICS_UNAVAILABLE_REASON)}</span></p>`,
+        kpiCard("current_yield", "Current Yield", available ? analytics.current_yield : null, !available || analytics.current_yield == null, reasonFor("current_yield"), true),
+        kpiCard("market_ytm", "Market YTM", marketYtm, marketYtm == null, reasonFor("market_ytm"), true),
+        kpiCard("calculated_ytm", "Calculated YTM", available ? analytics.calculated_ytm : null, !available || analytics.calculated_ytm == null, reasonFor("calculated_ytm"), true),
+        kpiCard("accrued_interest", "Accrued Interest", available ? analytics.accrued_interest : null, !available || analytics.accrued_interest == null, reasonFor("accrued_interest")),
+        kpiCard("macaulay_duration", "Macaulay Duration", available ? analytics.macaulay_duration : null, !available || analytics.macaulay_duration == null, reasonFor("macaulay_duration")),
+        kpiCard("modified_duration", "Modified Duration", available ? analytics.modified_duration : null, !available || analytics.modified_duration == null, reasonFor("modified_duration")),
+        kpiCard("convexity", "Convexity", available ? analytics.convexity : null, !available || analytics.convexity == null, reasonFor("convexity")),
+        kpiCard("dv01", "DV01", available ? analytics.dv01 : null, !available || analytics.dv01 == null, reasonFor("dv01")),
     ].join("");
 }
 
-function renderCashFlows(analytics) {
+function renderCashFlows(analytics, analyticsAvailable) {
     const wrap = $("ba-cashflow-wrap");
     const a = analytics || {};
+    const available = analyticsAvailable !== false;
     const rows = Array.isArray(a.cash_flows) ? a.cash_flows : [];
     if (!rows.length) {
         // Explain the empty state: which inputs are missing and, when known,
-        // what additional data source would provide them.
+        // what additional data source would provide them. A record without an
+        // ISIN cannot reach the analytics engine at all, so say that first.
+        if (!available) {
+            wrap.innerHTML = `
+            <p class="ba-section-sub"><strong>Cash-flow schedule unavailable.</strong> ${escapeHtml(ANALYTICS_UNAVAILABLE_REASON)}</p>
+            <p class="ba-section-sub">A payment schedule is shown only when the bond's coupon rate, coupon frequency, interest start date and redemption/maturity date are all published by the source (CDSL). For government securities the coupon calendar is derived from the published maturity date.</p>`;
+            return;
+        }
         const reasons = a.unavailable_metrics || {};
         const reason = a.unavailable_metrics && a.unavailable_metrics.cash_flows
             ? a.unavailable_metrics.cash_flows
@@ -1080,12 +1370,21 @@ function renderCashFlows(analytics) {
             </tr>
         </thead>
         <tbody>
-            ${rows.map((r) => `<tr>
-                <td>${escapeHtml(formatDate(r.date))}</td>
+            ${rows.map((r, i) => {
+                const isFinal = i === rows.length - 1;
+                const principal = toFiniteNumber(r.principal);
+                // The final row is the redemption only when the backend
+                // actually reports principal on it — never assumed.
+                const isRedemption = isFinal && principal !== null && principal > 0;
+                const rowClass = isRedemption ? "is-redemption"
+                    : (isFinal ? "is-final" : (i % 2 === 1 ? "is-alt" : ""));
+                return `<tr${rowClass ? ` class="${rowClass}"` : ""}>
+                <td>${escapeHtml(formatDate(r.date))}${isRedemption ? '<span class="ba-cf-tag">Redemption</span>' : ""}</td>
                 <td class="ba-num">${escapeHtml(formatNum(r.coupon))}</td>
                 <td class="ba-num">${escapeHtml(formatNum(r.principal))}</td>
                 <td class="ba-num">${escapeHtml(formatNum(r.total))}</td>
-            </tr>`).join("")}
+            </tr>`;
+            }).join("")}
         </tbody>
     </table>`;
 }
@@ -1594,10 +1893,16 @@ function init() {
 
     if (bondList) {
         bondList.addEventListener("click", (e) => {
-            const btn = e.target.closest(".ba-bond-item");
-            if (btn && btn.dataset.isin) {
-                selectBond(btn.dataset.isin);
-            }
+            const item = e.target.closest(".ba-bond-item");
+            // Only real buttons are selectable. The single inert fallback row
+            // (a record with no published identifier at all) is a div.
+            if (!item || item.tagName !== "BUTTON") return;
+            // Identity: ISIN when present, otherwise the backend-issued
+            // record_id. Never a fabricated ISIN.
+            selectBond({
+                isin: item.dataset.isin ? item.dataset.isin : "",
+                recordId: item.dataset.recordId ? item.dataset.recordId : "",
+            });
         });
     }
 
