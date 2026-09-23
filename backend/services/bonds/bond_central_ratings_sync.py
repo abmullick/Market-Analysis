@@ -7,9 +7,11 @@ only rating information, and stores it in the persistent ratings index
 
 The index is refreshed independently of bond list/detail requests:
 
-* ``refresh()`` performs a full sweep and atomically replaces the index on
-  success. Partial sweeps keep the last good snapshot and are reported as
-  ``partial`` together with the underlying error.
+* ``refresh()`` performs a full sweep and atomically replaces the index when
+  the sweep completes: ``ok`` when every record was retrieved, ``partial``
+  when the completed sweep still has known missing (unretrievable individual)
+  records. An interrupted or failed sweep never replaces the snapshot — the
+  last good snapshot is kept and the failure is reported through the metadata.
 * ``maybe_schedule_refresh()`` schedules a background sweep when the index is
   stale. It never blocks a request and refuses to run inside a test process.
 
@@ -17,7 +19,10 @@ Failures are contained: HTTP errors, timeouts, invalid payloads and HTTP 429
 rate limiting are retried with backoff (honouring ``Retry-After``) and reported
 through the index metadata instead of raising into request handling. A
 persistently failing size=100 window is split into 2x size=50 (then 2x
-size=25) so server-side poison records cost only their own sub-window.
+size=25) and a still-failing size=25 window is narrowed to size=1, so
+server-side poison records cost only their own records; individual records
+that still fail are recorded as unretrievable (page/offset/status/body)
+without failing the refresh.
 """
 
 from __future__ import annotations
@@ -333,9 +338,11 @@ class BondCentralRatingsSync:
     async def refresh(self, reason: str = "manual") -> dict[str, Any]:
         """Sweep every Bond Central page and rebuild the ratings index.
 
-        Returns the resulting index metadata. The index is replaced only when
-        every page was retrieved; a partial or failed sweep keeps the previous
-        snapshot and records the failure in the metadata.
+        Returns the resulting index metadata. The snapshot is replaced only
+        when the sweep completes: ``ok`` when every record was retrieved,
+        ``partial`` when the completed sweep still has known missing
+        (unretrievable individual) records. A failed or interrupted sweep
+        keeps the previous snapshot and records the failure in the metadata.
         """
         async with self._lock:
             return await self._refresh_locked(reason)
@@ -420,18 +427,52 @@ class BondCentralRatingsSync:
                     )
                 if self.page_delay_seconds:
                     await asyncio.sleep(self.page_delay_seconds)
-        finally:
-            self._finish_refresh(
-                reason=reason,
-                started=started,
-                pages_fetched=pages_fetched,
-                pages_failed=pages_failed,
-                records_processed=records_processed,
-                total_pages=total_pages,
-                ratings_by_isin=ratings_by_isin,
-                statuses=statuses,
-                errors=errors,
+        except Exception as exc:
+            # Interrupted sweep: an unexpected failure stopped the page walk
+            # before it completed. Never replace the snapshot from an
+            # interrupted sweep — keep the previous index and record why.
+            duration = round(time.time() - started, 1)
+            detail = (
+                f"sweep interrupted at page {page}: "
+                f"{type(exc).__name__}: {exc}"
+            )[:1000]
+            try:
+                self._index.update_metadata(
+                    **{
+                        META_STATUS: "error",
+                        META_ERROR: detail,
+                        META_PAGES_FETCHED: pages_fetched,
+                        META_PAGES_FAILED: pages_failed,
+                        META_DURATION_SECONDS: duration,
+                    }
+                )
+            except Exception as meta_exc:  # never mask the interrupting error
+                logger.warning(
+                    "Bond Central ratings interrupted-status update failed: %s",
+                    meta_exc,
+                )
+            logger.warning(
+                "Bond Central ratings refresh interrupted (%s) at page %d "
+                "(%d page(s) fetched): %s: %s; previous index kept",
+                reason,
+                page,
+                pages_fetched,
+                type(exc).__name__,
+                exc,
             )
+            raise
+
+        self._finish_refresh(
+            reason=reason,
+            started=started,
+            pages_fetched=pages_fetched,
+            pages_failed=pages_failed,
+            records_processed=records_processed,
+            total_pages=total_pages,
+            ratings_by_isin=ratings_by_isin,
+            statuses=statuses,
+            errors=errors,
+        )
 
         return self.status()
 
@@ -441,19 +482,21 @@ class BondCentralRatingsSync:
 
     def _compute_cdsl_match(
         self, statuses: dict[str, str]
-    ) -> tuple[int, int]:
+    ) -> Optional[tuple[int, int]]:
         """Best-effort: count CDSL corporate ISINs matched by the new index.
 
-        Returns (total, matched). When the index object exposes a
-        cdsl_isins attribute (test fakes), those ISINs are checked
-        against the freshly built statuses map. In production the
-        BondCentralRatingsIndex has no cdsl_isins attribute, so
-        (0, 0) is returned and the bond-service join computes stats
-        lazily via record_match_stats.
+        Returns (total, matched) when the index object exposes a
+        cdsl_isins attribute (test fakes / universe-aware fakes): those
+        ISINs are checked against the freshly built statuses map. In
+        production the BondCentralRatingsIndex has no cdsl_isins
+        attribute, so None is returned ("stats not available") and the
+        bond-service join computes stats lazily via record_match_stats.
+        Callers must not persist match statistics in the None case, so
+        an existing valid snapshot (e.g. 934/284) survives the refresh.
         """
         cdsl_isins = getattr(self._index, "cdsl_isins", None)
         if cdsl_isins is None:
-            return 0, 0
+            return None
         total = len(cdsl_isins)
         matched = sum(
             1 for isin in cdsl_isins if normalize_isin(isin) in statuses
@@ -552,33 +595,41 @@ class BondCentralRatingsSync:
 
         # Sweep completed: every page was either fetched cleanly or partially
         # recovered via split / size=1 narrowing. Commit the new snapshot.
-        cdsl_total, cdsl_matched = self._compute_cdsl_match(statuses)
+        cdsl_match = self._compute_cdsl_match(statuses)
         ratings_stored = sum(len(rows) for rows in ratings_by_isin.values())
         status = "partial" if errors else "ok"
+        snapshot_meta: dict[str, Any] = {
+            META_STATUS: status,
+            META_LAST_SUCCESS: time.time(),
+            META_ERROR: ("; ".join(errors)[:1000] if errors else None),
+            META_RECORDS_PROCESSED: records_processed,
+            META_RATINGS_STORED: ratings_stored,
+            META_SECURITIES_INDEXED: len(statuses),
+            META_PAGES_FETCHED: pages_fetched,
+            META_PAGES_FAILED: 0,
+            META_TOTAL_PAGES: total_pages,
+            META_DURATION_SECONDS: duration,
+        }
+        if cdsl_match is not None:
+            # CDSL universe available: persist the freshly computed stats.
+            snapshot_meta[META_CDSL_ISINS_TOTAL] = cdsl_match[0]
+            snapshot_meta[META_CDSL_ISINS_MATCHED] = cdsl_match[1]
+        # else: the index exposes no CDSL universe — omit the keys so
+        # replace_snapshot leaves previously persisted match statistics
+        # (written by the bond-service join) untouched instead of
+        # overwriting valid values with 0/0.
         self._index.replace_snapshot(
             ratings_by_isin,
             statuses,
-            {
-                META_STATUS: status,
-                META_LAST_SUCCESS: time.time(),
-                META_ERROR: ("; ".join(errors)[:1000] if errors else None),
-                META_RECORDS_PROCESSED: records_processed,
-                META_RATINGS_STORED: ratings_stored,
-                META_SECURITIES_INDEXED: len(statuses),
-                META_CDSL_ISINS_TOTAL: cdsl_total,
-                META_CDSL_ISINS_MATCHED: cdsl_matched,
-                META_PAGES_FETCHED: pages_fetched,
-                META_PAGES_FAILED: 0,
-                META_TOTAL_PAGES: total_pages,
-                META_DURATION_SECONDS: duration,
-            },
+            snapshot_meta,
         )
-        try:
-            self._index.record_match_stats(cdsl_total, cdsl_matched)
-        except Exception as exc:
-            logger.debug(
-                "Bond Central ratings match-stats update skipped: %s", exc
-            )
+        if cdsl_match is not None:
+            try:
+                self._index.record_match_stats(*cdsl_match)
+            except Exception as exc:
+                logger.debug(
+                    "Bond Central ratings match-stats update skipped: %s", exc
+                )
         if errors:
             logger.warning(
                 "Bond Central ratings refresh partial (%s): completed with "
@@ -652,8 +703,9 @@ class BondCentralRatingsSync:
         HTTP 500 and other fetch errors are retried; when the size=100
         window still fails, it is split into 2x size=50 (and a failing half
         into 2x size=25) so poison records cost only their own sub-window.
-        Callers keep sweeping later pages when a page still fails, and the
-        snapshot is replaced only when every page succeeded.
+        Callers keep sweeping later pages when a page still fails; the
+        snapshot is replaced only when the sweep completes without failed
+        pages.
         """
         try:
             return await self._fetch_one(page, PAGE_SIZE)
