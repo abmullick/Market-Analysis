@@ -5,7 +5,7 @@ from datetime import date, datetime
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 import pytest
-from backend.models.bonds import CdslCorporateBondPrimaryRawRecord, CdslCorporateBondSecondaryRawRecord
+from backend.models.bonds import CdslCorporateBondPrimaryRawRecord, CdslCorporateBondSecondaryRawRecord, DataType
 from backend.services.bonds import bond_service as bond_service_module
 from backend.services.bonds.bond_service import BondService
 from backend.config.settings import Settings
@@ -306,3 +306,121 @@ class TestRefreshDateEnforcement:
         assert result == []
         assert service._cache.get("corporate:2026-09-17") is None
         assert service._cache.get("corporate:2026-09-18") is None
+
+
+def _run_latest(monkeypatch, datasets, anchor=date(2026, 9, 23)):
+    """Run the latest-available walk against a per-date CDSL dataset stub.
+
+    ``datasets`` maps an ISO date string to ``{"secondary": [...], "primary":
+    [...]}`` raw record lists; a date absent from the mapping yields no records
+    (a verified-empty day). Returns ``(service, result, fetched_dates)`` where
+    ``fetched_dates`` lists, in order, the dates whose *secondary* report the
+    walk actually fetched from CDSL.
+    """
+    service = BondService()
+    service._cache.invalidate()
+    fetched: List[date] = []
+
+    def _secondary(resolved):
+        fetched.append(resolved)
+        return datasets.get(resolved.isoformat(), {}).get("secondary", [])
+
+    def _primary(resolved):
+        return datasets.get(resolved.isoformat(), {}).get("primary", [])
+
+    fake = SimpleNamespace(
+        fetch_secondary_live=_secondary,
+        fetch_primary_live=_primary,
+    )
+    monkeypatch.setattr(service, "_get_cdsl", lambda: fake)
+
+    async def _fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(bond_service_module.asyncio, "to_thread", _fake_to_thread)
+    result = asyncio.run(service._refresh_corporate_latest_available(anchor))
+    return service, result, fetched
+
+
+# 2026-09-23 is a Wednesday and 2026-09-22 the preceding business day: the
+# live CDSL asymmetry (issuance-only partial day vs the complete previous
+# business-day report) reproduced deterministically.
+_TODAY = date(2026, 9, 23)
+_PREVIOUS = date(2026, 9, 22)
+
+
+class TestLatestAvailableCompleteness:
+    """A primary-only partial day must not shadow the last complete report."""
+
+    def test_complete_dataset_returned_immediately(self, monkeypatch):
+        datasets = {
+            _TODAY.isoformat(): {
+                "secondary": [_sec("23-Sep-2026", "INE000A00001")],
+            },
+            _PREVIOUS.isoformat(): {
+                "secondary": [_sec("22-Sep-2026", "INE000A00002")],
+            },
+        }
+        service, result, fetched = _run_latest(monkeypatch, datasets)
+        assert [b.isin for b in result] == ["INE000A00001"]
+        assert all(b.trade_date == _TODAY for b in result)
+        # The complete dataset short-circuits the walk: nothing older is probed.
+        assert fetched == [_TODAY]
+        assert service._cache.get("corporate:2026-09-23") is not None
+
+    def test_issuance_only_day_defers_to_previous_complete_dataset(
+        self, monkeypatch
+    ):
+        """Live 2026-09-23 case: 9 issuance-only rows must not be treated as
+        the latest usable universe while 2026-09-22 holds 934 secondary-market
+        records."""
+        today_primary = [_pri(f"INE000A1{i:04d}") for i in range(9)]
+        previous_secondary = [
+            _sec("22-Sep-2026", f"INE000B1{i:04d}") for i in range(934)
+        ]
+        datasets = {
+            _TODAY.isoformat(): {"secondary": [], "primary": today_primary},
+            _PREVIOUS.isoformat(): {"secondary": previous_secondary, "primary": []},
+        }
+        service, result, fetched = _run_latest(monkeypatch, datasets)
+        assert len(result) == 934
+        assert all(b.trade_date == _PREVIOUS for b in result)
+        assert all(b.data_type == DataType.TRADED for b in result)
+        assert {b.isin for b in result} & {b.isin for b in today_primary} == set()
+        # Both days were probed; the complete day won.
+        assert fetched == [_TODAY, _PREVIOUS]
+
+    def test_unavailable_day_falls_back_to_earlier_complete_dataset(
+        self, monkeypatch
+    ):
+        datasets = {
+            _TODAY.isoformat(): {"secondary": [], "primary": []},
+            _PREVIOUS.isoformat(): {
+                "secondary": [_sec("22-Sep-2026", "INE296A07TC9")],
+            },
+        }
+        service, result, fetched = _run_latest(monkeypatch, datasets)
+        assert [b.isin for b in result] == ["INE296A07TC9"]
+        assert all(b.trade_date == _PREVIOUS for b in result)
+        assert fetched == [_TODAY, _PREVIOUS]
+        # Verified-empty day keeps its existing cache contract and is skipped.
+        assert service._cache.get("corporate:2026-09-23") == []
+
+    def test_issuance_only_dataset_served_when_no_complete_dataset_exists(
+        self, monkeypatch
+    ):
+        today_primary = [_pri(f"INE000A1{i:04d}") for i in range(9)]
+        datasets = {
+            _TODAY.isoformat(): {"secondary": [], "primary": today_primary},
+        }
+        service, result, fetched = _run_latest(monkeypatch, datasets)
+        assert len(result) == 9
+        assert {b.isin for b in result} == {b.isin for b in today_primary}
+        assert all(b.data_type == DataType.REFERENCE for b in result)
+        # The whole lookback window was walked before falling back.
+        assert len(fetched) == bond_service_module._CORPORATE_LATEST_LOOKBACK_DAYS
+
+    def test_no_records_anywhere_returns_empty(self, monkeypatch):
+        service, result, fetched = _run_latest(monkeypatch, {})
+        assert result == []
+        assert len(fetched) == bond_service_module._CORPORATE_LATEST_LOOKBACK_DAYS

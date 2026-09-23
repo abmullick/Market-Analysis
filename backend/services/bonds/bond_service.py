@@ -711,44 +711,71 @@ class BondService:
         self,
         resolved: date,
     ) -> list[Bond]:
-        """Return the most recent available corporate dataset.
+        """Return the most recent usable corporate dataset.
 
         Checks ``resolved`` first, then walks back over previous business
-        days (up to 7), returning the first result set that is non-empty.
-        Cache hits short-circuit the walk; each business date is still
-        served/cached under its own ``corporate:<date>`` key, and explicit
-        trade dates never fall back.
+        days (up to 7), returning the first result set that is non-empty AND
+        carries at least one secondary-market observation. Cache hits
+        short-circuit the walk; each business date is still served/cached
+        under its own ``corporate:<date>`` key, and explicit trade dates
+        never fall back.
+
+        A non-empty but issuance-only dataset (no secondary-market rows —
+        e.g. a partial day whose secondary report is not published yet) is
+        NOT treated as the latest usable universe: it is kept only as a
+        fallback and the walk continues to the latest business date with
+        secondary-market records. The fallback is served only when no such
+        date exists within the lookback window, so the corporate universe is
+        never rendered empty when CDSL has published anything at all.
         """
         checked = resolved
+        issuance_only_fallback: Optional[tuple[date, list[Bond]]] = None
         for _ in range(_CORPORATE_LATEST_LOOKBACK_DAYS):
             while checked.weekday() >= 5:
                 checked -= timedelta(days=1)
             cached = self._cache.get(f"corporate:{checked.isoformat()}")
             # Skip verified-empty datasets: nothing was published on that
             # date, so keep walking back to the latest date with bonds.
-            # (An empty list is falsy; only non-empty datasets short-
-            # circuit the walk, since caching an [] would mean verified-
-            # empty and must be skipped too.)
-            if cached:
-                if checked != resolved:
-                    logger.info(
-                        "Corporate bonds served from latest available report: "
-                        "requested=%s served=%s",
-                        resolved.isoformat(),
-                        checked.isoformat(),
-                    )
-                return cached
-            fetched = await self._fetch_corporate_for_date(checked)
-            if fetched:
-                if checked != resolved:
-                    logger.info(
-                        "Corporate bonds served from latest available report: "
-                        "requested=%s served=%s",
-                        resolved.isoformat(),
-                        checked.isoformat(),
-                    )
-                return fetched
+            # (An empty list is falsy; only non-empty datasets can serve,
+            # since caching an [] would mean verified-empty and must be
+            # skipped too.)
+            dataset = (
+                cached
+                if cached
+                else await self._fetch_corporate_for_date(checked)
+            )
+            if dataset:
+                if _has_secondary_market_records(dataset):
+                    if checked != resolved:
+                        logger.info(
+                            "Corporate bonds served from latest available report: "
+                            "requested=%s served=%s",
+                            resolved.isoformat(),
+                            checked.isoformat(),
+                        )
+                    return dataset
+                # Issuance-only day: remember it as a fallback and keep
+                # walking back to the latest report with secondary-market
+                # records.
+                logger.info(
+                    "Corporate dataset for %s has no secondary-market "
+                    "records; continuing lookback from %s",
+                    checked.isoformat(),
+                    resolved.isoformat(),
+                )
+                if issuance_only_fallback is None:
+                    issuance_only_fallback = (checked, dataset)
             checked -= timedelta(days=1)
+        if issuance_only_fallback is not None:
+            fallback_date, fallback = issuance_only_fallback
+            logger.info(
+                "Corporate bonds served from latest available report "
+                "(issuance-only fallback; no secondary-market records in "
+                "lookback window): requested=%s served=%s",
+                resolved.isoformat(),
+                fallback_date.isoformat(),
+            )
+            return fallback
         return []
 
     async def _fetch_corporate_for_date(
@@ -1198,6 +1225,20 @@ def _is_missing_value(value: Any) -> bool:
     if isinstance(value, str) and not value.strip():
         return True
     return False
+
+
+def _has_secondary_market_records(bonds: list[Bond]) -> bool:
+    """True when a corporate dataset holds at least one secondary-market row.
+
+    CDSL secondary-market trade rows normalize to ``DataType.TRADED``
+    observations (see :func:`normalize_cdsl_corporate_secondary_record`),
+    while ISINs seen only in the primary (issuance) report stay
+    ``DataType.REFERENCE`` records. A dataset without a single traded
+    observation is therefore an issuance-only partial report — the
+    secondary-market report for that date is not published yet — and is not
+    a complete corporate universe.
+    """
+    return any(bond.data_type == DataType.TRADED for bond in bonds)
 
 
 def _consolidate_corporate_bonds(
