@@ -2,20 +2,22 @@
    Mutual Fund Analytics — Premium Quantitative Analysis
    ======================================== */
 
-/* Page Header */
+/* Page Header — the title and description are confined to the left column so
+   they line up with the Ranking Controls card below, while the right-side
+   state (matching-funds pill) occupies the results column. The grid tracks
+   mirror .ranking-layout so the header keeps the same two-column proportions
+   and the text never spans across the right-side analysis area. */
 .mf-page-header {
     padding: 32px 0 24px;
     border-bottom: 1px solid var(--color-border);
     margin-bottom: 24px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    align-items: end;
     gap: 24px;
-    flex-wrap: wrap;
 }
 
 .mf-page-header-text {
-    flex: 1;
     min-width: 0;
 }
 
@@ -37,6 +39,7 @@
 .mf-page-header-stat {
     display: inline-flex;
     align-items: center;
+    justify-self: end;
     gap: 8px;
     padding: 8px 14px;
     background: var(--color-slate-100);
@@ -2577,6 +2580,13 @@
 @media (max-width: 900px) {
     .ranking-layout {
         grid-template-columns: 1fr;
+    }
+
+    /* Single column: the header text uses the full width, as on mobile.
+       minmax(0, 1fr) keeps the column at the available width even when the
+       matching-funds pill (white-space: nowrap) is wider than the viewport. */
+    .mf-page-header {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .ranking-controls {
