@@ -675,6 +675,18 @@ body[data-page="portfolio-select-funds"] {
 }
 
 /* Responsive */
+/* The layout is two-column above 900px (see .pfs-layout below), so the heading
+   and description are confined to the left column — the same 340px track —
+   and line up with the Selected Funds sidebar. The header block itself stays
+   full width, keeping its divider unchanged; below 901px the text falls back
+   to its natural full-width measure. */
+@media (min-width: 901px) {
+    .pfs-page-header-text .mf-page-title,
+    .pfs-page-header-text .mf-page-subtitle {
+        max-width: 340px;
+    }
+}
+
 @media (max-width: 900px) {
     .pfs-layout {
         grid-template-columns: 1fr;
