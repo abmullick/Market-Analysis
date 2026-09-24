@@ -240,7 +240,21 @@ export function initMutualFundAnalysis() {
     const container = document.getElementById("mutual-fund-content");
     if (!container) return;
 
+    // The results column starts with the "Run Ranking to begin" panel so the
+    // page is never blank before the first run.
+    setRankingEmptyStateVisible(true);
+
     loadCategories();
+}
+
+/* The results column keeps this panel visible until a ranking run starts. The
+   panel is a sibling of the JS-rendered containers, so results rendering never
+   overwrites it; lookups stay null-safe because the comparison view rebuilds
+   the results column. */
+function setRankingEmptyStateVisible(visible) {
+    const panel = document.getElementById("ranking-empty-state");
+    if (!panel) return;
+    panel.classList.toggle("hidden", !visible);
 }
 
 async function loadCategories() {
@@ -1241,6 +1255,10 @@ async function runRanking() {
     const resultsContainer = document.getElementById("ranking-table-container");
     const summaryContainer = document.getElementById("ranking-summary");
     if (!resultsContainer) return;
+
+    // A real run replaces the invitation with live results. Validation returns
+    // above this point, so an invalid configuration keeps the panel visible.
+    setRankingEmptyStateVisible(false);
 
     showLoading(resultsContainer, "Generating rankings...");
     if (summaryContainer) summaryContainer.innerHTML = "";

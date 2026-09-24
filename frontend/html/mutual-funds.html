@@ -33,6 +33,27 @@
                         <div id="ranking-methodology" class="methodology-box"></div>
                     </aside>
                     <section class="ranking-results">
+                        <!-- Empty state: the results column is never blank before the first ranking run.
+                             Sibling of the JS-rendered containers, so result rendering never overwrites it. -->
+                        <div id="ranking-empty-state" class="ranking-empty-state">
+                            <span class="ranking-empty-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M4 19V5"></path>
+                                    <path d="M4 19h16"></path>
+                                    <path d="M8 19v-6"></path>
+                                    <path d="M13 19V8"></path>
+                                    <path d="M18 19v-9"></path>
+                                    <path d="M4 9.5l5-3 4.5 2.5L20 5"></path>
+                                </svg>
+                            </span>
+                            <h3>Run Ranking to begin</h3>
+                            <p>Configure your ranking criteria and run the ranking to view mutual fund results.</p>
+                            <ul class="ranking-empty-list">
+                                <li>Compare returns and risk-adjusted performance</li>
+                                <li>Rank funds using customizable metrics and weights</li>
+                                <li>Filter funds by category, AMC, AUM and fund history</li>
+                            </ul>
+                        </div>
                         <div id="ranking-summary"></div>
                         <div id="ranking-result-filters"></div>
                         <div id="ranking-table-container"></div>

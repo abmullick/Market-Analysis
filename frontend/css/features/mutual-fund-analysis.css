@@ -1517,6 +1517,102 @@
     transform: translateX(-50%);
 }
 
+/* Results-column empty state — same restrained dark navy research-panel
+   language as the Bond Analysis "Select a bond to begin" state, so the right
+   side is never blank before the first ranking run. */
+.ranking-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 380px;
+    padding: 44px 28px;
+    background: var(--color-primary);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.07), 0 6px 16px -8px rgba(16, 24, 40, 0.14);
+    color: #dbe4f0;
+}
+
+.ranking-empty-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 58px;
+    height: 58px;
+    margin-bottom: 14px;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #f2c14e;
+}
+
+.ranking-empty-icon svg {
+    width: 30px;
+    height: 30px;
+}
+
+.ranking-empty-state h3 {
+    font-size: 1.18rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #ffffff;
+    margin: 0 0 7px;
+}
+
+.ranking-empty-state p {
+    font-size: 0.86rem;
+    line-height: 1.6;
+    color: #aab9cf;
+    max-width: 44ch;
+    margin: 0 auto;
+}
+
+.ranking-empty-list {
+    list-style: none;
+    margin: 16px 0 0;
+    padding: 14px 0 0;
+    width: 100%;
+    max-width: 360px;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+}
+
+.ranking-empty-list li {
+    position: relative;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: #dbe4f0;
+    padding-left: 22px;
+}
+
+.ranking-empty-list li::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #f2c14e;
+}
+
+@media (max-width: 900px) {
+    .ranking-empty-state {
+        min-height: 300px;
+    }
+}
+
+@media (max-width: 640px) {
+    .ranking-empty-state {
+        min-height: 260px;
+        padding: 32px 20px;
+    }
+}
+
 /* Results header */
 .ranking-summary {
     margin-bottom: 16px;
