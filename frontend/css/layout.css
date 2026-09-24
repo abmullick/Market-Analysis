@@ -97,8 +97,11 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 24px;
-    padding: 40px 0 80px;
-    max-width: 900px;
+    /* 16px side padding keeps the cards off the page edges on narrow
+       viewports; max-width is 900px content + the two 16px gutters so the
+       desktop grid stays centred with exactly the same card widths. */
+    padding: 40px 16px 80px;
+    max-width: 932px;
     margin: 0 auto;
 }
 
@@ -116,6 +119,13 @@
 }
 
 @media (max-width: 640px) {
+    /* Mobile: same 16px gutter as the cards so the branding image, heading
+       and copy never touch the viewport edges. */
+    .hero .container {
+        width: 100%;
+        padding: 0 16px;
+    }
+
     .hero h2 {
         font-size: 1.875rem;
     }
@@ -126,7 +136,7 @@
 
     .cards-grid {
         grid-template-columns: 1fr;
-        padding: 24px 0 60px;
+        padding: 24px 16px 60px;
     }
 
     #main-nav a {
