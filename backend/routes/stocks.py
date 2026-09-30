@@ -28,9 +28,10 @@ async def get_stock_universe(
     max_roe: Optional[float] = Query(default=None),
 ):
     try:
-        # Return only the lightweight NSE/Nifty classification metadata when
-        # no sector is selected. Fundamental filtering requires the sector
-        # path, which is where Yahoo Finance data is fetched.
+        # The initial selector needs the complete lightweight NSE/Nifty
+        # metadata so the UI can filter by sector without making hundreds of
+        # Yahoo Finance calls. Fundamental filters are applied after a sector
+        # (or another explicit filter) is selected.
         if not sector and not any(
             value is not None
             for value in (
@@ -43,10 +44,11 @@ async def get_stock_universe(
                 max_roe,
             )
         ):
+            stocks = load_nifty_total_market()
             return {
                 "sectors": nifty_sectors(),
-                "stocks": [],
-                "count": 0,
+                "stocks": stocks,
+                "count": len(stocks),
                 "universe": "Nifty Total Market",
                 "classification_source": "NSE Indices / Nifty Total Market constituent CSV",
             }
