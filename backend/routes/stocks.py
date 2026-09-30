@@ -24,13 +24,28 @@ async def get_stock_universe(
     max_roe: Optional[float] = Query(default=None),
 ):
     try:
+        # The selector needs the complete universe metadata before a sector is
+        # chosen. Do not make 750 Yahoo calls on the initial page load.
         if not sector:
-            return {"sectors": nifty_sectors(), "stocks": [], "count": 0,
-                    "universe": "Nifty Total Market",
-                    "classification_source": "NSE Indices / Nifty Total Market constituent CSV"}
-        return list_stocks(client, sector=sector, query=query,
-                           min_market_cap_cr=min_market_cap_cr, max_market_cap_cr=max_market_cap_cr,
-                           min_pe=min_pe, max_pe=max_pe, min_roe=min_roe, max_roe=max_roe)
+            return {
+                "sectors": nifty_sectors(),
+                "stocks": [],
+                "count": 0,
+                "universe": "Nifty Total Market",
+                "classification_source": "NSE Indices / Nifty Total Market constituent CSV",
+            }
+
+        return list_stocks(
+            client,
+            sector=sector,
+            query=query,
+            min_market_cap_cr=min_market_cap_cr,
+            max_market_cap_cr=max_market_cap_cr,
+            min_pe=min_pe,
+            max_pe=max_pe,
+            min_roe=min_roe,
+            max_roe=max_roe,
+        )
     except (NiftyUniverseError, YahooFinanceError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
