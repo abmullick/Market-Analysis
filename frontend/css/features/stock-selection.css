@@ -1,72 +1,70 @@
-/* Stock selection feature styles */
+/* Stock Analysis */
 
 .card-stocks {
     border-color: rgba(37, 99, 235, 0.25);
 }
-
 .card-stocks:hover {
     box-shadow: 0 20px 40px rgba(37, 99, 235, 0.12);
     border-color: rgba(37, 99, 235, 0.4);
 }
-
 .card-stocks .card-icon {
     background: linear-gradient(135deg, #2563eb, #1d4ed8);
 }
-
 .card-stocks .btn-stocks,
 .stock-page-btn {
-    background: #ffffff;
+    background: #fff;
     color: #1e40af;
     border: 1px solid #2563eb;
-    background-image: linear-gradient(135deg, rgba(37, 99, 235, 0.06), rgba(37, 99, 235, 0.02));
-    background-size: 200% 200%;
 }
-
 .card-stocks .btn-stocks:hover,
 .stock-page-btn:hover {
-    background-image: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(37, 99, 235, 0.04));
+    background: #eff6ff;
     border-color: #1d4ed8;
-    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.2);
-}
-
-.stock-page-accent {
-    color: #2563eb;
-}
-
-.stock-page-btn {
-    padding: 10px 18px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.16);
 }
 
 .stock-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: 14px;
     margin: 20px 0;
     flex-wrap: wrap;
 }
-
 .stock-search-form {
     display: flex;
     gap: 8px;
-    min-width: min(100%, 460px);
+    width: min(620px, 100%);
 }
-
 .stock-search-form input {
     flex: 1;
-    min-width: 180px;
-    padding: 10px 12px;
+    min-width: 0;
+    padding: 11px 13px;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
-    font-size: 15px;
+    font: inherit;
 }
-
+.stock-search-form input:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+}
+.stock-page-btn {
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.stock-help-text,
 .stock-source {
     color: #64748b;
+    font-size: 12px;
+}
+.stock-analysis-status {
+    min-height: 18px;
+    color: #64748b;
     font-size: 13px;
+    margin-bottom: 8px;
 }
 
 .stock-hero {
@@ -75,40 +73,36 @@
     justify-content: space-between;
     gap: 24px;
     padding: 24px;
-    margin-bottom: 18px;
+    margin: 12px 0 16px;
     border: 1px solid #e2e8f0;
     border-radius: 14px;
-    background: linear-gradient(135deg, #ffffff, #f8fafc);
+    background: linear-gradient(135deg, #fff, #f8fafc);
 }
-
 .stock-eyebrow {
     color: #2563eb;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .04em;
+    letter-spacing: .05em;
 }
-
 .stock-hero h1 {
     margin: 5px 0;
     font-size: clamp(24px, 4vw, 34px);
+    line-height: 1.2;
 }
-
 .stock-hero p {
     margin: 0;
     color: #64748b;
 }
-
 .stock-price-block {
     text-align: right;
     white-space: nowrap;
 }
-
 .stock-price-block strong {
     display: block;
     font-size: 30px;
+    line-height: 1.1;
 }
-
 .stock-price-block span {
     color: #64748b;
     font-size: 12px;
@@ -121,11 +115,9 @@
     grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
     gap: 10px;
 }
-
 .stock-summary-grid {
     margin-bottom: 18px;
 }
-
 .stock-metric-card {
     min-height: 64px;
     padding: 12px 14px;
@@ -133,18 +125,22 @@
     border-radius: 10px;
     background: #fff;
 }
-
 .stock-metric-label {
     display: block;
     color: #64748b;
     font-size: 12px;
     margin-bottom: 5px;
 }
-
 .stock-metric-value {
     display: block;
     color: #0f172a;
     font-size: 16px;
+}
+.metric-positive {
+    color: #15803d !important;
+}
+.metric-negative {
+    color: #dc2626 !important;
 }
 
 .stock-section {
@@ -154,7 +150,6 @@
     border-radius: 14px;
     background: #fff;
 }
-
 .stock-section-header {
     display: flex;
     align-items: baseline;
@@ -162,27 +157,53 @@
     gap: 12px;
     margin-bottom: 14px;
 }
-
 .stock-section-header h2 {
     margin: 0;
     font-size: 19px;
+    color: #111827;
 }
-
 .stock-section-header span {
     color: #64748b;
     font-size: 12px;
 }
 
-.stock-table-wrap {
-    overflow-x: auto;
+.stock-statement-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.stock-tab {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #475569;
+    padding: 7px 11px;
+    border-radius: 7px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+}
+.stock-tab:hover {
+    border-color: #2563eb;
+}
+.stock-tab.active {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #2563eb;
+    font-weight: 600;
 }
 
+.stock-table-wrap {
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
 .stock-table {
     width: 100%;
+    min-width: 720px;
     border-collapse: collapse;
     font-size: 13px;
 }
-
 .stock-table th,
 .stock-table td {
     padding: 9px 10px;
@@ -190,43 +211,57 @@
     text-align: right;
     white-space: nowrap;
 }
-
 .stock-table th:first-child,
 .stock-table td:first-child {
     text-align: left;
     font-weight: 600;
 }
-
 .stock-table th {
     color: #475569;
     background: #f8fafc;
+}
+.stock-table tr:last-child td {
+    border-bottom: none;
 }
 
 .stock-warnings {
     color: #475569;
     font-size: 13px;
 }
-
 .stock-warnings ul {
     margin: 0 0 8px;
     padding-left: 20px;
 }
-
 .stock-loading,
-.stock-error {
-    margin-top: 20px;
+.stock-error,
+.stock-no-data {
     padding: 28px;
     border: 1px solid #e2e8f0;
-    border-radius: 14px;
+    border-radius: 12px;
     background: #fff;
 }
-
 .stock-error {
     border-color: #fecaca;
 }
-
 .stock-error h2 {
     margin-top: 0;
+}
+.stock-error code,
+.stock-empty-state code {
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: #f3f4f6;
+}
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
 }
 
 @media (max-width: 700px) {
@@ -234,11 +269,9 @@
         align-items: flex-start;
         flex-direction: column;
     }
-
     .stock-price-block {
         text-align: left;
     }
-
     .stock-search-form {
         width: 100%;
     }

@@ -1,177 +1,250 @@
 const API_BASE = "/api/stocks";
 
-const METRIC_GROUPS = [
+const GROUPS = [
     {
         title: "Valuation",
         metrics: [
-            ["pe", "P/E"], ["forward_pe", "Forward P/E"], ["pb", "P/B"],
-            ["ps", "P/S"], ["peg", "PEG"], ["ev_ebitda", "EV/EBITDA"],
-            ["ev_revenue", "EV/Revenue"], ["dividend_yield", "Dividend Yield"],
+            ["pe", "P/E", "ratio"], ["forward_pe", "Forward P/E", "ratio"],
+            ["pb", "Price / Book", "ratio"], ["ps", "Price / Sales", "ratio"],
+            ["peg", "PEG", "ratio"], ["ev_ebitda", "EV / EBITDA", "ratio"],
+            ["ev_revenue", "EV / Revenue", "ratio"], ["dividend_yield", "Dividend Yield", "percent"],
+            ["payout_ratio", "Payout Ratio", "percent"],
         ],
     },
     {
-        title: "Profitability & Financial Health",
+        title: "Profitability",
         metrics: [
-            ["roe", "ROE"], ["roa", "ROA"], ["profit_margin", "Net Margin"],
-            ["operating_margin", "Operating Margin"], ["gross_margin", "Gross Margin"],
-            ["debt_equity", "Debt/Equity"], ["current_ratio", "Current Ratio"],
-            ["quick_ratio", "Quick Ratio"],
+            ["roe", "ROE", "percent"], ["roa", "ROA", "percent"],
+            ["gross_margin", "Gross Margin", "percent"], ["operating_margin", "Operating Margin", "percent"],
+            ["profit_margin", "Net Margin", "percent"],
+        ],
+    },
+    {
+        title: "Financial Health",
+        metrics: [
+            ["debt_equity", "Debt / Equity", "ratio"],
+            ["current_ratio", "Current Ratio", "ratio"],
+            ["quick_ratio", "Quick Ratio", "ratio"],
+            ["beta", "Beta", "number"],
         ],
     },
     {
         title: "Growth",
         metrics: [
-            ["revenue_growth", "Revenue Growth"], ["profit_growth", "Profit Growth"],
-            ["eps_growth", "EPS Growth"], ["revenue_cagr_3y", "Revenue CAGR 3Y"],
-            ["revenue_cagr_5y", "Revenue CAGR 5Y"], ["profit_cagr_3y", "Profit CAGR 3Y"],
-            ["profit_cagr_5y", "Profit CAGR 5Y"], ["eps_cagr_3y", "EPS CAGR 3Y"],
-            ["eps_cagr_5y", "EPS CAGR 5Y"], ["fcf_cagr_3y", "FCF CAGR 3Y"],
-            ["fcf_cagr_5y", "FCF CAGR 5Y"],
+            ["revenue_growth", "Revenue Growth", "percent"],
+            ["profit_growth", "Profit Growth", "percent"],
+            ["eps_growth", "EPS Growth", "percent"],
+            ["revenue_cagr_3y", "Revenue CAGR 3Y", "percent"],
+            ["revenue_cagr_5y", "Revenue CAGR 5Y", "percent"],
+            ["profit_cagr_3y", "Profit CAGR 3Y", "percent"],
+            ["profit_cagr_5y", "Profit CAGR 5Y", "percent"],
+            ["eps_cagr_3y", "EPS CAGR 3Y", "percent"],
+            ["eps_cagr_5y", "EPS CAGR 5Y", "percent"],
+            ["fcf_cagr_3y", "FCF CAGR 3Y", "percent"],
+            ["fcf_cagr_5y", "FCF CAGR 5Y", "percent"],
+            ["operating_margin_change", "Operating Margin Change", "pp"],
         ],
     },
 ];
 
-function escapeHtml(value) {
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+function esc(value) {
+    return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
-function compact(value, currency = "") {
-    if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
+function fmtNumber(value, digits = 2) {
+    return Number(value).toLocaleString("en-IN", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+}
+
+function fmtPercent(value) {
+    return value == null || !Number.isFinite(Number(value)) ? "—" : `${fmtNumber(Number(value) * 100, 2)}%`;
+}
+
+function fmtRatio(value) {
+    return value == null || !Number.isFinite(Number(value)) ? "—" : `${fmtNumber(Number(value), 2)}x`;
+}
+
+function fmtCompact(value, currency = "") {
+    if (value == null || !Number.isFinite(Number(value))) return "—";
     const n = Number(value);
-    const prefix = currency === "INR" ? "₹" : currency === "USD" ? "$" : currency ? `${currency} ` : "";
-    const abs = Math.abs(n);
-    if (abs >= 1e12) return `${prefix}${(n / 1e12).toFixed(2)}T`;
-    if (abs >= 1e9) return `${prefix}${(n / 1e9).toFixed(2)}B`;
-    if (abs >= 1e6) return `${prefix}${(n / 1e6).toFixed(2)}M`;
-    if (abs >= 1e3) return `${prefix}${(n / 1e3).toFixed(2)}K`;
-    return `${prefix}${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+    const p = currency === "INR" ? "₹" : currency === "USD" ? "$" : currency ? `${currency} ` : "";
+    const a = Math.abs(n);
+    if (a >= 1e12) return `${p}${fmtNumber(n / 1e12, 2)}T`;
+    if (a >= 1e9) return `${p}${fmtNumber(n / 1e9, 2)}B`;
+    if (a >= 1e6) return `${p}${fmtNumber(n / 1e6, 2)}M`;
+    if (a >= 1e3) return `${p}${fmtNumber(n / 1e3, 2)}K`;
+    return `${p}${fmtNumber(n, 2)}`;
 }
 
-function percent(value, decimals = 2) {
-    if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
-    return `${(Number(value) * 100).toFixed(decimals)}%`;
+function valueForMetric(key, value, type) {
+    if (value == null) return "—";
+    if (type === "percent") return fmtPercent(value);
+    if (type === "ratio") return fmtRatio(value);
+    if (type === "pp") return `${fmtNumber(Number(value) * 100, 2)} pp`;
+    return fmtNumber(Number(value), 2);
 }
 
-function metricValue(key, value) {
-    if (value === null || value === undefined) return "—";
-    if (key.includes("yield") || key.includes("margin") || key === "roe" || key === "roa" || key.includes("growth") || key.includes("cagr")) {
-        return percent(value);
-    }
-    return Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 });
-}
-
-function metricCard(key, label, value) {
+function metricCard(key, label, value, type) {
+    const display = valueForMetric(key, value, type);
+    const cls = Number(value) > 0 && (type === "percent" || type === "pp")
+        ? "metric-positive"
+        : Number(value) < 0 && (type === "percent" || type === "pp")
+            ? "metric-negative" : "";
     return `<div class="stock-metric-card">
-        <span class="stock-metric-label">${escapeHtml(label)}</span>
-        <strong class="stock-metric-value">${escapeHtml(metricValue(key, value))}</strong>
+        <span class="stock-metric-label">${esc(label)}</span>
+        <strong class="stock-metric-value ${cls}">${esc(display)}</strong>
     </div>`;
 }
 
-function statementTable(title, rows, currency) {
-    if (!rows?.length) return "";
-    const fields = [...new Set(rows.flatMap(row => Object.keys(row.values || {})))];
+function renderGroup(group, f) {
     return `<section class="stock-section">
-        <div class="stock-section-header"><h2>${escapeHtml(title)}</h2></div>
-        <div class="stock-table-wrap"><table class="stock-table">
-            <thead><tr><th>Metric</th>${rows.map(r => `<th>${escapeHtml(r.period)}</th>`).join("")}</tr></thead>
-            <tbody>${fields.map(field => `<tr><td>${escapeHtml(field.replaceAll(/([a-z])([A-Z])/g, "$1 $2"))}</td>${rows.map(row => `<td>${compact(row.values?.[field], currency)}</td>`).join("")}</tr>`).join("")}</tbody>
-        </table></div>
+        <div class="stock-section-header"><h2>${esc(group.title)}</h2></div>
+        <div class="stock-metrics-grid">
+            ${group.metrics.map(([key, label, type]) => metricCard(key, label, f[key], type)).join("")}
+        </div>
     </section>`;
 }
 
-function render(data, container, symbol) {
-    const f = data.fundamentals || {};
+function renderCompany(f) {
     const currency = f.currency || "";
-    const displaySymbol = f.symbol || symbol;
-
-    container.innerHTML = `
-        <div class="stock-toolbar">
-            <form id="stock-search-form" class="stock-search-form">
-                <input id="stock-symbol-input" value="${escapeHtml(symbol)}" placeholder="e.g. RELIANCE.NS or AAPL" aria-label="Stock symbol">
-                <button type="submit" class="stock-page-btn">Analyze</button>
-            </form>
-            <span class="stock-source">Source: ${escapeHtml(f.source || "Yahoo Finance")}</span>
+    return `<section class="stock-hero">
+        <div>
+            <div class="stock-eyebrow">${esc(f.exchange || "")} · ${esc(f.symbol || "")}</div>
+            <h1>${esc(f.name || f.symbol || "")}</h1>
+            <p>${esc(f.sector || "")}${f.industry ? ` · ${esc(f.industry)}` : ""}${f.country ? ` · ${esc(f.country)}` : ""}</p>
         </div>
+        <div class="stock-price-block">
+            <strong>${esc(fmtCompact(f.price, currency))}</strong>
+            <span>${esc(currency)}</span>
+        </div>
+    </section>
 
-        <section class="stock-hero">
-            <div>
-                <div class="stock-eyebrow">${escapeHtml(f.exchange || "")} · ${escapeHtml(displaySymbol)}</div>
-                <h1>${escapeHtml(f.name || displaySymbol)}</h1>
-                <p>${escapeHtml(f.sector || "")} ${f.industry ? `· ${escapeHtml(f.industry)}` : ""} ${f.country ? `· ${escapeHtml(f.country)}` : ""}</p>
-            </div>
-            <div class="stock-price-block">
-                <strong>${compact(f.price, currency)}</strong>
-                <span>${escapeHtml(currency)}</span>
-            </div>
-        </section>
+    <section class="stock-summary-grid">
+        ${metricCard("market_cap", "Market Cap", fmtCompact(f.market_cap, currency), "text")}
+        ${metricCard("enterprise_value", "Enterprise Value", fmtCompact(f.enterprise_value, currency), "text")}
+        ${metricCard("revenue", "Latest Revenue", fmtCompact(f.revenue, currency), "text")}
+        ${metricCard("net_profit", "Latest Net Profit", fmtCompact(f.net_profit, currency), "text")}
+        ${metricCard("ebitda", "Latest EBITDA", fmtCompact(f.ebitda, currency), "text")}
+        ${metricCard("free_cash_flow", "Latest Free Cash Flow", fmtCompact(f.free_cash_flow, currency), "text")}
+    </section>`;
+}
 
-        <section class="stock-summary-grid">
-            ${metricCard("market_cap", "Market Cap", f.market_cap)}
-            ${metricCard("enterprise_value", "Enterprise Value", f.enterprise_value)}
-            ${metricCard("shares_outstanding", "Shares Outstanding", f.shares_outstanding)}
-            ${metricCard("beta", "Beta", f.beta)}
-            ${metricCard("revenue", "Revenue", f.revenue)}
-            ${metricCard("net_profit", "Net Profit", f.net_profit)}
-            ${metricCard("ebitda", "EBITDA", f.ebitda)}
-            ${metricCard("free_cash_flow", "Free Cash Flow", f.free_cash_flow)}
-        </section>
+function statementTable(title, rows, currency) {
+    if (!rows?.length) {
+        return `<section class="stock-section"><div class="stock-section-header"><h2>${esc(title)}</h2></div><div class="stock-no-data">No historical data available.</div></section>`;
+    }
 
-        ${METRIC_GROUPS.map(group => `<section class="stock-section"><div class="stock-section-header"><h2>${escapeHtml(group.title)}</h2></div><div class="stock-metrics-grid">${group.metrics.map(([key, label]) => metricCard(key, label, f[key])).join("")}</div></section>`).join("")}
+    const fields = [...new Set(rows.flatMap(r => Object.keys(r.values || {})))];
+
+    return `<section class="stock-section">
+        <div class="stock-section-header"><h2>${esc(title)}</h2><span>Annual</span></div>
+        <div class="stock-table-wrap">
+            <table class="stock-table">
+                <thead>
+                    <tr><th>Metric</th>${rows.map(r => `<th>${esc(r.period.slice(0, 4))}</th>`).join("")}</tr>
+                </thead>
+                <tbody>
+                    ${fields.map(field => `<tr>
+                        <td>${esc(field.replace(/([a-z])([A-Z])/g, "$1 $2"))}</td>
+                        ${rows.map(row => `<td>${esc(formatStatementValue(field, row.values?.[field], currency))}</td>`).join("")}
+                    </tr>`).join("")}
+                </tbody>
+            </table>
+        </div>
+    </section>`;
+}
+
+function formatStatementValue(field, value, currency) {
+    if (value == null) return "—";
+    if (field.toLowerCase().includes("eps")) return fmtNumber(value, 2);
+    return fmtCompact(value, currency);
+}
+
+function render(data, container) {
+    const f = data.fundamentals || {};
+    container.innerHTML = `
+        ${renderCompany(f)}
+        ${GROUPS.map(group => renderGroup(group, f)).join("")}
 
         <section class="stock-section">
-            <div class="stock-section-header"><h2>Core Financial Trend</h2><span>Latest annual data</span></div>
-            <div class="stock-trend-grid">
-                ${metricCard("revenue_cagr_3y", "Revenue CAGR 3Y", f.revenue_cagr_3y)}
-                ${metricCard("profit_cagr_3y", "Profit CAGR 3Y", f.profit_cagr_3y)}
-                ${metricCard("eps_cagr_3y", "EPS CAGR 3Y", f.eps_cagr_3y)}
-                ${metricCard("fcf_cagr_3y", "FCF CAGR 3Y", f.fcf_cagr_3y)}
-                ${metricCard("operating_margin_change", "Operating Margin Change", f.operating_margin_change)}
+            <div class="stock-section-header"><h2>Financial Statements</h2><span>${esc(f.currency || "")}</span></div>
+            <div class="stock-statement-tabs">
+                <button class="stock-tab active" data-tab="income">Income Statement</button>
+                <button class="stock-tab" data-tab="balance">Balance Sheet</button>
+                <button class="stock-tab" data-tab="cash">Cash Flow</button>
+            </div>
+            <div id="stock-statement-content">
+                ${statementTable("Income Statement", data.income_statement, f.currency || "")}
             </div>
         </section>
-
-        ${statementTable("Income Statement", data.income_statement, currency)}
-        ${statementTable("Balance Sheet", data.balance_sheet, currency)}
-        ${statementTable("Cash Flow", data.cash_flow, currency)}
 
         <section class="stock-section stock-warnings">
             <div class="stock-section-header"><h2>Data Notes</h2></div>
-            <ul>${(data.warnings || []).map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul>
-            <small>Data as of ${escapeHtml(f.data_as_of || "—")}</small>
-        </section>
-    `;
+            <ul>${(data.warnings || []).map(w => `<li>${esc(w)}</li>`).join("")}</ul>
+            <small>Data as of ${esc(f.data_as_of || "—")} · Source: ${esc(f.source || "Yahoo Finance")}</small>
+        </section>`;
 
-    document.getElementById("stock-search-form")?.addEventListener("submit", event => {
-        event.preventDefault();
-        const next = document.getElementById("stock-symbol-input")?.value.trim().toUpperCase();
-        if (!next) return;
-        const url = new URL(window.location.href);
-        url.searchParams.set("symbol", next);
-        window.history.pushState({}, "", url);
-        loadStock(next, container);
+    const content = document.getElementById("stock-statement-content");
+    container.querySelectorAll(".stock-tab").forEach(tab => {
+        tab.addEventListener("click", () => {
+            container.querySelectorAll(".stock-tab").forEach(t => t.classList.remove("active"));
+            tab.classList.add("active");
+            const kind = tab.dataset.tab;
+            if (kind === "income") content.innerHTML = statementTable("Income Statement", data.income_statement, f.currency || "");
+            if (kind === "balance") content.innerHTML = statementTable("Balance Sheet", data.balance_sheet, f.currency || "");
+            if (kind === "cash") content.innerHTML = statementTable("Cash Flow", data.cash_flow, f.currency || "");
+        });
     });
 }
 
-async function loadStock(symbol, container) {
-    container.innerHTML = `<div class="stock-loading">Loading ${escapeHtml(symbol)} fundamentals…</div>`;
+async function loadStock(symbol, container, status) {
+    status.textContent = `Loading ${symbol}…`;
+    container.innerHTML = `<div class="stock-loading">Loading ${esc(symbol)} fundamentals…</div>`;
+
     try {
-        const response = await fetch(`${API_BASE}/${encodeURIComponent(symbol)}`);
+        const response = await fetch(`${API_BASE}/${encodeURIComponent(symbol)}`, {
+            headers: { "Accept": "application/json" }
+        });
+
         const data = await response.json();
-        if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
-        render(data, container, symbol);
+
+        if (!response.ok) {
+            throw new Error(data?.detail || `HTTP ${response.status}`);
+        }
+
+        render(data, container);
+        status.textContent = "";
     } catch (error) {
-        container.innerHTML = `<div class="stock-error"><h2>Unable to load ${escapeHtml(symbol)}</h2><p>${escapeHtml(error.message)}</p><p>Check the symbol format, for example <code>RELIANCE.NS</code>, <code>TCS.NS</code>, <code>HDFCBANK.NS</code>, or <code>AAPL</code>.</p></div>`;
+        container.innerHTML = `<div class="stock-error">
+            <h2>Unable to load ${esc(symbol)}</h2>
+            <p>${esc(error.message)}</p>
+            <p>Examples: <code>RELIANCE.NS</code>, <code>TCS.NS</code>, <code>HDFCBANK.NS</code>, <code>AAPL</code>.</p>
+        </div>`;
+        status.textContent = "";
     }
 }
 
 export function initStockAnalysis() {
     const container = document.getElementById("stock-details");
-    if (!container) return;
+    const form = document.getElementById("stock-search-form");
+    const input = document.getElementById("stock-symbol-input");
+    const status = document.getElementById("stock-analysis-status");
+
+    if (!container || !form || !input) return;
+
     const params = new URLSearchParams(window.location.search);
-    const symbol = (params.get("symbol") || "RELIANCE.NS").trim().toUpperCase();
-    loadStock(symbol, container);
+    const initial = (params.get("symbol") || "RELIANCE.NS").trim().toUpperCase();
+    input.value = initial;
+
+    form.addEventListener("submit", event => {
+        event.preventDefault();
+        const symbol = input.value.trim().toUpperCase();
+        if (!symbol) return;
+        const url = new URL(window.location.href);
+        url.searchParams.set("symbol", symbol);
+        window.history.pushState({}, "", url);
+        loadStock(symbol, container, status);
+    });
+
+    loadStock(initial, container, status);
 }
