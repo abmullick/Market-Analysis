@@ -185,6 +185,8 @@ function formatStatementValue(field, value, currency) {
 function render(data, container) {
     const f = data.fundamentals || {};
     const indianUnitsAvailable = f.currency === "INR";
+    if (!indianUnitsAvailable) financialDisplayMode = "international";
+
     container.innerHTML = `
         ${renderCompany(f)}
         ${GROUPS.map(group => renderGroup(group, f)).join("")}
