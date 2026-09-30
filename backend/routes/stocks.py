@@ -5,7 +5,11 @@ from fastapi import APIRouter, HTTPException, Query
 from backend.config.settings import Settings
 from backend.services.data.fundamentals import get_stock_analysis
 from backend.services.data.yahoo import YahooFinanceClient, YahooFinanceError
-from backend.services.stocks.nifty_universe import NiftyUniverseError, nifty_sectors
+from backend.services.stocks.nifty_universe import (
+    NiftyUniverseError,
+    load_nifty_total_market,
+    nifty_sectors,
+)
 from backend.services.stocks.screening import list_stocks
 
 router = APIRouter()
@@ -24,13 +28,15 @@ async def get_stock_universe(
     max_roe: Optional[float] = Query(default=None),
 ):
     try:
-        # The selector needs the complete universe metadata before a sector is
-        # chosen. Do not make 750 Yahoo calls on the initial page load.
+        # The initial selector load only needs the official constituent
+        # metadata. Do not make hundreds of Yahoo calls until the user has
+        # selected a sector (and optionally applied filters).
         if not sector:
+            stocks = load_nifty_total_market()
             return {
                 "sectors": nifty_sectors(),
-                "stocks": [],
-                "count": 0,
+                "stocks": stocks,
+                "count": len(stocks),
                 "universe": "Nifty Total Market",
                 "classification_source": "NSE Indices / Nifty Total Market constituent CSV",
             }
