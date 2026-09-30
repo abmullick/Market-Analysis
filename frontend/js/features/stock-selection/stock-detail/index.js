@@ -78,6 +78,13 @@ function fmtCompact(value, currency = "") {
     return `${p}${fmtNumber(n, 2)}`;
 }
 
+function fmtPrice(value, currency = "") {
+    if (value == null || !Number.isFinite(Number(value))) return "—";
+    const n = Number(value);
+    const p = currency === "INR" ? "₹" : currency === "USD" ? "$" : currency ? `${currency} ` : "";
+    return `${p}${fmtNumber(n, 2)}`;
+}
+
 function valueForMetric(key, value, type) {
     if (value == null) return "—";
     if (type === "percent") return fmtPercent(value);
@@ -118,7 +125,7 @@ function renderCompany(f) {
             <p>${esc(f.sector || "")}${f.industry ? ` · ${esc(f.industry)}` : ""}${f.country ? ` · ${esc(f.country)}` : ""}</p>
         </div>
         <div class="stock-price-block">
-            <strong>${esc(fmtCompact(f.price, currency))}</strong>
+            <strong>${esc(fmtPrice(f.price, currency))}</strong>
             <span>${esc(currency)}</span>
         </div>
     </section>
