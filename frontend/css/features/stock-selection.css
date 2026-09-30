@@ -200,21 +200,29 @@
 }
 .stock-table {
     width: 100%;
-    min-width: 720px;
+    min-width: 0;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 13px;
 }
 .stock-table th,
 .stock-table td {
-    padding: 9px 10px;
+    padding: 9px 8px;
     border-bottom: 1px solid #e2e8f0;
     text-align: right;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .stock-table th:first-child,
 .stock-table td:first-child {
+    width: 30%;
     text-align: left;
     font-weight: 600;
+}
+.stock-table th:not(:first-child),
+.stock-table td:not(:first-child) {
+    width: 17.5%;
 }
 .stock-table th {
     color: #475569;
@@ -274,5 +282,8 @@
     }
     .stock-search-form {
         width: 100%;
+    }
+    .stock-table {
+        min-width: 640px;
     }
 }
