@@ -9,8 +9,9 @@
     <link rel="stylesheet" href="/css/layout.css">
     <link rel="stylesheet" href="/css/components.css">
     <link rel="stylesheet" href="/css/features/stock-selection.css">
+    <link rel="stylesheet" href="/css/features/stock-select.css">
 </head>
-<body>
+<body data-page="stock-selection">
 <header class="site-header">
     <div class="header-left">
         <img src="/static/images/logo.png" alt="Market Analysis" class="logo">
@@ -21,30 +22,93 @@
 
 <main class="container">
     <div id="stock-analysis-content">
-        <div class="pb-page-header-text">
-            <h1 class="mf-page-title">Stock Analysis</h1>
-            <p class="mf-page-subtitle">Fundamental analysis of individual stocks using Yahoo Finance data.</p>
+        <div class="stock-select-progress" aria-label="Stock Analysis steps">
+            <div class="stock-select-step stock-select-step--active"><span>1</span><strong>Select Stock</strong></div>
+            <div class="stock-select-connector" aria-hidden="true"></div>
+            <div class="stock-select-step"><span>2</span><strong>Analyze</strong></div>
+        </div>
+        <p class="stock-select-step-label">Step 1 of 2</p>
+
+        <div class="stock-select-header">
+            <h1 class="mf-page-title">Select a Stock</h1>
+            <p class="mf-page-subtitle">Choose a sector first, then select a stock and refine the list using fundamental filters.</p>
         </div>
 
-        <div class="stock-toolbar">
-            <form id="stock-search-form" class="stock-search-form" autocomplete="off">
-                <label class="sr-only" for="stock-symbol-input">Stock symbol</label>
-                <input id="stock-symbol-input" name="symbol" type="text"
-                       placeholder="RELIANCE.NS, TCS.NS, HDFCBANK.NS, AAPL"
-                       spellcheck="false">
-                <button type="submit" class="stock-page-btn">Analyze</button>
-            </form>
-            <div class="stock-help-text">NSE: <strong>.NS</strong> · BSE: <strong>.BO</strong></div>
+        <div class="stock-select-layout">
+            <aside class="stock-select-sidebar">
+                <p class="stock-select-sidebar-label">SELECTED STOCK</p>
+                <div id="stock-selected-empty" class="stock-selected-empty">
+                    No stock selected yet.
+                    <div>Choose a sector and stock from the list.</div>
+                </div>
+                <div id="stock-selected-card" class="stock-selected-card hidden"></div>
+                <button id="stock-analyze-btn" class="stock-analyze-btn" type="button" disabled>Analyze Stock</button>
+                <p id="stock-analyze-hint" class="stock-analyze-hint">Select one stock to continue.</p>
+            </aside>
+
+            <section class="stock-select-main">
+                <div class="stock-select-toolbar">
+                    <div class="stock-select-field stock-select-sector-field">
+                        <label for="stock-sector-filter">Sector</label>
+                        <select id="stock-sector-filter">
+                            <option value="">Select a sector</option>
+                        </select>
+                    </div>
+                    <div class="stock-select-field stock-select-search-field">
+                        <label for="stock-search-input">Search</label>
+                        <input id="stock-search-input" type="search" placeholder="Search company or symbol..." autocomplete="off" disabled>
+                    </div>
+                    <div class="stock-select-field">
+                        <label for="stock-market-cap-filter">Market Cap</label>
+                        <select id="stock-market-cap-filter">
+                            <option value="">Any</option>
+                            <option value="0-10000">Below ₹10,000 Cr</option>
+                            <option value="10000-50000">₹10,000–50,000 Cr</option>
+                            <option value="50000-200000">₹50,000–2,00,000 Cr</option>
+                            <option value="200000-">Above ₹2,00,000 Cr</option>
+                        </select>
+                    </div>
+                    <div class="stock-select-field">
+                        <label for="stock-pe-filter">P/E</label>
+                        <select id="stock-pe-filter">
+                            <option value="">Any</option>
+                            <option value="10">≤ 10</option>
+                            <option value="15">≤ 15</option>
+                            <option value="20">≤ 20</option>
+                            <option value="30">≤ 30</option>
+                            <option value="50">≤ 50</option>
+                        </select>
+                    </div>
+                    <div class="stock-select-field">
+                        <label for="stock-roe-filter">ROE</label>
+                        <select id="stock-roe-filter">
+                            <option value="">Any</option>
+                            <option value="10">≥ 10%</option>
+                            <option value="15">≥ 15%</option>
+                            <option value="20">≥ 20%</option>
+                            <option value="25">≥ 25%</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="stock-selection-status" class="stock-selection-status" aria-live="polite"></div>
+                <div id="stock-selection-results" class="stock-selection-results">
+                    <div class="stock-select-empty-state">
+                        <div class="stock-select-empty-icon">⌕</div>
+                        <h3>Select a sector</h3>
+                        <p>The stocks belonging to that sector will appear here.</p>
+                    </div>
+                </div>
+            </section>
         </div>
 
+        <div id="stock-details" class="stock-details-host hidden"></div>
         <div id="stock-analysis-status" class="stock-analysis-status" aria-live="polite"></div>
-        <div id="stock-details"></div>
     </div>
 </main>
 
 <a href="/help.html" class="help-link" title="Help & Methodology">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="10"></circle>
         <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
         <line x1="12" y1="17" x2="12.01" y2="17"></line>
@@ -60,9 +124,9 @@
 
 <script type="module">
     import { initNavigation } from '/js/core/navigation.js';
-    import { initStockAnalysis } from '/js/features/stock-selection/stock-detail/index.js';
+    import { initStockSelection } from '/js/features/stock-selection/index.js';
     initNavigation();
-    initStockAnalysis();
+    initStockSelection();
 </script>
 </body>
 </html>
