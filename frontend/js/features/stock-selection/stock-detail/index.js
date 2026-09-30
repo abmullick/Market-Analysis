@@ -34,14 +34,14 @@ const GROUPS = [
             ["revenue_growth", "Revenue Growth", "percent"],
             ["profit_growth", "Profit Growth", "percent"],
             ["eps_growth", "EPS Growth", "percent"],
-            ["revenue_cagr_3y", "Revenue CAGR 3Y", "percent"],
-            ["revenue_cagr_5y", "Revenue CAGR 5Y", "percent"],
-            ["profit_cagr_3y", "Profit CAGR 3Y", "percent"],
-            ["profit_cagr_5y", "Profit CAGR 5Y", "percent"],
-            ["eps_cagr_3y", "EPS CAGR 3Y", "percent"],
-            ["eps_cagr_5y", "EPS CAGR 5Y", "percent"],
-            ["fcf_cagr_3y", "FCF CAGR 3Y", "percent"],
-            ["fcf_cagr_5y", "FCF CAGR 5Y", "percent"],
+            ["revenue_cagr_3y", "Revenue CAGR 3Y", "percent_decimal"],
+            ["revenue_cagr_5y", "Revenue CAGR 5Y", "percent_decimal"],
+            ["profit_cagr_3y", "Profit CAGR 3Y", "percent_decimal"],
+            ["profit_cagr_5y", "Profit CAGR 5Y", "percent_decimal"],
+            ["eps_cagr_3y", "EPS CAGR 3Y", "percent_decimal"],
+            ["eps_cagr_5y", "EPS CAGR 5Y", "percent_decimal"],
+            ["fcf_cagr_3y", "FCF CAGR 3Y", "percent_decimal"],
+            ["fcf_cagr_5y", "FCF CAGR 5Y", "percent_decimal"],
             ["operating_margin_change", "Operating Margin Change", "pp"],
         ],
     },
@@ -56,8 +56,10 @@ function fmtNumber(value, digits = 2) {
     return Number(value).toLocaleString("en-IN", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
 }
 
-function fmtPercent(value) {
-    return value == null || !Number.isFinite(Number(value)) ? "—" : `${fmtNumber(Number(value) * 100, 2)}%`;
+function fmtPercent(value, multiplier = 1) {
+    return value == null || !Number.isFinite(Number(value))
+        ? "—"
+        : `${fmtNumber(Number(value) * multiplier, 2)}%`;
 }
 
 function fmtRatio(value) {
@@ -79,16 +81,18 @@ function fmtCompact(value, currency = "") {
 function valueForMetric(key, value, type) {
     if (value == null) return "—";
     if (type === "percent") return fmtPercent(value);
+    if (type === "percent_decimal") return fmtPercent(value, 100);
     if (type === "ratio") return fmtRatio(value);
-    if (type === "pp") return `${fmtNumber(Number(value) * 100, 2)} pp`;
+    if (type === "pp") return `${fmtNumber(Number(value), 2)} pp`;
+    if (type === "text") return String(value);
     return fmtNumber(Number(value), 2);
 }
 
 function metricCard(key, label, value, type) {
     const display = valueForMetric(key, value, type);
-    const cls = Number(value) > 0 && (type === "percent" || type === "pp")
+    const cls = Number(value) > 0 && (type === "percent" || type === "percent_decimal" || type === "pp")
         ? "metric-positive"
-        : Number(value) < 0 && (type === "percent" || type === "pp")
+        : Number(value) < 0 && (type === "percent" || type === "percent_decimal" || type === "pp")
             ? "metric-negative" : "";
     return `<div class="stock-metric-card">
         <span class="stock-metric-label">${esc(label)}</span>
