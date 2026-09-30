@@ -46,31 +46,30 @@ def _find_column(fieldnames: list[str], *candidates: str) -> str | None:
     return None
 
 
-def _decode_csv(payload: bytes) -> str:
-    # Prefer the BOM-aware UTF-8 decoder. Fall back for files served using a
-    # legacy encoding. We don't infer validity solely from decoded text.
+def _decode_payload(payload: bytes) -> str:
+    # The official constituent endpoint may return UTF-8 CSV, UTF-16 CSV, or
+    # a legacy Windows encoding. Try the common encodings without assuming the
+    # byte stream's nominal Content-Type is reliable.
     for encoding in ("utf-8-sig", "utf-16", "cp1252"):
         try:
             text = payload.decode(encoding)
-            if "\x00" not in text:
-                return text
         except (UnicodeDecodeError, UnicodeError):
             continue
+        if "\x00" not in text and ("Symbol" in text[:10000] or "SYMBOL" in text[:10000]):
+            return text
     return payload.decode("utf-8-sig", errors="replace")
 
 
 def _parse_csv(payload: bytes) -> list[dict[str, str]]:
-    text = _decode_csv(payload)
-
-    # The endpoint may return an HTML challenge/error page with HTTP 200.
+    text = _decode_payload(payload)
     sample = text[:5000].lower()
+
     if "<html" in sample or "<!doctype" in sample or "<script" in sample:
         raise NiftyUniverseError(
             "Nifty Total Market endpoint returned HTML instead of constituent data"
         )
 
-    # NSE can prepend blank/metadata lines. Find a plausible CSV header by
-    # looking for a line containing both Symbol and Company Name.
+    # Locate the actual CSV header if NSE prepends metadata/blank lines.
     lines = text.splitlines()
     header_index: int | None = None
     for index, line in enumerate(lines[:100]):
@@ -161,11 +160,11 @@ def _download_official_file() -> bytes:
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/154.0.0.0 Safari/537.36"
             ),
-            "Accept": "text/csv,application/octet-stream,text/plain,*/*",
+            "Accept": (
+                "text/csv,application/CSV,application/octet-stream,"
+                "text/plain,*/*"
+            ),
             "Referer": NIFTY_TOTAL_MARKET_PAGE,
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-origin",
         }
     )
 
