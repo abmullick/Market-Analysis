@@ -59,9 +59,7 @@ function fmtNumber(value, digits = 2) {
 }
 
 function fmtPercent(value, multiplier = 1) {
-    return value == null || !Number.isFinite(Number(value))
-        ? "—"
-        : `${fmtNumber(Number(value) * multiplier, 2)}%`;
+    return value == null || !Number.isFinite(Number(value)) ? "—" : `${fmtNumber(Number(value) * multiplier, 2)}%`;
 }
 
 function fmtRatio(value) {
@@ -82,18 +80,14 @@ function fmtCompact(value, currency = "") {
 
 function fmtFinancial(value, currency = "") {
     if (value == null || !Number.isFinite(Number(value))) return "—";
-    if (financialDisplayMode === "indian" && currency === "INR") {
-        const n = Number(value);
-        return `₹${fmtNumber(n / 1e7, 2)} Cr`;
-    }
+    if (financialDisplayMode === "indian" && currency === "INR") return `₹${fmtNumber(Number(value) / 1e7, 2)} Cr`;
     return fmtCompact(value, currency);
 }
 
 function fmtPrice(value, currency = "") {
     if (value == null || !Number.isFinite(Number(value))) return "—";
-    const n = Number(value);
     const p = currency === "INR" ? "₹" : currency === "USD" ? "$" : currency ? `${currency} ` : "";
-    return `${p}${fmtNumber(n, 2)}`;
+    return `${p}${fmtNumber(Number(value), 2)}`;
 }
 
 function valueForMetric(key, value, type) {
@@ -109,71 +103,24 @@ function valueForMetric(key, value, type) {
 function metricCard(key, label, value, type) {
     const display = valueForMetric(key, value, type);
     const cls = Number(value) > 0 && (type === "percent" || type === "percent_decimal" || type === "pp")
-        ? "metric-positive"
-        : Number(value) < 0 && (type === "percent" || type === "percent_decimal" || type === "pp")
+        ? "metric-positive" : Number(value) < 0 && (type === "percent" || type === "percent_decimal" || type === "pp")
             ? "metric-negative" : "";
-    return `<div class="stock-metric-card">
-        <span class="stock-metric-label">${esc(label)}</span>
-        <strong class="stock-metric-value ${cls}">${esc(display)}</strong>
-    </div>`;
+    return `<div class="stock-metric-card"><span class="stock-metric-label">${esc(label)}</span><strong class="stock-metric-value ${cls}">${esc(display)}</strong></div>`;
 }
 
 function renderGroup(group, f) {
-    return `<section class="stock-section">
-        <div class="stock-section-header"><h2>${esc(group.title)}</h2></div>
-        <div class="stock-metrics-grid">
-            ${group.metrics.map(([key, label, type]) => metricCard(key, label, f[key], type)).join("")}
-        </div>
-    </section>`;
+    return `<section class="stock-section"><div class="stock-section-header"><h2>${esc(group.title)}</h2></div><div class="stock-metrics-grid">${group.metrics.map(([key, label, type]) => metricCard(key, label, f[key], type)).join("")}</div></section>`;
 }
 
 function renderCompany(f) {
     const currency = f.currency || "";
-    return `<section class="stock-hero">
-        <div>
-            <div class="stock-eyebrow">${esc(f.exchange || "")} · ${esc(f.symbol || "")}</div>
-            <h1>${esc(f.name || f.symbol || "")}</h1>
-            <p>${esc(f.sector || "")}${f.industry ? ` · ${esc(f.industry)}` : ""}${f.country ? ` · ${esc(f.country)}` : ""}</p>
-        </div>
-        <div class="stock-price-block">
-            <strong>${esc(fmtPrice(f.price, currency))}</strong>
-            <span>${esc(currency)}</span>
-        </div>
-    </section>
-
-    <section class="stock-summary-grid">
-        ${metricCard("market_cap", "Market Cap", fmtFinancial(f.market_cap, currency), "text")}
-        ${metricCard("enterprise_value", "Enterprise Value", fmtFinancial(f.enterprise_value, currency), "text")}
-        ${metricCard("revenue", "Latest Revenue", fmtFinancial(f.revenue, currency), "text")}
-        ${metricCard("net_profit", "Latest Net Profit", fmtFinancial(f.net_profit, currency), "text")}
-        ${metricCard("ebitda", "Latest EBITDA", fmtFinancial(f.ebitda, currency), "text")}
-        ${metricCard("free_cash_flow", "Latest Free Cash Flow", fmtFinancial(f.free_cash_flow, currency), "text")}
-    </section>`;
+    return `<section class="stock-hero"><div><div class="stock-eyebrow">${esc(f.exchange || "")} · ${esc(f.symbol || "")}</div><h1>${esc(f.name || f.symbol || "")}</h1><p>${esc(f.sector || "")}${f.industry ? ` · ${esc(f.industry)}` : ""}${f.country ? ` · ${esc(f.country)}` : ""}</p></div><div class="stock-price-block"><strong>${esc(fmtPrice(f.price, currency))}</strong><span>${esc(currency)}</span></div></section><section class="stock-summary-grid">${metricCard("market_cap", "Market Cap", fmtFinancial(f.market_cap, currency), "text")}${metricCard("enterprise_value", "Enterprise Value", fmtFinancial(f.enterprise_value, currency), "text")}${metricCard("revenue", "Latest Revenue", fmtFinancial(f.revenue, currency), "text")}${metricCard("net_profit", "Latest Net Profit", fmtFinancial(f.net_profit, currency), "text")}${metricCard("ebitda", "Latest EBITDA", fmtFinancial(f.ebitda, currency), "text")}${metricCard("free_cash_flow", "Latest Free Cash Flow", fmtFinancial(f.free_cash_flow, currency), "text")}</section>`;
 }
 
 function statementTable(title, rows, currency) {
-    if (!rows?.length) {
-        return `<section class="stock-section"><div class="stock-section-header"><h2>${esc(title)}</h2></div><div class="stock-no-data">No historical data available.</div></section>`;
-    }
-
+    if (!rows?.length) return `<section class="stock-section"><div class="stock-section-header"><h2>${esc(title)}</h2></div><div class="stock-no-data">No historical data available.</div></section>`;
     const fields = [...new Set(rows.flatMap(r => Object.keys(r.values || {})))];
-
-    return `<section class="stock-section">
-        <div class="stock-section-header"><h2>${esc(title)}</h2><span>Annual</span></div>
-        <div class="stock-table-wrap">
-            <table class="stock-table">
-                <thead>
-                    <tr><th>Metric</th>${rows.map(r => `<th>${esc(r.period.slice(0, 4))}</th>`).join("")}</tr>
-                </thead>
-                <tbody>
-                    ${fields.map(field => `<tr>
-                        <td>${esc(field.replace(/([a-z])([A-Z])/g, "$1 $2"))}</td>
-                        ${rows.map(row => `<td>${esc(formatStatementValue(field, row.values?.[field], currency))}</td>`).join("")}
-                    </tr>`).join("")}
-                </tbody>
-            </table>
-        </div>
-    </section>`;
+    return `<section class="stock-section"><div class="stock-section-header"><h2>${esc(title)}</h2><span>Annual</span></div><div class="stock-table-wrap"><table class="stock-table"><thead><tr><th>Metric</th>${rows.map(r => `<th>${esc(r.period.slice(0, 4))}</th>`).join("")}</tr></thead><tbody>${fields.map(field => `<tr><td>${esc(field.replace(/([a-z])([A-Z])/g, "$1 $2"))}</td>${rows.map(row => `<td>${esc(formatStatementValue(field, row.values?.[field], currency))}</td>`).join("")}</tr>`).join("")}</tbody></table></div></section>`;
 }
 
 function formatStatementValue(field, value, currency) {
@@ -186,85 +133,30 @@ function render(data, container) {
     const f = data.fundamentals || {};
     const indianUnitsAvailable = f.currency === "INR";
     if (!indianUnitsAvailable) financialDisplayMode = "international";
-
-    container.innerHTML = `
-        ${renderCompany(f)}
-        ${GROUPS.map(group => renderGroup(group, f)).join("")}
-
-        <section class="stock-section">
-            <div class="stock-section-header">
-                <h2>Financial Statements</h2>
-                <div class="stock-display-controls">
-                    <span>Display:</span>
-                    <label class="stock-unit-toggle">
-                        <input type="radio" name="stock-financial-unit" value="international" ${financialDisplayMode === "international" ? "checked" : ""}>
-                        <span>B / T</span>
-                    </label>
-                    <label class="stock-unit-toggle ${indianUnitsAvailable ? "" : "disabled"}">
-                        <input type="radio" name="stock-financial-unit" value="indian" ${financialDisplayMode === "indian" ? "checked" : ""} ${indianUnitsAvailable ? "" : "disabled"}>
-                        <span>₹ Cr</span>
-                    </label>
-                </div>
-            </div>
-            <div class="stock-statement-tabs">
-                <button class="stock-tab active" data-tab="income">Income Statement</button>
-                <button class="stock-tab" data-tab="balance">Balance Sheet</button>
-                <button class="stock-tab" data-tab="cash">Cash Flow</button>
-            </div>
-            <div id="stock-statement-content">
-                ${statementTable("Income Statement", data.income_statement, f.currency || "")}
-            </div>
-        </section>
-
-        <section class="stock-section stock-warnings">
-            <div class="stock-section-header"><h2>Data Notes</h2></div>
-            <ul>${(data.warnings || []).map(w => `<li>${esc(w)}</li>`).join("")}</ul>
-            <small>Data as of ${esc(f.data_as_of || "—")} · Source: ${esc(f.source || "Yahoo Finance")}</small>
-        </section>`;
-
+    container.innerHTML = `${renderCompany(f)}${GROUPS.map(group => renderGroup(group, f)).join("")}<section class="stock-section"><div class="stock-section-header"><h2>Financial Statements</h2><div class="stock-display-controls"><span>Display:</span><label class="stock-unit-toggle"><input type="radio" name="stock-financial-unit" value="international" ${financialDisplayMode === "international" ? "checked" : ""}><span>B / T</span></label><label class="stock-unit-toggle ${indianUnitsAvailable ? "" : "disabled"}"><input type="radio" name="stock-financial-unit" value="indian" ${financialDisplayMode === "indian" ? "checked" : ""} ${indianUnitsAvailable ? "" : "disabled"}><span>₹ Cr</span></label></div></div><div class="stock-statement-tabs"><button class="stock-tab active" data-tab="income">Income Statement</button><button class="stock-tab" data-tab="balance">Balance Sheet</button><button class="stock-tab" data-tab="cash">Cash Flow</button></div><div id="stock-statement-content">${statementTable("Income Statement", data.income_statement, f.currency || "")}</div></section><section class="stock-section stock-warnings"><div class="stock-section-header"><h2>Data Notes</h2></div><ul>${(data.warnings || []).map(w => `<li>${esc(w)}</li>`).join("")}</ul><small>Data as of ${esc(f.data_as_of || "—")} · Source: ${esc(f.source || "Yahoo Finance")}</small></section>`;
     const content = document.getElementById("stock-statement-content");
-    container.querySelectorAll(".stock-tab").forEach(tab => {
-        tab.addEventListener("click", () => {
-            container.querySelectorAll(".stock-tab").forEach(t => t.classList.remove("active"));
-            tab.classList.add("active");
-            const kind = tab.dataset.tab;
-            if (kind === "income") content.innerHTML = statementTable("Income Statement", data.income_statement, f.currency || "");
-            if (kind === "balance") content.innerHTML = statementTable("Balance Sheet", data.balance_sheet, f.currency || "");
-            if (kind === "cash") content.innerHTML = statementTable("Cash Flow", data.cash_flow, f.currency || "");
-        });
-    });
-
-    container.querySelectorAll('input[name="stock-financial-unit"]').forEach(input => {
-        input.addEventListener("change", () => {
-            financialDisplayMode = input.value;
-            render(data, container);
-        });
-    });
+    container.querySelectorAll(".stock-tab").forEach(tab => tab.addEventListener("click", () => {
+        container.querySelectorAll(".stock-tab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        const kind = tab.dataset.tab;
+        if (kind === "income") content.innerHTML = statementTable("Income Statement", data.income_statement, f.currency || "");
+        if (kind === "balance") content.innerHTML = statementTable("Balance Sheet", data.balance_sheet, f.currency || "");
+        if (kind === "cash") content.innerHTML = statementTable("Cash Flow", data.cash_flow, f.currency || "");
+    }));
+    container.querySelectorAll('input[name="stock-financial-unit"]').forEach(input => input.addEventListener("change", () => { financialDisplayMode = input.value; render(data, container); }));
 }
 
-async function loadStock(symbol, container, status) {
+export async function loadStock(symbol, container, status) {
     status.textContent = `Loading ${symbol}…`;
     container.innerHTML = `<div class="stock-loading">Loading ${esc(symbol)} fundamentals…</div>`;
-
     try {
-        const response = await fetch(`${API_BASE}/${encodeURIComponent(symbol)}`, {
-            headers: { "Accept": "application/json" }
-        });
-
+        const response = await fetch(`${API_BASE}/${encodeURIComponent(symbol)}`, { headers: { "Accept": "application/json" } });
         const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data?.detail || `HTTP ${response.status}`);
-        }
-
+        if (!response.ok) throw new Error(data?.detail || `HTTP ${response.status}`);
         render(data, container);
         status.textContent = "";
     } catch (error) {
-        container.innerHTML = `<div class="stock-error">
-            <h2>Unable to load ${esc(symbol)}</h2>
-            <p>${esc(error.message)}</p>
-            <p>Examples: <code>RELIANCE.NS</code>, <code>TCS.NS</code>, <code>HDFCBANK.NS</code>, <code>AAPL</code>.</p>
-        </div>`;
+        container.innerHTML = `<div class="stock-error"><h2>Unable to load ${esc(symbol)}</h2><p>${esc(error.message)}</p><p>Examples: <code>RELIANCE.NS</code>, <code>TCS.NS</code>, <code>HDFCBANK.NS</code>, <code>AAPL</code>.</p></div>`;
         status.textContent = "";
     }
 }
@@ -274,13 +166,10 @@ export function initStockAnalysis() {
     const form = document.getElementById("stock-search-form");
     const input = document.getElementById("stock-symbol-input");
     const status = document.getElementById("stock-analysis-status");
-
     if (!container || !form || !input) return;
-
     const params = new URLSearchParams(window.location.search);
     const initial = (params.get("symbol") || "RELIANCE.NS").trim().toUpperCase();
     input.value = initial;
-
     form.addEventListener("submit", event => {
         event.preventDefault();
         const symbol = input.value.trim().toUpperCase();
@@ -290,6 +179,5 @@ export function initStockAnalysis() {
         window.history.pushState({}, "", url);
         loadStock(symbol, container, status);
     });
-
     loadStock(initial, container, status);
 }
