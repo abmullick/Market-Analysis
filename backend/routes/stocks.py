@@ -17,10 +17,12 @@ async def get_stock_universe(
     query: Optional[str] = Query(default=None),
     min_market_cap_cr: Optional[float] = Query(default=None, ge=0),
     max_market_cap_cr: Optional[float] = Query(default=None, ge=0),
+    min_pe: Optional[float] = Query(default=None, ge=0),
     max_pe: Optional[float] = Query(default=None, gt=0),
     min_roe: Optional[float] = Query(default=None),
+    max_roe: Optional[float] = Query(default=None),
 ):
-    """Return stocks for the selection screen, optionally filtered by sector and fundamentals."""
+    """Return stocks for the selection screen, optionally filtered by sector and fundamental ranges."""
     if not sector:
         return {"sectors": sectors(), "stocks": [], "count": 0}
     try:
@@ -30,8 +32,10 @@ async def get_stock_universe(
             query=query,
             min_market_cap_cr=min_market_cap_cr,
             max_market_cap_cr=max_market_cap_cr,
+            min_pe=min_pe,
             max_pe=max_pe,
             min_roe=min_roe,
+            max_roe=max_roe,
         )
     except YahooFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
