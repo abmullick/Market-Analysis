@@ -34,13 +34,28 @@ def _normalise_symbol(symbol: str) -> str:
 def _first(row: dict[str, str], *names: str) -> str:
     wanted = {_normalise_key(name) for name in names}
     for key, value in row.items():
-        if _normalise_key(key) in wanted and value:
-            return str(value).strip()
+        if _normalise_key(key) in wanted and value is not None:
+            value = str(value).strip()
+            if value:
+                return value
     return ""
 
 
 def _parse_csv(payload: bytes) -> list[dict[str, str]]:
-    text = payload.decode("utf-8-sig", errors="replace")
+    # NSE has historically changed encoding/metadata around the actual header.
+    # Try UTF-8 first, then UTF-16/Windows-1252 as defensive fallbacks.
+    text = None
+    for encoding in ("utf-8-sig", "utf-16", "cp1252"):
+        try:
+            candidate = payload.decode(encoding)
+        except (UnicodeDecodeError, UnicodeError):
+            continue
+        if "symbol" in candidate[:10000].lower() and "company" in candidate[:10000].lower():
+            text = candidate
+            break
+    if text is None:
+        text = payload.decode("utf-8-sig", errors="replace")
+
     sample = text[:4000]
 
     # NSE/CDN failures can return HTML or a bot-protection page with HTTP 200.
@@ -64,6 +79,10 @@ def _parse_csv(payload: bytes) -> list[dict[str, str]]:
     if header_index is not None:
         text = "\n".join(lines[header_index:])
 
+    # Nifty Total Market is an equity constituent file, so do not reject rows
+    # based on the optional Series column. NSE has changed the values/format of
+    # that column over time, and filtering on it can incorrectly produce zero
+    # stocks even when the constituent rows are valid.
     try:
         reader = csv.DictReader(io.StringIO(text))
     except csv.Error as exc:
@@ -75,14 +94,8 @@ def _parse_csv(payload: bytes) -> list[dict[str, str]]:
     headers = [_normalise_key(h) for h in reader.fieldnames if h is not None]
     header_text = ", ".join(headers)
 
-    # Current NSE Total Market files contain these fields. We intentionally
-    # accept common historical/header variants as well.
     has_symbol = any(h in {"symbol", "stock symbol", "security symbol"} for h in headers)
     has_name = any(h in {"company name", "companyname", "company"} for h in headers)
-    has_classification = any(
-        h in {"industry", "sector", "industry / sector", "sector / industry"}
-        for h in headers
-    )
     if not has_symbol or not has_name:
         raise NiftyUniverseError(
             "Nifty Total Market CSV has an unexpected header "
@@ -107,16 +120,9 @@ def _parse_csv(payload: bytes) -> list[dict[str, str]]:
             "Sector / Industry",
             "Sector",
         )
-        series = _first(row, "Series", "Trading Series")
         isin = _first(row, "ISIN Code", "ISIN", "ISINCODE")
 
         if not symbol or not name or symbol in seen:
-            continue
-
-        # Keep normal equity listings. The Total Market file can contain
-        # securities whose trading series is not EQ/BE/BZ; these are not useful
-        # for the stock selector and can cause Yahoo symbol lookup failures.
-        if series and series.upper() not in {"EQ", "BE", "BZ"}:
             continue
 
         seen.add(symbol)
