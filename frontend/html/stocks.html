@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/css/base.css">
     <link rel="stylesheet" href="/css/layout.css">
     <link rel="stylesheet" href="/css/components.css">
-    <link rel="stylesheet" href="/css/features/portfolio-builder.css">
+    <link rel="stylesheet" href="/css/features/stock-selection.css">
 </head>
 <body>
     <header class="site-header">
@@ -18,55 +18,17 @@
         </div>
         <nav id="main-nav"></nav>
     </header>
+
     <main class="container">
-        <div class="page-header">
-            <div id="stock-analysis-content">
-                <div class="pb-page-header-text">
-                    <h1 class="mf-page-title">Stock Analysis</h1>
-                    <p class="mf-page-subtitle">Analyze individual stocks with detailed price, fundamental, financial-ratio, valuation, and risk analysis.</p>
-                </div>
-                <div class="pb-stage">
-                    <section class="pb-panel">
-                        <div class="pb-panel-header">
-                            <h2 class="pb-panel-title">Coming Soon</h2>
-                        </div>
-                        <p>Stock Analysis is coming soon.</p>
-                        <p class="pb-page-note">Detailed individual-stock analysis functionality will arrive in a later phase.</p>
-                    </section>
-                    <section class="pb-preview-section">
-                        <h2 class="pb-preview-heading">What to Expect</h2>
-                        <p class="pb-page-note">The Stock Analysis module is intended to be the application's detailed research and analysis area for individual stocks.</p>
-                        <div class="pb-preview-grid">
-                            <div class="pb-preview-card">
-                                <h3>Price &amp; Performance</h3>
-                                <p>Analyze historical price performance, returns, trends, and other price-based characteristics.</p>
-                            </div>
-                            <div class="pb-preview-card">
-                                <h3>Fundamental Analysis</h3>
-                                <p>Analyze revenue, earnings, profitability, growth, cash flow, balance-sheet strength, and other fundamental indicators.</p>
-                            </div>
-                            <div class="pb-preview-card">
-                                <h3>Financial Ratios</h3>
-                                <p>Explore key financial ratios covering profitability, efficiency, leverage, liquidity, growth, and financial health.</p>
-                            </div>
-                            <div class="pb-preview-card">
-                                <h3>Valuation Analysis</h3>
-                                <p>Evaluate valuation metrics such as P/E, P/B, EV/EBITDA, and other relevant valuation measures, with historical and comparative context where appropriate.</p>
-                            </div>
-                            <div class="pb-preview-card">
-                                <h3>Risk &amp; Volatility</h3>
-                                <p>Analyze price volatility, drawdowns, downside risk, and other relevant stock-level risk characteristics.</p>
-                            </div>
-                            <div class="pb-preview-card">
-                                <h3>Peer Comparison</h3>
-                                <p>Compare an individual company with relevant peers across fundamentals, financial ratios, valuation, performance, and other key metrics.</p>
-                            </div>
-                        </div>
-                    </section>
-                </div>
+        <div id="stock-analysis-content">
+            <div class="pb-page-header-text">
+                <h1 class="mf-page-title">Stock Analysis</h1>
+                <p class="mf-page-subtitle">Fundamental analysis of individual stocks using Yahoo Finance data.</p>
             </div>
+            <div id="stock-details"></div>
         </div>
     </main>
+
     <a href="/help.html" class="help-link" title="Help & Methodology">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
@@ -75,15 +37,18 @@
         </svg>
         <span>Help & Methodology</span>
     </a>
+
     <footer class="site-footer">
         <div class="container">
             <p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p>
         </div>
     </footer>
-    <script type="module" src="/js/core/navigation.js"></script>
+
     <script type="module">
         import { initNavigation } from '/js/core/navigation.js';
+        import { initStockAnalysis } from '/js/features/stock-selection/stock-detail/index.js';
         initNavigation();
+        initStockAnalysis();
     </script>
 </body>
 </html>
