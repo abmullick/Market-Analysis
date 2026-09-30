@@ -26,26 +26,24 @@ async def get_stock_universe(
     max_pe: Optional[float] = Query(default=None, gt=0),
     min_roe: Optional[float] = Query(default=None),
     max_roe: Optional[float] = Query(default=None),
+    include_metrics: bool = Query(default=False),
 ):
     try:
-        # The initial selector needs the complete lightweight NSE/Nifty
-        # metadata so the UI can filter by sector without making hundreds of
-        # Yahoo Finance calls. Fundamental filters are applied after a sector
-        # (or another explicit filter) is selected.
-        if not sector and not any(
-            value is not None
-            for value in (
-                query,
-                min_market_cap_cr,
-                max_market_cap_cr,
-                min_pe,
-                max_pe,
-                min_roe,
-                max_roe,
-            )
-        ):
+        # Sector selection only needs the official NSE/Nifty classification.
+        # Do not make Yahoo calls merely because a sector was selected.
+        # Fundamental metrics are fetched only when the user applies filters.
+        if not include_metrics:
             stocks = load_nifty_total_market()
+            if sector:
+                stocks = [stock for stock in stocks if stock["sector"] == sector]
+            if query:
+                q = query.strip().lower()
+                stocks = [
+                    stock for stock in stocks
+                    if q in stock["symbol"].lower() or q in stock["name"].lower()
+                ]
             return {
+                "sector": sector,
                 "sectors": nifty_sectors(),
                 "stocks": stocks,
                 "count": len(stocks),
