@@ -29,10 +29,22 @@ async def get_stock_universe(
     include_metrics: bool = Query(default=False),
 ):
     try:
-        # Sector selection only needs the official NSE/Nifty classification.
-        # Do not make Yahoo calls merely because a sector was selected.
-        # Fundamental metrics are fetched only when the user applies filters.
-        if not include_metrics:
+        has_fundamental_filter = any(
+            value is not None
+            for value in (
+                min_market_cap_cr,
+                max_market_cap_cr,
+                min_pe,
+                max_pe,
+                min_roe,
+                max_roe,
+            )
+        )
+
+        # Sector/search selection uses only the official NSE/Nifty
+        # classification. This keeps the selector fast and avoids making a
+        # Yahoo request for every stock just to display the list.
+        if not include_metrics and not has_fundamental_filter:
             stocks = load_nifty_total_market()
             if sector:
                 stocks = [stock for stock in stocks if stock["sector"] == sector]
