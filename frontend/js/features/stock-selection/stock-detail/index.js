@@ -47,6 +47,8 @@ const GROUPS = [
     },
 ];
 
+let financialDisplayMode = "international";
+
 function esc(value) {
     return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
@@ -76,6 +78,15 @@ function fmtCompact(value, currency = "") {
     if (a >= 1e6) return `${p}${fmtNumber(n / 1e6, 2)}M`;
     if (a >= 1e3) return `${p}${fmtNumber(n / 1e3, 2)}K`;
     return `${p}${fmtNumber(n, 2)}`;
+}
+
+function fmtFinancial(value, currency = "") {
+    if (value == null || !Number.isFinite(Number(value))) return "—";
+    if (financialDisplayMode === "indian" && currency === "INR") {
+        const n = Number(value);
+        return `₹${fmtNumber(n / 1e7, 2)} Cr`;
+    }
+    return fmtCompact(value, currency);
 }
 
 function fmtPrice(value, currency = "") {
@@ -131,12 +142,12 @@ function renderCompany(f) {
     </section>
 
     <section class="stock-summary-grid">
-        ${metricCard("market_cap", "Market Cap", fmtCompact(f.market_cap, currency), "text")}
-        ${metricCard("enterprise_value", "Enterprise Value", fmtCompact(f.enterprise_value, currency), "text")}
-        ${metricCard("revenue", "Latest Revenue", fmtCompact(f.revenue, currency), "text")}
-        ${metricCard("net_profit", "Latest Net Profit", fmtCompact(f.net_profit, currency), "text")}
-        ${metricCard("ebitda", "Latest EBITDA", fmtCompact(f.ebitda, currency), "text")}
-        ${metricCard("free_cash_flow", "Latest Free Cash Flow", fmtCompact(f.free_cash_flow, currency), "text")}
+        ${metricCard("market_cap", "Market Cap", fmtFinancial(f.market_cap, currency), "text")}
+        ${metricCard("enterprise_value", "Enterprise Value", fmtFinancial(f.enterprise_value, currency), "text")}
+        ${metricCard("revenue", "Latest Revenue", fmtFinancial(f.revenue, currency), "text")}
+        ${metricCard("net_profit", "Latest Net Profit", fmtFinancial(f.net_profit, currency), "text")}
+        ${metricCard("ebitda", "Latest EBITDA", fmtFinancial(f.ebitda, currency), "text")}
+        ${metricCard("free_cash_flow", "Latest Free Cash Flow", fmtFinancial(f.free_cash_flow, currency), "text")}
     </section>`;
 }
 
@@ -168,17 +179,31 @@ function statementTable(title, rows, currency) {
 function formatStatementValue(field, value, currency) {
     if (value == null) return "—";
     if (field.toLowerCase().includes("eps")) return fmtNumber(value, 2);
-    return fmtCompact(value, currency);
+    return fmtFinancial(value, currency);
 }
 
 function render(data, container) {
     const f = data.fundamentals || {};
+    const indianUnitsAvailable = f.currency === "INR";
     container.innerHTML = `
         ${renderCompany(f)}
         ${GROUPS.map(group => renderGroup(group, f)).join("")}
 
         <section class="stock-section">
-            <div class="stock-section-header"><h2>Financial Statements</h2><span>${esc(f.currency || "")}</span></div>
+            <div class="stock-section-header">
+                <h2>Financial Statements</h2>
+                <div class="stock-display-controls">
+                    <span>Display:</span>
+                    <label class="stock-unit-toggle">
+                        <input type="radio" name="stock-financial-unit" value="international" ${financialDisplayMode === "international" ? "checked" : ""}>
+                        <span>B / T</span>
+                    </label>
+                    <label class="stock-unit-toggle ${indianUnitsAvailable ? "" : "disabled"}">
+                        <input type="radio" name="stock-financial-unit" value="indian" ${financialDisplayMode === "indian" ? "checked" : ""} ${indianUnitsAvailable ? "" : "disabled"}>
+                        <span>₹ Cr</span>
+                    </label>
+                </div>
+            </div>
             <div class="stock-statement-tabs">
                 <button class="stock-tab active" data-tab="income">Income Statement</button>
                 <button class="stock-tab" data-tab="balance">Balance Sheet</button>
@@ -204,6 +229,13 @@ function render(data, container) {
             if (kind === "income") content.innerHTML = statementTable("Income Statement", data.income_statement, f.currency || "");
             if (kind === "balance") content.innerHTML = statementTable("Balance Sheet", data.balance_sheet, f.currency || "");
             if (kind === "cash") content.innerHTML = statementTable("Cash Flow", data.cash_flow, f.currency || "");
+        });
+    });
+
+    container.querySelectorAll('input[name="stock-financial-unit"]').forEach(input => {
+        input.addEventListener("change", () => {
+            financialDisplayMode = input.value;
+            render(data, container);
         });
     });
 }
