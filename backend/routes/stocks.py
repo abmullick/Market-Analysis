@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 from backend.config.settings import Settings
 from backend.services.data.fundamentals import get_stock_analysis
 from backend.services.data.yahoo import YahooFinanceClient, YahooFinanceError
-from backend.services.stocks.universe import list_stocks, sectors
+from backend.services.stocks.screening import list_stocks, sectors
 
 router = APIRouter()
 client = YahooFinanceClient(Settings())
@@ -22,7 +22,7 @@ async def get_stock_universe(
     min_roe: Optional[float] = Query(default=None),
     max_roe: Optional[float] = Query(default=None),
 ):
-    """Return stocks for the selection screen, optionally filtered by sector and fundamental ranges."""
+    """Return stocks for the selection screen, filtered by sector and fundamental ranges."""
     if not sector:
         return {"sectors": sectors(), "stocks": [], "count": 0}
     try:
