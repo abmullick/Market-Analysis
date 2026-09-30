@@ -23,28 +23,20 @@
     <div id="stock-analysis-content">
         <div class="pb-page-header-text">
             <h1 class="mf-page-title">Stock Analysis</h1>
-            <p class="mf-page-subtitle">Fundamental analysis of individual stocks using Yahoo Finance data.</p>
+            <p class="mf-page-subtitle">Choose a stock first, then review its fundamental analysis.</p>
         </div>
 
-        <div class="stock-toolbar">
-            <form id="stock-search-form" class="stock-search-form" autocomplete="off">
-                <label class="sr-only" for="stock-symbol-input">Stock symbol</label>
-                <input id="stock-symbol-input" name="symbol" type="text"
-                       placeholder="RELIANCE.NS, TCS.NS, HDFCBANK.NS, AAPL"
-                       spellcheck="false">
-                <button type="submit" class="stock-page-btn">Analyze</button>
-            </form>
-            <div class="stock-help-text">NSE: <strong>.NS</strong> · BSE: <strong>.BO</strong></div>
+        <div id="stock-selection-screen"></div>
+        <div id="stock-analysis-screen" hidden>
+            <button id="stock-back-to-selection" class="stock-back-btn" type="button">← Back to Stock Selection</button>
+            <div id="stock-analysis-status" class="stock-analysis-status" aria-live="polite"></div>
+            <div id="stock-details"></div>
         </div>
-
-        <div id="stock-analysis-status" class="stock-analysis-status" aria-live="polite"></div>
-        <div id="stock-details"></div>
     </div>
 </main>
 
 <a href="/help.html" class="help-link" title="Help & Methodology">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="10"></circle>
         <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
         <line x1="12" y1="17" x2="12.01" y2="17"></line>
@@ -53,9 +45,7 @@
 </a>
 
 <footer class="site-footer">
-    <div class="container">
-        <p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p>
-    </div>
+    <div class="container"><p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p></div>
 </footer>
 
 <script type="module">
