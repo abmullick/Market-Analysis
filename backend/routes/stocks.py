@@ -28,15 +28,25 @@ async def get_stock_universe(
     max_roe: Optional[float] = Query(default=None),
 ):
     try:
-        # The initial selector load only needs the official constituent
-        # metadata. Do not make hundreds of Yahoo calls until the user has
-        # selected a sector (and optionally applied filters).
-        if not sector:
-            stocks = load_nifty_total_market()
+        # Return only the lightweight NSE/Nifty classification metadata when
+        # no sector is selected. Fundamental filtering requires the sector
+        # path, which is where Yahoo Finance data is fetched.
+        if not sector and not any(
+            value is not None
+            for value in (
+                query,
+                min_market_cap_cr,
+                max_market_cap_cr,
+                min_pe,
+                max_pe,
+                min_roe,
+                max_roe,
+            )
+        ):
             return {
                 "sectors": nifty_sectors(),
-                "stocks": stocks,
-                "count": len(stocks),
+                "stocks": [],
+                "count": 0,
                 "universe": "Nifty Total Market",
                 "classification_source": "NSE Indices / Nifty Total Market constituent CSV",
             }
