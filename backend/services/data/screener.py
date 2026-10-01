@@ -250,6 +250,33 @@ class ScreenerFinanceClient:
         if equity_capital_cr is not None or reserves_cr is not None:
             equity_cr = (equity_capital_cr or 0) + (reserves_cr or 0)
 
+        # Cash-flow summary. Screener's cash-flow table is in Rs. Crores.
+        cash_headers, cash_rows_raw = self._table(soup, "cash-flow")
+        cash_annual = self._annual_indices(cash_headers)
+        cash_latest = cash_annual[-1] if cash_annual else None
+        cash_ttm = self._ttm_index(cash_headers)
+        cash_index = cash_ttm if cash_ttm is not None else cash_latest
+        operating_cashflow_cr = (
+            self._row(
+                cash_rows_raw,
+                ["Cash from Operating Activity +", "Cash from Operating Activity"],
+                cash_index,
+            )
+            if cash_index is not None else None
+        )
+        free_cashflow_cr = (
+            self._row(cash_rows_raw, ["Free Cash Flow"], cash_index)
+            if cash_index is not None else None
+        )
+        capital_expenditure_cr = (
+            self._row(
+                cash_rows_raw,
+                ["Capital Expenditure", "Capital Expenditure +"],
+                cash_index,
+            )
+            if cash_index is not None else None
+        )
+
         market_cap = self._cr(market_cap_cr)
         debt = self._cr(debt_cr)
         equity = self._cr(equity_cr)
@@ -264,6 +291,17 @@ class ScreenerFinanceClient:
         enterprise_value = None
         if market_cap is not None and debt is not None:
             enterprise_value = market_cap + debt
+
+        ev_ebitda = (
+            enterprise_value / self._cr(ttm_ebitda)
+            if enterprise_value is not None and ttm_ebitda not in (None, 0)
+            else None
+        )
+        ev_revenue = (
+            enterprise_value / self._cr(ttm_sales)
+            if enterprise_value is not None and ttm_sales not in (None, 0)
+            else None
+        )
 
         data: dict[str, Any] = {
             "longName": name,
@@ -281,6 +319,8 @@ class ScreenerFinanceClient:
             "priceToSalesTrailing12Months": (
                 market_cap_cr / ttm_sales if market_cap_cr is not None and ttm_sales not in (None, 0) else None
             ),
+            "enterpriseToEbitda": ev_ebitda,
+            "enterpriseToRevenue": ev_revenue,
             "dividendYield": self._pct(ratios.get("Dividend Yield")),
             "returnOnEquity": self._pct(ratios.get("ROE")),
             "returnOnAssets": None,
@@ -293,9 +333,9 @@ class ScreenerFinanceClient:
             "netIncomeToCommon": self._cr(ttm_profit),
             "trailingEps": ttm_eps,
             "ebitda": self._cr(ttm_ebitda),
-            "operatingCashflow": None,
-            "freeCashflow": None,
-            "capitalExpenditure": None,
+            "operatingCashflow": self._cr(operating_cashflow_cr),
+            "freeCashflow": self._cr(free_cashflow_cr),
+            "capitalExpenditure": self._cr(capital_expenditure_cr),
             "totalCash": None,
             "totalDebt": debt,
             "totalAssets": self._cr(assets_cr),
@@ -407,6 +447,7 @@ class ScreenerFinanceClient:
             period = cash_headers[index]
             cfo = value(cash, ["Cash from Operating Activity +", "Cash from Operating Activity"], index)
             fcf = value(cash, ["Free Cash Flow"], index)
+            capex = value(cash, ["Capital Expenditure", "Capital Expenditure +"], index)
             row = {
                 "asOfDate": f"{period[-4:]}-03-31",
                 "periodType": "12M",
@@ -415,6 +456,8 @@ class ScreenerFinanceClient:
                 row["annualOperatingCashFlow"] = {"raw": self._cr(cfo)}
             if fcf is not None:
                 row["annualFreeCashFlow"] = {"raw": self._cr(fcf)}
+            if capex is not None:
+                row["annualCapitalExpenditure"] = {"raw": self._cr(capex)}
             cash_rows.append(row)
 
         return {
@@ -433,6 +476,7 @@ class ScreenerFinanceClient:
             },
             "cash": {
                 "annualOperatingCashFlow": cash_rows,
+                "annualCapitalExpenditure": cash_rows,
                 "annualFreeCashFlow": cash_rows,
             },
         }
