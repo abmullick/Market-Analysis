@@ -5,6 +5,8 @@ import time
 from typing import Any
 
 import curl_cffi.requests
+
+from backend.services.stocks.nifty_universe import load_nifty_total_market
 from bs4 import BeautifulSoup
 
 
@@ -277,6 +279,18 @@ class ScreenerFinanceClient:
             if cash_index is not None else None
         )
 
+        # Screener sometimes omits the explicit CapEx row. Since:
+        # Free Cash Flow = Operating Cash Flow - Capital Expenditure
+        # derive CapEx when both OCF and FCF are available.
+        if (
+            capital_expenditure_cr is None
+            and operating_cashflow_cr is not None
+            and free_cashflow_cr is not None
+        ):
+            capital_expenditure_cr = (
+                operating_cashflow_cr - free_cashflow_cr
+            )
+
         market_cap = self._cr(market_cap_cr)
         debt = self._cr(debt_cr)
         equity = self._cr(equity_cr)
@@ -303,6 +317,16 @@ class ScreenerFinanceClient:
             else None
         )
 
+        sector = None
+        try:
+            symbol_upper = symbol.upper()
+            for stock in load_nifty_total_market():
+                if stock["symbol"].upper() == symbol_upper:
+                    sector = stock.get("sector")
+                    break
+        except Exception:
+            sector = None
+
         data: dict[str, Any] = {
             "longName": name,
             "shortName": name,
@@ -326,10 +350,11 @@ class ScreenerFinanceClient:
             "returnOnAssets": None,
             "returnOnCapitalEmployed": self._pct(ratios.get("ROCE")),
             "debtToEquity": debt_equity,
-            "sector": None,
+            "sector": sector,
             "industry": None,
             "_source": "Screener.in",
             "totalRevenue": self._cr(ttm_sales),
+            "operatingProfit": self._cr(ttm_op),
             "netIncomeToCommon": self._cr(ttm_profit),
             "trailingEps": ttm_eps,
             "ebitda": self._cr(ttm_ebitda),

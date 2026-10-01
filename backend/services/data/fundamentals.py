@@ -519,6 +519,11 @@ def normalize(
             "totalRevenue",
         ),
 
+        operating_profit=field(
+            raw,
+            "operatingProfit",
+        ),
+
         ebitda=field(
             raw,
             "ebitda",
