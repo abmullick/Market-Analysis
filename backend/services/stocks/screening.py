@@ -21,6 +21,57 @@ def _matches(
     return True
 
 
+def _peg_from_history(
+    client: YahooFinanceClient,
+    symbol: str,
+    pe: float | None,
+) -> float | None:
+    """Derive PEG from P/E and the same 3Y EPS CAGR used by stock analysis."""
+    if pe is None or pe <= 0:
+        return None
+
+    try:
+        history = client.financial_history(symbol)
+        rows = history.get("income", {}).get("annualDilutedEPS", [])
+
+        series: list[tuple[str, float]] = []
+        for row in rows:
+            date = str(row.get("asOfDate") or row.get("periodEnd") or "")[:10]
+            value = row.get("reportedValue")
+            if isinstance(value, dict):
+                value = value.get("raw")
+            value = number(value)
+            if date and value is not None:
+                series.append((date, value))
+
+        series = sorted({date: value for date, value in series}.items())
+        if len(series) < 4:
+            return None
+
+        end_date, end_eps = series[-1]
+        target_year = int(end_date[:4]) - 3
+        candidates = [
+            (date, value)
+            for date, value in series[:-1]
+            if int(date[:4]) <= target_year
+        ]
+        if not candidates:
+            return None
+
+        start_date, start_eps = candidates[-1]
+        actual_years = int(end_date[:4]) - int(start_date[:4])
+        if actual_years < 3 or start_eps <= 0 or end_eps <= 0:
+            return None
+
+        eps_cagr = (end_eps / start_eps) ** (1 / actual_years) - 1
+        if eps_cagr <= 0:
+            return None
+
+        return pe / (eps_cagr * 100)
+    except Exception:
+        return None
+
+
 def list_stocks(
     client: YahooFinanceClient,
     sector: str | None = None,
@@ -72,6 +123,9 @@ def list_stocks(
             pe = number(quote.get("trailingPE"))
             pb = number(quote.get("priceToBook"))
             peg = number(quote.get("pegRatio"))
+            if peg is None:
+                peg = _peg_from_history(client, item["symbol"], pe)
+
             roe = number(quote.get("returnOnEquity"))
             roa = number(quote.get("returnOnAssets"))
             debt_equity = number(quote.get("debtToEquity"))
@@ -131,31 +185,11 @@ def list_stocks(
         and _matches(s["peg"], min_peg, max_peg)
         and _matches(s["roa"], min_roa, max_roa)
         and _matches(s["roe"], min_roe, max_roe)
-        and _matches(
-            s["debt_equity"],
-            min_debt_equity,
-            max_debt_equity,
-        )
-        and _matches(
-            s["current_ratio"],
-            min_current_ratio,
-            max_current_ratio,
-        )
-        and _matches(
-            s["ev_ebitda"],
-            min_ev_ebitda,
-            max_ev_ebitda,
-        )
-        and _matches(
-            s["ev_revenue"],
-            min_ev_revenue,
-            max_ev_revenue,
-        )
-        and _matches(
-            s["dividend_yield"],
-            min_dividend_yield,
-            max_dividend_yield,
-        )
+        and _matches(s["debt_equity"], min_debt_equity, max_debt_equity)
+        and _matches(s["current_ratio"], min_current_ratio, max_current_ratio)
+        and _matches(s["ev_ebitda"], min_ev_ebitda, max_ev_ebitda)
+        and _matches(s["ev_revenue"], min_ev_revenue, max_ev_revenue)
+        and _matches(s["dividend_yield"], min_dividend_yield, max_dividend_yield)
     ]
 
     stocks.sort(
@@ -171,8 +205,6 @@ def list_stocks(
         "stocks": stocks,
         "count": len(stocks),
         "universe": "Nifty Total Market",
-        "classification_source": (
-            "NSE Indices / Nifty Total Market constituent CSV"
-        ),
+        "classification_source": "NSE Indices / Nifty Total Market constituent CSV",
         "sectors": nifty_sectors(),
     }
