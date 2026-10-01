@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -8,6 +7,7 @@ from typing import Any, Optional
 import curl_cffi.requests
 
 from backend.config.settings import Settings
+from backend.services.data.screener import ScreenerFinanceClient, ScreenerFinanceError
 
 
 class YahooFinanceError(Exception):
@@ -44,13 +44,13 @@ def raw_value(value: Any) -> Optional[float]:
 
 
 class YahooFinanceClient:
-    """
-    Lightweight Yahoo Finance client.
+    """Yahoo client with an Indian-equity Screener.in fallback.
 
-    Yahoo rate-limits the anonymous crumb endpoint, particularly from
-    datacenter IPs such as Render.  Use query2 first, keep the crumb in the
-    same session as its cookie, retry transient 429s with backoff, and fail
-    over to query1 when the alternate Yahoo host is available.
+    Yahoo's cookie/crumb endpoint is routinely HTTP 429 from cloud/datacenter
+    IPs such as Render. NSE-listed fundamentals therefore use Screener.in
+    directly, while Yahoo remains available for non-NSE symbols and as a
+    fallback. Authentication is lazy so a Yahoo 429 can never prevent the
+    FastAPI application from starting.
     """
 
     QUERY_HOSTS = (
@@ -63,44 +63,48 @@ class YahooFinanceClient:
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/154.0.0.0 Safari/537.36"
     )
-    MAX_RETRIES = 3
+    MAX_RETRIES = 2
     RETRY_DELAYS = (1.5, 3.0, 6.0)
 
     def __init__(self, settings: Settings):
         self.settings = settings
         self.session = curl_cffi.requests.Session(impersonate="chrome")
-        self.session.headers.update(
-            {
-                "User-Agent": self.USER_AGENT,
-                "Accept": "application/json,text/plain,*/*",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Connection": "keep-alive",
-            }
-        )
+        self.session.headers.update({
+            "User-Agent": self.USER_AGENT,
+            "Accept": "application/json,text/plain,*/*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Connection": "keep-alive",
+        })
         self.crumb: Optional[str] = None
         self._active_host = self.QUERY_HOSTS[0]
-        self._authenticate()
+        self._auth_error: Optional[Exception] = None
+        self._screener = ScreenerFinanceClient()
+
+    @staticmethod
+    def _is_nse_symbol(symbol: str) -> bool:
+        return symbol.strip().upper().endswith(".NS")
 
     def _authenticate(self) -> None:
-        """Establish a Yahoo cookie and a cookie-bound crumb."""
+        """Establish a Yahoo cookie and cookie-bound crumb lazily."""
         errors: list[str] = []
 
-        # Establish the anonymous cookie. A 404 from fc.yahoo.com is normal;
-        # the important part is retaining any cookies returned by the session.
         try:
             self.session.get(
                 self.COOKIE_URL,
-                timeout=15,
+                timeout=10,
                 allow_redirects=True,
             )
         except Exception:
-            # Continue: the crumb endpoint may still work without this step.
             pass
 
         for host in self.QUERY_HOSTS:
             url = f"{host}/v1/test/getcrumb"
             try:
-                response = self._request(url, params=None, include_crumb=False)
+                response = self._request(
+                    url,
+                    params=None,
+                    include_crumb=False,
+                )
                 crumb = response.text.strip()
                 if not crumb or crumb.startswith("<") or "Too Many Requests" in crumb:
                     raise YahooFinanceError(
@@ -108,14 +112,23 @@ class YahooFinanceClient:
                     )
                 self.crumb = crumb
                 self._active_host = host
+                self._auth_error = None
                 return
             except Exception as exc:
                 errors.append(f"{host}: {exc}")
 
-        raise YahooFinanceError(
+        self._auth_error = YahooFinanceError(
             "Yahoo Finance authentication failed after trying both Yahoo API hosts: "
             + " | ".join(errors)
         )
+        raise self._auth_error
+
+    def _ensure_auth(self) -> None:
+        if self.crumb:
+            return
+        if self._auth_error is not None:
+            raise self._auth_error
+        self._authenticate()
 
     def _request(
         self,
@@ -155,7 +168,11 @@ class YahooFinanceClient:
             except Exception as exc:
                 last_error = exc
                 if attempt < self.MAX_RETRIES:
-                    time.sleep(self.RETRY_DELAYS[min(attempt, len(self.RETRY_DELAYS) - 1)])
+                    time.sleep(
+                        self.RETRY_DELAYS[
+                            min(attempt, len(self.RETRY_DELAYS) - 1)
+                        ]
+                    )
 
         raise last_error or YahooFinanceError("Yahoo request failed")
 
@@ -164,37 +181,72 @@ class YahooFinanceClient:
         path: str,
         params: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
-        hosts = [self._active_host] + [h for h in self.QUERY_HOSTS if h != self._active_host]
+        self._ensure_auth()
+        hosts = [
+            self._active_host,
+            *[h for h in self.QUERY_HOSTS if h != self._active_host],
+        ]
         errors: list[str] = []
 
         for host in hosts:
-            url = host + path
             try:
-                response = self._request(url, params=params, include_crumb=True)
+                response = self._request(
+                    host + path,
+                    params=params,
+                    include_crumb=True,
+                )
                 return response.json()
             except Exception as exc:
                 errors.append(f"{host}: {exc}")
 
         raise YahooFinanceError(
-            "Yahoo Finance request failed on all API hosts: " + " | ".join(errors)
+            "Yahoo Finance request failed on all API hosts: "
+            + " | ".join(errors)
         )
+
+    def _screener_quote_summary(self, symbol: str) -> dict[str, Any]:
+        try:
+            return self._screener.quote_summary(symbol)
+        except ScreenerFinanceError as exc:
+            raise YahooFinanceError(
+                f"Screener.in fundamentals fallback failed for {symbol}: {exc}"
+            ) from exc
+
+    def _screener_history(self, symbol: str) -> dict[str, dict[str, list[dict[str, Any]]]]:
+        try:
+            return self._screener.financial_history(symbol)
+        except ScreenerFinanceError as exc:
+            raise YahooFinanceError(
+                f"Screener.in financial-history fallback failed for {symbol}: {exc}"
+            ) from exc
 
     def quote_summary(self, symbol: str) -> dict[str, Any]:
         symbol = symbol.strip().upper()
-        modules = ",".join(
-            [
+
+        # For NSE-listed stocks, use the Indian fundamentals source first.
+        # This avoids Yahoo's Render/datacenter crumb throttling entirely.
+        if self._is_nse_symbol(symbol):
+            try:
+                return self._screener_quote_summary(symbol)
+            except YahooFinanceError:
+                pass
+
+        try:
+            modules = ",".join([
                 "price",
                 "summaryDetail",
                 "defaultKeyStatistics",
                 "financialData",
                 "summaryProfile",
-            ]
-        )
-
-        payload = self._get_json(
-            f"/v10/finance/quoteSummary/{symbol}",
-            {"modules": modules},
-        )
+            ])
+            payload = self._get_json(
+                f"/v10/finance/quoteSummary/{symbol}",
+                {"modules": modules},
+            )
+        except YahooFinanceError:
+            if self._is_nse_symbol(symbol):
+                return self._screener_quote_summary(symbol)
+            raise
 
         quote_summary = payload.get("quoteSummary", {})
         result = quote_summary.get("result") or []
@@ -219,19 +271,17 @@ class YahooFinanceClient:
 
         price_module = result_item.get("price", {})
         profile_module = result_item.get("summaryProfile", {})
-
-        data.update(
-            {
-                "longName": price_module.get("longName") or price_module.get("shortName"),
-                "shortName": price_module.get("shortName"),
-                "exchangeName": price_module.get("exchangeName"),
-                "fullExchangeName": price_module.get("fullExchangeName"),
-                "currency": price_module.get("currency"),
-                "sector": profile_module.get("sector"),
-                "industry": profile_module.get("industry"),
-                "country": profile_module.get("country"),
-            }
-        )
+        data.update({
+            "longName": price_module.get("longName") or price_module.get("shortName"),
+            "shortName": price_module.get("shortName"),
+            "exchangeName": price_module.get("exchangeName"),
+            "fullExchangeName": price_module.get("fullExchangeName"),
+            "currency": price_module.get("currency"),
+            "sector": profile_module.get("sector"),
+            "industry": profile_module.get("industry"),
+            "country": profile_module.get("country"),
+            "_source": "Yahoo Finance",
+        })
 
         for module_name in (
             "price",
@@ -255,7 +305,6 @@ class YahooFinanceClient:
         symbol = symbol.strip().upper()
         now = datetime.now(timezone.utc)
         start = now - timedelta(days=365 * years)
-
         params = {
             "symbol": symbol,
             "type": ",".join(types),
@@ -266,28 +315,32 @@ class YahooFinanceClient:
             "lang": "en-US",
             "region": "US",
         }
-
         payload = self._get_json(
             f"/ws/fundamentals-timeseries/v1/finance/timeseries/{symbol}",
             params,
         )
-
         result = payload.get("timeseries", {}).get("result") or []
         output: dict[str, list[dict[str, Any]]] = {}
-
         for item in result:
             if not isinstance(item, dict):
                 continue
             for key, value in item.items():
                 if key not in {"meta", "timestamp"} and isinstance(value, list):
                     output[key] = value
-
         return output
 
     def financial_history(
         self,
         symbol: str,
     ) -> dict[str, dict[str, list[dict[str, Any]]]]:
+        symbol = symbol.strip().upper()
+
+        if self._is_nse_symbol(symbol):
+            try:
+                return self._screener_history(symbol)
+            except YahooFinanceError:
+                pass
+
         income_types = [
             "annualTotalRevenue",
             "annualGrossProfit",
@@ -312,8 +365,13 @@ class YahooFinanceClient:
             "annualFreeCashFlow",
         ]
 
-        return {
-            "income": self.fundamentals_timeseries(symbol, income_types),
-            "balance": self.fundamentals_timeseries(symbol, balance_types),
-            "cash": self.fundamentals_timeseries(symbol, cash_types),
-        }
+        try:
+            return {
+                "income": self.fundamentals_timeseries(symbol, income_types),
+                "balance": self.fundamentals_timeseries(symbol, balance_types),
+                "cash": self.fundamentals_timeseries(symbol, cash_types),
+            }
+        except YahooFinanceError:
+            if self._is_nse_symbol(symbol):
+                return self._screener_history(symbol)
+            raise
