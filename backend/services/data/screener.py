@@ -281,10 +281,10 @@ class ScreenerFinanceClient:
             "priceToSalesTrailing12Months": (
                 market_cap_cr / ttm_sales if market_cap_cr is not None and ttm_sales not in (None, 0) else None
             ),
-            "dividendYield": cls._pct(ratios.get("Dividend Yield")),
-            "returnOnEquity": cls._pct(ratios.get("ROE")),
+            "dividendYield": self._pct(ratios.get("Dividend Yield")),
+            "returnOnEquity": self._pct(ratios.get("ROE")),
             "returnOnAssets": None,
-            "returnOnCapitalEmployed": cls._pct(ratios.get("ROCE")),
+            "returnOnCapitalEmployed": self._pct(ratios.get("ROCE")),
             "debtToEquity": debt_equity,
             "sector": None,
             "industry": None,
