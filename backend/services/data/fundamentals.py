@@ -549,6 +549,11 @@ def normalize(
             "freeCashflow",
         ),
 
+        capital_expenditure=field(
+            raw,
+            "capitalExpenditure",
+        ),
+
         cash=field(
             raw,
             "totalCash",
@@ -662,6 +667,9 @@ def get_stock_analysis(
         raw,
         history,
     )
+    
+    if symbol.endswith(".NS") or symbol.endswith(".BO"):
+        fundamentals.source = "Screener.in"
 
     # --------------------------------------------------------------
     # Historical statement fields
@@ -723,7 +731,7 @@ def get_stock_analysis(
         ],
 
         "warnings": [
-            "Yahoo Finance data can be delayed, missing, revised, or unavailable for individual fields.",
+            "Indian equity fundamentals are sourced from Screener.in; individual fields may be unavailable or revised.",
             "CAGR metrics are returned only when the requested lookback period is actually available.",
             "CAGR is not calculated when the starting value is zero or negative.",
         ],
