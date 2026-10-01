@@ -1,108 +1,33 @@
 const API_BASE = "/api/stocks";
 
 const COMPARE_GROUPS = [
-  {
-    title: "Valuation",
-    metrics: [
-      ["price", "Price", "price"],
-      ["market_cap", "Market Cap", "money"],
-      ["enterprise_value", "Enterprise Value", "money"],
-      ["pe", "P/E", "ratio"],
-      ["forward_pe", "Forward P/E", "ratio"],
-      ["pb", "Price / Book", "ratio"],
-      ["ps", "Price / Sales", "ratio"],
-      ["peg", "PEG", "ratio"],
-      ["ev_ebitda", "EV / EBITDA", "ratio"],
-      ["ev_revenue", "EV / Revenue", "ratio"],
-      ["dividend_yield", "Dividend Yield", "percent"],
-      ["payout_ratio", "Payout Ratio", "percent"],
-    ],
-  },
-  {
-    title: "Profitability",
-    metrics: [
-      ["roe", "ROE", "percent"],
-      ["roa", "ROA", "percent"],
-      ["gross_margin", "Gross Margin", "percent"],
-      ["operating_margin", "Operating Margin", "percent"],
-      ["profit_margin", "Net Margin", "percent"],
-    ],
-  },
-  {
-    title: "Financial Health",
-    metrics: [
-      ["debt_equity", "Debt / Equity", "ratio"],
-      ["current_ratio", "Current Ratio", "ratio"],
-      ["quick_ratio", "Quick Ratio", "ratio"],
-      ["beta", "Beta", "number"],
-      ["cash", "Cash", "money"],
-      ["total_debt", "Total Debt", "money"],
-    ],
-  },
-  {
-    title: "Growth",
-    metrics: [
-      ["revenue_growth", "Revenue Growth", "percent"],
-      ["profit_growth", "Profit Growth", "percent"],
-      ["eps_growth", "EPS Growth", "percent"],
-      ["revenue_cagr_3y", "Revenue CAGR 3Y", "decimal_percent"],
-      ["revenue_cagr_5y", "Revenue CAGR 5Y", "decimal_percent"],
-      ["profit_cagr_3y", "Profit CAGR 3Y", "decimal_percent"],
-      ["profit_cagr_5y", "Profit CAGR 5Y", "decimal_percent"],
-      ["eps_cagr_3y", "EPS CAGR 3Y", "decimal_percent"],
-      ["eps_cagr_5y", "EPS CAGR 5Y", "decimal_percent"],
-      ["fcf_cagr_3y", "FCF CAGR 3Y", "decimal_percent"],
-      ["fcf_cagr_5y", "FCF CAGR 5Y", "decimal_percent"],
-      ["operating_margin_change", "Operating Margin Change", "pp"],
-    ],
-  },
-  {
-    title: "Latest Financials",
-    metrics: [
-      ["revenue", "Revenue", "money"],
-      ["operating_profit", "Operating Profit", "money"],
-      ["ebitda", "EBITDA", "money"],
-      ["net_profit", "Net Profit", "money"],
-      ["eps", "EPS", "number"],
-      ["operating_cash_flow", "Operating Cash Flow", "money"],
-      ["capital_expenditure", "Capital Expenditure", "money"],
-      ["free_cash_flow", "Free Cash Flow", "money"],
-    ],
-  },
+  { title: "Valuation", metrics: [["price", "Price", "price"], ["market_cap", "Market Cap", "money"], ["enterprise_value", "Enterprise Value", "money"], ["pe", "P/E", "ratio"], ["forward_pe", "Forward P/E", "ratio"], ["pb", "Price / Book", "ratio"], ["ps", "Price / Sales", "ratio"], ["peg", "PEG", "ratio"], ["ev_ebitda", "EV / EBITDA", "ratio"], ["ev_revenue", "EV / Revenue", "ratio"], ["dividend_yield", "Dividend Yield", "percent"], ["payout_ratio", "Payout Ratio", "percent"]] },
+  { title: "Profitability", metrics: [["roe", "ROE", "percent"], ["roa", "ROA", "percent"], ["gross_margin", "Gross Margin", "percent"], ["operating_margin", "Operating Margin", "percent"], ["profit_margin", "Net Margin", "percent"]] },
+  { title: "Financial Health", metrics: [["debt_equity", "Debt / Equity", "ratio"], ["current_ratio", "Current Ratio", "ratio"], ["quick_ratio", "Quick Ratio", "ratio"], ["beta", "Beta", "number"], ["cash", "Cash", "money"], ["total_debt", "Total Debt", "money"]] },
+  { title: "Growth", metrics: [["revenue_growth", "Revenue Growth", "percent"], ["profit_growth", "Profit Growth", "percent"], ["eps_growth", "EPS Growth", "percent"], ["revenue_cagr_3y", "Revenue CAGR 3Y", "decimal_percent"], ["revenue_cagr_5y", "Revenue CAGR 5Y", "decimal_percent"], ["profit_cagr_3y", "Profit CAGR 3Y", "decimal_percent"], ["profit_cagr_5y", "Profit CAGR 5Y", "decimal_percent"], ["eps_cagr_3y", "EPS CAGR 3Y", "decimal_percent"], ["eps_cagr_5y", "EPS CAGR 5Y", "decimal_percent"], ["fcf_cagr_3y", "FCF CAGR 3Y", "decimal_percent"], ["fcf_cagr_5y", "FCF CAGR 5Y", "decimal_percent"], ["operating_margin_change", "Operating Margin Change", "pp"]] },
+  { title: "Latest Financials", metrics: [["revenue", "Revenue", "money"], ["operating_profit", "Operating Profit", "money"], ["ebitda", "EBITDA", "money"], ["net_profit", "Net Profit", "money"], ["eps", "EPS", "number"], ["operating_cash_flow", "Operating Cash Flow", "money"], ["capital_expenditure", "Capital Expenditure", "money"], ["free_cash_flow", "Free Cash Flow", "money"]] },
 ];
 
 let compareSymbols = [];
 let observerStarted = false;
+let renderingBar = false;
 
 function esc(v) {
-  return String(v ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  return String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
 function num(v, digits = 2) {
-  return Number(v).toLocaleString("en-IN", {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: 0,
-  });
+  return Number(v).toLocaleString("en-IN", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
 }
 
 function value(v, type, currency = "INR") {
   if (v == null || !Number.isFinite(Number(v))) return "—";
   const n = Number(v);
-  if (type === "percent" || type === "decimal_percent") {
-    return `${num(type === "decimal_percent" ? n * 100 : n)}%`;
-  }
+  if (type === "percent" || type === "decimal_percent") return `${num(type === "decimal_percent" ? n * 100 : n)}%`;
   if (type === "ratio") return `${num(n)}x`;
   if (type === "pp") return `${num(n)} pp`;
-  if (type === "price") return `${currency === "INR" ? "₹" : currency + " "}${num(n)}`;
-  if (type === "money") {
-    if (currency === "INR") return `₹${num(n / 1e7)} Cr`;
-    return `${currency} ${num(n / 1e9)} B`;
-  }
+  if (type === "price") return `${currency === "INR" ? "₹" : `${currency} `}${num(n)}`;
+  if (type === "money") return currency === "INR" ? `₹${num(n / 1e7)} Cr` : `${currency} ${num(n / 1e9)} B`;
   return num(n);
 }
 
@@ -112,7 +37,7 @@ function injectStyles() {
   style.id = "stock-comparison-styles";
   style.textContent = `
     .stock-compare-bar{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:12px 14px;border:1px solid #dbe4f0;border-radius:10px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.04)}
-    .stock-compare-bar strong{color:#17324f;font-size:13px}.stock-compare-slots{display:flex;gap:6px;flex:1}.stock-compare-slot{padding:7px 10px;border:1px dashed #cbd5e1;border-radius:7px;color:#64748b;font-size:12px;min-width:120px}.stock-compare-slot.filled{border-style:solid;color:#17324f;background:#f8fafc;font-weight:600}.stock-compare-action{margin-left:auto;border:0;border-radius:7px;padding:8px 13px;background:#2876c5;color:#fff;font-weight:700;cursor:pointer}.stock-compare-action:disabled{opacity:.45;cursor:not-allowed}.stock-compare-choice{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:5px;margin-right:8px!important;color:#53637a!important;font-size:11px!important;font-weight:700!important;white-space:nowrap}.stock-compare-choice input{width:15px!important;height:15px!important;margin:0}.stock-comparison-header{margin-bottom:16px}.stock-comparison-header h1{margin:0 0 5px;color:#17324f}.stock-comparison-header p{margin:0;color:#64748b}.stock-comparison-table-wrap{overflow:auto;border:1px solid #dbe4f0;border-radius:10px;background:#fff}.stock-comparison-table{width:100%;border-collapse:collapse;min-width:680px}.stock-comparison-table th,.stock-comparison-table td{padding:10px 12px;border-bottom:1px solid #edf1f6;text-align:right;font-size:13px}.stock-comparison-table th:first-child,.stock-comparison-table td:first-child{text-align:left;position:sticky;left:0;background:#fff}.stock-comparison-table thead th{background:#f8fafc;color:#17324f;font-weight:700}.stock-comparison-table .compare-group td{padding:12px;background:#f5f8fc;color:#334155;font-weight:700;text-align:left}.stock-comparison-table tbody tr:last-child td{border-bottom:0}.stock-comparison-empty{padding:20px;border:1px solid #dbe4f0;border-radius:10px;background:#fff;color:#64748b}
+    .stock-compare-bar strong{color:#17324f;font-size:13px}.stock-compare-slots{display:flex;gap:6px;flex:1}.stock-compare-slot{padding:7px 10px;border:1px dashed #cbd5e1;border-radius:7px;color:#64748b;font-size:12px;min-width:120px}.stock-compare-slot.filled{border-style:solid;color:#17324f;background:#f8fafc;font-weight:600}.stock-compare-action{margin-left:auto;border:0;border-radius:7px;padding:8px 13px;background:#2876c5;color:#fff;font-weight:700;cursor:pointer}.stock-compare-action:disabled{opacity:.45;cursor:not-allowed}.stock-compare-choice{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:5px;margin-right:8px!important;color:#53637a!important;font-size:11px!important;font-weight:700!important;white-space:nowrap}.stock-compare-choice input{width:15px!important;height:15px!important;margin:0}.stock-comparison-header{margin-bottom:16px}.stock-comparison-header h1{margin:0 0 5px;color:#17324f}.stock-comparison-header p{margin:0;color:#64748b}.stock-comparison-table-wrap{overflow:auto;border:1px solid #dbe4f0;border-radius:10px;background:#fff}.stock-comparison-table{width:100%;border-collapse:collapse;min-width:680px}.stock-comparison-table th,.stock-comparison-table td{padding:10px 12px;border-bottom:1px solid #edf1f6;text-align:right;font-size:13px}.stock-comparison-table th:first-child,.stock-comparison-table td:first-child{text-align:left;position:sticky;left:0;background:#fff}.stock-comparison-table thead th{background:#f8fafc;color:#17324f;font-weight:700}.stock-comparison-table .compare-group td{padding:12px;background:#f5f8fc;color:#334155;font-weight:700;text-align:left}.stock-comparison-table tbody tr:last-child td{border-bottom:0}
   `;
   document.head.appendChild(style);
 }
@@ -129,15 +54,17 @@ function renderCompareBar() {
     layout.parentElement.insertBefore(bar, layout);
   }
 
+  renderingBar = true;
   const slots = [compareSymbols[0], compareSymbols[1]].map((s, i) =>
     `<span class="stock-compare-slot ${s ? "filled" : ""}">${s ? esc(s.replace(/\\.NS$|\\.BO$/i, "")) : `Stock ${i + 1}`}</span>`,
   ).join("");
-
   bar.innerHTML = `<strong>Compare stocks</strong><div class="stock-compare-slots">${slots}</div><button class="stock-compare-action" type="button" ${compareSymbols.length !== 2 ? "disabled" : ""}>Compare 2 Stocks</button>`;
   bar.querySelector("button").addEventListener("click", () => showComparison(compareSymbols));
+  queueMicrotask(() => { renderingBar = false; });
 }
 
 function decorateRows() {
+  if (renderingBar) return;
   const rows = document.querySelectorAll("#stock-selection-screen .stock-picker-row");
   if (!rows.length) return;
 
@@ -186,14 +113,12 @@ function comparisonTable(datas) {
   const fs = datas.map((d) => d.fundamentals || {});
   const currency = fs[0]?.currency || "INR";
   let rows = "";
-
   for (const group of COMPARE_GROUPS) {
     rows += `<tr class="compare-group"><td colspan="${fs.length + 1}">${esc(group.title)}</td></tr>`;
     for (const [key, label, type] of group.metrics) {
       rows += `<tr><td>${esc(label)}</td>${fs.map((f) => `<td>${esc(value(f[key], type, currency))}</td>`).join("")}</tr>`;
     }
   }
-
   return `<div class="stock-comparison-table-wrap"><table class="stock-comparison-table"><thead><tr><th>Metric</th>${fs.map((f) => `<th>${esc(f.name || f.symbol || "Stock")}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -228,7 +153,9 @@ export function initStockComparison() {
 
   if (!observerStarted) {
     observerStarted = true;
-    const observer = new MutationObserver(() => decorateRows());
+    const observer = new MutationObserver(() => {
+      if (!renderingBar) decorateRows();
+    });
     observer.observe(screen, { childList: true, subtree: true });
   }
 
