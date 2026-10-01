@@ -15,8 +15,8 @@ class ScreenerFinanceError(Exception):
 class ScreenerFinanceClient:
     """Small, cached reader for public Screener.in company pages.
 
-    This is used as the Indian-equity fundamentals fallback because Yahoo's
-    cookie/crumb endpoint is frequently rate-limited from cloud datacenter IPs.
+    This is used for Indian-equity fundamentals because Yahoo's cookie/crumb
+    endpoint is frequently rate-limited from cloud datacenter IPs.
     """
 
     BASE_URL = "https://www.screener.in/company"
@@ -182,9 +182,9 @@ class ScreenerFinanceClient:
             "_source": "Screener.in",
         }
 
-        headers, rows = self._table(soup, "ratios")
-        if headers:
-            last = len(headers) - 1
+        ratio_headers, ratio_rows = self._table(soup, "ratios")
+        if ratio_headers:
+            last = len(ratio_headers) - 1
             for label, key in {
                 "ROE %": "returnOnEquity",
                 "OPM %": "operatingMargins",
@@ -192,9 +192,65 @@ class ScreenerFinanceClient:
                 "Current ratio": "currentRatio",
                 "Quick ratio": "quickRatio",
             }.items():
-                values = rows.get(label, [])
+                values = ratio_rows.get(label, [])
                 if last < len(values) and values[last] is not None:
                     data[key] = values[last]
+
+        pl_headers, pl_rows = self._table(soup, "profit-loss")
+        pl_last = len(pl_headers) - 1
+        if pl_last >= 0:
+            sales = pl_rows.get("Sales", [])
+            net_profit = pl_rows.get("Net Profit", [])
+            eps = pl_rows.get("EPS in Rs", [])
+            operating_profit = pl_rows.get("Operating Profit", [])
+            depreciation = pl_rows.get("Depreciation", [])
+
+            def latest(values: list[float | None]) -> float | None:
+                return values[pl_last] if pl_last < len(values) else None
+
+            revenue_cr = latest(sales)
+            profit_cr = latest(net_profit)
+            operating_cr = latest(operating_profit)
+            depreciation_cr = latest(depreciation)
+            eps_value = latest(eps)
+
+            data["totalRevenue"] = revenue_cr * 1e7 if revenue_cr is not None else None
+            data["netIncomeToCommon"] = profit_cr * 1e7 if profit_cr is not None else None
+            data["trailingEps"] = eps_value
+            data["operatingMargins"] = (
+                operating_cr / revenue_cr * 100
+                if revenue_cr and operating_cr is not None
+                else data.get("operatingMargins")
+            )
+            data["profitMargins"] = (
+                profit_cr / revenue_cr * 100
+                if revenue_cr and profit_cr is not None
+                else None
+            )
+            if operating_cr is not None and depreciation_cr is not None:
+                data["ebitda"] = (operating_cr + depreciation_cr) * 1e7
+
+            if len(sales) >= 2 and sales[-2] not in (None, 0) and revenue_cr is not None:
+                data["revenueGrowth"] = (revenue_cr / sales[-2] - 1) * 100
+            if len(net_profit) >= 2 and net_profit[-2] not in (None, 0) and profit_cr is not None:
+                data["earningsGrowth"] = (profit_cr / net_profit[-2] - 1) * 100
+
+        balance_headers, balance_rows = self._table(soup, "balance-sheet")
+        if balance_headers:
+            last = len(balance_headers) - 1
+            borrowings = balance_rows.get("Borrowings", [])
+            if last < len(borrowings) and borrowings[last] is not None:
+                data["totalDebt"] = borrowings[last] * 1e7
+
+        cash_headers, cash_rows = self._table(soup, "cash-flow")
+        if cash_headers:
+            last = len(cash_headers) - 1
+            cfo = cash_rows.get("Cash from Operating Activity", [])
+            fcf = cash_rows.get("Free Cash Flow", [])
+            if last < len(cfo) and cfo[last] is not None:
+                data["operatingCashflow"] = cfo[last] * 1e7
+            if last < len(fcf) and fcf[last] is not None:
+                data["freeCashflow"] = fcf[last] * 1e7
 
         return data
 
