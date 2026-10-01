@@ -51,6 +51,11 @@
     background: #fbfcfe;
 }
 
+/* The native [hidden] attribute must win over the panel's display rules. */
+.stock-filter-body[hidden] {
+    display: none !important;
+}
+
 .stock-filter-top {
     display: grid;
     grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.4fr);
