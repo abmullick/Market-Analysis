@@ -1,0 +1,38 @@
+.stock-hidden-action {
+    display: none !important;
+}
+
+.stock-filter-grid {
+    width: 100%;
+}
+
+.stock-filter-chip .filter-chip-controls {
+    min-width: 0;
+}
+
+.stock-filter-chip .filter-input {
+    min-width: 0;
+}
+
+.stock-simple-filter-controls {
+    flex: 1 1 220px;
+}
+
+.stock-simple-filter-input {
+    width: 100%;
+}
+
+.stock-filter-chip select.filter-input {
+    width: 100%;
+}
+
+.stock-filter-footer-count {
+    margin-left: auto;
+}
+
+#stock-mirror-clear {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+}
