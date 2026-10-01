@@ -31,6 +31,16 @@ function value(v, type, currency = "INR") {
   return num(n);
 }
 
+function metricDisplay(f, key, type, currency) {
+  if (key === "peg" && (f[key] == null || !Number.isFinite(Number(f[key]))) && Number(f.eps_cagr_3y) <= 0) {
+    return { text: "N/M", title: "PEG is not meaningful because the 3Y EPS CAGR is zero or negative." };
+  }
+  if ((key === "ev_ebitda" || key === "ev_revenue") && f[key] == null && f.sector === "Financial Services") {
+    return { text: "N/M", title: "Enterprise-value multiples are not meaningful for financial companies." };
+  }
+  return { text: value(f[key], type, currency), title: "" };
+}
+
 function injectStyles() {
   if (document.getElementById("stock-comparison-styles")) return;
   const style = document.createElement("style");
@@ -116,7 +126,7 @@ function comparisonTable(datas) {
   for (const group of COMPARE_GROUPS) {
     rows += `<tr class="compare-group"><td colspan="${fs.length + 1}">${esc(group.title)}</td></tr>`;
     for (const [key, label, type] of group.metrics) {
-      rows += `<tr><td>${esc(label)}</td>${fs.map((f) => `<td>${esc(value(f[key], type, currency))}</td>`).join("")}</tr>`;
+      rows += `<tr><td>${esc(label)}</td>${fs.map((f) => { const d = metricDisplay(f, key, type, currency); return `<td${d.title ? ` title="${esc(d.title)}"` : ""}>${esc(d.text)}</td>`; }).join("")}</tr>`;
     }
   }
   return `<div class="stock-comparison-table-wrap"><table class="stock-comparison-table"><thead><tr><th>Metric</th>${fs.map((f) => `<th>${esc(f.name || f.symbol || "Stock")}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
