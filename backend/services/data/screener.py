@@ -239,6 +239,14 @@ class ScreenerFinanceClient:
         ttm_dep = self._row(pl_rows, ["Depreciation"], ttm) if ttm is not None else latest_dep
         ttm_eps = self._row(pl_rows, ["EPS in Rs"], ttm) if ttm is not None else latest_eps
 
+        # 3Y EPS CAGR used as the denominator for PEG.
+        eps_cagr_3y = None
+        if len(annual) >= 4 and ttm_eps is not None:
+            base_index = annual[-4]
+            base_eps = self._row(pl_rows, ["EPS in Rs"], base_index)
+            if base_eps is not None and base_eps > 0 and ttm_eps > 0:
+                eps_cagr_3y = (ttm_eps / base_eps) ** (1 / 3) - 1
+
         balance_headers, balance_rows = self._table(soup, "balance-sheet")
         balance_annual = self._annual_indices(balance_headers)
         balance_latest = balance_annual[-1] if balance_annual else None
@@ -247,6 +255,16 @@ class ScreenerFinanceClient:
         reserves_cr = self._row(balance_rows, ["Reserves"], balance_latest) if balance_latest is not None else None
         assets_cr = self._row(balance_rows, ["Total Assets"], balance_latest) if balance_latest is not None else None
         liabilities_cr = self._row(balance_rows, ["Total Liabilities"], balance_latest) if balance_latest is not None else None
+        current_assets_cr = self._row(
+            balance_rows,
+            ["Current Assets"],
+            balance_latest,
+        ) if balance_latest is not None else None
+        current_liabilities_cr = self._row(
+            balance_rows,
+            ["Current Liabilities"],
+            balance_latest,
+        ) if balance_latest is not None else None
 
         equity_cr = None
         if equity_capital_cr is not None or reserves_cr is not None:
@@ -298,6 +316,23 @@ class ScreenerFinanceClient:
 
         pb = price / book_value if price is not None and book_value not in (None, 0) else None
         debt_equity = debt_cr / equity_cr if debt_cr is not None and equity_cr not in (None, 0) else None
+        roa = (
+            latest_profit / assets_cr
+            if latest_profit is not None and assets_cr not in (None, 0)
+            else None
+        )
+        current_ratio = (
+            current_assets_cr / current_liabilities_cr
+            if current_assets_cr is not None and current_liabilities_cr not in (None, 0)
+            else None
+        )
+
+        pe = ratios.get("Stock P/E")
+        peg = (
+            pe / (eps_cagr_3y * 100)
+            if pe is not None and eps_cagr_3y is not None and eps_cagr_3y > 0
+            else None
+        )
 
         annual_ebitda = (latest_op or 0) + (latest_dep or 0) if latest_op is not None or latest_dep is not None else None
         ttm_ebitda = (ttm_op or 0) + (ttm_dep or 0) if ttm_op is not None or ttm_dep is not None else None
@@ -338,8 +373,9 @@ class ScreenerFinanceClient:
             "marketCap": market_cap,
             "enterpriseValue": enterprise_value,
             "sharesOutstanding": shares,
-            "trailingPE": ratios.get("Stock P/E"),
+            "trailingPE": pe,
             "priceToBook": pb,
+            "pegRatio": peg,
             "priceToSalesTrailing12Months": (
                 market_cap_cr / ttm_sales if market_cap_cr is not None and ttm_sales not in (None, 0) else None
             ),
@@ -347,9 +383,10 @@ class ScreenerFinanceClient:
             "enterpriseToRevenue": ev_revenue,
             "dividendYield": self._pct(ratios.get("Dividend Yield")),
             "returnOnEquity": self._pct(ratios.get("ROE")),
-            "returnOnAssets": None,
+            "returnOnAssets": roa,
             "returnOnCapitalEmployed": self._pct(ratios.get("ROCE")),
             "debtToEquity": debt_equity,
+            "currentRatio": current_ratio,
             "sector": sector,
             "industry": None,
             "_source": "Screener.in",

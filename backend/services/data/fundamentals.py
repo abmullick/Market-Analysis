@@ -671,6 +671,16 @@ def get_stock_analysis(
     if symbol.endswith(".NS") or symbol.endswith(".BO"):
         fundamentals.source = "Screener.in"
 
+    # PEG is calculated consistently from P/E and 3Y EPS CAGR.
+    # eps_cagr_3y is stored as a decimal fraction, e.g. 0.0174 = 1.74%.
+    if (
+        fundamentals.peg is None
+        and fundamentals.pe is not None
+        and fundamentals.eps_cagr_3y is not None
+        and fundamentals.eps_cagr_3y > 0
+    ):
+        fundamentals.peg = fundamentals.pe / (fundamentals.eps_cagr_3y * 100)
+
     # --------------------------------------------------------------
     # Historical statement fields
     # --------------------------------------------------------------
