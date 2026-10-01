@@ -13,7 +13,15 @@ from backend.services.stocks.nifty_universe import (
 from backend.services.stocks.screening import list_stocks
 
 router = APIRouter()
-client = YahooFinanceClient(Settings())
+client: YahooFinanceClient | None = None
+
+
+def _get_client() -> YahooFinanceClient:
+    """Create the Yahoo client lazily so Yahoo outages/rate limits cannot crash startup."""
+    global client
+    if client is None:
+        client = YahooFinanceClient(Settings())
+    return client
 
 
 @router.get("/universe")
@@ -22,7 +30,7 @@ async def get_stock_universe(
     query: Optional[str] = Query(default=None),
     min_market_cap_cr: Optional[float] = Query(default=None, ge=0),
     max_market_cap_cr: Optional[float] = Query(default=None, ge=0),
-    min_pe: Optional[float] = Query(default=None, ge=0),
+    min_pe: Optional[float] = Query(default=None, gt=0),
     max_pe: Optional[float] = Query(default=None, gt=0),
     min_roe: Optional[float] = Query(default=None),
     max_roe: Optional[float] = Query(default=None),
@@ -64,7 +72,7 @@ async def get_stock_universe(
             }
 
         return list_stocks(
-            client,
+            _get_client(),
             sector=sector,
             query=query,
             min_market_cap_cr=min_market_cap_cr,
@@ -81,7 +89,7 @@ async def get_stock_universe(
 @router.get("/{symbol}")
 async def get_stock(symbol: str):
     try:
-        return get_stock_analysis(client, symbol)
+        return get_stock_analysis(_get_client(), symbol)
     except YahooFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -89,6 +97,6 @@ async def get_stock(symbol: str):
 @router.get("/{symbol}/fundamentals")
 async def get_fundamentals(symbol: str):
     try:
-        return get_stock_analysis(client, symbol)["fundamentals"]
+        return get_stock_analysis(_get_client(), symbol)["fundamentals"]
     except YahooFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
