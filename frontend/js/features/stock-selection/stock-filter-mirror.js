@@ -79,7 +79,7 @@ function transform(card) {
   card.dataset.mfMirror = "1";
   card.classList.add("filter-panel");
 
-  const toggle = card.querySelector(".stock-filter-toggle");
+  let toggle = card.querySelector(".stock-filter-toggle");
   const body = card.querySelector(".stock-filter-body");
   const top = body?.querySelector(".stock-filter-top");
   const groups = body?.querySelector(".stock-filter-groups");
@@ -94,6 +94,13 @@ function transform(card) {
   toggle.querySelector(".stock-filter-toggle-icon")?.classList.replace("stock-filter-toggle-icon", "filter-toggle-icon");
   toggle.querySelector(".stock-filter-toggle-label")?.classList.replace("stock-filter-toggle-label", "filter-toggle-label");
   toggle.querySelector(".stock-filter-toggle-count")?.classList.replace("stock-filter-toggle-count", "filter-toggle-count");
+
+  // renderSelection() installs the original stock-specific click handler.
+  // Replace the button before installing the Mutual Fund-style handler so
+  // the two handlers cannot toggle the same panel twice.
+  const cleanToggle = toggle.cloneNode(true);
+  toggle.replaceWith(cleanToggle);
+  toggle = cleanToggle;
 
   body.className = "filter-body";
 
@@ -112,8 +119,6 @@ function transform(card) {
   grid.innerHTML = [...pairs.values()].map(p => metricChip(p.min, p.max)).join("");
   groups.replaceWith(grid);
 
-  // Move the original controls into the new Mutual Fund-style chips so the
-  // existing filter state and event handlers continue to use the same IDs.
   labels.forEach(original => {
     const input = original.querySelector("input");
     if (!input) return;
@@ -128,8 +133,6 @@ function transform(card) {
     footer.innerHTML = `<button type="button" id="stock-mirror-clear" class="btn-text">Clear all</button><span>${toggle.querySelector(".filter-toggle-count")?.textContent || ""}</span>`;
   }
 
-  // Keep the stock filter body collapsed initially, but use both the hidden
-  // attribute and inline display so it cannot be overridden by stock-specific CSS.
   body.hidden = true;
   body.style.display = "none";
   toggle.setAttribute("aria-expanded", "false");
