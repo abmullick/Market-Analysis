@@ -117,8 +117,7 @@ function fmtRatio(v) {
 function fmtCompact(v, c = "") {
   if (v == null || !Number.isFinite(Number(v))) return "—";
   const n = Number(v);
-  const p =
-    c === "INR" ? "₹" : c === "USD" ? "$" : c ? `${c} ` : "";
+  const p = c === "INR" ? "₹" : c === "USD" ? "$" : c ? `${c} ` : "";
   const a = Math.abs(n);
 
   if (a >= 1e12) return `${p}${fmtNumber(n / 1e12)}T`;
@@ -137,8 +136,7 @@ function fmtFinancial(v, c = "") {
 
 function fmtPrice(v, c = "") {
   if (v == null || !Number.isFinite(Number(v))) return "—";
-  const p =
-    c === "INR" ? "₹" : c === "USD" ? "$" : c ? `${c} ` : "";
+  const p = c === "INR" ? "₹" : c === "USD" ? "$" : c ? `${c} ` : "";
   return `${p}${fmtNumber(v)}`;
 }
 
@@ -230,14 +228,11 @@ function statementTable(title, rows, c) {
       <table class="stock-table">
         <thead><tr><th>Metric</th>${rows.map((r) => `<th>${esc(r.period.slice(0, 4))}</th>`).join("")}</tr></thead>
         <tbody>
-          ${fields
-            .map(
-              (f) =>
-                `<tr><td>${esc(f.replace(/([a-z])([A-Z])/g, "$1 $2"))}</td>${rows
-                  .map((r) => `<td>${esc(f.toLowerCase().includes("eps") ? fmtNumber(r.values?.[f]) : fmtFinancial(r.values?.[f], c))}</td>`)
-                  .join("")}</tr>`,
-            )
-            .join("")}
+          ${fields.map((f) =>
+            `<tr><td>${esc(f.replace(/([a-z])([A-Z])/g, "$1 $2"))}</td>${rows
+              .map((r) => `<td>${esc(f.toLowerCase().includes("eps") ? fmtNumber(r.values?.[f]) : fmtFinancial(r.values?.[f], c))}</td>`)
+              .join("")}</tr>`
+          ).join("")}
         </tbody>
       </table>
     </div>
@@ -331,24 +326,27 @@ function filters() {
   };
 
   FILTERS.forEach(([key, , id]) => {
-    const value = val(id);
-    out[key] = value;
+    out[key] = val(id);
   });
 
   return out;
+}
+
+function hasFundamentalFilters(f) {
+  return FILTERS.some(([key]) => f[key] !== "");
 }
 
 function clientSectorData() {
   const f = filters();
   const q = f.query.toLowerCase();
 
-  let stocks = universeStocks.filter((s) => s.sector === f.sector);
+  let stocks = universeStocks.filter((s) => !f.sector || s.sector === f.sector);
 
   if (q) {
     stocks = stocks.filter(
       (s) =>
-        s.symbol.toLowerCase().includes(q) ||
-        s.name.toLowerCase().includes(q),
+        String(s.symbol || "").toLowerCase().includes(q) ||
+        String(s.name || "").toLowerCase().includes(q),
     );
   }
 
@@ -402,38 +400,35 @@ function renderSelection(data, screen, notice = "") {
     .join("");
 
   const rows = (data.stocks || []).map(stockRow).join("");
+  const matchCount = data.count ?? data.stocks?.length ?? 0;
+  const activeFilterCount = FILTERS.filter(([, , id]) => val(id) !== "").length + (f.query ? 1 : 0);
 
   const filterGroups = [
     {
       title: "Valuation",
       keys: [
-        "min_market_cap_cr","max_market_cap_cr",
-        "min_pe","max_pe",
-        "min_pb","max_pb",
-        "min_peg","max_peg",
-        "min_ev_ebitda","max_ev_ebitda",
-        "min_ev_revenue","max_ev_revenue",
+        "min_market_cap_cr", "max_market_cap_cr",
+        "min_pe", "max_pe",
+        "min_pb", "max_pb",
+        "min_peg", "max_peg",
+        "min_ev_ebitda", "max_ev_ebitda",
+        "min_ev_revenue", "max_ev_revenue",
       ],
     },
     {
       title: "Profitability",
-      keys: [
-        "min_roe","max_roe",
-        "min_roa","max_roa",
-      ],
+      keys: ["min_roe", "max_roe", "min_roa", "max_roa"],
     },
     {
       title: "Financial Health",
       keys: [
-        "min_debt_equity","max_debt_equity",
-        "min_current_ratio","max_current_ratio",
+        "min_debt_equity", "max_debt_equity",
+        "min_current_ratio", "max_current_ratio",
       ],
     },
     {
       title: "Income / Shareholder Return",
-      keys: [
-        "min_dividend_yield","max_dividend_yield",
-      ],
+      keys: ["min_dividend_yield", "max_dividend_yield"],
     },
   ];
 
@@ -466,31 +461,48 @@ function renderSelection(data, screen, notice = "") {
     </aside>
 
     <section class="stock-picker-panel">
-      <div class="stock-picker-filters">
-        <label>
-          SECTOR
-          <select id="stock-sector">
-            <option value="">Select sector</option>
-            ${sectors}
-          </select>
-        </label>
+      <div class="stock-filter-card">
+        <button id="stock-filter-toggle" class="stock-filter-toggle" type="button" aria-expanded="false" aria-controls="stock-filter-body">
+          <span class="stock-filter-toggle-icon" aria-hidden="true">▸</span>
+          <span class="stock-filter-toggle-label">Filter Results</span>
+          <span id="stock-filter-toggle-count" class="stock-filter-toggle-count">${matchCount} stocks${activeFilterCount ? ` · ${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active` : ""}</span>
+        </button>
 
-        <label>
-          SEARCH
-          <input id="stock-filter-search" value="${esc(f.query)}" placeholder="Search company or symbol…">
-        </label>
+        <div id="stock-filter-body" class="stock-filter-body" hidden>
+          <div class="stock-filter-top">
+            <label>
+              SECTOR
+              <select id="stock-sector">
+                <option value="">All sectors</option>
+                ${sectors}
+              </select>
+            </label>
 
-        ${filterHtml}
+            <label>
+              SEARCH
+              <input id="stock-filter-search" value="${esc(f.query)}" placeholder="Search company or symbol…">
+            </label>
+          </div>
 
-        <div class="stock-filter-actions">
-          <button id="stock-apply-filters" class="stock-page-btn" type="button">Apply Filters</button>
-          <button id="stock-clear-filters" class="stock-page-btn stock-secondary-btn" type="button">Clear Filters</button>
+          <div class="stock-filter-groups">
+            ${filterHtml}
+          </div>
+
+          <div class="stock-filter-actions">
+            <button id="stock-apply-filters" class="stock-page-btn" type="button">Apply Filters</button>
+            <button id="stock-clear-filters" class="stock-page-btn stock-secondary-btn" type="button">Clear Filters</button>
+          </div>
+
+          <div class="stock-filter-footer">
+            <span>Fundamental filters are applied when you click <strong>Apply Filters</strong>.</span>
+            <span>${matchCount} stocks</span>
+          </div>
         </div>
       </div>
 
       ${f.sector
         ? `<div class="stock-result-summary">
-            ${data.count || 0} stocks match the current filters.
+            ${matchCount} stocks match the current filters.
             ${notice ? esc(notice) : ""}
           </div>
           <div class="stock-picker-list">
@@ -502,10 +514,19 @@ function renderSelection(data, screen, notice = "") {
     </section>
   </div>`;
 
+  const toggle = document.getElementById("stock-filter-toggle");
+  const body = document.getElementById("stock-filter-body");
   const apply = document.getElementById("stock-apply-filters");
   const clear = document.getElementById("stock-clear-filters");
   const sector = document.getElementById("stock-sector");
   const analyze = document.getElementById("stock-analyze-selected");
+
+  toggle.addEventListener("click", () => {
+    const open = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!open));
+    toggle.querySelector(".stock-filter-toggle-icon").textContent = open ? "▸" : "▾";
+    body.hidden = open;
+  });
 
   apply.addEventListener("click", () => loadUniverse(screen, { forceServer: true }));
 
@@ -517,12 +538,26 @@ function renderSelection(data, screen, notice = "") {
       if (el) el.value = "";
     });
 
-    loadUniverse(screen, { forceServer: true });
+    const search = document.getElementById("stock-filter-search");
+    if (search) search.value = "";
+
+    if (universeStocks.length) {
+      renderSelection(clientSectorData(), screen);
+    } else {
+      loadUniverse(screen, { forceServer: true });
+    }
   });
 
   sector.addEventListener("change", () => {
     selectedStock = null;
-    loadUniverse(screen);
+
+    // Sector changes use the already-loaded Nifty universe. This is
+    // instantaneous and avoids replacing the page with a loading state.
+    if (universeStocks.length) {
+      renderSelection(clientSectorData(), screen);
+    } else {
+      loadUniverse(screen);
+    }
   });
 
   analyze.addEventListener("click", () => {
@@ -533,9 +568,7 @@ function renderSelection(data, screen, notice = "") {
     b.addEventListener("click", () => {
       selectedStock =
         (data.stocks || []).find(
-          (s) =>
-            s.symbol ===
-            b.closest(".stock-picker-row").dataset.symbol,
+          (s) => s.symbol === b.closest(".stock-picker-row").dataset.symbol,
         ) || null;
 
       renderSelection(data, screen, notice);
@@ -558,7 +591,7 @@ async function loadUniverse(screen, { background = false, forceServer = false } 
   const p = new URLSearchParams();
 
   Object.entries(f).forEach(([k, v]) => {
-    if (v) p.set(k, v);
+    if (v !== "") p.set(k, v);
   });
 
   try {
@@ -571,7 +604,7 @@ async function loadUniverse(screen, { background = false, forceServer = false } 
 
     if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`);
 
-    if (!f.sector && !forceServer) {
+    if (!f.sector && !hasFundamentalFilters(f) && !f.query) {
       universeStocks = d.stocks || [];
       universeSectors = d.sectors || [];
     }
@@ -580,8 +613,8 @@ async function loadUniverse(screen, { background = false, forceServer = false } 
 
     renderSelection(d, screen);
   } catch (e) {
-    if (f.sector && !Object.values(f).some(Boolean) && !forceServer) {
-      renderSelection(clientSectorData(), screen, "Live fundamentals could not be loaded; showing the NSE universe.");
+    if (universeStocks.length && f.sector) {
+      renderSelection(clientSectorData(), screen, "Live screening is unavailable; showing the cached NSE universe.");
       return;
     }
 
@@ -591,9 +624,7 @@ async function loadUniverse(screen, { background = false, forceServer = false } 
       <button class="stock-page-btn" id="stock-retry">Retry</button>
     </div>`;
 
-    document
-      .getElementById("stock-retry")
-      .addEventListener("click", () => loadUniverse(screen));
+    document.getElementById("stock-retry")?.addEventListener("click", () => loadUniverse(screen));
   }
 }
 
@@ -621,14 +652,9 @@ export function initStockAnalysis() {
   const s = document.getElementById("stock-selection-screen");
   if (!s) return;
 
-  document
-    .getElementById("stock-back-to-selection")
-    ?.addEventListener("click", showSelection);
+  document.getElementById("stock-back-to-selection")?.addEventListener("click", showSelection);
 
-  const symbol =
-    (new URLSearchParams(location.search).get("symbol") || "")
-      .trim()
-      .toUpperCase();
+  const symbol = (new URLSearchParams(location.search).get("symbol") || "").trim().toUpperCase();
 
   addEventListener("popstate", () => {
     const x = new URLSearchParams(location.search).get("symbol");
