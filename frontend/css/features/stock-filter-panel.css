@@ -1,0 +1,189 @@
+/* Stock screener filter panel — designed to match the compact MF Filter Results card. */
+.stock-filter-card {
+    margin-bottom: 16px;
+    border: 1px solid #dbe4f0;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.stock-filter-toggle {
+    width: 100%;
+    min-height: 54px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px;
+    border: 0;
+    background: #fff;
+    color: #17324f;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+}
+
+.stock-filter-toggle:hover {
+    background: #f8fafc;
+}
+
+.stock-filter-toggle-icon {
+    width: 12px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.stock-filter-toggle-label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.stock-filter-toggle-count {
+    margin-left: auto;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.stock-filter-body {
+    padding: 14px;
+    border-top: 1px solid #e8edf4;
+    background: #fbfcfe;
+}
+
+.stock-filter-top {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.4fr);
+    gap: 12px;
+    padding-bottom: 14px;
+}
+
+.stock-filter-top label,
+.stock-filter-group label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #53637a;
+    letter-spacing: .03em;
+}
+
+.stock-filter-top input,
+.stock-filter-top select,
+.stock-filter-group input {
+    width: 100%;
+    height: 38px;
+    box-sizing: border-box;
+    padding: 0 11px;
+    border: 1px solid #d5deea;
+    border-radius: 8px;
+    background: #fff;
+    color: #23344d;
+    font: inherit;
+    font-weight: 400;
+    outline: none;
+}
+
+.stock-filter-top input:focus,
+.stock-filter-top select:focus,
+.stock-filter-group input:focus {
+    border-color: #2876c5;
+    box-shadow: 0 0 0 3px rgba(40, 118, 197, .10);
+}
+
+.stock-filter-groups {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.stock-filter-group {
+    grid-column: auto;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid #e1e8f1;
+    border-radius: 9px;
+    background: #fff;
+}
+
+.stock-filter-group h3 {
+    margin: 0 0 10px;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+
+.stock-filter-group-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.stock-filter-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.stock-filter-input-wrap input {
+    padding-right: 42px;
+}
+
+.stock-filter-input-wrap > span {
+    position: absolute;
+    right: 10px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+.stock-filter-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 14px;
+}
+
+.stock-secondary-btn {
+    color: #475569 !important;
+    border-color: #cbd5e1 !important;
+}
+
+.stock-filter-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 11px;
+    border-top: 1px solid #e1e8f1;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.stock-filter-footer strong {
+    color: #334155;
+}
+
+@media (max-width: 900px) {
+    .stock-filter-groups {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .stock-filter-top,
+    .stock-filter-group-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stock-filter-toggle-count {
+        font-size: 11px;
+    }
+
+    .stock-filter-footer {
+        flex-direction: column;
+    }
+}
