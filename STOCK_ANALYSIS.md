@@ -255,3 +255,66 @@ Analyze Stock → Individual report
 The in-application Help & Methodology page is intended to expose the same terminology as this document, including every selector control, fundamental filter, displayed ratio, growth metric, financial statement, chart, comparison field, source convention, and missing-data convention.
 
 The detailed UI help should be treated as the user-facing version of this implementation reference; this file is the repository-level engineering reference.
+
+## 18. Company Pedigree, Consistency & Trend Analytics
+
+The individual report now includes a separate historical analytics section built from the same Screener financial statements rather than copying additional headline ratios.
+
+### 18.1 Growth consistency
+
+For Revenue, Net Profit, EPS and Free Cash Flow, the engine counts the available year-over-year observations and reports the percentage of observations with positive growth. This is a descriptive consistency statistic, not a forecast.
+
+### 18.2 Capital-efficiency history
+
+The report charts annual:
+
+- ROE = Net Profit ÷ Average Shareholders' Equity × 100.
+- ROCE = Operating Profit ÷ (Net Block + Working Capital) × 100, where Working Capital = Current Assets − Current Liabilities.
+- Operating Margin = Operating Profit ÷ Revenue × 100.
+
+Average ROE and ROE volatility are also shown as compact historical diagnostics.
+
+### 18.3 Cash-generation quality
+
+The report charts:
+
+- CFO / Net Profit = Cash from Operating Activities ÷ Net Profit × 100.
+- FCF Margin = Free Cash Flow ÷ Revenue × 100.
+- Indexed Revenue, Net Profit and FCF, with each series starting at 100 at its first positive observation.
+
+These measures help distinguish accounting earnings growth from cash-generation growth.
+
+### 18.4 Leverage and working capital
+
+Debt is charted historically from the reported balance sheet. The Cash Conversion Cycle is derived as:
+
+**CCC = Debtor Days + Inventory Days − Payable Days**
+
+where each day metric uses the relevant annual balance divided by revenue and multiplied by 365.
+
+### 18.5 Historical shareholding
+
+The report reads Screener's Shareholding Pattern and charts Promoters, FIIs, DIIs, Government and Public holdings where available, plus the number of shareholders. The data can include quarterly and longer annual observations.
+
+Screener notes that shareholding classifications may have changed from September 2022 following the XBRL format change. Historical FII/DII comparisons therefore carry that source limitation.
+
+## 19. Pedigree Analytics in Comparison
+
+The same derived engine is applied independently to every selected stock in Compare. The comparison trend area includes:
+
+- Indexed business scale.
+- ROE / ROCE history.
+- Operating Margin history.
+- FCF Margin history.
+- Debt history.
+- Promoter holding history.
+- Institutional holding history (FII + DII).
+- Shareholder-count history.
+
+The purpose is to compare **trajectory and consistency**, not merely the latest point-in-time ratio.
+
+## 20. Source and Calculation Discipline
+
+Pedigree analytics are explicitly calculated from Screener financial statements and shareholding tables. They are not presented as additional Screener-provided ratios. Where a calculation uses a methodology that can differ from another provider's convention, the application describes the formula rather than silently substituting a different value.
+
+Missing source observations remain missing. No historical ownership, earnings, cash-flow or trend value is invented to complete a chart.
