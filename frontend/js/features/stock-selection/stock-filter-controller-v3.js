@@ -83,6 +83,31 @@ function sfMoveQuickFiltersOutsideCollapse() {
   if (extra) extra.style.display = "block";
 }
 
+function sfUpdateSelectedPanel(stock) {
+  const aside = document.querySelector("#stock-selection-screen .stock-selected-panel");
+  if (!aside) return;
+  const name = sfEsc(stock?.name || stock?.symbol || "");
+  const symbol = sfEsc(stock?.symbol || "");
+  const sector = sfEsc(stock?.sector || "");
+  aside.innerHTML = `
+    <div class="stock-selection-kicker">SELECTED STOCK</div>
+    <div class="stock-selected-card">
+      <strong>${name}</strong>
+      <small>${symbol}</small>
+      <span>${sector}</span>
+    </div>
+    <button id="stock-analyze-selected" class="stock-analyze-btn" type="button">Analyze Stock</button>
+    <small>One stock selected.</small>`;
+
+  aside.querySelector("#stock-analyze-selected")?.addEventListener("click", () => {
+    const selected = String(window.__stockAnalysisSelectedSymbol || stock?.symbol || "").trim();
+    if (!selected) return;
+    const url = `?symbol=${encodeURIComponent(selected)}`;
+    history.pushState({}, "", url);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+}
+
 function sfWireSelectionButtons(result, list) {
   const selected = String(window.__stockAnalysisSelectedSymbol || "").trim().toUpperCase();
   list.querySelectorAll(".stock-select-btn").forEach(button => {
@@ -99,13 +124,10 @@ function sfWireSelectionButtons(result, list) {
       const stock = result.find(s => String(s.symbol || "").trim().toUpperCase() === symbol);
       if (!stock) return;
 
-      // The stock-detail module owns the actual selectedStock state and the
-      // left-side Selected Stock card. v3 only renders the list, so hand the
-      // selection to that module instead of navigating or rebuilding the list.
-      if (typeof window.__stockAnalysisSelectStock === "function") {
-        window.__stockAnalysisSelectStock(stock);
-      }
+      // Keep selection and analysis separate: Select updates the left-side
+      // Selected Stock card; Analyze Stock is the only action that navigates.
       window.__stockAnalysisSelectedSymbol = symbol;
+      sfUpdateSelectedPanel(stock);
 
       list.querySelectorAll(".stock-picker-row").forEach(r => {
         const isSelected = String(r.dataset.symbol || "").trim().toUpperCase() === symbol;
