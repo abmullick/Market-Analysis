@@ -1,0 +1,132 @@
+/* =====================================================================
+   Analysis filter card — matches Portfolio Builder collapsible cards
+   exactly at the card/header level.
+
+   The stock filter mirror intentionally reuses the Mutual Fund Analysis
+   filter classes, so one shared theme keeps both analysis pages aligned.
+   ===================================================================== */
+
+.filter-panel,
+#stock-selection-screen .stock-filter-card {
+    margin-top: 16px;
+    margin-bottom: 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-accent, #0ea5e9);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--btn-shadow);
+    overflow: visible;
+}
+
+.filter-panel .filter-toggle,
+#stock-selection-screen .stock-filter-card > .filter-toggle {
+    width: 100%;
+    min-height: 78px;
+    padding: 14px 16px 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 0;
+    background: var(--pb-tint, var(--color-surface));
+    border: 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+    color: var(--color-primary);
+    font-family: var(--font-family);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: left;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.filter-panel .filter-toggle:hover,
+#stock-selection-screen .stock-filter-card > .filter-toggle:hover {
+    background: var(--pb-tint, var(--color-surface));
+}
+
+.filter-toggle-icon {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background: var(--color-slate-100);
+    border: 1px solid var(--color-border);
+    color: var(--color-primary);
+    font-size: 0.75rem;
+    line-height: 1;
+}
+
+.filter-toggle-label {
+    color: var(--color-primary);
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.filter-toggle-count {
+    margin-left: auto;
+    flex: 0 0 auto;
+    padding: 6px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    background: var(--color-slate-100);
+    color: var(--color-text-light);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.filter-panel .filter-body,
+#stock-selection-screen .stock-filter-card > .filter-body {
+    margin: 0;
+    padding: 18px;
+    background: var(--color-surface);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.filter-panel .filter-footer,
+#stock-selection-screen .stock-filter-card .filter-footer {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+@media (max-width: 900px) {
+    .filter-panel .filter-toggle,
+    #stock-selection-screen .stock-filter-card > .filter-toggle {
+        flex-wrap: wrap;
+        row-gap: 10px;
+    }
+
+    .filter-toggle-count {
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 640px) {
+    .filter-panel,
+    #stock-selection-screen .stock-filter-card {
+        border-left-width: 3px;
+    }
+
+    .filter-panel .filter-toggle,
+    #stock-selection-screen .stock-filter-card > .filter-toggle {
+        min-height: 64px;
+        padding: 12px 14px 12px 15px;
+        gap: 12px;
+    }
+
+    .filter-toggle-icon {
+        width: 32px;
+        height: 32px;
+    }
+
+    .filter-panel .filter-body,
+    #stock-selection-screen .stock-filter-card > .filter-body {
+        padding: 14px;
+    }
+}
