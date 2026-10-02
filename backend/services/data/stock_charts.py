@@ -1,6 +1,20 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
+
+import curl_cffi.requests
+
+
+YAHOO_CHART_HOSTS = (
+    "https://query2.finance.yahoo.com",
+    "https://query1.finance.yahoo.com",
+)
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/154.0.0.0 Safari/537.36"
+)
 
 
 def _date(row: dict[str, Any]) -> str:
@@ -36,17 +50,14 @@ def _growth(series: list[tuple[str, float]]) -> list[dict[str, float | str | Non
         previous = series[index - 1][1]
         current = series[index][1]
         growth = None
-        if previous != 0 and (previous > 0 and current > 0):
+        if previous != 0 and previous > 0 and current > 0:
             growth = (current / previous - 1) * 100
         out.append({"year": year, "value": growth})
     return out
 
 
 def _trend(series: list[tuple[str, float]]) -> list[dict[str, float | str]]:
-    return [
-        {"year": date[:4], "value": value}
-        for date, value in series
-    ]
+    return [{"year": date[:4], "value": value} for date, value in series]
 
 
 def _rolling_cagr(
@@ -75,6 +86,51 @@ def _rolling_cagr(
     return out
 
 
+def yahoo_annual_prices(symbol: str, years: int = 7) -> list[dict[str, Any]]:
+    """Fetch monthly Yahoo prices and retain the last available close per year."""
+    symbol = symbol.strip().upper()
+    params = {
+        "range": f"{max(1, years)}y",
+        "interval": "1mo",
+        "events": "div,splits",
+        "includeAdjustedClose": "true",
+    }
+    session = curl_cffi.requests.Session(impersonate="chrome")
+    session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
+
+    for host in YAHOO_CHART_HOSTS:
+        try:
+            response = session.get(
+                f"{host}/v8/finance/chart/{symbol}",
+                params=params,
+                timeout=20,
+                allow_redirects=True,
+            )
+            response.raise_for_status()
+            result = (response.json().get("chart", {}).get("result") or [None])[0]
+            if not result:
+                continue
+
+            timestamps = result.get("timestamp") or []
+            quote = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+            closes = quote.get("close") or []
+            annual: dict[str, dict[str, Any]] = {}
+
+            for timestamp, close in zip(timestamps, closes):
+                if close is None:
+                    continue
+                dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+                annual[dt.strftime("%Y")] = {
+                    "date": dt.strftime("%Y-%m-%d"),
+                    "close": float(close),
+                }
+            return [annual[key] for key in sorted(annual)]
+        except Exception:
+            continue
+
+    return []
+
+
 def build_stock_charts(
     history: dict[str, dict[str, list[dict[str, Any]]]],
     prices: list[dict[str, Any]],
@@ -87,21 +143,16 @@ def build_stock_charts(
     eps = _series(income.get("annualDilutedEPS", []), "annualDilutedEPS")
     equity = _series(balance.get("annualStockholdersEquity", []), "annualStockholdersEquity")
 
-    # ROE is derived from annual net income and the average of opening/closing
-    # equity. This is a historical trend indicator, not a replacement for the
-    # provider's reported TTM ROE.
+    # Historical ROE uses net income divided by average opening/closing equity.
+    # It is a trend indicator and is intentionally separate from current TTM ROE.
     equity_map = dict(equity)
     roe: list[tuple[str, float]] = []
     for date, profit_value in profit:
         closing = equity_map.get(date)
         if closing is None or closing == 0:
             continue
-        previous_candidates = [
-            (d, value)
-            for d, value in equity
-            if d < date
-        ]
-        opening = previous_candidates[-1][1] if previous_candidates else closing
+        previous = [value for d, value in equity if d < date]
+        opening = previous[-1] if previous else closing
         average_equity = (opening + closing) / 2
         if average_equity != 0:
             roe.append((date, profit_value / average_equity * 100))
