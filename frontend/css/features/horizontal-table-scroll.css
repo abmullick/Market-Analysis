@@ -1,0 +1,71 @@
+/* Visible top scrollbar for wide result tables. Keeps horizontal scrolling discoverable
+   without requiring the user to reach the native scrollbar at the bottom. */
+.table-horizontal-scroll {
+    display: none;
+    margin: 8px 0 10px;
+    padding: 7px 10px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,.82);
+}
+
+.table-horizontal-scroll.is-scrollable {
+    display: block;
+}
+
+.table-scroll-hint {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 5px;
+    color: var(--color-text-light);
+    font-size: .75rem;
+    font-weight: 600;
+}
+
+.table-scroll-icon {
+    color: var(--color-primary);
+    font-size: 1rem;
+    line-height: 1;
+    font-weight: 700;
+}
+
+.table-scroll-track {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 14px;
+    cursor: ew-resize;
+    scrollbar-color: var(--color-primary-light) var(--color-slate-100);
+    scrollbar-width: auto;
+}
+
+.table-scroll-track::-webkit-scrollbar {
+    height: 10px;
+}
+
+.table-scroll-track::-webkit-scrollbar-track {
+    background: var(--color-slate-100);
+    border-radius: 999px;
+}
+
+.table-scroll-track::-webkit-scrollbar-thumb {
+    background: var(--color-primary-light);
+    border-radius: 999px;
+    border: 2px solid var(--color-slate-100);
+}
+
+.table-scroll-track-inner {
+    height: 1px;
+}
+
+.table-horizontal-scroll.is-at-end .table-scroll-hint {
+    opacity: .55;
+}
+
+@media (max-width: 700px) {
+    .table-horizontal-scroll {
+        margin-top: 6px;
+        padding: 6px 8px 7px;
+    }
+}
