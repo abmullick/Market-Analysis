@@ -113,13 +113,18 @@ def _parse_csv(payload: bytes) -> list[dict[str, str]]:
     fieldnames = list(reader.fieldnames)
     symbol_col = _find_column(fieldnames, "Symbol", "Stock Symbol", "Security Symbol")
     name_col = _find_column(fieldnames, "Company Name", "CompanyName", "Company")
+
+    # Prefer the combined sector/industry field when an NSE source exposes
+    # more than one classification column.  Using a narrower "Industry"
+    # field first can silently collapse a valid sector (for example,
+    # Consumer Services) into only a handful of rows.
     industry_col = _find_column(
         fieldnames,
-        "Industry",
-        "Sector",
         "Industry / Sector",
         "Sector / Industry",
         "Industry / Sector Name",
+        "Sector",
+        "Industry",
     )
     isin_col = _find_column(fieldnames, "ISIN Code", "ISIN", "ISINCODE")
 
@@ -174,8 +179,6 @@ def _download(url: str) -> bytes:
         "Referer": NIFTY_TOTAL_MARKET_PAGE,
     })
     try:
-        # Warming the NSE session is harmless for the archive host and helps
-        # when the server is routed through NSE's web protection layer.
         if "nseindia.com" in url:
             try:
                 session.get(NSE_INDICES_PAGE, timeout=15)
@@ -215,7 +218,6 @@ def _load_direct_total_market() -> list[dict[str, str]]:
 def _load_from_component_sources() -> list[dict[str, str]]:
     errors: list[str] = []
 
-    # Fallback 1: NSE's official Nifty 500 + Nifty Microcap 250 files.
     try:
         combined: list[dict[str, str]] = []
         for url, label in NIFTY_TOTAL_MARKET_COMPONENT_SOURCES:
@@ -231,7 +233,6 @@ def _load_from_component_sources() -> list[dict[str, str]]:
     except Exception as exc:
         errors.append(str(exc))
 
-    # Fallback 2: NSE Indices versions of the same two official files.
     try:
         combined = []
         for url in NIFTY_TOTAL_MARKET_COMPONENT_FALLBACK_SOURCES:
