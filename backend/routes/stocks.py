@@ -2,8 +2,10 @@ from typing import Any, Optional
 import asyncio
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from backend.config.settings import Settings
+from backend.services.ai.groq import AIInsightService, InsightResponse
 from backend.services.data.fundamentals import get_stock_analysis
 from backend.services.data.stock_charts import build_stock_charts, yahoo_annual_prices
 from backend.services.data.yahoo import YahooFinanceClient, YahooFinanceError
@@ -11,6 +13,10 @@ from backend.services.stocks.fast_nifty_universe import load_fast_nifty_total_ma
 from backend.services.stocks.market_cap_bands import load_market_cap_bands
 from backend.services.stocks.nifty_universe import NiftyUniverseError
 from backend.services.stocks.screening import list_stocks
+from backend.services.stocks.insight_payload import (
+    validate_stock_comparison_context,
+    validate_stock_insight_context,
+)
 
 router = APIRouter()
 client: YahooFinanceClient | None = None
@@ -151,10 +157,6 @@ async def get_stock_universe(
         ))
 
         if not include_metrics and not has_fundamental_filter:
-            # The fast loader is the single source of truth for the cold-load
-            # universe. Do not call nifty_sectors() here: it has a separate
-            # cache and would trigger a second live constituent download on a
-            # fresh Render instance, which can make the browser request time out.
             stocks = await asyncio.to_thread(load_fast_nifty_total_market)
             if sector:
                 stocks = [stock for stock in stocks if stock["sector"] == sector]
@@ -223,9 +225,29 @@ def _load_stock_charts(symbol: str) -> dict[str, Any]:
             "ROE trend is derived from annual net profit and average shareholder equity.",
             "Historical P/E uses year-end market price divided by annual EPS.",
             "Historical P/B is derived from annual equity and the current share count; it is an approximation where share count changed materially.",
-            "Price CAGR uses Screener's 1Y, 3Y, 5Y and 10Y figures for Indian equities, with rolling market-price CAGR as fallback.",
+            "Price CAGR uses 1Y, 3Y, 5Y and 10Y market-price CAGR figures, with rolling market-price CAGR as fallback.",
         ],
     }
+
+
+@router.post("/comparison-insights", response_model=InsightResponse)
+async def generate_stock_comparison_insights(payload: dict[str, Any]) -> InsightResponse:
+    """Interpret the bounded side-by-side stock comparison context."""
+    try:
+        context = validate_stock_comparison_context(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
+        return await AIInsightService(Settings()).generate_insights(
+            data=context,
+            context="stock_comparison",
+            focus="compare business quality, growth consistency, cash generation, financial health, capital efficiency and valuation trade-offs using only supplied values",
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="The AI service is temporarily unavailable") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="The AI service is temporarily unavailable") from exc
 
 
 @router.get("/{symbol}/charts")
@@ -246,6 +268,31 @@ async def get_stock(symbol: str):
         return await asyncio.to_thread(_load_stock_analysis, symbol)
     except YahooFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/{symbol}/insights", response_model=InsightResponse)
+async def generate_stock_insights(symbol: str, payload: dict[str, Any]) -> InsightResponse:
+    """Interpret the bounded individual-stock analysis context."""
+    try:
+        context = validate_stock_insight_context(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    selected = context.get("selected_stock", {})
+    supplied_symbol = (selected.get("fundamentals") or {}).get("symbol")
+    if supplied_symbol and str(supplied_symbol).upper() != symbol.upper():
+        raise HTTPException(status_code=422, detail="Stock symbol does not match the supplied analysis context")
+
+    try:
+        return await AIInsightService(Settings()).generate_insights(
+            data=context,
+            context="stock_analysis",
+            focus="assess business quality, consistency of growth and margins, cash generation, leverage, capital efficiency, valuation and key watch items using only supplied values",
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="The AI service is temporarily unavailable") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="The AI service is temporarily unavailable") from exc
 
 
 @router.get("/{symbol}/fundamentals")
