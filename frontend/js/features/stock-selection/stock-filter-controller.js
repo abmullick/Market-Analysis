@@ -155,12 +155,22 @@ function loadLiquidity() {
 }
 
 async function applyAsyncData(kind) {
+  const before = stocks.length;
   try {
     if (kind === "cap") await loadCapBands();
     else if (kind === "liquidity") await loadLiquidity();
     else await loadMetrics();
   } catch (e) {
     console.warn(`Unable to load ${kind} stock data:`, e);
+    // Never turn a valid 755-stock universe into an apparent zero-result
+    // state just because an optional enrichment endpoint failed.
+    if (before) {
+      const screen = document.getElementById("stock-selection-screen");
+      const notice = document.createElement("div");
+      notice.className = "stock-filter-data-warning";
+      notice.textContent = `${kind === "cap" ? "Market-cap" : "Liquidity"} data is temporarily unavailable; the base stock list is unchanged.`;
+      screen?.querySelector(".stock-filter-controls")?.prepend(notice);
+    }
   }
   page = 1;
   render();
