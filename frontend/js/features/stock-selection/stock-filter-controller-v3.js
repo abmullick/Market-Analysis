@@ -100,10 +100,11 @@ function sfRender() {
   const count = document.getElementById("stock-filter-toggle-count");
   if (count) count.textContent = `${result.length} stocks`;
 
-  list.querySelectorAll(".stock-select-btn").forEach(btn => btn.addEventListener("click", () => {
-    const symbol = btn.closest(".stock-picker-row")?.dataset.symbol;
-    if (symbol) window.location.href = `?symbol=${encodeURIComponent(symbol)}`;
-  }));
+  // Selecting a stock is deliberately different from analyzing it. The
+  // stock-detail module owns selectedStock and the left-side Selected Stock
+  // card. Do not navigate here; its handler runs first and updates that state.
+  // The separate compare auto-add module also observes this click and adds the
+  // symbol to Compare Stocks.
 
   screen.querySelector(".stock-filter-controller-pagination")?.remove();
   if (pages > 1) {
