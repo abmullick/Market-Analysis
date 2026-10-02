@@ -2,7 +2,6 @@ const PAGE_SIZE = 40;
 let stocks = [];
 let page = 1;
 let installed = false;
-let capBandsPromise = null;
 
 function esc(v) {
   return String(v ?? "")
@@ -13,21 +12,26 @@ function esc(v) {
     .replaceAll("'", "&#039;");
 }
 
+function norm(v) {
+  return String(v ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function sectors() {
   const s = document.getElementById("stock-sector");
-  return [...(s?.selectedOptions || [])].map((o) => o.value).filter(Boolean);
+  return [...(s?.selectedOptions || [])].map((o) => norm(o.value)).filter(Boolean);
 }
 
 function ctx() {
   return {
     sectors: sectors(),
-    caps: [...document.querySelectorAll("#stock-cap-filter input:checked")].map((x) => x.value),
+    caps: [...document.querySelectorAll("#stock-cap-filter input:checked")].map((x) => norm(x.value)),
     query: (document.getElementById("stock-filter-search")?.value || "").trim().toLowerCase(),
   };
 }
 
 function capKey(s) {
-  if (s?.market_cap_band) return s.market_cap_band;
+  const supplied = norm(s?.market_cap_band);
+  if (["large", "mid", "small", "micro"].includes(supplied)) return supplied;
   const n = Number(s?.market_cap_cr);
   if (!Number.isFinite(n)) return null;
   if (n >= 100000) return "large";
@@ -39,8 +43,10 @@ function capKey(s) {
 function filtered() {
   const f = ctx();
   return stocks.filter((s) => {
-    if (f.sectors.length && !f.sectors.includes(String(s.sector || ""))) return false;
-    if (f.caps.length && !f.caps.includes(capKey(s))) return false;
+    // Multiple selections within a filter group are ORed. Different groups
+    // are ANDed: (sector A OR sector B) AND (large OR mid) AND search.
+    if (f.sectors.length && !f.sectors.includes(norm(s.sector))) return false;
+    if (f.caps.length && !f.caps.includes(norm(capKey(s)))) return false;
     if (f.query && !`${s.name || ""} ${s.symbol || ""}`.toLowerCase().includes(f.query)) return false;
     return true;
   });
@@ -103,48 +109,14 @@ function render() {
   }
 }
 
-async function loadCaps() {
-  if (capBandsPromise) return capBandsPromise;
-  capBandsPromise = fetch("/api/stocks/market-cap-bands", {
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  })
-    .then(async (r) => {
-      const d = await r.json();
-      if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`);
-      const bands = d?.bands || {};
-      stocks = stocks.map((s) => ({ ...s, market_cap_band: bands[s.symbol] || null }));
-      return d;
-    })
-    .catch((e) => {
-      capBandsPromise = null;
-      throw e;
-    });
-  return capBandsPromise;
-}
-
 function bind() {
-  // Do not intercept or re-toggle the Filter Results button here.
-  // stock-detail/index.js owns that button. A second document-level click
-  // handler was causing the panel to open and immediately close again.
-
-  document.addEventListener("change", async (e) => {
+  // This controller is the single source of truth for filtering. The UI
+  // enhancement modules only update the native controls and dispatch events;
+  // they must not independently hide/filter the rendered rows.
+  document.addEventListener("change", (e) => {
     const t = e.target;
-    if (t?.id === "stock-sector") {
+    if (t?.id === "stock-sector" || t?.matches("#stock-cap-filter input")) {
       page = 1;
-      render();
-      return;
-    }
-
-    if (t?.matches("#stock-cap-filter input")) {
-      page = 1;
-      if (t.checked) {
-        try {
-          await loadCaps();
-        } catch (err) {
-          console.warn("Market-cap classification unavailable:", err);
-        }
-      }
       render();
     }
   });
