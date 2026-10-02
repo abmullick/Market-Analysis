@@ -50,7 +50,7 @@ def _growth(series: list[tuple[str, float]]) -> list[dict[str, float | str | Non
         previous = series[index - 1][1]
         current = series[index][1]
         growth = None
-        if previous != 0 and previous > 0 and current > 0:
+        if previous > 0 and current > 0:
             growth = (current / previous - 1) * 100
         out.append({"year": year, "value": growth})
     return out
@@ -60,10 +60,7 @@ def _trend(series: list[tuple[str, float]]) -> list[dict[str, float | str]]:
     return [{"year": date[:4], "value": value} for date, value in series]
 
 
-def _rolling_cagr(
-    prices: list[dict[str, Any]],
-    years: int,
-) -> list[dict[str, float | str | None]]:
+def _rolling_cagr(prices: list[dict[str, Any]], years: int) -> list[dict[str, float | str | None]]:
     annual: dict[int, float] = {}
     for item in prices:
         try:
@@ -84,6 +81,16 @@ def _rolling_cagr(
         value = (end / start) ** (1 / years) - 1 if start > 0 and end > 0 else None
         out.append({"year": str(end_year), "value": value * 100 if value is not None else None})
     return out
+
+
+def _screener_price_cagr(growth: dict[str, dict[str, float | None]]) -> list[dict[str, float | str | None]]:
+    values = growth.get("Stock Price CAGR", {})
+    period_map = [("1 Year", "1Y"), ("3 Years", "3Y"), ("5 Years", "5Y"), ("10 Years", "10Y")]
+    return [
+        {"year": label, "value": values.get(period)}
+        for period, label in period_map
+        if values.get(period) is not None
+    ]
 
 
 def yahoo_annual_prices(symbol: str, years: int = 7) -> list[dict[str, Any]]:
@@ -110,24 +117,18 @@ def yahoo_annual_prices(symbol: str, years: int = 7) -> list[dict[str, Any]]:
             result = (response.json().get("chart", {}).get("result") or [None])[0]
             if not result:
                 continue
-
             timestamps = result.get("timestamp") or []
             quote = ((result.get("indicators") or {}).get("quote") or [{}])[0]
             closes = quote.get("close") or []
             annual: dict[str, dict[str, Any]] = {}
-
             for timestamp, close in zip(timestamps, closes):
                 if close is None:
                     continue
                 dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-                annual[dt.strftime("%Y")] = {
-                    "date": dt.strftime("%Y-%m-%d"),
-                    "close": float(close),
-                }
+                annual[dt.strftime("%Y")] = {"date": dt.strftime("%Y-%m-%d"), "close": float(close)}
             return [annual[key] for key in sorted(annual)]
         except Exception:
             continue
-
     return []
 
 
@@ -137,14 +138,13 @@ def build_stock_charts(
 ) -> dict[str, Any]:
     income = history.get("income", {})
     balance = history.get("balance", {})
+    growth_tables = history.get("growth", {})
 
     revenue = _series(income.get("annualTotalRevenue", []), "annualTotalRevenue")
     profit = _series(income.get("annualNetIncome", []), "annualNetIncome")
     eps = _series(income.get("annualDilutedEPS", []), "annualDilutedEPS")
     equity = _series(balance.get("annualStockholdersEquity", []), "annualStockholdersEquity")
 
-    # Historical ROE uses net income divided by average opening/closing equity.
-    # It is a trend indicator and is intentionally separate from current TTM ROE.
     equity_map = dict(equity)
     roe: list[tuple[str, float]] = []
     for date, profit_value in profit:
@@ -157,10 +157,15 @@ def build_stock_charts(
         if average_equity != 0:
             roe.append((date, profit_value / average_equity * 100))
 
+    screener_price = _screener_price_cagr(growth_tables)
+    rolling_3y = _rolling_cagr(prices, 3)
+    rolling_5y = _rolling_cagr(prices, 5)
+
     return {
         "eps_growth": _growth(eps),
         "revenue_growth": _growth(revenue),
         "roe_trend": _trend(roe),
-        "price_cagr_3y": _rolling_cagr(prices, 3),
-        "price_cagr_5y": _rolling_cagr(prices, 5),
+        "price_cagr": screener_price,
+        "price_cagr_3y": rolling_3y,
+        "price_cagr_5y": rolling_5y,
     }
