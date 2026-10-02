@@ -1,4 +1,5 @@
 const API_BASE = "/api/stocks";
+const MAX_COMPARE = 4;
 
 const COMPARE_GROUPS = [
   { title: "Valuation", metrics: [["price", "Price", "price"], ["market_cap", "Market Cap", "money"], ["enterprise_value", "Enterprise Value", "money"], ["pe", "P/E", "ratio"], ["forward_pe", "Forward P/E", "ratio"], ["pb", "Price / Book", "ratio"], ["ps", "Price / Sales", "ratio"], ["peg", "PEG", "ratio"], ["ev_ebitda", "EV / EBITDA", "ratio"], ["ev_revenue", "EV / Revenue", "ratio"], ["dividend_yield", "Dividend Yield", "percent"], ["payout_ratio", "Payout Ratio", "percent"]] },
@@ -61,16 +62,16 @@ function metricDisplay(f, key, type, currency) {
 function comparisonState(f, key, allValues) {
   const raw = Number(f[key]);
   if (!Number.isFinite(raw)) return "neutral";
-
   if (NEGATIVE_IS_BAD.has(key) && raw < 0) return "negative";
 
   const values = allValues.filter((v) => Number.isFinite(v));
   if (values.length < 2) return "neutral";
-  const other = values.find((v) => v !== raw);
-  if (other == null || raw === other) return "neutral";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (min === max) return "neutral";
 
-  if (LOWER_IS_BETTER.has(key)) return raw < Math.max(...values) && raw === Math.min(...values) ? "favorable" : "unfavorable";
-  if (HIGHER_IS_BETTER.has(key)) return raw === Math.max(...values) ? "favorable" : "unfavorable";
+  if (LOWER_IS_BETTER.has(key)) return raw === min ? "favorable" : "unfavorable";
+  if (HIGHER_IS_BETTER.has(key)) return raw === max ? "favorable" : "unfavorable";
   return "neutral";
 }
 
@@ -85,10 +86,71 @@ function injectStyles() {
   const style = document.createElement("style");
   style.id = "stock-comparison-styles";
   style.textContent = `
-    .stock-compare-bar{display:flex;align-items:center;gap:12px;margin:0 0 18px;padding:14px 16px;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:var(--btn-shadow)}
-    .stock-compare-bar strong{color:var(--color-primary);font-size:13px}.stock-compare-slots{display:flex;gap:8px;flex:1}.stock-compare-slot{padding:9px 12px;border:1px dashed var(--color-slate-400);border-radius:var(--radius-pill);color:var(--color-text-light);font-size:12px;min-width:130px;background:var(--color-bg)}.stock-compare-slot.filled{border-style:solid;color:var(--color-primary);background:var(--color-slate-100);font-weight:600}.stock-compare-action{margin-left:auto}.stock-compare-choice{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px;margin-right:8px!important;color:var(--color-text-light)!important;font-size:11px!important;font-weight:700!important;white-space:nowrap}.stock-compare-choice input{width:15px!important;height:15px!important;margin:0}.stock-comparison-header{margin:8px 0 18px;padding:22px 24px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:linear-gradient(135deg,#ffffff,#f0f7ff);box-shadow:var(--btn-shadow)}.stock-comparison-header h1{margin:0 0 5px;color:var(--color-primary);font-size:1.55rem}.stock-comparison-header p{margin:0;color:var(--color-text-light);font-size:13px}.stock-comparison-table-wrap{overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:0 6px 22px rgba(15,23,42,.06)}.stock-comparison-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px}.stock-comparison-table th,.stock-comparison-table td{padding:12px 14px;border-bottom:1px solid #edf1f6;text-align:right;font-size:13px;font-variant-numeric:tabular-nums}.stock-comparison-table th:first-child,.stock-comparison-table td:first-child{text-align:left;position:sticky;left:0;background:var(--color-surface);z-index:1}.stock-comparison-table thead th{background:#f1f6fc;color:var(--color-primary);font-weight:700;position:sticky;top:0;z-index:2}.stock-comparison-table thead th:first-child{z-index:3}.stock-comparison-table .compare-group td{padding:11px 14px;background:#edf4fb;color:#1e3a5f;font-weight:700;text-align:left;border-bottom:1px solid #dbe7f3;letter-spacing:.02em}.stock-comparison-table tbody tr:hover td{background:#fbfdff}.stock-comparison-table tbody tr:hover td.compare-favorable{background:#dcfce7}.stock-comparison-table tbody tr:hover td.compare-negative,.stock-comparison-table tbody tr:hover td.compare-unfavorable{background:#fee2e2}.stock-comparison-table tbody tr:last-child td{border-bottom:0}
-    .stock-comparison-table td.compare-favorable{background:var(--color-green-50);color:var(--color-green-700);font-weight:700;box-shadow:inset 3px 0 0 var(--color-green-500)}.stock-comparison-table td.compare-unfavorable{background:#fff7f7;color:var(--color-text);box-shadow:inset 3px 0 0 #fca5a5}.stock-comparison-table td.compare-negative{background:var(--color-red-50);color:var(--color-red-700);font-weight:700;box-shadow:inset 3px 0 0 var(--color-red-500)}.stock-comparison-table td.compare-negative::before{content:"⚠ ";font-size:11px}.stock-comparison-table td.compare-unfavorable::before{content:""}.stock-comparison-table .compare-favorable::after{content:"✓";margin-left:6px;font-size:10px;opacity:.8}
-    @media(max-width:700px){.stock-compare-bar{align-items:stretch;flex-direction:column}.stock-compare-action{width:100%}.stock-compare-slots{width:100%}.stock-compare-slot{flex:1;min-width:0}.stock-comparison-header{padding:18px}.stock-comparison-table th,.stock-comparison-table td{padding:10px 11px}}
+    /* Selection controls intentionally use the same compact rectangular treatment as the Mutual Fund Analysis controls. */
+    .stock-select-btn,
+    .stock-compare-action,
+    .stock-compare-remove {
+      display:inline-flex!important;
+      align-items:center!important;
+      justify-content:center!important;
+      gap:6px!important;
+      min-height:36px!important;
+      padding:0 14px!important;
+      border-radius:var(--radius-sm)!important;
+      font-family:var(--font-family)!important;
+      font-size:13px!important;
+      font-weight:var(--btn-font-weight)!important;
+      line-height:1!important;
+      border:1px solid transparent!important;
+      cursor:pointer!important;
+      transition:var(--btn-transition)!important;
+      box-shadow:var(--btn-shadow)!important;
+      white-space:nowrap!important;
+    }
+    .stock-select-btn{width:auto!important;min-width:104px!important;flex:0 0 auto!important;background:linear-gradient(135deg,var(--color-primary),var(--color-primary-light))!important;color:#fff!important}
+    .stock-select-btn:hover,.stock-compare-action:hover{background:linear-gradient(135deg,var(--color-primary-light),var(--color-primary))!important;color:#fff!important;transform:translateY(-1px)!important;box-shadow:var(--btn-shadow-hover)!important}
+    .stock-select-btn:active,.stock-compare-action:active{transform:translateY(0)!important;box-shadow:var(--btn-shadow-active)!important}
+
+    .stock-compare-card{margin-top:18px;padding:15px;border:1px solid #dbe4f0;border-radius:var(--radius-md);background:linear-gradient(180deg,#ffffff 0%,#f6faff 100%);box-shadow:0 5px 18px rgba(15,23,42,.05)}
+    .stock-compare-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .stock-compare-card-title{color:var(--color-primary);font-size:13px;font-weight:700}
+    .stock-compare-card-help{margin-top:3px;color:var(--color-text-light);font-size:11px;line-height:1.4}
+    .stock-compare-slots{display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:10px}
+    .stock-compare-slot{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:34px;padding:7px 9px;border:1px dashed #cbd5e1;border-radius:var(--radius-sm);background:#f8fafc;color:var(--color-text-light);font-size:11px}
+    .stock-compare-slot.filled{border-style:solid;border-color:#c9d9ec;background:#eef6ff;color:var(--color-primary);font-weight:600}
+    .stock-compare-slot-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .stock-compare-remove{min-height:24px!important;width:24px!important;min-width:24px!important;padding:0!important;border-radius:var(--radius-sm)!important;background:#fff!important;color:#64748b!important;border-color:#dbe4ee!important;box-shadow:none!important;font-size:14px!important}
+    .stock-compare-remove:hover{background:#fff1f2!important;color:#dc2626!important;border-color:#fecdd3!important;transform:none!important}
+    .stock-compare-action{width:100%!important;background:linear-gradient(135deg,var(--color-primary),var(--color-primary-light))!important;color:#fff!important}
+    .stock-compare-action:disabled{opacity:.48!important;cursor:not-allowed!important;box-shadow:none!important;transform:none!important}
+    .stock-compare-limit{margin:0;color:var(--color-text-light);font-size:10px;line-height:1.4}
+    .stock-compare-choice{display:inline-flex!important;flex-direction:row!important;align-items:center!important;gap:6px!important;margin-right:10px!important;color:var(--color-text-light)!important;font-size:11px!important;font-weight:700!important;white-space:nowrap!important}
+    .stock-compare-choice input{width:15px!important;height:15px!important;margin:0!important;accent-color:var(--color-primary)}
+
+    .stock-comparison-header{margin:8px 0 18px;padding:22px 24px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:linear-gradient(135deg,#ffffff,#f0f7ff);box-shadow:var(--btn-shadow)}
+    .stock-comparison-header h1{margin:0 0 5px;color:var(--color-primary);font-size:1.55rem}
+    .stock-comparison-header p{margin:0;color:var(--color-text-light);font-size:13px}
+    .stock-comparison-table-wrap{overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:0 6px 22px rgba(15,23,42,.06)}
+    .stock-comparison-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px}
+    .stock-comparison-table th,.stock-comparison-table td{padding:12px 14px;border-bottom:1px solid #edf1f6;text-align:right;font-size:13px;font-variant-numeric:tabular-nums}
+    .stock-comparison-table th:first-child,.stock-comparison-table td:first-child{text-align:left;position:sticky;left:0;background:var(--color-surface);z-index:1}
+    .stock-comparison-table thead th{background:#f1f6fc;color:var(--color-primary);font-weight:700;position:sticky;top:0;z-index:2}
+    .stock-comparison-table thead th:first-child{z-index:3}
+    .stock-comparison-table .compare-group td{padding:11px 14px;background:#edf4fb;color:#1e3a5f;font-weight:700;text-align:left;border-bottom:1px solid #dbe7f3;letter-spacing:.02em}
+    .stock-comparison-table tbody tr:hover td{background:#fbfdff}
+    .stock-comparison-table tbody tr:last-child td{border-bottom:0}
+    .stock-comparison-table td.compare-favorable{background:var(--color-green-50);color:var(--color-green-700);font-weight:700;box-shadow:inset 3px 0 0 var(--color-green-500)}
+    .stock-comparison-table td.compare-unfavorable{background:#fff7f7;color:var(--color-text);box-shadow:inset 3px 0 0 #fca5a5}
+    .stock-comparison-table td.compare-negative{background:var(--color-red-50);color:var(--color-red-700);font-weight:700;box-shadow:inset 3px 0 0 var(--color-red-500)}
+    .stock-comparison-table td.compare-negative::before{content:"⚠ ";font-size:11px}
+    .stock-comparison-table .compare-favorable::after{content:"✓";margin-left:6px;font-size:10px;opacity:.8}
+    .stock-comparison-table tbody tr:hover td.compare-favorable{background:#dcfce7}
+    .stock-comparison-table tbody tr:hover td.compare-negative,.stock-comparison-table tbody tr:hover td.compare-unfavorable{background:#fee2e2}
+    @media(max-width:700px){
+      .stock-compare-card{margin-top:14px}
+      .stock-comparison-header{padding:18px}
+      .stock-comparison-table th,.stock-comparison-table td{padding:10px 11px}
+    }
   `;
   document.head.appendChild(style);
 }
@@ -96,28 +158,62 @@ function injectStyles() {
 function renderCompareBar() {
   const screen = document.getElementById("stock-selection-screen");
   if (!screen || screen.hidden) return;
-  let bar = document.getElementById("stock-compare-bar");
-  if (!bar) {
-    bar = document.createElement("div");
-    bar.id = "stock-compare-bar";
-    const layout = screen.querySelector(".stock-selection-layout");
-    if (!layout) return;
-    layout.parentElement.insertBefore(bar, layout);
+  const panel = screen.querySelector(".stock-selected-panel");
+  if (!panel) return;
+
+  let card = panel.querySelector("#stock-compare-card");
+  if (!card) {
+    card = document.createElement("section");
+    card.id = "stock-compare-card";
+    card.className = "stock-compare-card";
+    panel.appendChild(card);
   }
 
   renderingBar = true;
-  const slots = [compareSymbols[0], compareSymbols[1]].map((s, i) =>
-    `<span class="stock-compare-slot ${s ? "filled" : ""}">${s ? esc(s.replace(/\\.NS$|\\.BO$/i, "")) : `Stock ${i + 1}`}</span>`,
-  ).join("");
-  bar.innerHTML = `<strong>Compare stocks</strong><div class="stock-compare-slots">${slots}</div><button class="stock-compare-action btn btn-primary" type="button" ${compareSymbols.length !== 2 ? "disabled" : ""}>Compare 2 Stocks</button>`;
-  bar.querySelector("button").addEventListener("click", () => showComparison(compareSymbols));
+  const slots = Array.from({ length: MAX_COMPARE }, (_, i) => {
+    const symbol = compareSymbols[i];
+    return symbol
+      ? `<div class="stock-compare-slot filled"><span class="stock-compare-slot-name">${esc(symbol.replace(/\\.NS$|\\.BO$/i, ""))}</span><button type="button" class="stock-compare-remove" data-remove-symbol="${esc(symbol)}" aria-label="Remove ${esc(symbol)}">×</button></div>`
+      : `<div class="stock-compare-slot"><span class="stock-compare-slot-name">Stock ${i + 1}</span></div>`;
+  }).join("");
+
+  const canCompare = compareSymbols.length >= 2;
+  const buttonText = canCompare ? `Compare ${compareSymbols.length} Stocks` : `Select ${2 - compareSymbols.length} More`;
+  card.innerHTML = `
+    <div class="stock-compare-card-header">
+      <div>
+        <div class="stock-compare-card-title">Compare stocks</div>
+        <div class="stock-compare-card-help">Select 2–4 stocks to compare all fundamental metrics side by side.</div>
+      </div>
+    </div>
+    <div class="stock-compare-slots">${slots}</div>
+    <button class="stock-compare-action" type="button" ${canCompare ? "" : "disabled"}>${buttonText}</button>
+    <p class="stock-compare-limit">${compareSymbols.length}/4 selected</p>
+  `;
+
+  card.querySelectorAll("[data-remove-symbol]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const symbol = button.dataset.removeSymbol;
+      compareSymbols = compareSymbols.filter((x) => x !== symbol);
+      renderCompareBar();
+      decorateRows();
+    });
+  });
+
+  card.querySelector(".stock-compare-action").addEventListener("click", () => {
+    if (compareSymbols.length >= 2) showComparison(compareSymbols);
+  });
   queueMicrotask(() => { renderingBar = false; });
 }
 
 function decorateRows() {
   if (renderingBar) return;
   const rows = document.querySelectorAll("#stock-selection-screen .stock-picker-row");
-  if (!rows.length) return;
+  if (!rows.length) {
+    renderCompareBar();
+    return;
+  }
 
   rows.forEach((row) => {
     if (row.dataset.compareReady === "1") {
@@ -137,7 +233,7 @@ function decorateRows() {
     label.querySelector("input").addEventListener("click", (event) => event.stopPropagation());
     label.querySelector("input").addEventListener("change", (event) => {
       if (event.target.checked) {
-        if (compareSymbols.length >= 2) {
+        if (compareSymbols.length >= MAX_COMPARE) {
           event.target.checked = false;
           return;
         }
@@ -174,22 +270,25 @@ function comparisonTable(datas) {
 }
 
 async function showComparison(symbols) {
-  if (symbols.length !== 2) return;
+  const uniqueSymbols = [...new Set(symbols)].slice(0, MAX_COMPARE);
+  if (uniqueSymbols.length < 2) return;
+
   const selection = document.getElementById("stock-selection-screen");
   const analysis = document.getElementById("stock-analysis-screen");
   const details = document.getElementById("stock-details");
   const status = document.getElementById("stock-analysis-status");
   if (!selection || !analysis || !details) return;
 
+  compareSymbols = uniqueSymbols;
   selection.hidden = true;
   analysis.hidden = false;
-  history.pushState({}, "", `?compare=${symbols.map(encodeURIComponent).join(",")}`);
+  history.pushState({}, "", `?compare=${uniqueSymbols.map(encodeURIComponent).join(",")}`);
   status.textContent = "Loading comparison…";
-  details.innerHTML = `<div class="stock-loading">Loading ${esc(symbols[0])} and ${esc(symbols[1])}…</div>`;
+  details.innerHTML = `<div class="stock-loading">Loading ${uniqueSymbols.map(esc).join(", ")}…</div>`;
 
   try {
-    const datas = await Promise.all(symbols.map(fetchStock));
-    details.innerHTML = `<div class="stock-comparison-header"><h1>Stock Comparison</h1><p>Green marks the more favorable value for comparable metrics. Red marks negative or materially unfavorable values. ✓ and ⚠ indicate the reason for the highlight.</p></div>${comparisonTable(datas)}`;
+    const datas = await Promise.all(uniqueSymbols.map(fetchStock));
+    details.innerHTML = `<div class="stock-comparison-header"><h1>Stock Comparison</h1><p>Comparing ${datas.length} stocks. Green marks the more favorable value for comparable metrics; red marks negative values. ✓ and ⚠ indicate the reason for the highlight.</p></div>${comparisonTable(datas)}`;
     status.textContent = "";
   } catch (e) {
     details.innerHTML = `<div class="stock-error"><h2>Unable to load comparison</h2><p>${esc(e.message)}</p></div>`;
@@ -215,8 +314,8 @@ export function initStockComparison() {
   const params = new URLSearchParams(location.search);
   const compare = params.get("compare");
   if (compare) {
-    const symbols = compare.split(",").map((x) => decodeURIComponent(x).trim().toUpperCase()).filter(Boolean).slice(0, 2);
-    if (symbols.length === 2) {
+    const symbols = compare.split(",").map((x) => decodeURIComponent(x).trim().toUpperCase()).filter(Boolean).slice(0, MAX_COMPARE);
+    if (symbols.length >= 2) {
       compareSymbols = symbols;
       showComparison(symbols);
     }
