@@ -101,7 +101,11 @@ A missing value is not silently replaced with an invented estimate.
 
 ## 16. Performance and Stability
 
-The selector is designed so quick filter changes operate against the loaded universe whenever possible. Identical lightweight universe requests are coalesced, and the filter UI avoids MutationObserver feedback loops and repeated full-page DOM rebuilds.
+The selector is designed so quick filter changes operate against the loaded universe whenever possible. Identical stock-API requests are coalesced, successful stock analysis/chart/pedigree responses are reused briefly within the current page, and the filter UI avoids MutationObserver feedback loops and repeated full-page DOM rebuilds.
+
+The backend keeps blocking financial-data retrieval out of FastAPI's async event loop by running the synchronous analysis, chart and pedigree builders in worker threads. This prevents a slow external financial-data request from blocking unrelated navigation or a fresh Stock Analysis page.
+
+When leaving the page, outstanding stock-API requests are aborted so an abandoned analysis does not continue competing with the next selection view.
 
 The intended architecture is:
 
@@ -117,6 +121,10 @@ Pagination for display
 Select → Selected Stock + Compare Stocks
         ↓
 Analyze Stock → Individual report
+        ↓
+Shared/coalesced analysis requests
+        ↓
+Historical / quality / pedigree enhancements
 ```
 
 ## 17. Help & Methodology
