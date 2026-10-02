@@ -362,6 +362,23 @@
     background: #f8fbff;
 }
 
+#stock-analysis-screen {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 150px);
+}
+
+#stock-analysis-screen #stock-details {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+#stock-analysis-screen #stock-details > .stock-warnings {
+    margin-top: auto;
+    background: #f8fafc;
+}
+
 .stock-warnings {
     background: #f8fafc;
 }
