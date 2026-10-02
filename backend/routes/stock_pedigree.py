@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -22,14 +23,17 @@ async def compare_stock_pedigree(
     if not cleaned or len(cleaned) > 4:
         raise HTTPException(status_code=400, detail="Provide between 1 and 4 stock symbols.")
 
-    results = []
-    errors = []
-    for symbol in cleaned:
-        try:
-            results.append(build_stock_pedigree(client, symbol))
-        except ScreenerFinanceError as exc:
-            errors.append({"symbol": symbol, "error": str(exc)})
+    def build_all() -> tuple[list[dict], list[dict]]:
+        results = []
+        errors = []
+        for symbol in cleaned:
+            try:
+                results.append(build_stock_pedigree(client, symbol))
+            except ScreenerFinanceError as exc:
+                errors.append({"symbol": symbol, "error": str(exc)})
+        return results, errors
 
+    results, errors = await asyncio.to_thread(build_all)
     if not results and errors:
         raise HTTPException(status_code=502, detail=errors[0]["error"])
     return {"stocks": results, "errors": errors}
@@ -38,6 +42,6 @@ async def compare_stock_pedigree(
 @router.get("/pedigree/{symbol}")
 async def stock_pedigree(symbol: str):
     try:
-        return build_stock_pedigree(client, symbol)
+        return await asyncio.to_thread(build_stock_pedigree, client, symbol)
     except ScreenerFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
