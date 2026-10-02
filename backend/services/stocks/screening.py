@@ -88,6 +88,7 @@ def list_stocks(
     max_ev_revenue: float | None = None,
     min_dividend_yield: float | None = None,
     max_dividend_yield: float | None = None,
+    include_liquidity: bool = False,
 ) -> dict[str, Any]:
     items = load_nifty_total_market()
     if sector:
@@ -102,10 +103,12 @@ def list_stocks(
             quote = client.quote_summary(item["symbol"])
             market_cap = number(quote.get("marketCap"))
             price = number(quote.get("regularMarketPrice"))
-            try:
-                liquidity = get_three_month_liquidity(item["symbol"])
-            except LiquidityDataError:
-                liquidity = {"avg_daily_volume_3m": None, "avg_daily_traded_value_3m_cr": None, "trading_observations_3m": 0, "liquidity_market_data_source": None}
+            liquidity = {"avg_daily_volume_3m": None, "avg_daily_traded_value_3m_cr": None, "trading_observations_3m": 0, "liquidity_market_data_source": None}
+            if include_liquidity:
+                try:
+                    liquidity = get_three_month_liquidity(item["symbol"])
+                except LiquidityDataError:
+                    pass
             avg_traded_value_cr = liquidity.get("avg_daily_traded_value_3m_cr")
             pe = number(quote.get("trailingPE"))
             peg = number(quote.get("pegRatio")) or _peg_from_history(client, item["symbol"], pe)
@@ -135,4 +138,4 @@ def list_stocks(
 
     stocks = [s for s in stocks if _matches(s["market_cap_cr"], min_market_cap_cr, max_market_cap_cr) and _matches(s["pe"], min_pe, max_pe) and _matches(s["pb"], min_pb, max_pb) and _matches(s["peg"], min_peg, max_peg) and _matches(s["roa"], min_roa, max_roa) and _matches(s["roe"], min_roe, max_roe) and _matches(s["debt_equity"], min_debt_equity, max_debt_equity) and _matches(s["current_ratio"], min_current_ratio, max_current_ratio) and _matches(s["ev_ebitda"], min_ev_ebitda, max_ev_ebitda) and _matches(s["ev_revenue"], min_ev_revenue, max_ev_revenue) and _matches(s["dividend_yield"], min_dividend_yield, max_dividend_yield)]
     stocks.sort(key=lambda s: (s["market_cap_cr"] is not None, s["market_cap_cr"] or 0), reverse=True)
-    return {"sector": sector, "stocks": stocks, "count": len(stocks), "universe": "Nifty Total Market", "classification_source": "NSE Indices / Nifty Total Market constituent CSV", "liquidity_method": "3-month daily market volume × daily close; average daily traded value used for classification", "liquidity_thresholds_cr": {"high": 50, "moderate": 10, "low": 2, "illiquid": 0}, "sectors": nifty_sectors()}
+    return {"sector": sector, "stocks": stocks, "count": len(stocks), "universe": "Nifty Total Market", "classification_source": "NSE Indices / Nifty Total Market constituent CSV", "liquidity_method": "3-month daily market volume × daily close; average daily traded value used for classification", "liquidity_thresholds_cr": {"high": 50, "moderate": 10, "low": 2, "illiquid": 0}, "liquidity_loaded": include_liquidity, "sectors": nifty_sectors()}
