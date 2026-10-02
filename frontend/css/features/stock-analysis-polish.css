@@ -72,10 +72,41 @@
 .stock-comparison-table-wrap table tbody tr:hover td { background:#f7fbff; }
 .stock-comparison-table-wrap table td,.stock-comparison-table-wrap table th { transition:background-color .15s ease; }
 
+/* Stock AI Insights — mirrors the Mutual Fund Analysis AI action treatment. */
+.stock-ai-insights-section { margin: 0 0 18px; background:linear-gradient(135deg,#ffffff,#f3f8ff); border-color:#cfe0f4; }
+.stock-ai-insights-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+.stock-ai-insights-heading h2 { margin:0; }
+.stock-ai-insights-subtitle { margin:5px 0 0; color:var(--color-text-light); font-size:12px; line-height:1.5; }
+.stock-ai-insights-button { flex:0 0 auto; white-space:nowrap; }
+.stock-ai-insights-status { margin:0 0 12px; color:var(--color-text-light); font-size:12px; }
+.stock-ai-insights-result { min-height:0; }
+.stock-ai-insights-result-section { padding:12px 0; border-top:1px solid rgba(148,163,184,.20); }
+.stock-ai-insights-result-title { margin:0 0 6px; color:var(--color-primary); font-size:13px; font-weight:750; }
+.stock-ai-insights-result-text,.stock-ai-insights-result-list { margin:0; color:var(--color-text); font-size:13px; line-height:1.6; }
+.stock-ai-insights-result-list { padding-left:19px; }
+.stock-ai-insights-result-list li + li { margin-top:5px; }
+.stock-ai-insights-result-empty { color:var(--color-text-light); }
+.stock-ai-insights-loading { padding:15px; border:1px dashed #bfd3e8; border-radius:10px; background:#f7fbff; color:var(--color-text-light); font-size:13px; }
+.stock-ai-insights-error { margin:0 0 8px; color:var(--color-red-700); font-size:13px; }
+.stock-ai-insights-retry { padding:0; border:0; background:none; color:var(--color-primary); cursor:pointer; font-weight:700; }
+.stock-ai-insights-disclosure { margin:10px 0 0; color:var(--color-text-light); font-size:10px; line-height:1.5; }
+.stock-ai-comparison-insights { margin-top:0; }
+.stock-comparison-header { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:12px; }
+.stock-comparison-header > p { flex:1 1 100%; }
+.stock-comparison-header .stock-ai-comparison-button { margin-left:auto; }
+
 #stock-analysis-screen { display:flex; flex-direction:column; min-height:calc(100vh - 150px); }
 #stock-analysis-screen #stock-details { display:flex; flex-direction:column; flex:1; }
 #stock-analysis-screen #stock-details > .stock-warnings { order:999; margin-top:auto; background:linear-gradient(180deg,#fbfdff,#f3f7fb); }
 .stock-warnings { background:linear-gradient(180deg,#fbfdff,#f3f7fb); }
 .stock-warnings .stock-section-header { margin-bottom:10px; }
 
-@media (max-width:700px) { .stock-hero{padding:22px;} .stock-section{padding:15px;} .stock-summary-grid .stock-metric-card{min-height:72px;} .stock-statement-tabs{width:100%;overflow-x:auto;} }
+@media (max-width:700px) {
+    .stock-hero{padding:22px;}
+    .stock-section{padding:15px;}
+    .stock-summary-grid .stock-metric-card{min-height:72px;}
+    .stock-statement-tabs{width:100%;overflow-x:auto;}
+    .stock-ai-insights-heading { display:block; }
+    .stock-ai-insights-button { margin-top:10px; }
+    .stock-comparison-header .stock-ai-comparison-button { margin-left:0; }
+}
