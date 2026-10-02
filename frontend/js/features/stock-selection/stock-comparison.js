@@ -29,7 +29,7 @@ const NEGATIVE_IS_BAD = new Set([
 
 let compareSymbols = [];
 let observerStarted = false;
-let renderingBar = false;
+let comparisonInFlightKey = null;
 
 function esc(v) {
   return String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
@@ -171,7 +171,6 @@ function renderCompareBar() {
     panel.appendChild(card);
   }
 
-  renderingBar = true;
   const slots = Array.from({ length: MAX_COMPARE }, (_, i) => {
     const symbol = compareSymbols[i];
     return symbol
@@ -206,17 +205,18 @@ function renderCompareBar() {
   card.querySelector(".stock-compare-action").addEventListener("click", () => {
     if (compareSymbols.length >= 2) showComparison(compareSymbols);
   });
-  queueMicrotask(() => { renderingBar = false; });
 }
 
 function decorateRows() {
-  if (renderingBar) return;
-  const rows = document.querySelectorAll("#stock-selection-screen .stock-picker-row");
+  const screen = document.getElementById("stock-selection-screen");
+  if (!screen || screen.hidden) return;
+  const rows = screen.querySelectorAll(".stock-picker-row");
   if (!rows.length) {
-    renderCompareBar();
+    if (!screen.querySelector("#stock-compare-card")) renderCompareBar();
     return;
   }
 
+  let decoratedAny = false;
   rows.forEach((row) => {
     if (row.dataset.compareReady === "1") {
       const checkbox = row.querySelector(".stock-compare-choice input");
@@ -224,6 +224,7 @@ function decorateRows() {
       return;
     }
     row.dataset.compareReady = "1";
+    decoratedAny = true;
     const symbol = row.dataset.symbol;
     const select = row.querySelector(".stock-select-btn");
     if (!select) return;
@@ -248,7 +249,8 @@ function decorateRows() {
     });
     select.parentElement.insertBefore(label, select);
   });
-  renderCompareBar();
+
+  if (decoratedAny || !screen.querySelector("#stock-compare-card")) renderCompareBar();
 }
 
 async function fetchStock(symbol) {
@@ -285,12 +287,18 @@ function comparisonTable(datas) {
 async function showComparison(symbols) {
   const uniqueSymbols = [...new Set(symbols)].slice(0, MAX_COMPARE);
   if (uniqueSymbols.length < 2) return;
+  const comparisonKey = uniqueSymbols.join(",");
+  if (comparisonInFlightKey === comparisonKey) return;
+  comparisonInFlightKey = comparisonKey;
 
   const selection = document.getElementById("stock-selection-screen");
   const analysis = document.getElementById("stock-analysis-screen");
   const details = document.getElementById("stock-details");
   const status = document.getElementById("stock-analysis-status");
-  if (!selection || !analysis || !details) return;
+  if (!selection || !analysis || !details) {
+    comparisonInFlightKey = null;
+    return;
+  }
 
   compareSymbols = uniqueSymbols;
   selection.hidden = true;
@@ -306,6 +314,8 @@ async function showComparison(symbols) {
   } catch (e) {
     details.innerHTML = `<div class="stock-error"><h2>Unable to load comparison</h2><p>${esc(e.message)}</p></div>`;
     status.textContent = "";
+  } finally {
+    comparisonInFlightKey = null;
   }
 }
 
@@ -317,7 +327,11 @@ export function initStockComparison() {
   if (!observerStarted) {
     observerStarted = true;
     const observer = new MutationObserver(() => {
-      if (!renderingBar) decorateRows();
+      if (screen.hidden) return;
+      const rows = screen.querySelectorAll(".stock-picker-row");
+      const needsDecoration = [...rows].some((row) => row.dataset.compareReady !== "1");
+      const missingCompareBar = !screen.querySelector("#stock-compare-card");
+      if (needsDecoration || missingCompareBar) decorateRows();
     });
     observer.observe(screen, { childList: true, subtree: true });
   }
