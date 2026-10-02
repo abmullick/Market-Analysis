@@ -96,17 +96,12 @@ function navigateToEntry(entry) {
     openAccordionItem(target);
     target.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    // Temporary highlight; restartable on repeat navigations.
     target.classList.remove("search-highlight");
     void target.offsetWidth;
     target.classList.add("search-highlight");
     window.setTimeout(() => target.classList.remove("search-highlight"), HIGHLIGHT_DURATION_MS);
 }
 
-/**
- * Single central search pipeline used by typing, Enter, suggestion chips,
- * and clearing. No AI, no network — purely local.
- */
 function initSearch() {
     const wrapper = buildSearchUI();
     if (!wrapper) return;
@@ -144,8 +139,6 @@ function initSearch() {
         if (event.key !== "Enter") return;
         event.preventDefault();
         window.clearTimeout(debounceTimer);
-        // Enter: jump to the top result when it is a strong match,
-        // otherwise keep the ranked results displayed.
         handleSearch(input.value, { navigate: true });
     });
 
@@ -161,13 +154,105 @@ function initSearch() {
             const query = chip.dataset.query || chip.textContent;
             input.value = query;
             clearBtn.hidden = false;
-            // Suggested questions run through the exact same search pipeline.
             handleSearch(query, { navigate: true });
         });
     });
 }
 
+/* Keep Help & Methodology synchronized with the implemented Stock Analysis page. */
+function updateStockAnalysisHelp() {
+    const sections = [...document.querySelectorAll(".help-section")];
+    const section = sections.find((s) => {
+        const h = s.querySelector("h3");
+        return h && h.textContent.trim() === "Stock Analysis";
+    });
+    if (!section) return;
+
+    section.innerHTML = `
+        <h3>Stock Analysis</h3>
+        <div class="help-grid">
+            <div class="help-card">
+                <h4>Stock Universe & Selection</h4>
+                <p>
+                    The Stock Analysis selector uses the Nifty Total Market universe — the Nifty 500 plus the Nifty
+                    Microcap 250 source universe. The selector supports sector filtering, company/symbol search,
+                    and market-cap presets for Large Cap, Mid Cap, Small Cap, and Micro Cap.
+                </p>
+            </div>
+            <div class="help-card">
+                <h4>Multi-Select Screening</h4>
+                <p>
+                    Sector selection is multi-select: choosing several sectors includes stocks from any selected sector.
+                    Search, market-cap presets, and the other screening controls refine the already-loaded universe
+                    locally where possible, avoiding unnecessary repeated backend requests.
+                </p>
+            </div>
+            <div class="help-card">
+                <h4>Select, Analyze & Compare</h4>
+                <p>
+                    Selecting a stock makes it the active stock for analysis and also adds it to the Compare Stocks list.
+                    The user can remove it from the comparison list later. Up to four stocks can be staged for comparison,
+                    and the selected stock can be opened in the individual analysis view.
+                </p>
+            </div>
+            <div class="help-card">
+                <h4>Individual Stock Analysis</h4>
+                <p>
+                    The analysis view presents company summary data, valuation ratios, profitability, financial health,
+                    growth metrics, historical financial statements, and valuation/performance trend charts where source
+                    data is available. Debt / Equity is included as a core financial-health metric and as a screening field.
+                </p>
+            </div>
+            <div class="help-card">
+                <h4>Data Sources</h4>
+                <p>
+                    Screener is the primary Indian fundamental-data source for company financials and ratios. Yahoo
+                    market data is used as supplemental market data where appropriate, including Forward P/E and Beta.
+                    Values that are not meaningful for a particular financial business are displayed as
+                    <strong>N/M — Not Meaningful</strong> rather than as misleading dashes.
+                </p>
+            </div>
+            <div class="help-card">
+                <h4>Data Notes & Missing Values</h4>
+                <p>
+                    A missing value means the relevant source did not provide a usable value; it is not silently replaced
+                    with an invented estimate. The analysis page keeps Data Notes at the bottom of the page so they do not
+                    interrupt the financial-statement reading flow.
+                </p>
+            </div>
+            <div class="help-card">
+                <h4>Comparison View</h4>
+                <p>
+                    The comparison page presents the selected stocks side by side using the same fundamental data model.
+                    Debt / Equity is included alongside the other core valuation, profitability, growth, and financial-health
+                    metrics, with consistent table dimensions and source-aware missing-value treatment.
+                </p>
+            </div>
+            <div class="help-card">
+                <h4>Filter Performance & Stability</h4>
+                <p>
+                    The stock selector avoids mutation-observer feedback loops and repeated full-page DOM rebuilds.
+                    Quick filters are designed to operate against the loaded universe without continuously recalculating
+                    the backend universe, keeping refreshes and filter interactions responsive.
+                </p>
+            </div>
+        </div>`;
+
+    // Remove the obsolete Stock Analysis card from the Future / Planned section.
+    const future = sections.find((s) => {
+        const h = s.querySelector("h3");
+        return h && h.textContent.trim() === "Future / Planned";
+    });
+    if (future) {
+        future.querySelectorAll(".help-card").forEach((card) => {
+            const h = card.querySelector("h4");
+            if (h && h.textContent.trim() === "Stock Analysis") card.remove();
+        });
+    }
+}
+
 export function initHelp() {
+    updateStockAnalysisHelp();
     initSearch();
 
     const triggers = document.querySelectorAll(".metric-trigger");
