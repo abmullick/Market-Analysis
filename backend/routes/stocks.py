@@ -1,4 +1,5 @@
 from typing import Any, Optional
+import asyncio
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -6,7 +7,8 @@ from backend.config.settings import Settings
 from backend.services.data.fundamentals import get_stock_analysis
 from backend.services.data.stock_charts import build_stock_charts, yahoo_annual_prices
 from backend.services.data.yahoo import YahooFinanceClient, YahooFinanceError
-from backend.services.stocks.nifty_universe import NiftyUniverseError, load_nifty_total_market, nifty_sectors
+from backend.services.stocks.fast_nifty_universe import load_fast_nifty_total_market
+from backend.services.stocks.nifty_universe import NiftyUniverseError, nifty_sectors
 from backend.services.stocks.screening import list_stocks
 
 router = APIRouter()
@@ -149,7 +151,10 @@ async def get_stock_universe(
         ))
 
         if not include_metrics and not has_fundamental_filter:
-            stocks = load_nifty_total_market()
+            # Never block the FastAPI event loop on NSE/network I/O during a
+            # normal page refresh. The coalescing service also prevents two
+            # frontend modules from downloading the same universe concurrently.
+            stocks = await asyncio.to_thread(load_fast_nifty_total_market)
             if sector:
                 stocks = [stock for stock in stocks if stock["sector"] == sector]
             if query:
@@ -157,8 +162,10 @@ async def get_stock_universe(
                 stocks = [stock for stock in stocks if q in stock["symbol"].lower() or q in stock["name"].lower()]
             return {"sector": sector, "sectors": nifty_sectors(), "stocks": stocks, "count": len(stocks), "universe": "Nifty Total Market", "classification_source": "NSE Indices / Nifty Total Market constituent CSV", "liquidity_loaded": False}
 
-        return list_stocks(
-            _get_client(), sector=sector, query=query,
+        return await asyncio.to_thread(
+            list_stocks,
+            _get_client(),
+            sector=sector, query=query,
             min_market_cap_cr=min_market_cap_cr, max_market_cap_cr=max_market_cap_cr,
             min_pe=min_pe, max_pe=max_pe, min_roe=min_roe, max_roe=max_roe,
             min_pb=min_pb, max_pb=max_pb, min_peg=min_peg, max_peg=max_peg,
