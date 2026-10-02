@@ -113,19 +113,18 @@ function setupComparison() {
   lastComparisonKey = key;
 
   const { section, button, status, result } = createSection("comparison", key);
-  const headerButton = button;
-  headerButton.className = "ai-action ai-action-compact stock-ai-insights-button stock-ai-comparison-button";
-  headerButton.setAttribute("aria-label", "Generate AI insights for this stock comparison");
-  header.appendChild(headerButton);
+  button.className = "ai-action ai-action-compact stock-ai-insights-button stock-ai-comparison-button";
+  button.setAttribute("aria-label", "Generate AI insights for this stock comparison");
   section.removeChild(button);
+  header.appendChild(button);
   details.insertBefore(section, header.nextSibling);
 
   let isRequesting = false;
   const requestInsights = async () => {
     if (isRequesting) return;
     isRequesting = true;
-    headerButton.disabled = true;
-    headerButton.innerHTML = '<span class="loading-spinner"></span> Generating...';
+    button.disabled = true;
+    button.innerHTML = '<span class="loading-spinner"></span> Generating...';
     status.textContent = "Generating AI Insights...";
     renderStockAILoading(result);
 
@@ -140,12 +139,12 @@ function setupComparison() {
       status.textContent = "AI Insights could not be generated.";
     } finally {
       isRequesting = false;
-      headerButton.innerHTML = "✨ AI Insights";
-      headerButton.disabled = false;
+      button.innerHTML = "✨ AI Insights";
+      button.disabled = false;
     }
   };
 
-  headerButton.addEventListener("click", requestInsights);
+  button.addEventListener("click", requestInsights);
 }
 
 function scan() {
