@@ -1,3 +1,13 @@
+const STOCK_PAGE_SIZE = 40;
+
+let stockUniverse = [];
+let stockUniverseSectors = [];
+let stockSelectedSymbol = null;
+let stockPage = 1;
+let stockRenderInProgress = false;
+let stockObserverStarted = false;
+let stockSearchTimer = null;
+
 function markNegativeValues(root) {
   root.querySelectorAll(".stock-summary-grid .stock-metric-card, .stock-metrics-grid .stock-metric-card").forEach((card) => {
     const value = card.querySelector(".stock-metric-value");
@@ -11,14 +21,508 @@ function markNegativeValues(root) {
   });
 }
 
-function init() {
-  const details = document.getElementById("stock-details");
-  if (!details) return;
+function addSelectionStyles() {
+  if (document.getElementById("stock-ui-enhancement-styles")) return;
 
-  const observer = new MutationObserver(() => markNegativeValues(details));
-  observer.observe(details, { childList: true, subtree: true, characterData: true });
-  markNegativeValues(details);
+  const style = document.createElement("style");
+  style.id = "stock-ui-enhancement-styles";
+  style.textContent = `
+    /* Keep the comparison action compact, like Analyze Stock. */
+    .stock-compare-action {
+      width: auto !important;
+      min-width: 0 !important;
+      flex: 0 0 auto !important;
+      padding: 9px 16px !important;
+      white-space: nowrap;
+    }
+
+    .stock-client-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 14px;
+      padding: 10px 2px 0;
+      color: var(--color-text-light, #64748b);
+      font-size: 12px;
+    }
+
+    .stock-client-pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .stock-client-page-btn {
+      min-width: 32px;
+      height: 32px;
+      padding: 0 9px;
+      border: 1px solid var(--color-border, #dbe4f0);
+      border-radius: var(--radius-sm, 7px);
+      background: var(--color-surface, #fff);
+      color: var(--color-text, #334155);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .stock-client-page-btn:hover:not(:disabled) {
+      background: var(--color-slate-100, #f1f5f9);
+      border-color: var(--color-text-light, #94a3b8);
+    }
+
+    .stock-client-page-btn.active {
+      background: var(--color-primary, #17324f);
+      border-color: var(--color-primary, #17324f);
+      color: #fff;
+    }
+
+    .stock-client-page-btn:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .stock-client-page-size {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .stock-client-page-size select {
+      height: 32px;
+      padding: 0 8px;
+      border: 1px solid var(--color-border, #dbe4f0);
+      border-radius: var(--radius-sm, 7px);
+      background: #fff;
+      color: var(--color-text, #334155);
+      font: inherit;
+    }
+
+    @media (max-width: 700px) {
+      .stock-client-pagination {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+  `;
+  document.head.appendChild(style);
 }
 
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
-else init();
+function esc(v) {
+  return String(v ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function fmtNumber(v, d = 2) {
+  return Number(v).toLocaleString("en-IN", {
+    maximumFractionDigits: d,
+    minimumFractionDigits: 0,
+  });
+}
+
+function hasFundamentalFilters() {
+  return [
+    "stock-min-mcap", "stock-max-mcap",
+    "stock-min-pe", "stock-max-pe",
+    "stock-min-pb", "stock-max-pb",
+    "stock-min-peg", "stock-max-peg",
+    "stock-min-roe", "stock-max-roe",
+    "stock-min-roa", "stock-max-roa",
+    "stock-min-de", "stock-max-de",
+    "stock-min-current", "stock-max-current",
+    "stock-min-ev-ebitda", "stock-max-ev-ebitda",
+    "stock-min-ev-revenue", "stock-max-ev-revenue",
+    "stock-min-dividend", "stock-max-dividend",
+  ].some((id) => {
+    const el = document.getElementById(id);
+    return el && el.value !== "";
+  });
+}
+
+function currentContext() {
+  return {
+    sector: document.getElementById("stock-sector")?.value || "",
+    query: (document.getElementById("stock-filter-search")?.value || "").trim().toLowerCase(),
+  };
+}
+
+function filterUniverse() {
+  const { sector, query } = currentContext();
+
+  return stockUniverse.filter((stock) => {
+    if (sector && stock.sector !== sector) return false;
+    if (!query) return true;
+
+    return (
+      String(stock.symbol || "").toLowerCase().includes(query) ||
+      String(stock.name || "").toLowerCase().includes(query)
+    );
+  });
+}
+
+function stockRowHtml(stock) {
+  const selected = stockSelectedSymbol === stock.symbol;
+  return `<div class="stock-picker-row ${selected ? "selected" : ""}" data-symbol="${esc(stock.symbol)}">
+    <div>
+      <strong>${esc(stock.name)}</strong>
+      <small>${esc(stock.symbol)}</small>
+    </div>
+    <div class="stock-picker-metrics">
+      <span>Sector <b>${esc(stock.sector || "—")}</b></span>
+    </div>
+    <button class="stock-select-btn" type="button">${selected ? "Selected" : "Select"}</button>
+  </div>`;
+}
+
+function updateSelectedPanel() {
+  const panel = document.querySelector(".stock-selected-panel");
+  if (!panel) return;
+
+  const stock = stockUniverse.find((s) => s.symbol === stockSelectedSymbol);
+  const analyze = panel.querySelector("#stock-analyze-selected");
+  const note = panel.querySelector(":scope > small");
+
+  const existing = panel.querySelector(".stock-selected-card");
+  const empty = panel.querySelector(".stock-no-selection");
+
+  if (stock) {
+    if (empty) empty.remove();
+    if (existing) {
+      existing.innerHTML = `<strong>${esc(stock.name)}</strong><small>${esc(stock.symbol)}</small><span>${esc(stock.sector || "")}</span>`;
+    } else {
+      const card = document.createElement("div");
+      card.className = "stock-selected-card";
+      card.innerHTML = `<strong>${esc(stock.name)}</strong><small>${esc(stock.symbol)}</small><span>${esc(stock.sector || "")}</span>`;
+      const kicker = panel.querySelector(".stock-selection-kicker");
+      kicker?.insertAdjacentElement("afterend", card);
+    }
+    if (analyze) analyze.disabled = false;
+    if (note) note.textContent = "One stock selected.";
+  } else {
+    if (existing) existing.remove();
+    if (!empty) {
+      const emptyCard = document.createElement("div");
+      emptyCard.className = "stock-no-selection";
+      emptyCard.textContent = "No stock selected";
+      const kicker = panel.querySelector(".stock-selection-kicker");
+      kicker?.insertAdjacentElement("afterend", emptyCard);
+    }
+    if (analyze) analyze.disabled = true;
+    if (note) note.textContent = "Select one stock from the list.";
+  }
+}
+
+function goToAnalysis() {
+  if (!stockSelectedSymbol) return;
+  window.history.pushState({}, "", `?symbol=${encodeURIComponent(stockSelectedSymbol)}`);
+  const selection = document.getElementById("stock-selection-screen");
+  const analysis = document.getElementById("stock-analysis-screen");
+  if (!selection || !analysis) return;
+  selection.hidden = true;
+  analysis.hidden = false;
+  document.getElementById("stock-back-to-selection")?.focus({ preventScroll: true });
+  const details = document.getElementById("stock-details");
+  const status = document.getElementById("stock-analysis-status");
+  if (details && status) {
+    status.textContent = `Loading ${stockSelectedSymbol}…`;
+    details.innerHTML = `<div class="stock-loading">Loading ${esc(stockSelectedSymbol)} fundamentals…</div>`;
+    fetch(`/api/stocks/${encodeURIComponent(stockSelectedSymbol)}`, { headers: { Accept: "application/json" } })
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+        return data;
+      })
+      .then((data) => {
+        // Let the existing analysis renderer handle the detailed view.
+        const event = new CustomEvent("stock-analysis-data", { detail: data });
+        document.dispatchEvent(event);
+      })
+      .catch((e) => {
+        details.innerHTML = `<div class="stock-error"><h2>Unable to load ${esc(stockSelectedSymbol)}</h2><p>${esc(e.message)}</p></div>`;
+        status.textContent = "";
+      });
+  }
+}
+
+function renderPagination(total) {
+  const pages = Math.max(1, Math.ceil(total / STOCK_PAGE_SIZE));
+  stockPage = Math.min(stockPage, pages);
+
+  const start = total ? (stockPage - 1) * STOCK_PAGE_SIZE + 1 : 0;
+  const end = Math.min(stockPage * STOCK_PAGE_SIZE, total);
+  const maxButtons = 7;
+  let first = Math.max(1, stockPage - 3);
+  let last = Math.min(pages, first + maxButtons - 1);
+  first = Math.max(1, last - maxButtons + 1);
+
+  const pageButtons = [];
+  for (let page = first; page <= last; page += 1) {
+    pageButtons.push(`<button class="stock-client-page-btn ${page === stockPage ? "active" : ""}" type="button" data-stock-page="${page}">${page}</button>`);
+  }
+
+  return `<div class="stock-client-pagination">
+    <span>Showing ${start}–${end} of ${total} stocks</span>
+    <div class="stock-client-pagination-controls">
+      <button class="stock-client-page-btn" type="button" data-stock-page="${stockPage - 1}" ${stockPage <= 1 ? "disabled" : ""}>‹</button>
+      ${pageButtons.join("")}
+      <button class="stock-client-page-btn" type="button" data-stock-page="${stockPage + 1}" ${stockPage >= pages ? "disabled" : ""}>›</button>
+    </div>
+    <label class="stock-client-page-size">Rows
+      <select id="stock-client-page-size">
+        ${[20, 40, 60, 100].map((n) => `<option value="${n}" ${n === STOCK_PAGE_SIZE ? "selected" : ""}>${n}</option>`).join("")}
+      </select>
+    </label>
+  </div>`;
+}
+
+function renderClientResults(screen) {
+  if (!screen || !stockUniverse.length || hasFundamentalFilters()) return false;
+
+  const stocks = filterUniverse();
+  const total = stocks.length;
+  const pages = Math.max(1, Math.ceil(total / STOCK_PAGE_SIZE));
+  stockPage = Math.min(stockPage, pages);
+
+  const start = (stockPage - 1) * STOCK_PAGE_SIZE;
+  const visible = stocks.slice(start, start + STOCK_PAGE_SIZE);
+  const filterCard = screen.querySelector(".stock-filter-card");
+  const panel = screen.querySelector(".stock-picker-panel");
+  if (!panel || !filterCard) return false;
+
+  stockRenderInProgress = true;
+
+  let summary = panel.querySelector(".stock-result-summary");
+  let list = panel.querySelector(".stock-picker-list");
+  let pagination = panel.querySelector(".stock-client-pagination");
+  const instruction = panel.querySelector(".stock-selection-instruction");
+  instruction?.remove();
+
+  if (!summary) {
+    summary = document.createElement("div");
+    summary.className = "stock-result-summary";
+    filterCard.insertAdjacentElement("afterend", summary);
+  }
+
+  if (!list) {
+    list = document.createElement("div");
+    list.className = "stock-picker-list";
+    summary.insertAdjacentElement("afterend", list);
+  }
+
+  summary.innerHTML = `<strong>${total}</strong> stocks available${currentContext().query ? ` · search: “${esc(document.getElementById("stock-filter-search")?.value || "") }”` : ""}`;
+  list.innerHTML = visible.length
+    ? visible.map(stockRowHtml).join("")
+    : `<div class="stock-no-data">No stocks match the current search.</div>`;
+
+  pagination?.remove();
+  pagination = document.createElement("div");
+  pagination.className = "stock-client-pagination-wrap";
+  pagination.innerHTML = renderPagination(total);
+  list.insertAdjacentElement("afterend", pagination.firstElementChild);
+
+  list.querySelectorAll(".stock-select-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const symbol = button.closest(".stock-picker-row")?.dataset.symbol;
+      stockSelectedSymbol = symbol || null;
+      updateSelectedPanel();
+      renderClientResults(screen);
+    });
+  });
+
+  panel.querySelectorAll("[data-stock-page]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.disabled) return;
+      stockPage = Number(button.dataset.stockPage);
+      renderClientResults(screen);
+    });
+  });
+
+  panel.querySelector("#stock-client-page-size")?.addEventListener("change", (event) => {
+    const size = Number(event.target.value);
+    if (Number.isFinite(size) && size > 0) {
+      // Keep the requested size for the current browser session by replacing the constant-like value.
+      // The standard 40-row view remains the default.
+      const oldPage = stockPage;
+      const firstItem = Math.max(0, (oldPage - 1) * STOCK_PAGE_SIZE);
+      stockPage = Math.floor(firstItem / size) + 1;
+      window.__stockPageSize = size;
+      renderClientResultsWithPageSize(screen, size);
+    }
+  });
+
+  updateSelectedPanel();
+  stockRenderInProgress = false;
+  return true;
+}
+
+function renderClientResultsWithPageSize(screen, pageSize) {
+  if (!screen || !stockUniverse.length || hasFundamentalFilters()) return;
+  const stocks = filterUniverse();
+  const total = stocks.length;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  stockPage = Math.min(stockPage, pages);
+  const start = (stockPage - 1) * pageSize;
+  const visible = stocks.slice(start, start + pageSize);
+
+  const panel = screen.querySelector(".stock-picker-panel");
+  const summary = panel?.querySelector(".stock-result-summary");
+  const list = panel?.querySelector(".stock-picker-list");
+  if (!panel || !summary || !list) return;
+
+  stockRenderInProgress = true;
+  summary.innerHTML = `<strong>${total}</strong> stocks available${currentContext().query ? ` · search: “${esc(document.getElementById("stock-filter-search")?.value || "") }”` : ""}`;
+  list.innerHTML = visible.length ? visible.map(stockRowHtml).join("") : `<div class="stock-no-data">No stocks match the current search.</div>`;
+
+  panel.querySelector(".stock-client-pagination")?.remove();
+  const paginationWrap = document.createElement("div");
+  paginationWrap.className = "stock-client-pagination-wrap";
+  paginationWrap.innerHTML = `<div class="stock-client-pagination">
+    <span>Showing ${total ? start + 1 : 0}–${Math.min(start + pageSize, total)} of ${total} stocks</span>
+    <div class="stock-client-pagination-controls">
+      ${Array.from({ length: Math.min(7, pages) }, (_, i) => {
+        const page = i + 1;
+        return `<button class="stock-client-page-btn ${page === stockPage ? "active" : ""}" type="button" data-stock-page="${page}">${page}</button>`;
+      }).join("")}
+    </div>
+    <label class="stock-client-page-size">Rows
+      <select id="stock-client-page-size">${[20, 40, 60, 100].map((n) => `<option value="${n}" ${n === pageSize ? "selected" : ""}>${n}</option>`).join("")}</select>
+    </label>
+  </div>`;
+  list.insertAdjacentElement("afterend", paginationWrap.firstElementChild);
+
+  list.querySelectorAll(".stock-select-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      stockSelectedSymbol = button.closest(".stock-picker-row")?.dataset.symbol || null;
+      updateSelectedPanel();
+      renderClientResultsWithPageSize(screen, pageSize);
+    });
+  });
+  panel.querySelectorAll("[data-stock-page]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.disabled) return;
+      stockPage = Number(button.dataset.stockPage);
+      renderClientResultsWithPageSize(screen, pageSize);
+    });
+  });
+  panel.querySelector("#stock-client-page-size")?.addEventListener("change", (event) => {
+    const size = Number(event.target.value);
+    stockPage = 1;
+    renderClientResultsWithPageSize(screen, size);
+  });
+
+  updateSelectedPanel();
+  stockRenderInProgress = false;
+}
+
+function filterCurrentServerRows() {
+  const screen = document.getElementById("stock-selection-screen");
+  const query = currentContext().query;
+  const rows = screen?.querySelectorAll(".stock-picker-list .stock-picker-row") || [];
+  rows.forEach((row) => {
+    const text = row.textContent.toLowerCase();
+    row.hidden = Boolean(query && !text.includes(query));
+  });
+}
+
+function bindSelectionControls(screen) {
+  const sector = screen.querySelector("#stock-sector");
+  const search = screen.querySelector("#stock-filter-search");
+  const analyze = screen.querySelector("#stock-analyze-selected");
+  if (!sector || !search) return;
+
+  if (sector.dataset.uiEnhanced !== "1") {
+    sector.dataset.uiEnhanced = "1";
+    sector.addEventListener("change", () => {
+      stockPage = 1;
+      if (!hasFundamentalFilters()) {
+        setTimeout(() => renderClientResults(screen), 0);
+      }
+    });
+  }
+
+  if (search.dataset.uiEnhanced !== "1") {
+    search.dataset.uiEnhanced = "1";
+    search.addEventListener("input", () => {
+      clearTimeout(stockSearchTimer);
+      stockSearchTimer = setTimeout(() => {
+        stockPage = 1;
+        if (!hasFundamentalFilters()) renderClientResults(screen);
+        else filterCurrentServerRows();
+      }, 80);
+    });
+  }
+
+  if (analyze && analyze.dataset.uiEnhanced !== "1") {
+    analyze.dataset.uiEnhanced = "1";
+    analyze.addEventListener("click", () => goToAnalysis(), { capture: true });
+  }
+}
+
+async function loadStockUniverse() {
+  try {
+    const r = await fetch("/api/stocks/universe", {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+    stockUniverse = Array.isArray(data.stocks) ? data.stocks : [];
+    stockUniverseSectors = Array.isArray(data.sectors) ? data.sectors : [];
+    return true;
+  } catch (error) {
+    console.warn("Stock universe client cache unavailable:", error);
+    return false;
+  }
+}
+
+function enhanceSelection() {
+  const screen = document.getElementById("stock-selection-screen");
+  if (!screen || screen.hidden || stockRenderInProgress) return;
+
+  bindSelectionControls(screen);
+
+  // In the normal no-filter state the backend returns the full Nifty Total
+  // Market universe, while the original renderer used to hide it until a
+  // sector was chosen. Render that already-fetched universe client-side.
+  if (stockUniverse.length && !hasFundamentalFilters()) {
+    renderClientResults(screen);
+  } else if (hasFundamentalFilters()) {
+    filterCurrentServerRows();
+  }
+}
+
+function init() {
+  addSelectionStyles();
+
+  const details = document.getElementById("stock-details");
+  if (details) {
+    const observer = new MutationObserver(() => markNegativeValues(details));
+    observer.observe(details, { childList: true, subtree: true, characterData: true });
+    markNegativeValues(details);
+  }
+
+  const screen = document.getElementById("stock-selection-screen");
+  if (!screen || stockObserverStarted) return;
+  stockObserverStarted = true;
+
+  loadStockUniverse().then(() => enhanceSelection());
+
+  const observer = new MutationObserver(() => {
+    if (stockRenderInProgress) return;
+    window.clearTimeout(window.__stockEnhancementTimer);
+    window.__stockEnhancementTimer = window.setTimeout(() => enhanceSelection(), 0);
+  });
+  observer.observe(screen, { childList: true, subtree: true });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init, { once: true });
+} else {
+  init();
+}
