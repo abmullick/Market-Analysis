@@ -9,7 +9,7 @@ from backend.services.data.stock_charts import build_stock_charts, yahoo_annual_
 from backend.services.data.yahoo import YahooFinanceClient, YahooFinanceError
 from backend.services.stocks.fast_nifty_universe import load_fast_nifty_total_market
 from backend.services.stocks.market_cap_bands import load_market_cap_bands
-from backend.services.stocks.nifty_universe import NiftyUniverseError, nifty_sectors
+from backend.services.stocks.nifty_universe import NiftyUniverseError
 from backend.services.stocks.screening import list_stocks
 
 router = APIRouter()
@@ -151,13 +151,25 @@ async def get_stock_universe(
         ))
 
         if not include_metrics and not has_fundamental_filter:
+            # The fast loader is the single source of truth for the cold-load
+            # universe. Do not call nifty_sectors() here: it has a separate
+            # cache and would trigger a second live constituent download on a
+            # fresh Render instance, which can make the browser request time out.
             stocks = await asyncio.to_thread(load_fast_nifty_total_market)
             if sector:
                 stocks = [stock for stock in stocks if stock["sector"] == sector]
             if query:
                 q = query.strip().lower()
                 stocks = [stock for stock in stocks if q in stock["symbol"].lower() or q in stock["name"].lower()]
-            return {"sector": sector, "sectors": nifty_sectors(), "stocks": stocks, "count": len(stocks), "universe": "Nifty Total Market", "classification_source": "NSE Indices / Nifty Total Market constituent CSV"}
+            sectors = sorted({str(stock.get("sector") or "Other") for stock in stocks})
+            return {
+                "sector": sector,
+                "sectors": sectors,
+                "stocks": stocks,
+                "count": len(stocks),
+                "universe": "Nifty Total Market",
+                "classification_source": "NSE Indices / Nifty Total Market constituent CSV",
+            }
 
         return await asyncio.to_thread(
             list_stocks,
