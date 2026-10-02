@@ -15,6 +15,108 @@ const STOP_WORDS = new Set([
     "that", "i", "my", "me", "can", "be", "with", "there",
 ]);
 
+const STOCK_FORMULA_HEADINGS = new Set([
+    "P/E (Price-to-Earnings Ratio)",
+    "Forward P/E",
+    "P/B (Price-to-Book Ratio)",
+    "Price / Sales (P/S)",
+    "PEG (Price/Earnings-to-Growth Ratio)",
+    "EV / EBITDA",
+    "EV / Revenue",
+    "Dividend Yield",
+    "Payout Ratio",
+    "ROE (Return on Equity)",
+    "ROA (Return on Assets)",
+    "Gross Margin",
+    "Operating Margin",
+    "Net Margin",
+    "Debt / Equity (D/E)",
+    "Current Ratio",
+    "Quick Ratio",
+    "Beta",
+    "Revenue Growth",
+    "Profit Growth",
+    "EPS Growth",
+    "Revenue CAGR",
+    "Profit CAGR",
+    "EPS CAGR",
+    "FCF CAGR",
+    "Operating Margin Change",
+]);
+
+function metricChevron() {
+    return `<svg class="metric-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+}
+
+function wireMetricAccordion(item) {
+    const trigger = item.querySelector(".metric-trigger");
+    if (!trigger || trigger.dataset.accordionWired === "true") return;
+
+    trigger.dataset.accordionWired = "true";
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.addEventListener("click", () => {
+        const isOpen = item.classList.toggle("open");
+        trigger.setAttribute("aria-expanded", String(isOpen));
+    });
+}
+
+/**
+ * Stock formula explanations use the same expandable metric pattern as the
+ * Mutual Fund Help page. The stock Help cards are rendered dynamically by
+ * help.js, so this enhancer watches the Help DOM and converts only the
+ * individual formula/metric cards into the existing .metric-item pattern.
+ */
+function enhanceStockFormulaCards() {
+    const section = [...document.querySelectorAll(".help-section")].find((candidate) => {
+        const heading = candidate.querySelector("h2, h3");
+        return heading && normalizeText(heading.textContent) === normalizeText("Stock Analysis");
+    });
+    if (!section) return;
+
+    section.querySelectorAll(".metric-item").forEach(wireMetricAccordion);
+
+    [...section.querySelectorAll(".help-card")].forEach((card) => {
+        const headingEl = card.querySelector("h4");
+        const heading = headingEl?.textContent?.trim();
+        if (!heading || !STOCK_FORMULA_HEADINGS.has(heading)) return;
+
+        const bodyHtml = card.querySelector("p")?.innerHTML || "";
+        const item = document.createElement("div");
+        item.className = "metric-item";
+        item.innerHTML = `
+            <button class="metric-trigger" type="button" aria-expanded="false">
+                <span class="metric-name">${heading}</span>
+                <span class="metric-meta">Formula • Calculation • Interpretation</span>
+                ${metricChevron()}
+            </button>
+            <div class="metric-panel">
+                <div class="metric-panel-inner">
+                    <div class="metric-block">
+                        <h4>Explanation &amp; Formula</h4>
+                        <p>${bodyHtml}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        card.replaceWith(item);
+        wireMetricAccordion(item);
+    });
+}
+
+function installStockFormulaEnhancer() {
+    const start = () => {
+        enhanceStockFormulaCards();
+        const observer = new MutationObserver(() => enhanceStockFormulaCards());
+        if (document.body) {
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
+    };
+
+    if (document.body) start();
+    else document.addEventListener("DOMContentLoaded", start, { once: true });
+}
+
 export function normalizeText(value) {
     return String(value || "")
         // Treat common financial notation as the same search term whether the
@@ -205,3 +307,5 @@ export function searchHelp(query) {
 
     return results;
 }
+
+installStockFormulaEnhancer();
