@@ -1,8 +1,7 @@
-// Mobile stock-selection interaction, responsive historical tables, and analysis reset.
-// Kept isolated from the main selection/detail modules so it can harden the UI
-// without depending on module-scoped state.
+// Mobile stock-selection interaction, responsive historical tables, and UI cleanup.
+// Kept isolated from the main selection/detail modules.
 
-(function installStockMobileAndResetFix() {
+(function installStockMobileFix() {
   const isStockSelection = () => document.getElementById("stock-selection-screen");
 
   function installResponsiveTableStyles() {
@@ -19,6 +18,7 @@
         -webkit-overflow-scrolling: touch;
         overscroll-behavior-x: contain;
         scrollbar-width: thin;
+        touch-action: pan-x pan-y;
       }
       .stock-table-wrap .stock-table {
         min-width: 720px;
@@ -56,22 +56,6 @@
     dropdown.style.zIndex = "2147483000";
   }
 
-  function clearAnalysisAndReturnToSelection() {
-    const analysis = document.getElementById("stock-analysis-screen");
-    const selection = document.getElementById("stock-selection-screen");
-    if (!analysis || !selection) return;
-
-    // The detail module keeps selectedStock in module scope. A hard reset of
-    // the page state is therefore safer than trying to manipulate that private
-    // variable indirectly. The clean URL also prevents the detail view from
-    // being restored by browser history.
-    const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
-    if (window.location.href !== `${window.location.origin}${cleanUrl}`) {
-      window.history.replaceState({}, "", cleanUrl);
-    }
-    window.location.assign(cleanUrl);
-  }
-
   function hardenSectorTrigger() {
     const trigger = document.querySelector("#stock-selection-screen .stock-sector-picker .category-picker-trigger");
     const dropdown = document.querySelector("#stock-selection-screen .stock-sector-picker .category-picker-dropdown");
@@ -103,20 +87,6 @@
     }, { passive: true });
   }
 
-  function hardenBackButton() {
-    // Use document-level capture so this works even when the analysis module
-    // creates/replaces the button after this module has initialized.
-    if (document.documentElement.dataset.stockBackFixInstalled === "1") return;
-    document.documentElement.dataset.stockBackFixInstalled = "1";
-    document.addEventListener("click", (event) => {
-      const button = event.target?.closest?.("#stock-back-to-selection");
-      if (!button) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      clearAnalysisAndReturnToSelection();
-    }, true);
-  }
-
   function removeProviderNamesFromVisibleStockUi() {
     const root = document.getElementById("stock-analysis-screen") || document.getElementById("stock-selection-screen");
     if (!root) return;
@@ -144,22 +114,24 @@
   }
 
   function run() {
-    if (!isStockSelection()) return;
+    // Table styles and UI cleanup must also run while the analysis screen is
+    // active. The previous guard prevented the fix from running on that screen.
     installResponsiveTableStyles();
-    hardenSectorTrigger();
-    hardenBackButton();
+    if (isStockSelection()) hardenSectorTrigger();
     removeProviderNamesFromVisibleStockUi();
   }
 
   const observer = new MutationObserver(() => {
-    window.clearTimeout(window.__stockMobileResetFixTimer);
-    window.__stockMobileResetFixTimer = window.setTimeout(run, 0);
+    window.clearTimeout(window.__stockMobileFixTimer);
+    window.__stockMobileFixTimer = window.setTimeout(run, 0);
   });
 
   function boot() {
     run();
-    const root = document.getElementById("stock-analysis-content") || document.body;
-    observer.observe(root, { childList: true, subtree: true });
+    observer.observe(document.getElementById("stock-analysis-content") || document.body, {
+      childList: true,
+      subtree: true,
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
