@@ -15,19 +15,7 @@ class ScreenerFinanceError(Exception):
 
 
 class ScreenerFinanceClient:
-    """Read Indian-equity fundamentals from public Screener.in pages.
-
-    Screener reports Indian financial statements in Rs. Crores and ratios such
-    as ROE, ROCE and dividend yield in percentage points. This adapter converts
-    percentages to decimal fractions and statement values from Crores to rupees.
-
-    Financial companies (banks/NBFCs/other financial services businesses) need
-    a few special mappings because Screener uses labels such as ``Revenue`` and
-    ``Financing Profit`` instead of the industrial-company ``Sales`` and
-    ``Operating Profit`` labels. EV/EBITDA and EV/Revenue are intentionally not
-    produced for financial companies because those enterprise-value metrics are
-    generally not meaningful for lenders.
-    """
+    """Read Indian-equity fundamentals from public Screener.in pages."""
 
     BASE_URL = "https://www.screener.in/company"
     USER_AGENT = (
@@ -53,15 +41,26 @@ class ScreenerFinanceClient:
         return symbol.strip().upper().removesuffix(".NS").removesuffix(".BO")
 
     @staticmethod
+    def _normal_label(value: str) -> str:
+        return re.sub(r"\s+", " ", value.replace("\xa0", " ").strip()).casefold()
+
+    @staticmethod
     def _num(text: str | None) -> float | None:
         if text is None:
             return None
-        value = text.strip().replace(",", "")
-        value = value.replace("₹", "").replace("$", "")
-        value = value.replace("€", "").replace("£", "")
-        value = value.replace("%", "").replace("Cr.", "").replace("Cr", "")
-        value = value.strip()
-        if value in {"", "-", "--", "N/A", "NA"}:
+        value = (
+            text.strip()
+            .replace(",", "")
+            .replace("₹", "")
+            .replace("$", "")
+            .replace("€", "")
+            .replace("£", "")
+            .replace("%", "")
+            .replace("Cr.", "")
+            .replace("Cr", "")
+            .strip()
+        )
+        if value in {"", "-", "--", "N/A", "NA", "%"}:
             return None
         try:
             return float(value)
@@ -92,29 +91,20 @@ class ScreenerFinanceClient:
                         allow_redirects=True,
                     )
                     if response.status_code == 429:
-                        last_error = ScreenerFinanceError(
-                            "Screener.in HTTP 429 Too Many Requests"
-                        )
+                        last_error = ScreenerFinanceError("Screener.in HTTP 429 Too Many Requests")
                         if attempt < 2:
                             time.sleep(1.0 + attempt)
                             continue
                         break
-
                     response.raise_for_status()
                     text = response.text
                     if "Company not found" in text or "Page not found" in text:
-                        last_error = ScreenerFinanceError(
-                            f"Screener.in company not found: {key}"
-                        )
+                        last_error = ScreenerFinanceError(f"Screener.in company not found: {key}")
                         break
-
                     soup = BeautifulSoup(text, "html.parser")
                     if not soup.select_one("#top-ratios"):
-                        last_error = ScreenerFinanceError(
-                            f"Screener.in returned no company data for {key}"
-                        )
+                        last_error = ScreenerFinanceError(f"Screener.in returned no company data for {key}")
                         break
-
                     self._cache[key] = (time.time(), soup)
                     return soup
                 except Exception as exc:
@@ -122,9 +112,7 @@ class ScreenerFinanceClient:
                     if attempt < 2:
                         time.sleep(0.5 + attempt * 0.5)
 
-        raise ScreenerFinanceError(
-            str(last_error) if last_error else "Screener.in request failed"
-        )
+        raise ScreenerFinanceError(str(last_error) if last_error else "Screener.in request failed")
 
     @classmethod
     def _top_ratios(cls, soup: BeautifulSoup) -> dict[str, float | None]:
@@ -133,9 +121,7 @@ class ScreenerFinanceClient:
             name = item.select_one(".name")
             value = item.select_one(".number")
             if name and value:
-                result[name.get_text(" ", strip=True)] = cls._num(
-                    value.get_text(" ", strip=True)
-                )
+                result[name.get_text(" ", strip=True)] = cls._num(value.get_text(" ", strip=True))
         return result
 
     @classmethod
@@ -151,22 +137,24 @@ class ScreenerFinanceClient:
         if table is None:
             return [], {}
 
-        headers = [th.get_text(" ", strip=True) for th in table.select("thead th")][1:]
+        header_cells = table.select("thead th")
+        if not header_cells:
+            header_cells = table.find_all("th")
+        headers = [th.get_text(" ", strip=True) for th in header_cells][1:]
+
         rows: dict[str, list[float | None]] = {}
         for tr in table.select("tbody tr"):
             cells = tr.find_all(["th", "td"])
             if not cells:
                 continue
             label = cells[0].get_text(" ", strip=True)
-            rows[label] = [cls._num(c.get_text(" ", strip=True)) for c in cells[1:]]
+            values = [cls._num(c.get_text(" ", strip=True)) for c in cells[1:]]
+            rows[label] = values
         return headers, rows
 
     @staticmethod
     def _annual_indices(headers: list[str]) -> list[int]:
-        return [
-            i for i, header in enumerate(headers)
-            if re.fullmatch(r"Mar \d{4}", header)
-        ]
+        return [i for i, header in enumerate(headers) if re.fullmatch(r"Mar \d{4}", header)]
 
     @staticmethod
     def _ttm_index(headers: list[str]) -> int | None:
@@ -175,19 +163,59 @@ class ScreenerFinanceClient:
                 return i
         return None
 
-    @staticmethod
+    @classmethod
     def _row(
+        cls,
         rows: dict[str, list[float | None]],
         labels: list[str],
         index: int | None,
     ) -> float | None:
         if index is None:
             return None
-        for label in labels:
-            values = rows.get(label)
-            if values is not None and index < len(values) and values[index] is not None:
+
+        wanted = [cls._normal_label(label).rstrip("+").strip() for label in labels]
+        for actual, values in rows.items():
+            actual_normal = cls._normal_label(actual).rstrip("+").strip()
+            if actual_normal in wanted and index < len(values) and values[index] is not None:
+                return values[index]
+
+        # Screener occasionally changes a displayed label by adding a footnote,
+        # plus sign or whitespace. Prefix matching is deliberately a fallback.
+        for actual, values in rows.items():
+            actual_normal = cls._normal_label(actual).rstrip("+").strip()
+            if any(
+                actual_normal.startswith(label) or label.startswith(actual_normal)
+                for label in wanted
+            ) and index < len(values) and values[index] is not None:
                 return values[index]
         return None
+
+    @classmethod
+    def _growth_tables(cls, soup: BeautifulSoup) -> dict[str, dict[str, float | None]]:
+        result: dict[str, dict[str, float | None]] = {}
+        titles = {
+            "Compounded Sales Growth": ["10 Years", "5 Years", "3 Years", "TTM"],
+            "Compounded Profit Growth": ["10 Years", "5 Years", "3 Years", "TTM"],
+            "Stock Price CAGR": ["10 Years", "5 Years", "3 Years", "1 Year"],
+            "Return on Equity": ["10 Years", "5 Years", "3 Years", "Last Year"],
+        }
+
+        for table in soup.find_all("table"):
+            text = table.get_text(" ", strip=True)
+            for title, periods in titles.items():
+                if title not in text or title in result:
+                    continue
+                values: dict[str, float | None] = {}
+                for tr in table.find_all("tr"):
+                    cells = tr.find_all(["th", "td"])
+                    if len(cells) < 2:
+                        continue
+                    label = re.sub(r"\s+", " ", cells[0].get_text(" ", strip=True)).rstrip(":").strip()
+                    if label in periods:
+                        values[label] = cls._num(cells[1].get_text(" ", strip=True))
+                if values:
+                    result[title] = values
+        return result
 
     @classmethod
     def _sector_for_symbol(cls, symbol: str) -> str | None:
@@ -205,20 +233,23 @@ class ScreenerFinanceClient:
 
     @staticmethod
     def _is_financial_company(sector: str | None) -> bool:
-        return (sector or "").strip().lower() in {
-            "financial services",
-            "financials",
-        }
+        return (sector or "").strip().lower() in {"financial services", "financials"}
 
-    def quote_summary(self, symbol: str) -> dict[str, Any]:
+    def _extract(self, symbol: str) -> tuple[BeautifulSoup, dict[str, Any]]:
         soup = self._fetch(symbol)
         ratios = self._top_ratios(soup)
+        growth = self._growth_tables(soup)
+        return soup, {"ratios": ratios, "growth": growth}
+
+    def quote_summary(self, symbol: str) -> dict[str, Any]:
+        soup, extracted = self._extract(symbol)
+        ratios = extracted["ratios"]
+        growth = extracted["growth"]
         heading = soup.find("h1")
         name = heading.get_text(" ", strip=True) if heading else self._symbol(symbol)
 
         sector = self._sector_for_symbol(symbol)
         is_financial = self._is_financial_company(sector)
-
         price = ratios.get("Current Price")
         market_cap_cr = ratios.get("Market Cap")
         book_value = ratios.get("Book Value")
@@ -227,7 +258,6 @@ class ScreenerFinanceClient:
         annual = self._annual_indices(pl_headers)
         latest = annual[-1] if annual else None
         ttm = self._ttm_index(pl_headers)
-
         revenue_labels = ["Revenue", "Revenue +", "Sales", "Sales +"]
         operating_labels = ["Operating Profit", "Financing Profit"]
         profit_labels = ["Net Profit", "Net Profit +", "Profit after tax"]
@@ -238,140 +268,68 @@ class ScreenerFinanceClient:
         latest_dep = self._row(pl_rows, ["Depreciation"], latest)
         latest_eps = self._row(pl_rows, ["EPS in Rs"], latest)
         latest_payout = self._row(pl_rows, ["Dividend Payout %"], latest)
-
         ttm_sales = self._row(pl_rows, revenue_labels, ttm) or latest_sales
         ttm_op = self._row(pl_rows, operating_labels, ttm) or latest_op
         ttm_profit = self._row(pl_rows, profit_labels, ttm) or latest_profit
         ttm_dep = self._row(pl_rows, ["Depreciation"], ttm) or latest_dep
         ttm_eps = self._row(pl_rows, ["EPS in Rs"], ttm) or latest_eps
 
-        # 3Y EPS CAGR used for PEG. PEG is only meaningful when EPS growth is positive.
         eps_cagr_3y = None
         if len(annual) >= 4 and ttm_eps is not None:
-            base_index = annual[-4]
-            base_eps = self._row(pl_rows, ["EPS in Rs"], base_index)
+            base_eps = self._row(pl_rows, ["EPS in Rs"], annual[-4])
             if base_eps is not None and base_eps > 0 and ttm_eps > 0:
                 eps_cagr_3y = (ttm_eps / base_eps) ** (1 / 3) - 1
 
         balance_headers, balance_rows = self._table(soup, "balance-sheet")
         balance_annual = self._annual_indices(balance_headers)
         balance_latest = balance_annual[-1] if balance_annual else None
-        debt_cr = self._row(
-            balance_rows,
-            ["Borrowings", "Borrowings +", "Borrowing"],
-            balance_latest,
-        )
+        debt_cr = self._row(balance_rows, ["Borrowings", "Borrowings +", "Borrowing"], balance_latest)
         equity_capital_cr = self._row(balance_rows, ["Equity Capital"], balance_latest)
         reserves_cr = self._row(balance_rows, ["Reserves"], balance_latest)
         assets_cr = self._row(balance_rows, ["Total Assets"], balance_latest)
         liabilities_cr = self._row(balance_rows, ["Total Liabilities"], balance_latest)
         current_assets_cr = self._row(balance_rows, ["Current Assets"], balance_latest)
         current_liabilities_cr = self._row(balance_rows, ["Current Liabilities"], balance_latest)
-
-        equity_cr = None
-        if equity_capital_cr is not None or reserves_cr is not None:
-            equity_cr = (equity_capital_cr or 0) + (reserves_cr or 0)
+        equity_cr = ((equity_capital_cr or 0) + (reserves_cr or 0)) if (equity_capital_cr is not None or reserves_cr is not None) else None
 
         cash_headers, cash_rows = self._table(soup, "cash-flow")
         cash_annual = self._annual_indices(cash_headers)
         cash_latest = cash_annual[-1] if cash_annual else None
         cash_ttm = self._ttm_index(cash_headers)
         cash_index = cash_ttm if cash_ttm is not None else cash_latest
-
-        operating_cashflow_cr = self._row(
-            cash_rows,
-            ["Cash from Operating Activity +", "Cash from Operating Activity"],
-            cash_index,
-        )
+        operating_cashflow_cr = self._row(cash_rows, ["Cash from Operating Activity +", "Cash from Operating Activity"], cash_index)
         free_cashflow_cr = self._row(cash_rows, ["Free Cash Flow"], cash_index)
-        capital_expenditure_cr = self._row(
-            cash_rows,
-            ["Capital Expenditure", "Capital Expenditure +"],
-            cash_index,
-        )
-
-        if (
-            capital_expenditure_cr is None
-            and operating_cashflow_cr is not None
-            and free_cashflow_cr is not None
-        ):
+        capital_expenditure_cr = self._row(cash_rows, ["Capital Expenditure", "Capital Expenditure +"], cash_index)
+        if capital_expenditure_cr is None and operating_cashflow_cr is not None and free_cashflow_cr is not None:
             capital_expenditure_cr = operating_cashflow_cr - free_cashflow_cr
 
         market_cap = self._cr(market_cap_cr)
         debt = self._cr(debt_cr)
         equity = self._cr(equity_cr)
         shares = market_cap / price if market_cap is not None and price not in (None, 0) else None
-
         pb = price / book_value if price is not None and book_value not in (None, 0) else None
         debt_equity = debt_cr / equity_cr if debt_cr is not None and equity_cr not in (None, 0) else None
-        roa = (
-            latest_profit / assets_cr
-            if latest_profit is not None and assets_cr not in (None, 0)
-            else None
-        )
-        current_ratio = (
-            current_assets_cr / current_liabilities_cr
-            if current_assets_cr is not None and current_liabilities_cr not in (None, 0)
-            else None
-        )
+        roa = latest_profit / assets_cr if latest_profit is not None and assets_cr not in (None, 0) else None
+        current_ratio = current_assets_cr / current_liabilities_cr if current_assets_cr is not None and current_liabilities_cr not in (None, 0) else None
 
         pe = ratios.get("Stock P/E")
-        peg = (
-            pe / (eps_cagr_3y * 100)
-            if pe is not None and eps_cagr_3y is not None and eps_cagr_3y > 0
-            else None
-        )
+        peg = pe / (eps_cagr_3y * 100) if pe is not None and eps_cagr_3y is not None and eps_cagr_3y > 0 else None
 
-        # EBITDA and EV multiples are not appropriate valuation metrics for lenders.
-        annual_ebitda = None if is_financial else (
-            (latest_op or 0) + (latest_dep or 0)
-            if latest_op is not None or latest_dep is not None
-            else None
-        )
-        ttm_ebitda = None if is_financial else (
-            (ttm_op or 0) + (ttm_dep or 0)
-            if ttm_op is not None or ttm_dep is not None
-            else None
-        )
+        annual_ebitda = None if is_financial else ((latest_op or 0) + (latest_dep or 0) if latest_op is not None or latest_dep is not None else None)
+        ttm_ebitda = None if is_financial else ((ttm_op or 0) + (ttm_dep or 0) if ttm_op is not None or ttm_dep is not None else None)
+        enterprise_value = None if is_financial or market_cap is None or debt is None else market_cap + debt
+        ev_ebitda = enterprise_value / self._cr(ttm_ebitda) if enterprise_value is not None and ttm_ebitda not in (None, 0) else None
+        ev_revenue = enterprise_value / self._cr(ttm_sales) if enterprise_value is not None and ttm_sales not in (None, 0) else None
 
-        enterprise_value = None
-        if not is_financial and market_cap is not None and debt is not None:
-            enterprise_value = market_cap + debt
-
-        ev_ebitda = (
-            enterprise_value / self._cr(ttm_ebitda)
-            if enterprise_value is not None and ttm_ebitda not in (None, 0)
-            else None
-        )
-        ev_revenue = (
-            enterprise_value / self._cr(ttm_sales)
-            if enterprise_value is not None and ttm_sales not in (None, 0)
-            else None
-        )
-
-        # For financial companies, financing margin is the closest equivalent
-        # to an operating margin; Screener explicitly publishes this metric.
-        financing_margin = self._row(
-            pl_rows,
-            ["Financing Margin %"],
-            ttm if ttm is not None else latest,
-        )
+        financing_margin = self._row(pl_rows, ["Financing Margin %"], ttm if ttm is not None else latest)
         operating_margin = (
             self._pct(financing_margin)
             if is_financial and financing_margin is not None
-            else (
-                self._pct(ttm_op / ttm_sales * 100)
-                if ttm_op is not None and ttm_sales not in (None, 0)
-                else None
-            )
+            else self._pct(ttm_op / ttm_sales * 100) if ttm_op is not None and ttm_sales not in (None, 0) else None
         )
-        profit_margin = (
-            self._pct(ttm_profit / ttm_sales * 100)
-            if ttm_profit is not None and ttm_sales not in (None, 0)
-            else None
-        )
+        profit_margin = self._pct(ttm_profit / ttm_sales * 100) if ttm_profit is not None and ttm_sales not in (None, 0) else None
 
-        data: dict[str, Any] = {
+        return {
             "longName": name,
             "shortName": name,
             "exchangeName": "NSE",
@@ -385,11 +343,7 @@ class ScreenerFinanceClient:
             "trailingPE": pe,
             "priceToBook": pb,
             "pegRatio": peg,
-            "priceToSalesTrailing12Months": (
-                market_cap_cr / ttm_sales
-                if market_cap_cr is not None and ttm_sales not in (None, 0)
-                else None
-            ),
+            "priceToSalesTrailing12Months": market_cap_cr / ttm_sales if market_cap_cr is not None and ttm_sales not in (None, 0) else None,
             "enterpriseToEbitda": ev_ebitda,
             "enterpriseToRevenue": ev_revenue,
             "dividendYield": self._pct(ratios.get("Dividend Yield")),
@@ -416,41 +370,14 @@ class ScreenerFinanceClient:
             "operatingMargins": operating_margin,
             "profitMargins": profit_margin,
             "payoutRatio": self._pct(latest_payout),
+            "revenueGrowth": self._pct(growth.get("Compounded Sales Growth", {}).get("TTM")),
+            "earningsGrowth": self._pct(growth.get("Compounded Profit Growth", {}).get("TTM")),
+            "earningsQuarterlyGrowth": None,
         }
 
-        previous = annual[-2] if len(annual) >= 2 else None
-        if latest is not None and previous is not None:
-            previous_sales = self._row(pl_rows, revenue_labels, previous)
-            previous_profit = self._row(pl_rows, profit_labels, previous)
-            previous_eps = self._row(pl_rows, ["EPS in Rs"], previous)
-            if latest_sales is not None and previous_sales not in (None, 0):
-                data["revenueGrowth"] = self._pct((latest_sales / previous_sales - 1) * 100)
-            if latest_profit is not None and previous_profit not in (None, 0):
-                data["earningsGrowth"] = self._pct((latest_profit / previous_profit - 1) * 100)
-            if latest_eps is not None and previous_eps not in (None, 0):
-                data["earningsQuarterlyGrowth"] = self._pct((latest_eps / previous_eps - 1) * 100)
-
-        ratio_headers, ratio_rows = self._table(soup, "ratios")
-        ratio_annual = self._annual_indices(ratio_headers)
-        if ratio_annual:
-            ri = ratio_annual[-1]
-            roe = self._row(ratio_rows, ["ROE %"], ri)
-            roce = self._row(ratio_rows, ["ROCE %"], ri)
-            opm = self._row(ratio_rows, ["OPM %"], ri)
-            if roe is not None:
-                data["returnOnEquity"] = self._pct(roe)
-            if roce is not None:
-                data["returnOnCapitalEmployed"] = self._pct(roce)
-            if opm is not None and not is_financial:
-                data["operatingMargins"] = self._pct(opm)
-
-        return data
-
-    def financial_history(
-        self,
-        symbol: str,
-    ) -> dict[str, dict[str, list[dict[str, Any]]]]:
-        soup = self._fetch(symbol)
+    def financial_history(self, symbol: str) -> dict[str, dict[str, list[dict[str, Any]]]]:
+        soup, extracted = self._extract(symbol)
+        growth = extracted["growth"]
         sector = self._sector_for_symbol(symbol)
         is_financial = self._is_financial_company(sector)
 
@@ -473,20 +400,12 @@ class ScreenerFinanceClient:
             dep = value(income, ["Depreciation"], index)
             profit = value(income, profit_labels, index)
             eps = value(income, ["EPS in Rs"], index)
-            row: dict[str, Any] = {
-                "asOfDate": f"{period[-4:]}-03-31",
-                "periodType": "12M",
-            }
-            if sales is not None:
-                row["annualTotalRevenue"] = {"raw": self._cr(sales)}
-            if op is not None:
-                row["annualOperatingIncome"] = {"raw": self._cr(op)}
-            if dep is not None and op is not None and not is_financial:
-                row["annualEBITDA"] = {"raw": self._cr(op + dep)}
-            if profit is not None:
-                row["annualNetIncome"] = {"raw": self._cr(profit)}
-            if eps is not None:
-                row["annualDilutedEPS"] = {"raw": eps}
+            row: dict[str, Any] = {"asOfDate": f"{period[-4:]}-03-31", "periodType": "12M"}
+            if sales is not None: row["annualTotalRevenue"] = {"raw": self._cr(sales)}
+            if op is not None: row["annualOperatingIncome"] = {"raw": self._cr(op)}
+            if dep is not None and op is not None and not is_financial: row["annualEBITDA"] = {"raw": self._cr(op + dep)}
+            if profit is not None: row["annualNetIncome"] = {"raw": self._cr(profit)}
+            if eps is not None: row["annualDilutedEPS"] = {"raw": eps}
             income_rows.append(row)
 
         balance_rows: list[dict[str, Any]] = []
@@ -497,22 +416,11 @@ class ScreenerFinanceClient:
             debt = value(balance, ["Borrowings", "Borrowings +", "Borrowing"], index)
             assets = value(balance, ["Total Assets"], index)
             liabilities = value(balance, ["Total Liabilities"], index)
-            row = {
-                "asOfDate": f"{period[-4:]}-03-31",
-                "periodType": "12M",
-            }
-            if equity_capital is not None or reserves is not None:
-                row["annualStockholdersEquity"] = {
-                    "raw": self._cr((equity_capital or 0) + (reserves or 0))
-                }
-            if debt is not None:
-                row["annualTotalDebt"] = {"raw": self._cr(debt)}
-            if assets is not None:
-                row["annualTotalAssets"] = {"raw": self._cr(assets)}
-            if liabilities is not None:
-                row["annualTotalLiabilitiesNetMinorityInterest"] = {
-                    "raw": self._cr(liabilities)
-                }
+            row: dict[str, Any] = {"asOfDate": f"{period[-4:]}-03-31", "periodType": "12M"}
+            if equity_capital is not None or reserves is not None: row["annualStockholdersEquity"] = {"raw": self._cr((equity_capital or 0) + (reserves or 0))}
+            if debt is not None: row["annualTotalDebt"] = {"raw": self._cr(debt)}
+            if assets is not None: row["annualTotalAssets"] = {"raw": self._cr(assets)}
+            if liabilities is not None: row["annualTotalLiabilitiesNetMinorityInterest"] = {"raw": self._cr(liabilities)}
             balance_rows.append(row)
 
         cash_rows: list[dict[str, Any]] = []
@@ -521,18 +429,11 @@ class ScreenerFinanceClient:
             cfo = value(cash, ["Cash from Operating Activity +", "Cash from Operating Activity"], index)
             fcf = value(cash, ["Free Cash Flow"], index)
             capex = value(cash, ["Capital Expenditure", "Capital Expenditure +"], index)
-            if capex is None and cfo is not None and fcf is not None:
-                capex = cfo - fcf
-            row = {
-                "asOfDate": f"{period[-4:]}-03-31",
-                "periodType": "12M",
-            }
-            if cfo is not None:
-                row["annualOperatingCashFlow"] = {"raw": self._cr(cfo)}
-            if fcf is not None:
-                row["annualFreeCashFlow"] = {"raw": self._cr(fcf)}
-            if capex is not None:
-                row["annualCapitalExpenditure"] = {"raw": self._cr(capex)}
+            if capex is None and cfo is not None and fcf is not None: capex = cfo - fcf
+            row: dict[str, Any] = {"asOfDate": f"{period[-4:]}-03-31", "periodType": "12M"}
+            if cfo is not None: row["annualOperatingCashFlow"] = {"raw": self._cr(cfo)}
+            if fcf is not None: row["annualFreeCashFlow"] = {"raw": self._cr(fcf)}
+            if capex is not None: row["annualCapitalExpenditure"] = {"raw": self._cr(capex)}
             cash_rows.append(row)
 
         return {
@@ -554,4 +455,5 @@ class ScreenerFinanceClient:
                 "annualCapitalExpenditure": cash_rows,
                 "annualFreeCashFlow": cash_rows,
             },
+            "growth": growth,
         }
