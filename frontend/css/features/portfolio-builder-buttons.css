@@ -1,51 +1,75 @@
 /* Mutual Fund Portfolio Builder action buttons
-   Match the regular action-button treatment used by Mutual Fund Analysis.
-   AI Insights and accordion/caret controls intentionally keep their own
-   specialized appearance. */
+   Exact visual language of the Mutual Fund Analysis primary buttons:
+   solid dark navy, white text, restrained shadow, no gradients. */
 
-/* Primary actions — same solid navy treatment as Mutual Fund Analysis. */
 body[data-page="portfolio-builder"] .pb-actions .btn,
+body[data-page="portfolio-builder"] .pb-actions a.btn,
+body[data-page="portfolio-builder"] #pb-continue-btn,
 body[data-page="portfolio-builder"] .pb-wf-actions .btn,
 body[data-page="portfolio-builder"] .pb-empty-card .btn,
+body[data-page="portfolio-builder"] .pb-actions .ai-action,
 body[data-page="portfolio-select-funds"] .pfs-continue-btn,
 body[data-page="portfolio-select-funds"] .pfs-btn-add {
     background: var(--color-primary);
+    background-image: none;
     color: #ffffff;
     border: 1px solid transparent;
-    box-shadow: none;
-    background-image: none;
+    box-shadow: var(--btn-shadow);
     animation: none;
-    transition: background 0.15s ease, transform 0.1s ease;
+    filter: none;
 }
 
 body[data-page="portfolio-builder"] .pb-actions .btn:hover:not(:disabled),
+body[data-page="portfolio-builder"] .pb-actions a.btn:hover:not(:disabled),
+body[data-page="portfolio-builder"] #pb-continue-btn:hover:not(:disabled),
 body[data-page="portfolio-builder"] .pb-wf-actions .btn:hover:not(:disabled),
 body[data-page="portfolio-builder"] .pb-empty-card .btn:hover:not(:disabled),
+body[data-page="portfolio-builder"] .pb-actions .ai-action:hover:not(:disabled),
 body[data-page="portfolio-select-funds"] .pfs-continue-btn:hover:not(:disabled),
 body[data-page="portfolio-select-funds"] .pfs-btn-add:hover:not(:disabled) {
-    background: var(--color-primary-light);
+    background: var(--color-primary);
+    background-image: none;
     color: #ffffff;
-    transform: none;
+    transform: translateY(-2px);
     filter: none;
-    box-shadow: none;
+    box-shadow: var(--btn-shadow-hover);
+}
+
+body[data-page="portfolio-builder"] .pb-actions .btn:active,
+body[data-page="portfolio-builder"] .pb-actions a.btn:active,
+body[data-page="portfolio-builder"] #pb-continue-btn:active,
+body[data-page="portfolio-builder"] .pb-wf-actions .btn:active,
+body[data-page="portfolio-builder"] .pb-empty-card .btn:active,
+body[data-page="portfolio-builder"] .pb-actions .ai-action:active,
+body[data-page="portfolio-select-funds"] .pfs-continue-btn:active,
+body[data-page="portfolio-select-funds"] .pfs-btn-add:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: var(--btn-shadow-active);
 }
 
 body[data-page="portfolio-builder"] .pb-actions .btn:focus-visible,
+body[data-page="portfolio-builder"] .pb-actions a.btn:focus-visible,
+body[data-page="portfolio-builder"] #pb-continue-btn:focus-visible,
 body[data-page="portfolio-builder"] .pb-wf-actions .btn:focus-visible,
 body[data-page="portfolio-builder"] .pb-empty-card .btn:focus-visible,
+body[data-page="portfolio-builder"] .pb-actions .ai-action:focus-visible,
 body[data-page="portfolio-select-funds"] .pfs-continue-btn:focus-visible,
 body[data-page="portfolio-select-funds"] .pfs-btn-add:focus-visible {
-    outline: 2px solid var(--color-primary-light);
-    outline-offset: 2px;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.25), var(--btn-shadow);
 }
 
 body[data-page="portfolio-builder"] .pb-actions .btn:disabled,
+body[data-page="portfolio-builder"] .pb-actions a.btn:disabled,
+body[data-page="portfolio-builder"] #pb-continue-btn:disabled,
 body[data-page="portfolio-builder"] .pb-wf-actions .btn:disabled,
 body[data-page="portfolio-builder"] .pb-empty-card .btn:disabled,
+body[data-page="portfolio-builder"] .pb-actions .ai-action:disabled,
 body[data-page="portfolio-select-funds"] .pfs-continue-btn:disabled,
 body[data-page="portfolio-select-funds"] .pfs-btn-add:disabled,
 body[data-page="portfolio-select-funds"] .pfs-btn-add.disabled {
     background: var(--color-slate-200);
+    background-image: none;
     color: var(--color-slate-500);
     border-color: transparent;
     box-shadow: none;
@@ -54,17 +78,17 @@ body[data-page="portfolio-select-funds"] .pfs-btn-add.disabled {
     cursor: not-allowed;
 }
 
-/* Added is a state indicator rather than a primary action. */
+/* Added is a state indicator rather than an action. */
 body[data-page="portfolio-select-funds"] .pfs-btn-add.added,
 body[data-page="portfolio-select-funds"] .pfs-btn-add.added:hover {
     background: var(--color-success);
+    background-image: none;
     color: #ffffff;
     box-shadow: none;
     transform: none;
 }
 
-/* View Details is a quiet secondary action, matching the neutral preset
-   controls in Mutual Fund Analysis. */
+/* View Details remains a neutral informational control rather than an action CTA. */
 body[data-page="portfolio-select-funds"] .pfs-btn-view {
     background: var(--color-surface);
     color: var(--color-text);
@@ -81,8 +105,7 @@ body[data-page="portfolio-select-funds"] .pfs-btn-view:hover {
     transform: none;
 }
 
-/* Search/filter toolbar: use the full width of the desktop results card.
-   The search input occupies the full first row; filters share the second row. */
+/* Search/filter toolbar: use the full width of the desktop results card. */
 body[data-page="portfolio-select-funds"] .pfs-search-bar {
     width: 100%;
     box-sizing: border-box;
