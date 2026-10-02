@@ -125,8 +125,8 @@ def get_stock_analysis(client: YahooFinanceClient, symbol: str) -> dict[str, Any
         "balance_sheet": [item.model_dump() for item in build_periods(history["balance"], balance_keys)],
         "cash_flow": [item.model_dump() for item in build_periods(history["cash"], cash_keys)],
         "warnings": [
-            "Indian equity fundamentals are sourced from Screener.in when available; individual fields may be unavailable or revised.",
-            "Derived metrics are calculated from the underlying annual statements and may differ from Screener's displayed ratios when definitions differ.",
+            "Some individual observations may be unavailable or subsequently revised.",
+            "Calculated metrics use the application's documented formulas and may differ from ratios calculated with alternative conventions.",
             "CAGR metrics require the requested lookback period and a positive starting value.",
         ],
     }
