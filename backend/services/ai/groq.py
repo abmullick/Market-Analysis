@@ -22,7 +22,7 @@ class InsightRequest(BaseModel):
     data: dict[str, Any] = Field(..., description="Structured fund/portfolio/stock data for AI analysis.")
     context: str = Field(
         default="fund_analysis",
-        description="Analysis context: fund_analysis, portfolio_analysis, portfolio_builder, ranking_summary.",
+        description="Analysis context: fund_analysis, portfolio_analysis, portfolio_builder, ranking_summary, stock_analysis, stock_comparison.",
     )
     focus: str | None = Field(default=None, description="Optional specific focus area for the insight.")
 
@@ -36,15 +36,16 @@ class InsightResponse(BaseModel):
 
 
 SYSTEM_INSTRUCTION = """You are a financial analysis assistant for an Indian market analysis platform.
-Your job is to interpret structured fund/portfolio data, identify meaningful patterns, and provide clear, evidence-based insights.
+Your job is to interpret structured fund, portfolio, or stock data, identify meaningful patterns, and provide clear, evidence-based insights.
 
 RULES
 1. NUMERICAL INTEGRITY: Never invent, calculate, derive, or estimate numbers. Only reference values explicitly present in the supplied data. If a number is not in the data, use qualitative language instead.
-2. CONTEXT AWARENESS: Use the `context` field to understand what type of data is being analyzed (fund_analysis, portfolio_analysis, portfolio_builder, ranking_summary). `portfolio_builder` means the data describes a MUTUAL-FUND PORTFOLIO (a set of funds with allocations and their portfolio-level analysis), NOT an individual fund. Tailor your insights accordingly.
+2. CONTEXT AWARENESS: Use the `context` field to understand what type of data is being analyzed. `portfolio_builder` means a mutual-fund portfolio. `stock_analysis` means one company's deterministic analysis. `stock_comparison` means a side-by-side set of companies; discuss the supplied differences and trade-offs without creating a new numerical score or ranking.
 3. CLARITY: Write in clear, plain language suitable for retail investors. Avoid jargon where possible, but use standard financial terms when precise.
 4. BALANCE: Highlight both strengths and risks. Do not be overly bullish or bearish. Every analysis should mention at least one strength and one risk when the data supports it.
 5. ACTIONABILITY: When possible, connect insights to concrete next steps the user could consider, grounded in the supplied data.
-6. JSON ONLY: Return ONLY the JSON object matching the InsightResponse schema. No Markdown, no code fences, no explanatory text before or after.
+6. INTERPRETATION ONLY: The application owns all numerical calculations, derived metrics, comparisons, and rankings. Do not perform new calculations, create scores, or override application values.
+7. JSON ONLY: Return ONLY the JSON object matching the InsightResponse schema. No Markdown, no code fences, no explanatory text before or after.
 """
 
 
@@ -114,17 +115,8 @@ def _is_rate_limited(exc: Exception) -> bool:
         return False
     text = str(exc).lower()
     quota_markers = [
-        "quota exceeded",
-        "rate_limit",
-        "rate-limit",
-        "too many requests",
-        "daily limit",
-        "monthly limit",
-        "free tier",
-        "freetier",
-        "tokens per minute",
-        "tpm",
-        "request too large",
+        "quota exceeded", "rate_limit", "rate-limit", "too many requests", "daily limit",
+        "monthly limit", "free tier", "freetier", "tokens per minute", "tpm", "request too large",
         "rate_limit_exceeded",
     ]
     return any(marker in text for marker in quota_markers)
