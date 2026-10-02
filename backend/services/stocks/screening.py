@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from backend.services.data.yahoo import YahooFinanceClient, number
+from backend.services.stocks.liquidity import LiquidityDataError, get_three_month_liquidity
 from backend.services.stocks.nifty_universe import load_nifty_total_market, nifty_sectors
 
 LIQUIDITY_THRESHOLDS_CR = {"high": 50.0, "moderate": 10.0, "low": 2.0}
@@ -11,11 +12,11 @@ LIQUIDITY_THRESHOLDS_CR = {"high": 50.0, "moderate": 10.0, "low": 2.0}
 def _liquidity_status(avg_traded_value_cr: float | None) -> str | None:
     if avg_traded_value_cr is None:
         return None
-    if avg_traded_value_cr >= LIQUIDITY_THRESHOLDS_CR["high"]:
+    if avg_traded_value_cr >= 50:
         return "high"
-    if avg_traded_value_cr >= LIQUIDITY_THRESHOLDS_CR["moderate"]:
+    if avg_traded_value_cr >= 10:
         return "moderate"
-    if avg_traded_value_cr >= LIQUIDITY_THRESHOLDS_CR["low"]:
+    if avg_traded_value_cr >= 2:
         return "low"
     return "illiquid"
 
@@ -101,8 +102,11 @@ def list_stocks(
             quote = client.quote_summary(item["symbol"])
             market_cap = number(quote.get("marketCap"))
             price = number(quote.get("regularMarketPrice"))
-            avg_volume_3m = number(quote.get("averageDailyVolume3Month")) or number(quote.get("averageVolume"))
-            avg_traded_value_cr = avg_volume_3m * price / 1e7 if avg_volume_3m is not None and price is not None else None
+            try:
+                liquidity = get_three_month_liquidity(item["symbol"])
+            except LiquidityDataError:
+                liquidity = {"avg_daily_volume_3m": None, "avg_daily_traded_value_3m_cr": None, "trading_observations_3m": 0, "liquidity_market_data_source": None}
+            avg_traded_value_cr = liquidity.get("avg_daily_traded_value_3m_cr")
             pe = number(quote.get("trailingPE"))
             peg = number(quote.get("pegRatio")) or _peg_from_history(client, item["symbol"], pe)
             stocks.append({
@@ -112,44 +116,23 @@ def list_stocks(
                 "pe": pe,
                 "pb": number(quote.get("priceToBook")),
                 "peg": peg,
-                "roe": (number(quote.get("returnOnEquity")) or 0) * 100 if number(quote.get("returnOnEquity")) is not None else None,
-                "roa": (number(quote.get("returnOnAssets")) or 0) * 100 if number(quote.get("returnOnAssets")) is not None else None,
+                "roe": number(quote.get("returnOnEquity")) * 100 if number(quote.get("returnOnEquity")) is not None else None,
+                "roa": number(quote.get("returnOnAssets")) * 100 if number(quote.get("returnOnAssets")) is not None else None,
                 "debt_equity": number(quote.get("debtToEquity")),
                 "current_ratio": number(quote.get("currentRatio")),
                 "ev_ebitda": number(quote.get("enterpriseToEbitda")),
                 "ev_revenue": number(quote.get("enterpriseToRevenue")),
-                "dividend_yield": (number(quote.get("dividendYield")) or 0) * 100 if number(quote.get("dividendYield")) is not None else None,
+                "dividend_yield": number(quote.get("dividendYield")) * 100 if number(quote.get("dividendYield")) is not None else None,
                 "price": price,
-                "avg_daily_volume_3m": avg_volume_3m,
+                "avg_daily_volume_3m": liquidity.get("avg_daily_volume_3m"),
                 "avg_daily_traded_value_3m_cr": avg_traded_value_cr,
+                "trading_observations_3m": liquidity.get("trading_observations_3m"),
                 "liquidity_status": _liquidity_status(avg_traded_value_cr),
-                "liquidity_source": "Yahoo Finance 3M average volume × current price",
+                "liquidity_source": liquidity.get("liquidity_market_data_source"),
             })
         except Exception:
-            stocks.append({**item, "market_cap": None, "market_cap_cr": None, "pe": None, "pb": None, "peg": None, "roe": None, "roa": None, "debt_equity": None, "current_ratio": None, "ev_ebitda": None, "ev_revenue": None, "dividend_yield": None, "price": None, "avg_daily_volume_3m": None, "avg_daily_traded_value_3m_cr": None, "liquidity_status": None, "liquidity_source": None})
+            stocks.append({**item, "market_cap": None, "market_cap_cr": None, "pe": None, "pb": None, "peg": None, "roe": None, "roa": None, "debt_equity": None, "current_ratio": None, "ev_ebitda": None, "ev_revenue": None, "dividend_yield": None, "price": None, "avg_daily_volume_3m": None, "avg_daily_traded_value_3m_cr": None, "trading_observations_3m": 0, "liquidity_status": None, "liquidity_source": None})
 
-    stocks = [
-        s for s in stocks
-        if _matches(s["market_cap_cr"], min_market_cap_cr, max_market_cap_cr)
-        and _matches(s["pe"], min_pe, max_pe)
-        and _matches(s["pb"], min_pb, max_pb)
-        and _matches(s["peg"], min_peg, max_peg)
-        and _matches(s["roa"], min_roa, max_roa)
-        and _matches(s["roe"], min_roe, max_roe)
-        and _matches(s["debt_equity"], min_debt_equity, max_debt_equity)
-        and _matches(s["current_ratio"], min_current_ratio, max_current_ratio)
-        and _matches(s["ev_ebitda"], min_ev_ebitda, max_ev_ebitda)
-        and _matches(s["ev_revenue"], min_ev_revenue, max_ev_revenue)
-        and _matches(s["dividend_yield"], min_dividend_yield, max_dividend_yield)
-    ]
+    stocks = [s for s in stocks if _matches(s["market_cap_cr"], min_market_cap_cr, max_market_cap_cr) and _matches(s["pe"], min_pe, max_pe) and _matches(s["pb"], min_pb, max_pb) and _matches(s["peg"], min_peg, max_peg) and _matches(s["roa"], min_roa, max_roa) and _matches(s["roe"], min_roe, max_roe) and _matches(s["debt_equity"], min_debt_equity, max_debt_equity) and _matches(s["current_ratio"], min_current_ratio, max_current_ratio) and _matches(s["ev_ebitda"], min_ev_ebitda, max_ev_ebitda) and _matches(s["ev_revenue"], min_ev_revenue, max_ev_revenue) and _matches(s["dividend_yield"], min_dividend_yield, max_dividend_yield)]
     stocks.sort(key=lambda s: (s["market_cap_cr"] is not None, s["market_cap_cr"] or 0), reverse=True)
-    return {
-        "sector": sector,
-        "stocks": stocks,
-        "count": len(stocks),
-        "universe": "Nifty Total Market",
-        "classification_source": "NSE Indices / Nifty Total Market constituent CSV",
-        "liquidity_method": "3-month average daily volume × current price; thresholds are application screening thresholds",
-        "liquidity_thresholds_cr": {"high": 50, "moderate": 10, "low": 2, "illiquid": 0},
-        "sectors": nifty_sectors(),
-    }
+    return {"sector": sector, "stocks": stocks, "count": len(stocks), "universe": "Nifty Total Market", "classification_source": "NSE Indices / Nifty Total Market constituent CSV", "liquidity_method": "3-month daily market volume × daily close; average daily traded value used for classification", "liquidity_thresholds_cr": {"high": 50, "moderate": 10, "low": 2, "illiquid": 0}, "sectors": nifty_sectors()}
