@@ -22,13 +22,14 @@ function setMarketAnalysisHeaderLogo() {
 }
 
 function loadPortfolioBuilderButtonTheme() {
-    if (document.body?.dataset.page !== "portfolio-builder") return;
+    const page = document.body?.dataset.page;
+    if (page !== "portfolio-builder" && page !== "portfolio-select-funds") return;
     if (document.getElementById("portfolio-builder-button-theme")) return;
 
     const stylesheet = document.createElement("link");
     stylesheet.id = "portfolio-builder-button-theme";
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "/css/features/portfolio-builder-buttons.css?v=1";
+    stylesheet.href = "/css/features/portfolio-builder-buttons.css?v=2";
     document.head.appendChild(stylesheet);
 }
 
