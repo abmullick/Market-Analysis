@@ -55,3 +55,13 @@ body {
 }
 
 a { text-decoration:none; color:inherit; }
+
+/* Unified chevron treatment: make every collapsible/navigation chevron
+   immediately visible and easy to click without changing its container. */
+svg[class*="chevron"],
+svg[class*="caret"] {
+    width: 24px !important;
+    height: 24px !important;
+    stroke-width: 2.75 !important;
+    flex-shrink: 0;
+}
