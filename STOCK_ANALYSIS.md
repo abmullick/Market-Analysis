@@ -258,3 +258,31 @@ All selected companies use the same formulas and observation rules, making the c
 Historical analytics are calculated from normalized financial statements and ownership tables. They are presented as ordinary application metrics with transparent formulas.
 
 Missing observations remain missing. No historical ownership, earnings, cash-flow or trend value is invented to complete a chart.
+
+## 25. AI Insights
+
+Both the individual Stock Analysis report and the Compare view provide an **AI Insights** action using the same shared AI architecture used elsewhere in the application.
+
+### 25.1 Individual analysis
+
+The AI receives a compact context containing the displayed fundamentals, deterministic derived metrics and a bounded historical trend. It returns:
+
+- Summary.
+- Key Points.
+- Risks.
+- Opportunities.
+- Recommendation / next-step context.
+
+The AI interprets the existing analysis; it does not calculate new metrics, create a score, or replace the application's deterministic values.
+
+### 25.2 Stock comparison
+
+Compare sends a bounded context for the selected companies and asks the AI to explain the supplied business-quality, growth, cash-generation, financial-health, capital-efficiency and valuation trade-offs. It does not create a new numerical ranking or score.
+
+### 25.3 Reliability and privacy boundaries
+
+AI requests use a compact payload with an explicit size guard. Provider credentials remain server-side. If the AI service is unavailable, the deterministic Stock Analysis report remains usable and the AI section exposes a retry action.
+
+## 26. Desktop Presentation
+
+The application uses a normal **100% desktop presentation scale** by default. Responsive layouts continue to apply on smaller screens.
