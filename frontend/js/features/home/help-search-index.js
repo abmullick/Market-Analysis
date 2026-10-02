@@ -17,6 +17,14 @@ const STOP_WORDS = new Set([
 
 export function normalizeText(value) {
     return String(value || "")
+        // Treat common financial notation as the same search term whether the
+        // user types P/E, PE, Debt/Equity, etc. The Help content uses both
+        // slash notation and word notation in different places.
+        .replace(/\bp\s*\/\s*e\b/gi, " pe ")
+        .replace(/\bp\s*\/\s*b\b/gi, " pb ")
+        .replace(/\b ev\s*\/\s*ebitda\b/gi, " ev ebitda ")
+        .replace(/\bev\s*\/\s*revenue\b/gi, " ev revenue ")
+        .replace(/\bdebt\s*\/\s*equity\b/gi, " debt equity ")
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, " ")
         .replace(/\s+/g, " ")
@@ -33,12 +41,6 @@ function meaningfulTokens(value) {
 
 function slugify(value) {
     return normalizeText(value).replace(/\s+/g, "-").slice(0, 80);
-}
-
-function sectionHeadingFor(element) {
-    const section = element.closest(".help-section");
-    const heading = section?.querySelector("h2, h3");
-    return heading?.textContent?.trim() || "";
 }
 
 function buildDomIndex() {
