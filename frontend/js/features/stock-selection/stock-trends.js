@@ -21,7 +21,7 @@ function chartCard(id, title, subtitle) {
   return `<div class="stock-chart-card"><h3>${esc(title)}</h3><small>${esc(subtitle)}</small><canvas id="${esc(id)}" class="stock-chart-canvas"></canvas></div>`;
 }
 
-function commonChartOptions(suffix = "%") {
+function commonChartOptions(suffix = "%", xAxisLabel = "Financial year", yAxisLabel = "Percent") {
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -31,22 +31,30 @@ function commonChartOptions(suffix = "%") {
       tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y, suffix)}` } },
     },
     scales: {
-      x: { grid: { display: false }, ticks: { font: { size: 9 }, color: "#64748b" } },
-      y: { grid: { color: "#edf2f7" }, ticks: { font: { size: 9 }, color: "#64748b", callback: (v) => `${v}${suffix}` } },
+      x: {
+        title: { display: true, text: xAxisLabel, color: "#475569", font: { size: 10, weight: "600" } },
+        grid: { display: false },
+        ticks: { font: { size: 9 }, color: "#64748b" },
+      },
+      y: {
+        title: { display: true, text: yAxisLabel, color: "#475569", font: { size: 10, weight: "600" } },
+        grid: { color: "#edf2f7" },
+        ticks: { font: { size: 9 }, color: "#64748b", callback: (v) => `${v}${suffix}` },
+      },
     },
   };
 }
 
-function drawSingleChart(canvasId, series, label, color = PALETTE[0], suffix = "%") {
+function drawSingleChart(canvasId, series, label, color = PALETTE[0], suffix = "%", yLabel = "Percent") {
   if (typeof Chart === "undefined") return;
   const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
+  if (!canvas || !series?.length) return;
   const labels = series.map((x) => x.year);
   const data = series.map((x) => x.value);
   new Chart(canvas, {
     type: "line",
     data: { labels, datasets: [{ label, data, borderColor: color, backgroundColor: `${color}18`, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, tension: .25, spanGaps: true, fill: true }] },
-    options: commonChartOptions(suffix),
+    options: commonChartOptions(suffix, "Financial year", yLabel),
   });
 }
 
@@ -54,17 +62,35 @@ function drawPriceChart(canvasId, charts) {
   if (typeof Chart === "undefined") return;
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
+
+  // Screener provides the authoritative 1Y/3Y/5Y/10Y price CAGR figures.
+  // Use the rolling Yahoo series only as a fallback when those figures are unavailable.
+  const screener = charts.price_cagr || [];
+  if (screener.length) {
+    new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: screener.map((x) => x.year),
+        datasets: [{ label: "Price CAGR", data: screener.map((x) => x.value), backgroundColor: PALETTE[0] }],
+      },
+      options: commonChartOptions("%", "Period", "CAGR (%)"),
+    });
+    return;
+  }
+
   const all = [...(charts.price_cagr_3y || []), ...(charts.price_cagr_5y || [])];
+  if (!all.length) return;
   const labels = [...new Set(all.map((x) => x.year))].sort();
   const map = (series) => Object.fromEntries((series || []).map((x) => [x.year, x.value]));
-  const a = map(charts.price_cagr_3y); const b = map(charts.price_cagr_5y);
+  const a = map(charts.price_cagr_3y);
+  const b = map(charts.price_cagr_5y);
   new Chart(canvas, {
     type: "line",
     data: { labels, datasets: [
       { label: "3Y Price CAGR", data: labels.map((y) => a[y] ?? null), borderColor: PALETTE[0], backgroundColor: `${PALETTE[0]}12`, borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true },
       { label: "5Y Price CAGR", data: labels.map((y) => b[y] ?? null), borderColor: PALETTE[2], backgroundColor: `${PALETTE[2]}10`, borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true },
     ] },
-    options: commonChartOptions("%"),
+    options: commonChartOptions("%", "Year", "CAGR (%)"),
   });
 }
 
@@ -74,21 +100,21 @@ function renderTrendSection(details, charts, comparison = false, names = []) {
   section.className = comparison ? "stock-trends-section stock-comparison-trends" : "stock-trends-section";
   section.innerHTML = `
     <div class="stock-trends-header">
-      <div><h2>${comparison ? "Historical Growth & Return Trends" : "Historical Growth & Return Trends"}</h2>
+      <div><h2>Historical Growth & Return Trends</h2>
       <p>${comparison ? "Compare the trajectory of earnings, revenue, ROE and market-price CAGR across the selected stocks." : "Historical trends complement the current ratios: growth quality, return on equity and the price paid for that growth."}</p></div>
     </div>
     <div class="stock-trends-grid">
       ${chartCard(`${prefix}-eps-growth`, "EPS Growth", "Annual year-over-year EPS growth")}
       ${chartCard(`${prefix}-revenue-growth`, "Revenue Growth", "Annual year-over-year revenue growth")}
       ${chartCard(`${prefix}-roe-trend`, "ROE Trend", "Derived annual ROE using average equity")}
-      ${chartCard(`${prefix}-price-cagr`, "Price Growth (CAGR)", "Rolling 3-year and 5-year annualised price growth")}
+      ${chartCard(`${prefix}-price-cagr`, "Price Growth (CAGR)", "1Y, 3Y, 5Y and 10Y annualised price growth")}
     </div>`;
   details.appendChild(section);
 
   if (!comparison) {
-    drawSingleChart(`${prefix}-eps-growth`, charts.eps_growth || [], "EPS growth");
-    drawSingleChart(`${prefix}-revenue-growth`, charts.revenue_growth || [], "Revenue growth", PALETTE[1]);
-    drawSingleChart(`${prefix}-roe-trend`, charts.roe_trend || [], "ROE", PALETTE[3]);
+    drawSingleChart(`${prefix}-eps-growth`, charts.eps_growth || [], "EPS growth", PALETTE[0], "%", "Growth (%)");
+    drawSingleChart(`${prefix}-revenue-growth`, charts.revenue_growth || [], "Revenue growth", PALETTE[1], "%", "Growth (%)");
+    drawSingleChart(`${prefix}-roe-trend`, charts.roe_trend || [], "ROE", PALETTE[3], "%", "ROE (%)");
     drawPriceChart(`${prefix}-price-cagr`, charts);
     return;
   }
@@ -104,19 +130,40 @@ function renderTrendSection(details, charts, comparison = false, names = []) {
     ["compare-revenue-growth", "revenue_growth", "Revenue growth"],
     ["compare-roe-trend", "roe_trend", "ROE"],
   ].forEach(([id, key, label]) => {
-    const canvas = document.getElementById(id); if (!canvas) return;
-    const rows = datasetsFor(key); const labels = [...new Set(rows.flatMap((r) => Object.keys(r.data)))].sort();
-    new Chart(canvas, { type: "line", data: { labels, datasets: rows.map((r) => ({ label: r.label, data: labels.map((y) => r.data[y] ?? null), borderColor: r.color, backgroundColor: `${r.color}12`, borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true })) }, options: commonChartOptions("%") });
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    const rows = datasetsFor(key);
+    const labels = [...new Set(rows.flatMap((r) => Object.keys(r.data)))].sort();
+    if (!labels.length) return;
+    new Chart(canvas, {
+      type: "line",
+      data: { labels, datasets: rows.map((r) => ({ label: r.label, data: labels.map((y) => r.data[y] ?? null), borderColor: r.color, backgroundColor: `${r.color}12`, borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true })) },
+      options: commonChartOptions("%", "Financial year", label === "ROE" ? "ROE (%)" : "Growth (%)"),
+    });
   });
 
   const canvas = document.getElementById("compare-price-cagr");
   if (canvas) {
-    const rows = names.map((name, index) => ({ name, c3: Object.fromEntries((charts[index]?.price_cagr_3y || []).map((x) => [x.year, x.value])), c5: Object.fromEntries((charts[index]?.price_cagr_5y || []).map((x) => [x.year, x.value])), color: PALETTE[index % PALETTE.length] }));
-    const labels = [...new Set(rows.flatMap((r) => [...Object.keys(r.c3), ...Object.keys(r.c5)]))].sort();
-    new Chart(canvas, { type: "line", data: { labels, datasets: rows.flatMap((r) => [
-      { label: `${r.name} · 3Y`, data: labels.map((y) => r.c3[y] ?? null), borderColor: r.color, borderWidth: 2, pointRadius: 2, tension: .25, spanGaps: true },
-      { label: `${r.name} · 5Y`, data: labels.map((y) => r.c5[y] ?? null), borderColor: r.color, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 2, tension: .25, spanGaps: true },
-    ]) }, options: commonChartOptions("%") });
+    const hasScreener = charts.some((c) => (c?.price_cagr || []).length);
+    if (hasScreener) {
+      const periods = ["1Y", "3Y", "5Y", "10Y"];
+      const datasets = names.map((name, index) => {
+        const values = Object.fromEntries((charts[index]?.price_cagr || []).map((x) => [x.year, x.value]));
+        return { label: name, data: periods.map((p) => values[p] ?? null), backgroundColor: PALETTE[index % PALETTE.length] };
+      });
+      new Chart(canvas, {
+        type: "bar",
+        data: { labels: periods, datasets },
+        options: commonChartOptions("%", "Period", "CAGR (%)"),
+      });
+    } else {
+      const rows = names.map((name, index) => ({ name, c3: Object.fromEntries((charts[index]?.price_cagr_3y || []).map((x) => [x.year, x.value])), c5: Object.fromEntries((charts[index]?.price_cagr_5y || []).map((x) => [x.year, x.value])), color: PALETTE[index % PALETTE.length] }));
+      const labels = [...new Set(rows.flatMap((r) => [...Object.keys(r.c3), ...Object.keys(r.c5)]))].sort();
+      new Chart(canvas, { type: "line", data: { labels, datasets: rows.flatMap((r) => [
+        { label: `${r.name} · 3Y`, data: labels.map((y) => r.c3[y] ?? null), borderColor: r.color, borderWidth: 2, pointRadius: 2, tension: .25, spanGaps: true },
+        { label: `${r.name} · 5Y`, data: labels.map((y) => r.c5[y] ?? null), borderColor: r.color, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 2, tension: .25, spanGaps: true },
+      ]) }, options: commonChartOptions("%", "Year", "CAGR (%)") });
+    }
   }
 }
 
