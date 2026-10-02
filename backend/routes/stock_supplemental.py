@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -68,7 +69,6 @@ def _supplement(data: dict[str, Any], symbol: str) -> dict[str, Any]:
         "debt_equity": f.get("debt_equity"),
     }
 
-    # Compute conventional non-financial-company metrics when the underlying data permits it.
     if not financial:
         market_cap = number(f.get("market_cap"))
         if computed["enterprise_value"] is None and market_cap is not None and total_debt is not None and cash is not None:
@@ -108,12 +108,18 @@ def _supplement(data: dict[str, Any], symbol: str) -> dict[str, Any]:
     }
 
 
+def _load_stock_supplemental(normalized: str) -> dict[str, Any]:
+    data = stock_routes._enrich_public_analysis(
+        get_stock_analysis(stock_routes._get_client(), normalized)
+    )
+    return _supplement(data, normalized)
+
+
 @router.get("/{symbol}/supplemental")
 async def get_stock_supplemental(symbol: str):
     normalized = symbol.strip().upper()
     try:
-        data = stock_routes._enrich_public_analysis(get_stock_analysis(stock_routes._get_client(), normalized))
-        return _supplement(data, normalized)
+        return await asyncio.to_thread(_load_stock_supplemental, normalized)
     except YahooFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
