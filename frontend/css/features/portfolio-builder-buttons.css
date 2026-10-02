@@ -1,0 +1,44 @@
+/* Mutual Fund Portfolio Builder action buttons
+   Match the regular action-button treatment used by Mutual Fund Analysis.
+   AI Insights and accordion/caret controls intentionally keep their own
+   specialized appearance. */
+
+body[data-page="portfolio-builder"] .pb-actions .btn,
+body[data-page="portfolio-builder"] .pb-wf-actions .btn,
+body[data-page="portfolio-builder"] .pb-empty-card .btn {
+    background: var(--color-primary);
+    color: #ffffff;
+    border: 1px solid transparent;
+    box-shadow: none;
+    background-image: none;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+body[data-page="portfolio-builder"] .pb-actions .btn:hover:not(:disabled),
+body[data-page="portfolio-builder"] .pb-wf-actions .btn:hover:not(:disabled),
+body[data-page="portfolio-builder"] .pb-empty-card .btn:hover:not(:disabled) {
+    background: var(--color-primary-light);
+    color: #ffffff;
+    transform: none;
+    filter: none;
+    box-shadow: none;
+}
+
+body[data-page="portfolio-builder"] .pb-actions .btn:focus-visible,
+body[data-page="portfolio-builder"] .pb-wf-actions .btn:focus-visible,
+body[data-page="portfolio-builder"] .pb-empty-card .btn:focus-visible {
+    outline: 2px solid var(--color-primary-light);
+    outline-offset: 2px;
+}
+
+body[data-page="portfolio-builder"] .pb-actions .btn:disabled,
+body[data-page="portfolio-builder"] .pb-wf-actions .btn:disabled,
+body[data-page="portfolio-builder"] .pb-empty-card .btn:disabled {
+    background: var(--color-slate-200);
+    color: var(--color-slate-500);
+    border-color: transparent;
+    box-shadow: none;
+    transform: none;
+    filter: none;
+    cursor: not-allowed;
+}
