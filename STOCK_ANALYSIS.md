@@ -125,7 +125,7 @@ The in-application Help & Methodology page is the user-facing reference for sele
 
 ## 18. Company Pedigree, Consistency & Trend Analytics
 
-The individual report includes a separate historical analytics section built from the same normalized financial statements and ownership observations rather than simply copying additional headline ratios.
+The individual report includes a separate historical analytics section built from the same normalized financial statements and ownership observations.
 
 ### 18.1 Growth consistency
 
@@ -181,8 +181,72 @@ The same derived engine is applied independently to every selected stock in Comp
 
 The purpose is to compare trajectory and consistency, not merely the latest point-in-time ratio.
 
-## 20. Calculation Discipline
+## 20. Earnings Quality
 
-Pedigree analytics are calculated from the normalized financial statements and ownership tables. They are presented as application metrics with transparent formulas rather than as copied headline ratios.
+The individual and comparison views include a dedicated Earnings Quality panel.
+
+### 20.1 Profit versus cash generation
+
+Historical Net Profit, Operating Cash Flow and Free Cash Flow are indexed to 100 at their first positive observation so their trajectories can be compared directly.
+
+### 20.2 Cash conversion
+
+The engine calculates:
+
+- **CFO / Net Profit** = Operating Cash Flow ÷ Net Profit × 100.
+- **FCF / Net Profit** = Free Cash Flow ÷ Net Profit × 100.
+- **CFO / Profit CAGR gap** = CFO CAGR − Net Profit CAGR.
+- **FCF / Profit CAGR gap** = FCF CAGR − Net Profit CAGR.
+
+These measures show whether cash generation has kept pace with accounting profit over time.
+
+## 21. Capital Allocation & Reinvestment
+
+The report includes historical capital-deployment indicators:
+
+- Operating Cash Flow.
+- Capital Expenditure.
+- Free Cash Flow.
+- Capex / Operating Cash Flow.
+- Capex / Revenue.
+- FCF / Operating Cash Flow.
+- Debt trajectory and annual debt change.
+
+Capex is treated by absolute value when calculating intensity because capital expenditure may be represented as a negative cash-flow number. The charts help show how much internally generated cash is being reinvested in the business and how funding requirements have evolved.
+
+## 22. EPS Quality & Dilution
+
+When annual Net Profit and diluted EPS are both available, the engine calculates an **implied share count**:
+
+**Implied Shares = Net Profit ÷ Diluted EPS**
+
+With Net Profit expressed in ₹ crore and EPS in ₹ per share, the resulting share count is expressed in crore shares.
+
+The analysis then shows:
+
+- Implied share-count history.
+- Share-count growth.
+- 3Y and 5Y share-count CAGR.
+- EPS CAGR.
+- Profit CAGR minus EPS CAGR.
+
+This helps identify whether per-share growth is keeping pace with overall profit growth. The implied share count is a historical analytical proxy and is shown only when the required observations are available.
+
+## 23. Quality Comparison
+
+Compare contains the same three analytical areas for every selected company:
+
+- Profit versus cash-generation trajectory.
+- CFO / Profit and FCF / Profit conversion.
+- Capital intensity.
+- Share-count growth.
+- Profit growth versus EPS growth.
+- 3Y/5Y cash-generation and dilution gaps.
+
+All selected companies use the same formulas and observation rules, making the charts directly comparable.
+
+## 24. Calculation Discipline
+
+Historical analytics are calculated from normalized financial statements and ownership tables. They are presented as ordinary application metrics with transparent formulas.
 
 Missing observations remain missing. No historical ownership, earnings, cash-flow or trend value is invented to complete a chart.
