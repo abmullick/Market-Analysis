@@ -10,19 +10,20 @@ function sfEsc(v) {
 
 function sfSelectedSectors() {
   const select = document.getElementById("stock-sector");
-  return [...(select?.selectedOptions || [])].map(o => o.value).filter(Boolean);
+  return [...(select?.selectedOptions || [])].map(o => String(o.value || "").trim()).filter(Boolean);
 }
 
 function sfContext() {
   return {
     sectors: sfSelectedSectors(),
-    caps: [...document.querySelectorAll("#stock-cap-filter input:checked")].map(x => x.value),
+    caps: [...document.querySelectorAll("#stock-cap-filter input:checked")].map(x => String(x.value || "").trim().toLowerCase()),
     query: (document.getElementById("stock-filter-search")?.value || "").trim().toLowerCase(),
   };
 }
 
 function sfCapKey(stock) {
-  if (stock?.market_cap_band) return stock.market_cap_band;
+  const supplied = String(stock?.market_cap_band || "").trim().toLowerCase();
+  if (["large", "mid", "small", "micro"].includes(supplied)) return supplied;
   const n = Number(stock?.market_cap_cr);
   if (!Number.isFinite(n)) return null;
   if (n >= 100000) return "large";
@@ -34,7 +35,8 @@ function sfCapKey(stock) {
 function sfFiltered() {
   const f = sfContext();
   return stockFilterStocks.filter(s => {
-    if (f.sectors.length && !f.sectors.includes(String(s.sector || ""))) return false;
+    const sector = String(s.sector || "").trim();
+    if (f.sectors.length && !f.sectors.includes(sector)) return false;
     if (f.caps.length && !f.caps.includes(sfCapKey(s))) return false;
     if (f.query) {
       const q = `${s.name || ""} ${s.symbol || ""}`.toLowerCase();
@@ -76,7 +78,6 @@ function sfMoveQuickFiltersOutsideCollapse() {
   const top = card?.querySelector(".stock-filter-top");
   const toggle = card?.querySelector("#stock-filter-toggle");
   if (!card || !body || !top || !toggle) return;
-
   if (top.parentElement !== card) card.insertBefore(top, toggle);
   const extra = top.querySelector(".stock-universe-extra-filters");
   if (extra) extra.style.display = "block";
@@ -92,6 +93,7 @@ function sfRender() {
   const start = (stockFilterPage - 1) * STOCK_FILTER_PAGE_SIZE;
   const list = sfEnsureShell(screen);
   if (!list) return;
+
   list.innerHTML = result.slice(start, start + STOCK_FILTER_PAGE_SIZE).map(sfRow).join("") || `<div class="stock-no-data">No stocks match the current selection.</div>`;
   const summary = screen.querySelector(".stock-result-summary");
   if (summary) summary.innerHTML = `<strong>${result.length}</strong> stock${result.length === 1 ? "" : "s"} match the current selection${sfContext().query ? ` · search: “${sfEsc(sfContext().query)}”` : ""}.`;
@@ -109,15 +111,29 @@ function sfRender() {
     pager.className = "stock-client-pagination stock-filter-controller-pagination";
     pager.innerHTML = `<span>Showing ${start + 1}–${Math.min(start + STOCK_FILTER_PAGE_SIZE, result.length)} of ${result.length}</span><div class="stock-client-pagination-controls"><button type="button" data-page="${stockFilterPage - 1}" ${stockFilterPage <= 1 ? "disabled" : ""}>‹</button><span>${stockFilterPage} / ${pages}</span><button type="button" data-page="${stockFilterPage + 1}" ${stockFilterPage >= pages ? "disabled" : ""}>›</button></div>`;
     list.insertAdjacentElement("afterend", pager);
-    pager.querySelectorAll("[data-page]").forEach(b => b.addEventListener("click", () => { if (!b.disabled) { stockFilterPage = Number(b.dataset.page); sfRender(); } }));
+    pager.querySelectorAll("[data-page]").forEach(b => b.addEventListener("click", () => {
+      if (!b.disabled) {
+        stockFilterPage = Number(b.dataset.page);
+        sfRender();
+      }
+    }));
   }
 }
 
 async function sfLoadCapBands() {
   if (stockCapBandsPromise) return stockCapBandsPromise;
-  stockCapBandsPromise = fetch("/api/stocks/market-cap-bands", {headers:{Accept:"application/json"}, cache:"no-store"})
-    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`); const bands = d?.bands || {}; stockFilterStocks = stockFilterStocks.map(s => ({...s, market_cap_band: bands[s.symbol] || null})); return d; })
-    .catch(e => { stockCapBandsPromise = null; throw e; });
+  stockCapBandsPromise = fetch("/api/stocks/market-cap-bands", { headers: { Accept: "application/json" }, cache: "no-store" })
+    .then(async r => {
+      const d = await r.json();
+      if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`);
+      const bands = d?.bands || {};
+      stockFilterStocks = stockFilterStocks.map(s => ({ ...s, market_cap_band: bands[s.symbol] || null }));
+      return d;
+    })
+    .catch(e => {
+      stockCapBandsPromise = null;
+      throw e;
+    });
   return stockCapBandsPromise;
 }
 
@@ -125,10 +141,16 @@ function sfBindEvents() {
   document.addEventListener("change", async event => {
     const t = event.target;
     if (t?.id === "stock-sector") {
-      event.stopPropagation(); event.stopImmediatePropagation(); stockFilterPage = 1; sfRender(); return;
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      stockFilterPage = 1;
+      sfRender();
+      return;
     }
     if (t?.matches("#stock-cap-filter input")) {
-      event.stopPropagation(); event.stopImmediatePropagation(); stockFilterPage = 1;
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      stockFilterPage = 1;
       if (t.checked) {
         try { await sfLoadCapBands(); } catch (e) { console.warn("Market-cap classification unavailable:", e); }
       }
@@ -142,23 +164,11 @@ function sfBindEvents() {
     clearTimeout(window.__stockFilterSearchTimer);
     window.__stockFilterSearchTimer = setTimeout(sfRender, 60);
   }, true);
-
-  document.addEventListener("click", event => {
-    const toggle = event.target.closest?.("#stock-filter-toggle");
-    if (!toggle) return;
-    const body = document.getElementById("stock-filter-body");
-    if (!body) return;
-    const open = toggle.getAttribute("aria-expanded") === "true";
-    toggle.setAttribute("aria-expanded", String(!open));
-    const icon = toggle.querySelector(".stock-filter-toggle-icon");
-    if (icon) icon.textContent = open ? "⌄" : "⌃";
-    body.hidden = open;
-  }, true);
 }
 
 async function sfLoadUniverse() {
   try {
-    const r = await fetch("/api/stocks/universe", {headers:{Accept:"application/json"}, cache:"no-store"});
+    const r = await fetch("/api/stocks/universe", { headers: { Accept: "application/json" }, cache: "no-store" });
     const data = await r.json();
     if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
     stockFilterStocks = Array.isArray(data.stocks) ? data.stocks : [];
@@ -176,5 +186,5 @@ function sfInstall() {
   sfLoadUniverse();
 }
 
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", sfInstall, {once:true});
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", sfInstall, { once: true });
 else sfInstall();
