@@ -1,4 +1,4 @@
-import { searchHelp, resolveTarget } from "./help-search-index.js";
+import { searchHelp, resolveTarget, HELP_SEARCH_INDEX } from "./help-search-index.js";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const STRONG_MATCH_SCORE = 45;
@@ -82,7 +82,6 @@ function hideResults(resultsEl) {
     resultsEl.innerHTML = "";
 }
 
-/** Open an accordion item without breaking the existing toggle behaviour. */
 function openAccordionItem(item) {
     if (item.classList.contains("open")) return;
     const trigger = item.querySelector(".metric-trigger");
@@ -95,7 +94,6 @@ function navigateToEntry(entry) {
 
     openAccordionItem(target);
     target.scrollIntoView({ behavior: "smooth", block: "start" });
-
     target.classList.remove("search-highlight");
     void target.offsetWidth;
     target.classList.add("search-highlight");
@@ -109,21 +107,17 @@ function initSearch() {
     const input = wrapper.querySelector("#help-search-input");
     const clearBtn = wrapper.querySelector("#help-search-clear");
     const resultsEl = wrapper.querySelector("#help-search-results");
-
     let debounceTimer = null;
 
     function handleSearch(query, { navigate = false } = {}) {
         const trimmed = (query || "").trim();
-
         if (!trimmed) {
             clearBtn.hidden = true;
             hideResults(resultsEl);
             return;
         }
-
         const results = searchHelp(trimmed);
         renderResults(resultsEl, results);
-
         if (navigate && results.length && results[0].score >= STRONG_MATCH_SCORE) {
             navigateToEntry(results[0].entry);
         }
@@ -159,6 +153,31 @@ function initSearch() {
     });
 }
 
+function registerStockHelpSearchEntries() {
+    const entries = [
+        ["stock-universe", "Stock Universe & Selection", ["stock universe", "nifty total market", "nifty 500", "microcap 250", "large cap", "mid cap", "small cap", "micro cap"], ["which stocks are available", "stock universe"]],
+        ["stock-multiselect", "Multi-Select Screening", ["sector", "multi select", "multiple sectors", "search", "market cap", "filter"], ["select multiple sectors", "sector filter"]],
+        ["stock-select-compare", "Select, Analyze & Compare", ["select stock", "analyze stock", "compare stocks", "comparison", "auto add"], ["how do I compare stocks", "select and analyze"]],
+        ["stock-individual", "Individual Stock Analysis", ["valuation", "profitability", "financial health", "debt equity", "financial statements", "cagr", "pe", "pb"], ["stock fundamentals", "individual stock analysis"]],
+        ["stock-data-sources", "Data Sources", ["screener", "yahoo", "forward pe", "beta", "fundamental data", "market data"], ["where does stock data come from", "yahoo market data"]],
+        ["stock-missing-values", "Data Notes & Missing Values", ["n/m", "not meaningful", "missing data", "data notes", "unavailable"], ["why is a stock metric missing", "not meaningful"]],
+        ["stock-comparison", "Comparison View", ["comparison", "debt equity", "side by side", "metrics", "table"], ["compare stock fundamentals"]],
+        ["stock-stability", "Filter Performance & Stability", ["mutation observer", "performance", "dom", "backend requests", "refresh", "loading"], ["why did the stock page keep loading", "filter performance"]],
+    ];
+
+    for (const [id, heading, keywords, aliases] of entries) {
+        if (HELP_SEARCH_INDEX.some((entry) => entry.id === id)) continue;
+        HELP_SEARCH_INDEX.push({
+            id,
+            type: "card",
+            heading,
+            sectionHeading: "Stock Analysis",
+            keywords,
+            aliases,
+        });
+    }
+}
+
 /* Keep Help & Methodology synchronized with the implemented Stock Analysis page. */
 function updateStockAnalysisHelp() {
     const sections = [...document.querySelectorAll(".help-section")];
@@ -173,72 +192,38 @@ function updateStockAnalysisHelp() {
         <div class="help-grid">
             <div class="help-card">
                 <h4>Stock Universe & Selection</h4>
-                <p>
-                    The Stock Analysis selector uses the Nifty Total Market universe — the Nifty 500 plus the Nifty
-                    Microcap 250 source universe. The selector supports sector filtering, company/symbol search,
-                    and market-cap presets for Large Cap, Mid Cap, Small Cap, and Micro Cap.
-                </p>
+                <p>The selector uses the Nifty Total Market universe — Nifty 500 plus the Nifty Microcap 250 source universe. It supports sector filtering, company/symbol search, and Large/Mid/Small/Micro Cap presets.</p>
             </div>
             <div class="help-card">
                 <h4>Multi-Select Screening</h4>
-                <p>
-                    Sector selection is multi-select: choosing several sectors includes stocks from any selected sector.
-                    Search, market-cap presets, and the other screening controls refine the already-loaded universe
-                    locally where possible, avoiding unnecessary repeated backend requests.
-                </p>
+                <p>Sector selection is multi-select. Choosing several sectors includes stocks from any selected sector. Search and quick market-cap controls refine the already-loaded universe locally where possible.</p>
             </div>
             <div class="help-card">
                 <h4>Select, Analyze & Compare</h4>
-                <p>
-                    Selecting a stock makes it the active stock for analysis and also adds it to the Compare Stocks list.
-                    The user can remove it from the comparison list later. Up to four stocks can be staged for comparison,
-                    and the selected stock can be opened in the individual analysis view.
-                </p>
+                <p>Selecting a stock makes it the active analysis stock and also adds it to the Compare Stocks list. The user can remove it later; multiple stocks can be staged for comparison.</p>
             </div>
             <div class="help-card">
                 <h4>Individual Stock Analysis</h4>
-                <p>
-                    The analysis view presents company summary data, valuation ratios, profitability, financial health,
-                    growth metrics, historical financial statements, and valuation/performance trend charts where source
-                    data is available. Debt / Equity is included as a core financial-health metric and as a screening field.
-                </p>
+                <p>The analysis view presents company summary data, valuation, profitability, financial health, growth, financial statements, and valuation/performance trend charts where source data is available. Debt / Equity is a core metric and screening field.</p>
             </div>
             <div class="help-card">
                 <h4>Data Sources</h4>
-                <p>
-                    Screener is the primary Indian fundamental-data source for company financials and ratios. Yahoo
-                    market data is used as supplemental market data where appropriate, including Forward P/E and Beta.
-                    Values that are not meaningful for a particular financial business are displayed as
-                    <strong>N/M — Not Meaningful</strong> rather than as misleading dashes.
-                </p>
+                <p>Screener is the primary Indian fundamental-data source. Yahoo market data is supplemental, including Forward P/E and Beta where available. Values are not invented simply to fill a card.</p>
             </div>
             <div class="help-card">
                 <h4>Data Notes & Missing Values</h4>
-                <p>
-                    A missing value means the relevant source did not provide a usable value; it is not silently replaced
-                    with an invented estimate. The analysis page keeps Data Notes at the bottom of the page so they do not
-                    interrupt the financial-statement reading flow.
-                </p>
+                <p><strong>N/M — Not Meaningful</strong> is used when a metric does not meaningfully apply to the business model. Genuine unavailable source data remains unavailable. Data Notes stay at the bottom of the analysis page.</p>
             </div>
             <div class="help-card">
                 <h4>Comparison View</h4>
-                <p>
-                    The comparison page presents the selected stocks side by side using the same fundamental data model.
-                    Debt / Equity is included alongside the other core valuation, profitability, growth, and financial-health
-                    metrics, with consistent table dimensions and source-aware missing-value treatment.
-                </p>
+                <p>The comparison page uses the same source-aware fundamental model and includes Debt / Equity with the core valuation, profitability, growth, and financial-health metrics.</p>
             </div>
             <div class="help-card">
                 <h4>Filter Performance & Stability</h4>
-                <p>
-                    The stock selector avoids mutation-observer feedback loops and repeated full-page DOM rebuilds.
-                    Quick filters are designed to operate against the loaded universe without continuously recalculating
-                    the backend universe, keeping refreshes and filter interactions responsive.
-                </p>
+                <p>The selector avoids MutationObserver feedback loops and repeated full-page DOM rebuilds. Quick filters operate against the loaded universe where possible, keeping refreshes and filter interactions responsive.</p>
             </div>
         </div>`;
 
-    // Remove the obsolete Stock Analysis card from the Future / Planned section.
     const future = sections.find((s) => {
         const h = s.querySelector("h3");
         return h && h.textContent.trim() === "Future / Planned";
@@ -252,6 +237,7 @@ function updateStockAnalysisHelp() {
 }
 
 export function initHelp() {
+    registerStockHelpSearchEntries();
     updateStockAnalysisHelp();
     initSearch();
 
