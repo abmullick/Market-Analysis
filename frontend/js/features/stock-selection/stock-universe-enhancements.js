@@ -96,6 +96,7 @@ function installSectorMultiselect() {
   const old = document.getElementById('stock-sector');
   if (!old || old.dataset.enhanced === 'true') return;
   old.dataset.enhanced = 'true';
+  old.multiple = true;
   const wrap = document.createElement('div');
   wrap.className = 'stock-multiselect-wrap';
   old.parentNode.insertBefore(wrap, old);
@@ -127,7 +128,7 @@ function installLiquidityAndCapFilters() {
   if (!filterTop || document.getElementById('stock-liquidity-filter')) return;
   const block = document.createElement('div');
   block.className = 'stock-universe-extra-filters';
-  block.innerHTML = `<div class="stock-chip-filter" id="stock-cap-filter"><span class="stock-chip-filter-label">Market Cap</span>${CAP_BANDS.map(b=>`<label><input type="checkbox" value="${b.key}"><span>${b.label}</span></label>`).join('')}</div><div class="stock-chip-filter" id="stock-liquidity-filter"><span class="stock-chip-filter-label">Liquidity <small>(proxy)</small></span>${LIQUIDITY_BANDS.map(b=>`<label><input type="checkbox" value="${b.key}"><span class="liquidity-dot ${b.key}"></span>${b.label}</span></label>`).join('')}</div>`;
+  block.innerHTML = `<div class="stock-chip-filter" id="stock-cap-filter"><span class="stock-chip-filter-label">Market Cap</span>${CAP_BANDS.map(b=>`<label><input type="checkbox" value="${b.key}"><span>${b.label}</span></label>`).join('')}</div><div class="stock-chip-filter" id="stock-liquidity-filter"><span class="stock-chip-filter-label">Liquidity <small>(proxy)</small></span>${LIQUIDITY_BANDS.map(b=>`<label><input type="checkbox" value="${b.key}"><span class="liquidity-choice"><span class="liquidity-dot ${b.key}"></span>${b.label}</span></label>`).join('')}</div>`;
   filterTop.appendChild(block);
   block.addEventListener('change', () => {
     const caps = [...document.querySelectorAll('#stock-cap-filter input:checked')].map(x=>x.value);
