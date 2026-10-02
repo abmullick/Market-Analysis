@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.config.settings import Settings
 from backend.services.data.fundamentals import get_stock_analysis
+from backend.services.data.stock_charts import build_stock_charts, yahoo_annual_prices
 from backend.services.data.yahoo import YahooFinanceClient, YahooFinanceError
 from backend.services.stocks.nifty_universe import (
     NiftyUniverseError,
@@ -83,18 +84,11 @@ async def get_stock_universe(
             )
         )
 
-        # Sector/search selection without fundamental filters uses only
-        # the official NSE/Nifty classification. This keeps the selector
-        # fast and avoids requesting fundamentals for every stock.
         if not include_metrics and not has_fundamental_filter:
             stocks = load_nifty_total_market()
 
             if sector:
-                stocks = [
-                    stock
-                    for stock in stocks
-                    if stock["sector"] == sector
-                ]
+                stocks = [stock for stock in stocks if stock["sector"] == sector]
 
             if query:
                 q = query.strip().lower()
@@ -111,9 +105,7 @@ async def get_stock_universe(
                 "stocks": stocks,
                 "count": len(stocks),
                 "universe": "Nifty Total Market",
-                "classification_source": (
-                    "NSE Indices / Nifty Total Market constituent CSV"
-                ),
+                "classification_source": "NSE Indices / Nifty Total Market constituent CSV",
             }
 
         return list_stocks(
@@ -145,6 +137,26 @@ async def get_stock_universe(
         )
 
     except (NiftyUniverseError, YahooFinanceError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/{symbol}/charts")
+async def get_stock_charts(symbol: str):
+    try:
+        normalized = symbol.strip().upper()
+        history = _get_client().financial_history(normalized)
+        prices = yahoo_annual_prices(normalized, years=7)
+        return {
+            "symbol": normalized,
+            "charts": build_stock_charts(history, prices),
+            "price_source": "Yahoo Finance",
+            "notes": [
+                "EPS and revenue charts show annual year-over-year growth.",
+                "ROE trend is derived from annual net profit and average shareholder equity.",
+                "Price CAGR uses annual closing prices and is shown as rolling 3-year and 5-year CAGR.",
+            ],
+        }
+    except YahooFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
