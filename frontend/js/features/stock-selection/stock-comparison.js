@@ -8,6 +8,23 @@ const COMPARE_GROUPS = [
   { title: "Latest Financials", metrics: [["revenue", "Revenue", "money"], ["operating_profit", "Operating Profit", "money"], ["ebitda", "EBITDA", "money"], ["net_profit", "Net Profit", "money"], ["eps", "EPS", "number"], ["operating_cash_flow", "Operating Cash Flow", "money"], ["capital_expenditure", "Capital Expenditure", "money"], ["free_cash_flow", "Free Cash Flow", "money"]] },
 ];
 
+const LOWER_IS_BETTER = new Set([
+  "pe", "forward_pe", "pb", "ps", "peg", "ev_ebitda", "ev_revenue", "debt_equity", "total_debt",
+]);
+
+const HIGHER_IS_BETTER = new Set([
+  "dividend_yield", "roe", "roa", "gross_margin", "operating_margin", "profit_margin", "current_ratio", "quick_ratio",
+  "revenue_growth", "profit_growth", "eps_growth", "revenue_cagr_3y", "revenue_cagr_5y", "profit_cagr_3y", "profit_cagr_5y",
+  "eps_cagr_3y", "eps_cagr_5y", "operating_margin_change", "eps",
+]);
+
+const NEGATIVE_IS_BAD = new Set([
+  "revenue_growth", "profit_growth", "eps_growth", "gross_margin", "operating_margin", "profit_margin",
+  "roe", "roa", "revenue_cagr_3y", "revenue_cagr_5y", "profit_cagr_3y", "profit_cagr_5y",
+  "eps_cagr_3y", "eps_cagr_5y", "fcf_cagr_3y", "fcf_cagr_5y", "operating_margin_change",
+  "operating_profit", "ebitda", "net_profit", "eps", "operating_cash_flow", "free_cash_flow",
+]);
+
 let compareSymbols = [];
 let observerStarted = false;
 let renderingBar = false;
@@ -41,13 +58,37 @@ function metricDisplay(f, key, type, currency) {
   return { text: value(f[key], type, currency), title: "" };
 }
 
+function comparisonState(f, key, allValues) {
+  const raw = Number(f[key]);
+  if (!Number.isFinite(raw)) return "neutral";
+
+  if (NEGATIVE_IS_BAD.has(key) && raw < 0) return "negative";
+
+  const values = allValues.filter((v) => Number.isFinite(v));
+  if (values.length < 2) return "neutral";
+  const other = values.find((v) => v !== raw);
+  if (other == null || raw === other) return "neutral";
+
+  if (LOWER_IS_BETTER.has(key)) return raw < Math.max(...values) && raw === Math.min(...values) ? "favorable" : "unfavorable";
+  if (HIGHER_IS_BETTER.has(key)) return raw === Math.max(...values) ? "favorable" : "unfavorable";
+  return "neutral";
+}
+
+function comparisonCellClass(f, key, fs) {
+  const values = fs.map((x) => Number(x[key])).filter(Number.isFinite);
+  const state = comparisonState(f, key, values);
+  return state === "favorable" ? "compare-favorable" : state === "unfavorable" ? "compare-unfavorable" : state === "negative" ? "compare-negative" : "";
+}
+
 function injectStyles() {
   if (document.getElementById("stock-comparison-styles")) return;
   const style = document.createElement("style");
   style.id = "stock-comparison-styles";
   style.textContent = `
-    .stock-compare-bar{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:12px 14px;border:1px solid #dbe4f0;border-radius:10px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.04)}
-    .stock-compare-bar strong{color:#17324f;font-size:13px}.stock-compare-slots{display:flex;gap:6px;flex:1}.stock-compare-slot{padding:7px 10px;border:1px dashed #cbd5e1;border-radius:7px;color:#64748b;font-size:12px;min-width:120px}.stock-compare-slot.filled{border-style:solid;color:#17324f;background:#f8fafc;font-weight:600}.stock-compare-action{margin-left:auto;border:0;border-radius:7px;padding:8px 13px;background:#2876c5;color:#fff;font-weight:700;cursor:pointer}.stock-compare-action:disabled{opacity:.45;cursor:not-allowed}.stock-compare-choice{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:5px;margin-right:8px!important;color:#53637a!important;font-size:11px!important;font-weight:700!important;white-space:nowrap}.stock-compare-choice input{width:15px!important;height:15px!important;margin:0}.stock-comparison-header{margin-bottom:16px}.stock-comparison-header h1{margin:0 0 5px;color:#17324f}.stock-comparison-header p{margin:0;color:#64748b}.stock-comparison-table-wrap{overflow:auto;border:1px solid #dbe4f0;border-radius:10px;background:#fff}.stock-comparison-table{width:100%;border-collapse:collapse;min-width:680px}.stock-comparison-table th,.stock-comparison-table td{padding:10px 12px;border-bottom:1px solid #edf1f6;text-align:right;font-size:13px}.stock-comparison-table th:first-child,.stock-comparison-table td:first-child{text-align:left;position:sticky;left:0;background:#fff}.stock-comparison-table thead th{background:#f8fafc;color:#17324f;font-weight:700}.stock-comparison-table .compare-group td{padding:12px;background:#f5f8fc;color:#334155;font-weight:700;text-align:left}.stock-comparison-table tbody tr:last-child td{border-bottom:0}
+    .stock-compare-bar{display:flex;align-items:center;gap:12px;margin:0 0 18px;padding:14px 16px;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:var(--btn-shadow)}
+    .stock-compare-bar strong{color:var(--color-primary);font-size:13px}.stock-compare-slots{display:flex;gap:8px;flex:1}.stock-compare-slot{padding:9px 12px;border:1px dashed var(--color-slate-400);border-radius:var(--radius-pill);color:var(--color-text-light);font-size:12px;min-width:130px;background:var(--color-bg)}.stock-compare-slot.filled{border-style:solid;color:var(--color-primary);background:var(--color-slate-100);font-weight:600}.stock-compare-action{margin-left:auto}.stock-compare-choice{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px;margin-right:8px!important;color:var(--color-text-light)!important;font-size:11px!important;font-weight:700!important;white-space:nowrap}.stock-compare-choice input{width:15px!important;height:15px!important;margin:0}.stock-comparison-header{margin:8px 0 18px;padding:22px 24px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:linear-gradient(135deg,#ffffff,#f0f7ff);box-shadow:var(--btn-shadow)}.stock-comparison-header h1{margin:0 0 5px;color:var(--color-primary);font-size:1.55rem}.stock-comparison-header p{margin:0;color:var(--color-text-light);font-size:13px}.stock-comparison-table-wrap{overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:0 6px 22px rgba(15,23,42,.06)}.stock-comparison-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px}.stock-comparison-table th,.stock-comparison-table td{padding:12px 14px;border-bottom:1px solid #edf1f6;text-align:right;font-size:13px;font-variant-numeric:tabular-nums}.stock-comparison-table th:first-child,.stock-comparison-table td:first-child{text-align:left;position:sticky;left:0;background:var(--color-surface);z-index:1}.stock-comparison-table thead th{background:#f1f6fc;color:var(--color-primary);font-weight:700;position:sticky;top:0;z-index:2}.stock-comparison-table thead th:first-child{z-index:3}.stock-comparison-table .compare-group td{padding:11px 14px;background:#edf4fb;color:#1e3a5f;font-weight:700;text-align:left;border-bottom:1px solid #dbe7f3;letter-spacing:.02em}.stock-comparison-table tbody tr:hover td{background:#fbfdff}.stock-comparison-table tbody tr:hover td.compare-favorable{background:#dcfce7}.stock-comparison-table tbody tr:hover td.compare-negative,.stock-comparison-table tbody tr:hover td.compare-unfavorable{background:#fee2e2}.stock-comparison-table tbody tr:last-child td{border-bottom:0}
+    .stock-comparison-table td.compare-favorable{background:var(--color-green-50);color:var(--color-green-700);font-weight:700;box-shadow:inset 3px 0 0 var(--color-green-500)}.stock-comparison-table td.compare-unfavorable{background:#fff7f7;color:var(--color-text);box-shadow:inset 3px 0 0 #fca5a5}.stock-comparison-table td.compare-negative{background:var(--color-red-50);color:var(--color-red-700);font-weight:700;box-shadow:inset 3px 0 0 var(--color-red-500)}.stock-comparison-table td.compare-negative::before{content:"⚠ ";font-size:11px}.stock-comparison-table td.compare-unfavorable::before{content:""}.stock-comparison-table .compare-favorable::after{content:"✓";margin-left:6px;font-size:10px;opacity:.8}
+    @media(max-width:700px){.stock-compare-bar{align-items:stretch;flex-direction:column}.stock-compare-action{width:100%}.stock-compare-slots{width:100%}.stock-compare-slot{flex:1;min-width:0}.stock-comparison-header{padding:18px}.stock-comparison-table th,.stock-comparison-table td{padding:10px 11px}}
   `;
   document.head.appendChild(style);
 }
@@ -68,7 +109,7 @@ function renderCompareBar() {
   const slots = [compareSymbols[0], compareSymbols[1]].map((s, i) =>
     `<span class="stock-compare-slot ${s ? "filled" : ""}">${s ? esc(s.replace(/\\.NS$|\\.BO$/i, "")) : `Stock ${i + 1}`}</span>`,
   ).join("");
-  bar.innerHTML = `<strong>Compare stocks</strong><div class="stock-compare-slots">${slots}</div><button class="stock-compare-action" type="button" ${compareSymbols.length !== 2 ? "disabled" : ""}>Compare 2 Stocks</button>`;
+  bar.innerHTML = `<strong>Compare stocks</strong><div class="stock-compare-slots">${slots}</div><button class="stock-compare-action btn btn-primary" type="button" ${compareSymbols.length !== 2 ? "disabled" : ""}>Compare 2 Stocks</button>`;
   bar.querySelector("button").addEventListener("click", () => showComparison(compareSymbols));
   queueMicrotask(() => { renderingBar = false; });
 }
@@ -126,7 +167,7 @@ function comparisonTable(datas) {
   for (const group of COMPARE_GROUPS) {
     rows += `<tr class="compare-group"><td colspan="${fs.length + 1}">${esc(group.title)}</td></tr>`;
     for (const [key, label, type] of group.metrics) {
-      rows += `<tr><td>${esc(label)}</td>${fs.map((f) => { const d = metricDisplay(f, key, type, currency); return `<td${d.title ? ` title="${esc(d.title)}"` : ""}>${esc(d.text)}</td>`; }).join("")}</tr>`;
+      rows += `<tr><td>${esc(label)}</td>${fs.map((f) => { const d = metricDisplay(f, key, type, currency); const cls = comparisonCellClass(f, key, fs); return `<td class="${cls}"${d.title ? ` title="${esc(d.title)}"` : ""}>${esc(d.text)}</td>`; }).join("")}</tr>`;
     }
   }
   return `<div class="stock-comparison-table-wrap"><table class="stock-comparison-table"><thead><tr><th>Metric</th>${fs.map((f) => `<th>${esc(f.name || f.symbol || "Stock")}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -148,7 +189,7 @@ async function showComparison(symbols) {
 
   try {
     const datas = await Promise.all(symbols.map(fetchStock));
-    details.innerHTML = `<div class="stock-comparison-header"><h1>Stock Comparison</h1><p>Side-by-side comparison of all available valuation, profitability, financial-health, growth and latest-financial metrics.</p></div>${comparisonTable(datas)}`;
+    details.innerHTML = `<div class="stock-comparison-header"><h1>Stock Comparison</h1><p>Green marks the more favorable value for comparable metrics. Red marks negative or materially unfavorable values. ✓ and ⚠ indicate the reason for the highlight.</p></div>${comparisonTable(datas)}`;
     status.textContent = "";
   } catch (e) {
     details.innerHTML = `<div class="stock-error"><h2>Unable to load comparison</h2><p>${esc(e.message)}</p></div>`;
