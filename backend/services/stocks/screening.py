@@ -61,6 +61,24 @@ def _peg_from_history(client: YahooFinanceClient, symbol: str, pe: float | None)
         return None
 
 
+def _cached_screener_volume(client: YahooFinanceClient, symbol: str) -> float | None:
+    """Read the already-cached Screener page for current trading volume.
+
+    This is deliberately a fallback only. It avoids another network request because
+    quote_summary() has just populated the same Screener page cache for this symbol.
+    """
+    try:
+        _, extracted = client._screener._extract(symbol)
+        ratios = extracted.get("ratios", {})
+        for key in ("Volume", "Volume (shares)", "Volume (Qty)"):
+            value = number(ratios.get(key))
+            if value is not None:
+                return value
+    except Exception:
+        pass
+    return None
+
+
 def list_stocks(
     client: YahooFinanceClient,
     sector: str | None = None,
@@ -103,13 +121,25 @@ def list_stocks(
             market_cap = number(quote.get("marketCap"))
             price = number(quote.get("regularMarketPrice"))
 
-            # Yahoo already supplies a rolling 3-month average daily volume in
-            # quoteSummary. Use it with the current price for a fast traded-value
-            # proxy instead of making a separate historical request for every stock.
+            # Prefer Yahoo's rolling 3-month average volume when it is present.
+            # For NSE fundamentals Screener is the primary source and normally
+            # does not expose that Yahoo field, so fall back to the current
+            # Screener volume from the page already cached by quote_summary().
             avg_volume_3m = number(quote.get("averageDailyVolume3Month"))
+            liquidity_source = None
+            observations = None
+            if include_liquidity:
+                if avg_volume_3m is not None:
+                    liquidity_source = "Yahoo Finance 3-month average daily volume × current price"
+                else:
+                    avg_volume_3m = _cached_screener_volume(client, item["symbol"])
+                    if avg_volume_3m is not None:
+                        liquidity_source = "Screener current trading volume × current price (fallback proxy)"
+
             avg_traded_value_cr = None
             if include_liquidity and avg_volume_3m is not None and price is not None:
                 avg_traded_value_cr = avg_volume_3m * price / 1e7
+                observations = 1 if liquidity_source and "fallback" in liquidity_source else None
 
             pe = number(quote.get("trailingPE"))
             peg = number(quote.get("pegRatio")) or _peg_from_history(client, item["symbol"], pe)
@@ -130,9 +160,9 @@ def list_stocks(
                 "price": price,
                 "avg_daily_volume_3m": avg_volume_3m if include_liquidity else None,
                 "avg_daily_traded_value_3m_cr": avg_traded_value_cr,
-                "trading_observations_3m": None,
+                "trading_observations_3m": observations,
                 "liquidity_status": _liquidity_status(avg_traded_value_cr),
-                "liquidity_source": "Yahoo Finance averageDailyVolume3Month × current price" if include_liquidity else None,
+                "liquidity_source": liquidity_source,
             })
         except Exception:
             stocks.append({
@@ -166,7 +196,7 @@ def list_stocks(
         "count": len(stocks),
         "universe": "Nifty Total Market",
         "classification_source": "NSE Indices / Nifty Total Market constituent CSV",
-        "liquidity_method": "Yahoo Finance 3-month average daily volume × current price; used as a fast liquidity screening proxy",
+        "liquidity_method": "Yahoo Finance 3-month average daily volume × current price; Screener current-volume fallback when Yahoo average volume is unavailable",
         "liquidity_thresholds_cr": {"high": 50, "moderate": 10, "low": 2, "illiquid": 0},
         "liquidity_loaded": include_liquidity,
         "sectors": nifty_sectors(),
