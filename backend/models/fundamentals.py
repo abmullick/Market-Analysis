@@ -30,12 +30,15 @@ class Fundamentals(BaseModel):
 
     roe: Optional[float] = None
     roa: Optional[float] = None
+    roce: Optional[float] = None
     profit_margin: Optional[float] = None
     operating_margin: Optional[float] = None
     gross_margin: Optional[float] = None
     debt_equity: Optional[float] = None
     current_ratio: Optional[float] = None
     quick_ratio: Optional[float] = None
+    asset_turnover: Optional[float] = None
+    interest_coverage: Optional[float] = None
 
     revenue: Optional[float] = None
     gross_profit: Optional[float] = None
@@ -48,6 +51,10 @@ class Fundamentals(BaseModel):
     free_cash_flow: Optional[float] = None
     cash: Optional[float] = None
     total_debt: Optional[float] = None
+    net_debt: Optional[float] = None
+    fcf_margin: Optional[float] = None
+    cash_conversion: Optional[float] = None
+    net_debt_ebitda: Optional[float] = None
 
     revenue_growth: Optional[float] = None
     profit_growth: Optional[float] = None
@@ -63,7 +70,7 @@ class Fundamentals(BaseModel):
     operating_margin_change: Optional[float] = None
 
     data_as_of: Optional[str] = None
-    source: str = "Yahoo Finance"
+    source: str = "Fundamentals provider"
 
 
 class FinancialPeriod(BaseModel):
