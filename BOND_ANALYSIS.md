@@ -1,127 +1,320 @@
-# Bond Analysis — Current Implementation
+# Bond Analysis — Implementation & Parameter Reference
 
-## Scope
+## 1. Purpose
 
-Bond Analysis is an active product module for researching **government and corporate bonds**. The page is designed around source-backed bond terms, market observations, calculated yield/risk analytics, cash flows, and data-source status.
+Bond Analysis is the application's fixed-income research module for government and corporate bonds. It separates discovery of the two universes, exposes source-backed market observations, and presents backend-calculated yield and risk analytics without duplicating financial calculations in browser JavaScript.
 
-## Bond Universes
+## 2. Bond Universes
 
-The selector keeps the two universes separate and lazy-loaded:
+The page keeps the two universes separate and lazy-loaded:
 
-- **Government Bonds** — G-Secs, Treasury Bills (T-Bills), and State Development Loans (SDLs).
-- **Corporate Bonds** — corporate securities sourced through the application's CDSL / Bond Central integrations and normalized into the common bond model.
+### Government
 
-Only the active universe is requested. The browser does not fabricate identifiers. A bond is identified by its published **ISIN** when available, otherwise by the backend-provided source-scoped `record_id`.
+- G-Secs
+- Treasury Bills (T-Bills)
+- State Development Loans (SDLs)
 
-## Discovery, Search & Filters
+Government records may originate from CCIL, NSE and RBI-backed source flows depending on the observation.
 
-The Bond Analysis selector supports:
+### Corporate
 
-- Search by security name, ISIN, or issuer.
-- Government instrument-type filtering: G-Sec, SDL, T-Bill.
-- Source filtering where applicable: CCIL, NSE, RBI.
-- Sorting by Maturity Date, Market YTM, Clean Price, Coupon Rate, Security Name, or Instrument Type.
-- Ascending/descending sort direction.
-- Advanced Coupon Rate range filtering.
-- Government/corporate maturity-date range filtering.
-- Corporate Weighted Average Yield range filtering.
-- Corporate Trade Date and Issuer filters.
-- Corporate Credit Rating multi-select filtering.
+Corporate securities are normalized through the application's CDSL / Bond Central source integrations. Corporate-specific enrichment includes market observations and credit-rating information where the sources provide them.
 
-Range and credit-rating filters are applied to the already retrieved active-universe results and do not require unnecessary requests for the inactive universe.
+Only the active universe is requested. Selecting Government does not require loading the Corporate universe, and vice versa.
 
-## Selection & Detail Workflow
+## 3. Bond Identity
 
-Every bond with a usable published identity is selectable. Selecting a bond loads the corresponding detail view without inventing an identifier.
+The application never invents a bond identifier.
 
-For government bonds, the detail workflow can use:
+Identity priority is:
+
+1. Published **ISIN**, when present.
+2. Backend-provided source-scoped **record_id**, when an ISIN is not published.
+
+Government records without an ISIN can therefore still be selected through their backend `record_id`. Corporate and government detail routes are selected from the identity and active universe.
+
+## 4. Selector Controls
+
+### 4.1 Search
+
+The selector supports search by:
+
+- Security name
+- ISIN
+- Issuer
+
+### 4.2 Government instrument type
+
+Government filtering supports:
+
+- **G-Sec**
+- **SDL**
+- **T-Bill**
+
+### 4.3 Source filter
+
+Where supported by the source data, Government results can be refined by:
+
+- **CCIL**
+- **NSE**
+- **RBI**
+
+### 4.4 Sorting
+
+The selector supports sorting by:
+
+- Maturity Date
+- Market YTM
+- Clean Price
+- Coupon Rate
+- Security Name
+- Instrument Type
+
+Sort direction is independently selectable:
+
+- Ascending
+- Descending
+
+### 4.5 Range filters
+
+The implemented client-side range state is:
+
+| Parameter | Meaning | Unit / type | Applies |
+|---|---|---|---|
+| `couponMin` | Minimum coupon rate | % | Government and applicable corporate records |
+| `couponMax` | Maximum coupon rate | % | Government and applicable corporate records |
+| `yieldMin` | Minimum weighted-average yield | % | Corporate |
+| `yieldMax` | Maximum weighted-average yield | % | Corporate |
+| `maturityFrom` | Earliest maturity date | ISO date | Active universe |
+| `maturityTo` | Latest maturity date | ISO date | Active universe |
+
+The default slider/range bounds currently represented in the selector are 0–20% for coupon and 0–20% for corporate weighted-average yield. Empty maturity boundaries mean no date restriction.
+
+### 4.6 Corporate-only filters
+
+Corporate filtering additionally supports:
+
+- **Trade Date**
+- **Issuer**
+- **Credit Rating** multi-select
+
+Trade Date and Issuer are mapped only to the corporate endpoint. They are not sent to the Government endpoint.
+
+Credit ratings are normalized into canonical selection keys. Missing/NA-like values map to **Unknown**; an explicit **Unrated** value remains distinct from Unknown.
+
+## 5. Result Row Parameters
+
+A selectable bond result can display:
+
+- Security Name
+- ISIN, or Record ID when no ISIN is published
+- Instrument Type
+- Credit Rating, when supplied
+- Issuer
+- Maturity Date
+- Headline YTM
+- Market-data flag
+
+The headline yield uses source `ytm` when available. For corporate rows it can fall back to `weighted_average_yield` when the source does not provide `ytm`.
+
+Market flags include source-backed states such as:
+
+- **Traded**
+- **Indicative**
+- **Stale Nd** when the backend reports a freshness age beyond the implemented threshold
+
+The flag is descriptive of the supplied observation and is not an investment-quality ranking.
+
+## 6. Bond Detail
+
+The normalized detail model can expose the bond's identity and contract terms, including where supplied:
+
+- Security name
+- ISIN / Record ID
+- Instrument type
+- Issuer
+- Maturity date
+- Coupon rate
+- Coupon frequency
+- Coupon basis/type
+- Face value
+- Issue price
+- Issue size
+- Outstanding amount
+- Redemption type
+- Redemption date
+- Redemption premium
+- Perpetual status
+- Secured / unsecured status
+- Seniority
+- Exchange/listing status
+- Credit rating
+- Rating agency
+- Rating status
+- Rating outlook
+- Rating-action date
+- Call option and call dates
+- Put option and put dates
+
+The application preserves source-specific fields where available instead of silently dropping them during normalization.
+
+## 7. Market Observation Parameters
+
+The market observation layer can expose:
+
+| Parameter | Meaning |
+|---|---|
+| Clean Price | Price excluding accrued interest |
+| Dirty Price | Price including accrued interest |
+| Market YTM | Source-reported yield to maturity |
+| Bid Price | Published bid price |
+| Bid Yield | Published bid yield |
+| Offer Price | Published offer price |
+| Offer Yield | Published offer yield |
+| Last Traded Price | Last traded price where supplied |
+| Last Traded Yield | Last traded yield where supplied |
+| Traded Value | Value of trades |
+| Traded Quantity | Quantity traded |
+| Trade Count | Number of trades |
+| VWAP | Volume-weighted average price where supplied |
+| Volume-weighted average yield | Volume-weighted average yield where supplied |
+| Observation / Trade Date | Date of the market observation |
+| Observation / Trade Time | Time of the observation where supplied |
+| Source | Provider/source identity |
+| Data Type | Observation classification such as traded or indicative |
+| As-of Date | Source/data timestamp or effective date |
+| Freshness | Age/status information supplied by the bond layer |
+
+**Market YTM and Calculated YTM are separate fields.** A source-reported market yield is not silently replaced by the calculated result.
+
+## 8. Yield and Accrued-Interest Analytics
+
+The backend analytics engine can provide:
+
+### Current Yield
+
+Current Yield relates the annual coupon cash amount to the relevant clean market price. It is a price/yield observation rather than a full yield-to-maturity calculation.
+
+### Calculated YTM
+
+Calculated YTM is independently derived from the bond's contract terms, cash flows, price, settlement assumptions, coupon frequency and day-count convention where required inputs are available.
+
+### Market YTM
+
+Market YTM is the yield reported by the source/market observation. It is retained separately for comparison and validation.
+
+### Accrued Interest
+
+The analytics can expose:
+
+- Accrued Interest amount
+- Accrued-interest days
+- Settlement date
+- Clean price
+- Dirty price
+
+Clean and dirty prices are kept conceptually separate. Where the backend has enough information to derive one from the other, that calculation remains in the backend analytics layer.
+
+## 9. Duration, Convexity and DV01
+
+### Macaulay Duration
+
+Weighted-average time to receive the bond's cash flows, expressed in years.
+
+### Modified Duration
+
+Approximate percentage price sensitivity to a 1% change in yield. It is a first-order price/yield sensitivity measure.
+
+### Convexity
+
+Second-order price/yield sensitivity. Convexity describes how the duration relationship changes as yield changes.
+
+### DV01
+
+Approximate price/value change for a **0.01% (one basis point)** yield move, normally expressed per 100 of face value in the application's analytics conventions.
+
+These calculations are performed in the backend analytics service rather than duplicated in browser JavaScript.
+
+## 10. Cash Flows
+
+The detail view can expose the coupon and redemption cash-flow schedule used by the analytics. Contract terms may include coupon dates, coupon amount/frequency, redemption date and redemption amount/premium.
+
+For callable/puttable corporate securities, call and put terms are preserved when supplied. A perpetual security is represented as perpetual rather than inventing a maturity date.
+
+## 11. Corporate Credit Ratings
+
+Corporate rating observations are source-published observations. The application can retain:
+
+- Rating
+- Rating agency
+- Rating status
+- Outlook
+- Rating-action date
+
+Multiple agency observations/actions are not silently collapsed into a single invented rating. Selector filtering can include standard ratings, **Unknown** for unavailable/missing rating data, and **Unrated** when the source explicitly says so.
+
+## 12. Source and Freshness
+
+The bond service normalizes multiple source feeds behind a common model. The UI can expose source identity and source-health information for configured providers.
+
+Market observations may be classified as:
+
+- Traded
+- Indicative
+- MTM
+- Reference
+- Auction
+- Historical
+- Unknown
+
+These are data classifications, not quality scores.
+
+## 13. Calculation Conventions
+
+Bond analytics treat the following as explicit inputs whenever available:
+
+- Settlement date
+- Maturity date
+- Coupon rate
+- Coupon frequency
+- Day-count convention
+- Price type (clean/dirty)
+- Accrued interest
+- Contract cash flows
+- Redemption terms
+
+If the required inputs are unavailable or inconsistent, the application keeps the affected analytic unavailable rather than silently substituting another metric.
+
+## 14. Missing Data
+
+The application distinguishes missing data from a valid zero and does not fabricate:
+
+- Price
+- Yield
+- Rating
+- Cash-flow event
+- Duration
+- Convexity
+- DV01
+- Accrued interest
+- Contract terms
+
+A source-reported Market YTM is not used as a replacement for Calculated YTM merely because the latter is unavailable.
+
+## 15. Detail Endpoint Model
+
+Government bonds can use:
 
 - `GET /api/bonds/{isin}`
 - `GET /api/bonds/{isin}/market`
 - `GET /api/bonds/{isin}/analytics`
+- `GET /api/bonds/record/{record_id}` for source records without ISIN
 
-For corporate bonds, the detail workflow uses the corporate detail and analytics endpoints. Records that have only a backend `record_id` use the record endpoint; ISIN-only analytics are not fabricated for those records.
+Corporate bonds can use the corporate detail and analytics routes, including the ISIN-based corporate detail route and its analytics route where supported.
 
-## Bond Summary
+The frontend chooses the endpoint from the real identity returned by the backend. It never fabricates an ISIN to make a row selectable.
 
-The summary can expose identity, instrument type, issuer, maturity, coupon terms, face value, listing information, and headline market observations such as price and yield.
-
-Government and corporate records use the same normalized bond model while retaining source-specific fields where supplied.
-
-## Market Data
-
-Market observations can contain:
-
-- Clean Price and Dirty Price.
-- Source-reported Yield to Maturity (Market YTM).
-- Bid Price / Bid Yield.
-- Offer Price / Offer Yield.
-- Last Traded Price / Last Traded Yield.
-- Traded Value, Traded Quantity, and Trade Count.
-- Volume-weighted average price and yield for sources that publish them.
-- Observation/trade date and time.
-- Source, data type, as-of date, and freshness information.
-
-The UI keeps source-reported Market YTM separate from the independently calculated YTM.
-
-## Yield & Valuation Analytics
-
-The analytics engine can provide:
-
-- **Current Yield** — annual coupon relative to clean price.
-- **Calculated YTM** — independently calculated yield to maturity based on the bond's terms and market price.
-- **Market YTM** — source-reported yield retained separately for comparison/validation.
-- **Accrued Interest** and accrued-interest days.
-- Settlement date and relevant day-count convention.
-- Coupon frequency and cash-flow assumptions.
-
-A source-reported yield is never silently substituted for the calculated YTM, and vice versa.
-
-## Duration, Convexity & DV01
-
-The risk/sensitivity analytics include, where the required inputs are available:
-
-- **Macaulay Duration** — weighted-average time to receive the bond's cash flows, in years.
-- **Modified Duration** — approximate percentage price change for a 1% change in yield.
-- **Convexity** — second-order sensitivity describing how duration changes as yield changes.
-- **DV01** — approximate price/value change for a 0.01% (one basis point) yield move, per 100 of face value.
-
-Unavailable analytics remain unavailable when the required data or calculation conditions are not satisfied.
-
-## Cash Flows & Contract Terms
-
-The detail view can expose the coupon schedule and redemption cash flows. Corporate detail can additionally contain:
-
-- Coupon basis/type and interest period.
-- Call and put options and dates.
-- Redemption type, date, and premium information.
-- Perpetual status.
-- Secured/unsecured status and seniority where supplied.
-- Credit rating, agency, rating status, outlook, and rating-action date.
-- Issue size, outstanding amount, issue price, and issuance mode where supplied.
-- Exchange/listing status.
-
-## Corporate Credit Ratings
-
-Corporate bonds support source-published credit-rating observations. Multiple rating agencies/actions are preserved rather than silently collapsing the history into a single invented value. The selector can filter by normalized rating categories, including an explicit Unknown state for missing ratings and a separate Unrated state where the source says so.
-
-## Data Sources & Freshness
-
-The bond layer normalizes multiple source feeds behind the bond service/model layer. The UI exposes source identity and source-health information rather than presenting an unsuccessful provider retrieval as a successful empty universe.
-
-Market observations can be classified as traded, indicative, MTM, reference, auction, historical, or unknown depending on the source payload.
-
-## Methodology & Conventions
-
-Bond calculations are performed in the backend analytics service rather than duplicated in browser JavaScript. Day-count convention, coupon frequency, settlement date, maturity, price type, and accrued interest are treated as explicit inputs to the analytics engine where available.
-
-Prices may be clean or dirty; the application keeps the two concepts separate when both are supplied. Yields are represented as percentages.
-
-## Missing Data
-
-The application does not invent a price, yield, rating, cash-flow event, duration, or other bond metric when the source does not provide enough information. Unsupported or unavailable analytics are shown as unavailable rather than being silently replaced with another metric.
-
-## Architecture
+## 16. Architecture
 
 ```text
 Bond Analysis UI
@@ -132,11 +325,13 @@ Bond Services / Analytics
       ↓
 Normalized Bond Models
       ↓
-CCIL / NSE / RBI / CDSL / Bond Central source integrations
+CCIL / NSE / RBI / CDSL / Bond Central integrations
 ```
 
-Government and corporate universes are loaded independently, and the frontend only requests the active universe.
+Government and Corporate universes remain independent at discovery time. Deterministic financial calculations remain in the backend analytics layer.
 
-## Help & Methodology
+## 17. Help & Methodology
 
-The application's Help & Methodology page includes a dedicated Bond Analysis section covering the bond universes, selection workflow, filters, market price/yield terminology, calculated versus market YTM, duration, convexity, DV01, accrued interest, cash flows, corporate ratings, data freshness, and missing-data conventions.
+The in-application Help & Methodology page should document the same terminology as this file, including every selector control, search field, sort parameter, range filter, corporate filter, result-row field, market observation, contract term, calculated yield/risk metric, credit-rating field, source/freshness field, and missing-data convention.
+
+This file is the repository-level implementation reference; the Help page is the user-facing explanation.
