@@ -1,9 +1,48 @@
-// Mobile stock-selection interaction and stale-analysis cleanup.
-// This is intentionally isolated from the main selection/detail modules so it
-// can harden the UI without coupling to their module-scoped state.
+// Mobile stock-selection interaction, responsive historical tables, and analysis reset.
+// Kept isolated from the main selection/detail modules so it can harden the UI
+// without depending on module-scoped state.
 
 (function installStockMobileAndResetFix() {
   const isStockSelection = () => document.getElementById("stock-selection-screen");
+
+  function installResponsiveTableStyles() {
+    if (document.getElementById("stock-mobile-responsive-fix-style")) return;
+    const style = document.createElement("style");
+    style.id = "stock-mobile-responsive-fix-style";
+    style.textContent = `
+      .stock-table-wrap {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto !important;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+      }
+      .stock-table-wrap .stock-table {
+        min-width: 720px;
+        width: max-content;
+        max-width: none;
+      }
+      .stock-table-wrap .stock-table th,
+      .stock-table-wrap .stock-table td {
+        white-space: nowrap;
+      }
+      @media (max-width: 700px) {
+        .stock-derived-trend .stock-table-wrap,
+        #stock-statement-content .stock-table-wrap {
+          margin-right: 0;
+          border-radius: 12px;
+        }
+        .stock-derived-trend .stock-table,
+        #stock-statement-content .stock-table {
+          min-width: 680px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
   function positionSectorDropdown(trigger, dropdown) {
     if (!trigger || !dropdown || window.innerWidth > 850) return;
@@ -20,32 +59,17 @@
   function clearAnalysisAndReturnToSelection() {
     const analysis = document.getElementById("stock-analysis-screen");
     const selection = document.getElementById("stock-selection-screen");
-    const details = document.getElementById("stock-details");
-    const status = document.getElementById("stock-analysis-status");
     if (!analysis || !selection) return;
 
-    if (details) details.replaceChildren();
-    if (status) status.textContent = "";
-
-    analysis.hidden = true;
-    selection.hidden = false;
-
-    // Remove visual selection state without depending on the detail module's
-    // private selectedStock variable.
-    document.querySelectorAll("#stock-selection-screen .stock-picker-row.selected, #stock-selection-screen [aria-selected=\"true\"]")
-      .forEach(el => {
-        el.classList.remove("selected");
-        el.removeAttribute("aria-selected");
-      });
-    document.querySelectorAll("#stock-selection-screen input[type=checkbox][data-stock-symbol]:checked")
-      .forEach(el => { el.checked = false; });
-
-    // The selection page is the root state; don't leave ?symbol=... behind.
+    // The detail module keeps selectedStock in module scope. A hard reset of
+    // the page state is therefore safer than trying to manipulate that private
+    // variable indirectly. The clean URL also prevents the detail view from
+    // being restored by browser history.
     const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
     if (window.location.href !== `${window.location.origin}${cleanUrl}`) {
       window.history.replaceState({}, "", cleanUrl);
     }
-    window.scrollTo(0, 0);
+    window.location.assign(cleanUrl);
   }
 
   function hardenSectorTrigger() {
@@ -54,9 +78,6 @@
     if (!trigger || !dropdown || trigger.dataset.mobileFixInstalled === "1") return;
     trigger.dataset.mobileFixInstalled = "1";
 
-    // Capture phase deliberately supersedes the older bubble-phase handler.
-    // This avoids mobile-browser touch/click quirks and gives the dropdown a
-    // viewport-level position so it cannot be clipped by a card/container.
     trigger.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -83,20 +104,51 @@
   }
 
   function hardenBackButton() {
-    const button = document.getElementById("stock-back-to-selection");
-    if (!button || button.dataset.resetFixInstalled === "1") return;
-    button.dataset.resetFixInstalled = "1";
-    button.addEventListener("click", (event) => {
+    // Use document-level capture so this works even when the analysis module
+    // creates/replaces the button after this module has initialized.
+    if (document.documentElement.dataset.stockBackFixInstalled === "1") return;
+    document.documentElement.dataset.stockBackFixInstalled = "1";
+    document.addEventListener("click", (event) => {
+      const button = event.target?.closest?.("#stock-back-to-selection");
+      if (!button) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       clearAnalysisAndReturnToSelection();
     }, true);
   }
 
+  function removeProviderNamesFromVisibleStockUi() {
+    const root = document.getElementById("stock-analysis-screen") || document.getElementById("stock-selection-screen");
+    if (!root) return;
+
+    root.querySelectorAll(".stock-derived-analysis .stock-section-header span").forEach((el) => {
+      if (/screener/i.test(el.textContent || "")) el.textContent = "Calculated metrics";
+    });
+
+    root.querySelectorAll(".stock-derived-explanation p").forEach((el) => {
+      el.textContent = "These metrics use the annual income statement, balance sheet and cash-flow data available to the application. Definitions may differ from standard ratio conventions.";
+    });
+
+    root.querySelectorAll(".stock-warnings small").forEach((el) => {
+      el.textContent = (el.textContent || "").replace(/\s*·\s*Source:\s*.*$/i, "");
+    });
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((node) => {
+      if (/screener/i.test(node.nodeValue || "")) {
+        node.nodeValue = node.nodeValue.replace(/screener/gi, "financial data");
+      }
+    });
+  }
+
   function run() {
     if (!isStockSelection()) return;
+    installResponsiveTableStyles();
     hardenSectorTrigger();
     hardenBackButton();
+    removeProviderNamesFromVisibleStockUi();
   }
 
   const observer = new MutationObserver(() => {
