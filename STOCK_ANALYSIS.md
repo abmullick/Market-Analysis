@@ -13,6 +13,8 @@ The selector provides:
 - **Market Cap** presets: Large Cap, Mid Cap, Small Cap, Micro Cap.
 - Liquidity controls where supplied by the current selector implementation.
 - Quick local refinement of the already-loaded universe where possible.
+- Filtering across the full loaded universe before the displayed result page is limited for presentation; sector/cap selection is not restricted to the first result page.
+- Filter Results is independently collapsible; Sector, Search, and quick filters remain outside the collapsible result body.
 
 Sector, search, and quick-cap interactions should not repeatedly rebuild the entire page or trigger unnecessary backend universe loads.
 
@@ -26,7 +28,7 @@ The individual analysis page and comparison page share the same fundamental-data
 
 The analysis page includes:
 
-- Company summary.
+- Company summary and market-cap information.
 - Market Cap, Enterprise Value, Revenue, Net Profit, EBITDA, and Free Cash Flow where available.
 - Valuation metrics: P/E, Forward P/E, Price/Book, Price/Sales, PEG, EV/EBITDA, EV/Revenue, Dividend Yield, Payout Ratio.
 - Profitability metrics: ROE, ROA, Gross Margin, Operating Margin, Net Margin.
@@ -35,6 +37,23 @@ The analysis page includes:
 - Annual Income Statement, Balance Sheet, and Cash Flow tables.
 - Historical price/performance and valuation charts, including P/E and P/B history where source data is available.
 - Data Notes positioned at the bottom of the analysis page.
+
+## Metric Definitions
+
+- **P/E** — market price relative to earnings per share.
+- **Forward P/E** — market price relative to forward earnings expectations when supplied by Yahoo Finance; supplemental market data, not the primary Screener fundamental field.
+- **P/B** — market price relative to book value per share.
+- **PEG** — valuation relative to a supported earnings-growth measure.
+- **ROE / ROA** — profitability relative to shareholders' equity / total assets.
+- **Gross / Operating / Net Margin** — profit retained at the respective income-statement levels as a percentage of revenue.
+- **Debt / Equity** — debt relative to shareholders' equity; a first-class financial-health metric.
+- **Current Ratio / Quick Ratio** — balance-sheet liquidity measures.
+- **Beta** — market sensitivity relative to the market benchmark, supplied as supplemental Yahoo market data where available.
+- **CAGR** — annualized historical growth over a supported period; descriptive, not a forecast.
+
+## Charts & Report
+
+The individual stock report combines summary metrics, valuation/profitability/financial-health cards, financial statements, and historical charts. Supported charts include historical price/performance and valuation trends such as P/E and P/B where source data exists. Charts describe historical observations and do not forecast future prices or returns.
 
 ## Data Source Policy
 
@@ -91,6 +110,6 @@ Stock Analysis action controls use a common visual language:
 
 Primary actions use the same dark/blue treatment and sizing; Clear Filters uses the corresponding secondary outline treatment.
 
-## Documentation
+## Help & Methodology
 
-The Help & Methodology page is kept synchronized with this implementation. Searchable Help content is client-side and does not require AI or a network request.
+The Help & Methodology page is the user-facing reference for Stock Analysis. It explains the selector, sector/search/cap filters, analysis workflow, valuation and profitability ratios, Debt / Equity, Beta, CAGR/growth, financial statements, historical charts, comparison, data sources, and the distinction between `N/M — Not Meaningful` and unavailable data. Its client-side search is kept free of obsolete "Coming Soon" Stock Analysis entries.
