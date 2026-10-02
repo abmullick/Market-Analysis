@@ -2,7 +2,9 @@
 //
 // Analysis and selection screens share one DOM document. Returning from a deep
 // analysis view must not leave enhancement requests alive while a fresh
-// selection page is loading. Navigation is therefore a clean page boundary.
+// selection page is loading. The guard handles the explicit Back button only.
+// Browser-history navigation is intentionally left to stock-detail/index.js,
+// which owns the stock analysis state machine.
 (() => {
   if (window.__stockNavigationGuardInstalled) return;
   window.__stockNavigationGuardInstalled = true;
@@ -25,11 +27,4 @@
   }
 
   document.addEventListener("click", returnToSelection, true);
-
-  window.addEventListener("popstate", () => {
-    const params = new URLSearchParams(window.location.search);
-    if (!params.has("symbol") && !params.has("compare")) return;
-    window.__stockApiAbortAll?.();
-    window.location.replace(selectionUrl());
-  });
 })();
