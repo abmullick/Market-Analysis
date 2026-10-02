@@ -19,7 +19,17 @@
 .stock-ratio-note{margin-top:12px;padding:9px 11px;border-left:3px solid #3b82f6;background:#f2f7ff;color:#64748b;font-size:11px;line-height:1.5}
 .stock-comparison-trends{margin-top:18px}
 .stock-comparison-trends .stock-trends-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-.stock-extended-compare{margin-top:18px;overflow:auto;border:1px solid #dbe4ee;border-radius:14px}
-.stock-extended-compare table{width:100%;border-collapse:collapse;min-width:700px}.stock-extended-compare th,.stock-extended-compare td{padding:10px 12px;border-bottom:1px solid #edf1f5;text-align:right;font-size:12px;font-variant-numeric:tabular-nums}.stock-extended-compare th:first-child,.stock-extended-compare td:first-child{text-align:left;background:#f5f8fc;font-weight:600;color:#334e6f}.stock-extended-compare th{background:#eef4fa;color:#17355d}.stock-extended-compare tr:last-child td{border-bottom:0}.stock-extended-compare .good{background:#ecfdf3;color:#087443;font-weight:700}.stock-extended-compare .bad{background:#fff1f2;color:#b42318;font-weight:700}
+
+/* Keep Additional Ratio visually identical to the main comparison tables. */
+.stock-extended-compare{margin-top:18px;overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:0 6px 22px rgba(15,23,42,.06)}
+.stock-extended-compare table{width:100%;min-width:760px;table-layout:fixed;border-collapse:separate;border-spacing:0}
+.stock-extended-compare th,.stock-extended-compare td{padding:12px 14px;border-bottom:1px solid #edf1f6;text-align:right;font-size:13px;font-variant-numeric:tabular-nums;overflow:hidden}
+.stock-extended-compare th:first-child,.stock-extended-compare td:first-child{text-align:left;width:22%;background:var(--color-surface);font-weight:600;color:#334e6f}
+.stock-extended-compare thead th{background:#f1f6fc;color:var(--color-primary);font-weight:700;text-align:center;vertical-align:middle;white-space:normal;line-height:1.25}
+.stock-extended-compare thead th:first-child{text-align:left}
+.stock-extended-compare tr:last-child td{border-bottom:0}
+.stock-extended-compare .good{background:#ecfdf3;color:#087443;font-weight:700}
+.stock-extended-compare .bad{background:#fff1f2;color:#b42318;font-weight:700}
+
 @media(max-width:900px){.stock-ratio-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.stock-trends-grid,.stock-comparison-trends .stock-trends-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.stock-ratio-grid{grid-template-columns:1fr}.stock-trends-section,.stock-extended-section{padding:15px}}
