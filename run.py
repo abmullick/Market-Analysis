@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from backend.config.settings import Settings
 from backend.routes.screener import router as screener_router
 from backend.routes.stocks import router as stocks_router
+from backend.routes.stock_supplemental import router as stock_supplemental_router
 from backend.routes.insights import router as insights_router
 from backend.routes.portfolio import router as portfolio_router
 from backend.routes.mutual_funds import router as mutual_funds_router
@@ -75,7 +76,8 @@ async def read_bond_analysis():
 
 @app.get("/favicon.ico")
 async def favicon():
-    return FileResponse("static/images/favicon.ico", media_type="image/x-icon")
+    # Use the site's primary logo as the browser favicon.
+    return FileResponse("static/images/logo.png", media_type="image/png")
 
 # Serve static assets
 app.mount("/css", StaticFiles(directory="frontend/css"), name="css")
@@ -84,6 +86,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(screener_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(stocks_router, prefix="/api/stocks", tags=["stocks"])
+app.include_router(stock_supplemental_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(portfolio_router, prefix="/api/portfolio", tags=["portfolio"])
 app.include_router(mutual_funds_router, prefix="/api/mutual-funds", tags=["mutual-funds"])
 app.include_router(insights_router, prefix="/api/insights", tags=["insights"])
