@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="/css/components.css">
     <link rel="stylesheet" href="/css/features/mutual-fund-analysis.css">
     <link rel="stylesheet" href="/css/features/analysis-filter-card-theme.css?v=20261002-1">
+    <link rel="stylesheet" href="/css/features/horizontal-table-scroll.css?v=20261003-1">
     <script src="/static/vendor/chart.umd.min.js"></script>
 </head>
 <body>
@@ -55,6 +56,7 @@
                         </div>
                         <div id="ranking-summary"></div>
                         <div id="ranking-result-filters"></div>
+                        <div id="ranking-horizontal-scroll" class="table-horizontal-scroll" aria-live="polite"></div>
                         <div id="ranking-table-container"></div>
                     </section>
                 </div>
@@ -82,6 +84,7 @@
     <script type="module" src="/js/components/loading.js"></script>
     <script type="module" src="/js/features/mutual-fund-analysis/index.js"></script>
     <script type="module" src="/js/features/mutual-fund-analysis/fund-detail.js?v=4"></script>
+    <script type="module" src="/js/features/mutual-fund-analysis/horizontal-scroll.js?v=20261003-1"></script>
     <script type="module" src="/js/pages/mutual-funds.js"></script>
     <script type="module">
         import { initNavigation } from '/js/core/navigation.js';
