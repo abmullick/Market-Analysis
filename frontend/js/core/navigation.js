@@ -1,3 +1,20 @@
+const MARKET_ANALYSIS_FAVICON = "/static/images/hero-market-analysis.png?v=3";
+
+// Apply the home-page Market Analysis artwork as the favicon on every page
+// that loads the shared navigation module. Remove older favicon declarations
+// so the browser does not continue using /favicon.ico or the legacy icon.
+function setMarketAnalysisFavicon() {
+    document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').forEach((link) => link.remove());
+
+    const favicon = document.createElement("link");
+    favicon.rel = "icon";
+    favicon.type = "image/png";
+    favicon.href = MARKET_ANALYSIS_FAVICON;
+    document.head.appendChild(favicon);
+}
+
+setMarketAnalysisFavicon();
+
 export function initNavigation() {
     const nav = document.getElementById("main-nav");
     if (!nav) return;
@@ -15,4 +32,3 @@ export function initNavigation() {
         <a href="/help.html" class="${isActive("/help.html") ? "active" : ""}">Help</a>
     `;
 }
-
