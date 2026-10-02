@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/css/features/stock-filter-panel.css?v=20261002-3">
     <link rel="stylesheet" href="/css/features/mutual-fund-analysis.css">
     <link rel="stylesheet" href="/css/features/stock-filter-mirror.css?v=20261002-2">
-    <link rel="stylesheet" href="/css/features/stock-analysis-polish.css">
+    <link rel="stylesheet" href="/css/features/stock-analysis-polish.css?v=20261002-7">
     <link rel="stylesheet" href="/css/features/stock-negative.css">
     <link rel="stylesheet" href="/css/features/stock-trends.css">
     <link rel="stylesheet" href="/css/features/stock-pedigree.css">
@@ -63,16 +63,17 @@
     import { initNavigation } from '/js/core/navigation.js';
     import { initStockAnalysis } from '/js/features/stock-selection/stock-detail/index.js';
     import { initStockComparison } from '/js/features/stock-selection/stock-comparison.js';
+    import { initStockAIUI } from '/js/features/stock-selection/stock-ai-ui.js';
     initNavigation();
     initStockAnalysis();
     initStockComparison();
+    initStockAIUI();
 </script>
 <script type="module" src="/js/features/stock-selection/stock-compare-auto-add.js"></script>
 <script type="module" src="/js/features/stock-selection/stock-universe-enhancements.js?v=20261002-6"></script>
 <script type="module" src="/js/features/stock-selection/stock-filter-controller-v3.js?v=20261002-8"></script>
 <script type="module" src="/js/features/stock-selection/stock-filter-controls-layout.js?v=20261002-4"></script>
 <script type="module" src="/js/features/stock-selection/stock-filter-mirror.js?v=20261002-1"></script>
-<!-- The v3 controller owns sector/search/cap filtering; the mirror applies the Mutual Fund Analysis filter-results UI. -->
 <script type="module" src="/js/features/stock-selection/stock-trends.js"></script>
 <script type="module" src="/js/features/stock-selection/stock-valuation-trends.js"></script>
 <script type="module" src="/js/features/stock-selection/stock-supplemental.js"></script>
