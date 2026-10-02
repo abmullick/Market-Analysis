@@ -1,6 +1,5 @@
-/* Mutual Fund Portfolio Builder action buttons
-   Exact visual language of the Mutual Fund Analysis primary buttons:
-   solid dark navy, white text, restrained shadow, no gradients. */
+/* Portfolio Builder buttons — copy the Mutual Fund Analysis .btn-primary visual treatment exactly.
+   Size/layout remains page-specific; visual styling is intentionally identical. */
 
 body[data-page="portfolio-builder"] .pb-actions .btn,
 body[data-page="portfolio-builder"] .pb-actions a.btn,
@@ -11,9 +10,9 @@ body[data-page="portfolio-builder"] .pb-actions .ai-action,
 body[data-page="portfolio-select-funds"] .pfs-continue-btn,
 body[data-page="portfolio-select-funds"] .pfs-btn-add {
     background: var(--color-primary);
-    background-image: none;
     color: #ffffff;
-    border: 1px solid transparent;
+    background-image: none;
+    border-color: transparent;
     box-shadow: var(--btn-shadow);
     animation: none;
     filter: none;
@@ -27,12 +26,13 @@ body[data-page="portfolio-builder"] .pb-empty-card .btn:hover:not(:disabled),
 body[data-page="portfolio-builder"] .pb-actions .ai-action:hover:not(:disabled),
 body[data-page="portfolio-select-funds"] .pfs-continue-btn:hover:not(:disabled),
 body[data-page="portfolio-select-funds"] .pfs-btn-add:hover:not(:disabled) {
-    background: var(--color-primary);
-    background-image: none;
+    background: var(--color-primary-light);
     color: #ffffff;
+    background-image: none;
+    border-color: transparent;
+    box-shadow: var(--btn-shadow-hover);
     transform: translateY(-2px);
     filter: none;
-    box-shadow: var(--btn-shadow-hover);
 }
 
 body[data-page="portfolio-builder"] .pb-actions .btn:active,
@@ -43,7 +43,7 @@ body[data-page="portfolio-builder"] .pb-empty-card .btn:active,
 body[data-page="portfolio-builder"] .pb-actions .ai-action:active,
 body[data-page="portfolio-select-funds"] .pfs-continue-btn:active,
 body[data-page="portfolio-select-funds"] .pfs-btn-add:active {
-    transform: translateY(0) scale(0.98);
+    transform: scale(0.98);
     box-shadow: var(--btn-shadow-active);
 }
 
@@ -88,7 +88,7 @@ body[data-page="portfolio-select-funds"] .pfs-btn-add.added:hover {
     transform: none;
 }
 
-/* View Details remains a neutral informational control rather than an action CTA. */
+/* View Details is an informational control, not a primary action. */
 body[data-page="portfolio-select-funds"] .pfs-btn-view {
     background: var(--color-surface);
     color: var(--color-text);
