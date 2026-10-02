@@ -25,8 +25,6 @@ def _value(row: dict[str, Any], key: str) -> float | None:
     value = row.get("reportedValue")
     if value is None:
         value = row.get(key)
-    # Screener history stores values as {"raw": number}; Yahoo also uses
-    # reportedValue in that shape. Unwrap whichever representation we got.
     if isinstance(value, dict):
         value = value.get("raw")
     try:
@@ -72,7 +70,6 @@ def _rolling_cagr(prices: list[dict[str, Any]], years: int) -> list[dict[str, fl
             continue
         if close > 0:
             annual[year] = close
-
     years_sorted = sorted(annual)
     out: list[dict[str, float | str | None]] = []
     for index in range(years, len(years_sorted)):
@@ -88,33 +85,51 @@ def _rolling_cagr(prices: list[dict[str, Any]], years: int) -> list[dict[str, fl
 def _screener_price_cagr(growth: dict[str, dict[str, float | None]]) -> list[dict[str, float | str | None]]:
     values = growth.get("Stock Price CAGR", {})
     period_map = [("1 Year", "1Y"), ("3 Years", "3Y"), ("5 Years", "5Y"), ("10 Years", "10Y")]
-    return [
-        {"year": label, "value": values.get(period)}
-        for period, label in period_map
-        if values.get(period) is not None
-    ]
+    return [{"year": label, "value": values.get(period)} for period, label in period_map if values.get(period) is not None]
+
+
+def _valuation_history(
+    prices: list[dict[str, Any]],
+    eps: list[tuple[str, float]],
+    equity: list[tuple[str, float]],
+    current_price: float | None,
+    current_pb: float | None,
+) -> tuple[list[dict[str, float | str | None]], list[dict[str, float | str | None]]]:
+    price_map = {str(item.get("date", ""))[:4]: float(item["close"]) for item in prices if item.get("close") is not None}
+    eps_map = {date[:4]: value for date, value in eps}
+    equity_map = {date[:4]: value for date, value in equity}
+    years = sorted(set(price_map) & set(eps_map))
+
+    pe = []
+    for year in years:
+        price = price_map[year]
+        earnings = eps_map[year]
+        if price > 0 and earnings > 0:
+            pe.append({"year": year, "value": price / earnings})
+
+    pb = []
+    if current_price and current_price > 0 and current_pb and current_pb > 0 and equity_map:
+        latest_year = max(equity_map)
+        latest_equity = equity_map[latest_year]
+        if latest_equity > 0:
+            for year in sorted(set(price_map) & set(equity_map)):
+                price = price_map[year]
+                historical_equity = equity_map[year]
+                if price > 0 and historical_equity > 0:
+                    value = current_pb * (price / current_price) * (latest_equity / historical_equity)
+                    pb.append({"year": year, "value": value})
+    return pe, pb
 
 
 def yahoo_annual_prices(symbol: str, years: int = 7) -> list[dict[str, Any]]:
     """Fetch monthly Yahoo prices and retain the last available close per year."""
     symbol = symbol.strip().upper()
-    params = {
-        "range": f"{max(1, years)}y",
-        "interval": "1mo",
-        "events": "div,splits",
-        "includeAdjustedClose": "true",
-    }
+    params = {"range": f"{max(1, years)}y", "interval": "1mo", "events": "div,splits", "includeAdjustedClose": "true"}
     session = curl_cffi.requests.Session(impersonate="chrome")
     session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
-
     for host in YAHOO_CHART_HOSTS:
         try:
-            response = session.get(
-                f"{host}/v8/finance/chart/{symbol}",
-                params=params,
-                timeout=20,
-                allow_redirects=True,
-            )
+            response = session.get(f"{host}/v8/finance/chart/{symbol}", params=params, timeout=20, allow_redirects=True)
             response.raise_for_status()
             result = (response.json().get("chart", {}).get("result") or [None])[0]
             if not result:
@@ -137,11 +152,12 @@ def yahoo_annual_prices(symbol: str, years: int = 7) -> list[dict[str, Any]]:
 def build_stock_charts(
     history: dict[str, dict[str, list[dict[str, Any]]]],
     prices: list[dict[str, Any]],
+    current_price: float | None = None,
+    current_pb: float | None = None,
 ) -> dict[str, Any]:
     income = history.get("income", {})
     balance = history.get("balance", {})
     growth_tables = history.get("growth", {})
-
     revenue = _series(income.get("annualTotalRevenue", []), "annualTotalRevenue")
     profit = _series(income.get("annualNetIncome", []), "annualNetIncome")
     eps = _series(income.get("annualDilutedEPS", []), "annualDilutedEPS")
@@ -162,6 +178,7 @@ def build_stock_charts(
     screener_price = _screener_price_cagr(growth_tables)
     rolling_3y = _rolling_cagr(prices, 3)
     rolling_5y = _rolling_cagr(prices, 5)
+    pe_history, pb_history = _valuation_history(prices, eps, equity, current_price, current_pb)
 
     return {
         "eps_growth": _growth(eps),
@@ -170,4 +187,6 @@ def build_stock_charts(
         "price_cagr": screener_price,
         "price_cagr_3y": rolling_3y,
         "price_cagr_5y": rolling_5y,
+        "pe_history": pe_history,
+        "pb_history": pb_history,
     }
