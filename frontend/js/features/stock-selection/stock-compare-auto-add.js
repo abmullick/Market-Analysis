@@ -1,6 +1,24 @@
 const STORAGE_KEY = "marketAnalysis.compareStocks";
 const MAX_COMPARE = 4;
 
+function isFreshSelectionPage() {
+  const params = new URLSearchParams(location.search);
+  return /\/stocks\.html$/i.test(location.pathname) && !params.has("symbol") && !params.has("compare");
+}
+
+// The comparison list is a working selection, not a persistent watchlist.
+// Older versions restored the previous list from localStorage, which made
+// unrelated stocks appear pre-selected every time the Stock Analysis page
+// was opened. Start a fresh selection page empty; stocks are still added
+// automatically when the user actually selects one for analysis.
+if (isFreshSelectionPage()) {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Ignore storage restrictions; the in-memory comparison state still works.
+  }
+}
+
 function readSaved() {
   try {
     const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
@@ -22,8 +40,6 @@ function addSymbol(symbol) {
   const current = readSaved();
   if (current.includes(symbol)) return current;
 
-  // Keep the comparison list bounded while ensuring the stock the user just
-  // selected for analysis is added automatically.
   const next = current.length >= MAX_COMPARE
     ? [...current.slice(1), symbol]
     : [...current, symbol];
@@ -32,16 +48,6 @@ function addSymbol(symbol) {
 
 function removeSymbol(symbol) {
   return saveSaved(readSaved().filter((x) => x !== symbol));
-}
-
-function syncVisibleCheckboxes() {
-  const saved = readSaved();
-  document.querySelectorAll(".stock-picker-row .stock-compare-choice input").forEach((checkbox) => {
-    const row = checkbox.closest(".stock-picker-row");
-    if (!row) return;
-    const symbol = String(row.dataset.symbol || "").trim().toUpperCase();
-    if (symbol) checkbox.checked = saved.includes(symbol);
-  });
 }
 
 function activateSavedCheckboxes() {
@@ -54,8 +60,6 @@ function activateSavedCheckboxes() {
     const symbol = String(row.dataset.symbol || "").trim().toUpperCase();
     if (!symbol || !saved.includes(symbol) || checkbox.checked) return;
 
-    // The comparison module owns the checkbox change handler. Triggering a
-    // real change event keeps its internal compareSymbols state in sync.
     checkbox.checked = true;
     checkbox.dispatchEvent(new Event("change", { bubbles: true }));
   });
@@ -67,9 +71,6 @@ function addSelectedStockFromButton(button) {
   if (!symbol) return;
   addSymbol(symbol);
 
-  // stock-detail re-renders the selection list after the click. Wait for the
-  // comparison module's MutationObserver to decorate the new row, then check
-  // the corresponding Compare box.
   setTimeout(activateSavedCheckboxes, 0);
   setTimeout(activateSavedCheckboxes, 50);
   setTimeout(activateSavedCheckboxes, 150);
@@ -92,7 +93,6 @@ document.addEventListener("click", (event) => {
   if (removeButton) {
     const symbol = String(removeButton.dataset.removeSymbol || "").trim().toUpperCase();
     if (symbol) removeSymbol(symbol);
-    return;
   }
 });
 
