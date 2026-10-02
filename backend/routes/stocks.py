@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -18,13 +18,69 @@ client: YahooFinanceClient | None = None
 
 
 def _get_client() -> YahooFinanceClient:
-    """Create the Yahoo client lazily so Yahoo outages/rate limits cannot crash startup."""
+    """Create the Yahoo client lazily so outages/rate limits cannot crash startup."""
     global client
-
     if client is None:
         client = YahooFinanceClient(Settings())
-
     return client
+
+
+def _latest_statement_value(
+    rows: list[dict[str, Any]],
+    key: str,
+) -> float | None:
+    if not rows:
+        return None
+    return rows[0].get("values", {}).get(key)
+
+
+def _enrich_public_analysis(data: dict[str, Any]) -> dict[str, Any]:
+    """Add cross-statement ratios used by the analysis UI without exposing provider details."""
+    f = data.get("fundamentals", {})
+    balance = data.get("balance_sheet", [])
+
+    assets = _latest_statement_value(balance, "TotalAssets")
+    current_liabilities = _latest_statement_value(balance, "CurrentLiabilities")
+
+    if (
+        f.get("sector") != "Financial Services"
+        and f.get("operating_profit") is not None
+        and assets is not None
+        and current_liabilities is not None
+        and assets != current_liabilities
+    ):
+        f["roce"] = f["operating_profit"] / (assets - current_liabilities) * 100
+
+    revenue = f.get("revenue")
+    fcf = f.get("free_cash_flow")
+    cfo = f.get("operating_cash_flow")
+    profit = f.get("net_profit")
+    debt = f.get("total_debt")
+    cash = f.get("cash")
+    ebitda = f.get("ebitda")
+
+    if revenue not in (None, 0) and fcf is not None:
+        f["fcf_margin"] = fcf / revenue * 100
+    if profit not in (None, 0) and cfo is not None:
+        f["cash_conversion"] = cfo / profit * 100
+    if debt is not None and cash is not None:
+        f["net_debt"] = debt - cash
+    if (
+        f.get("sector") != "Financial Services"
+        and f.get("net_debt") is not None
+        and ebitda not in (None, 0)
+        and ebitda > 0
+    ):
+        f["net_debt_ebitda"] = f["net_debt"] / ebitda
+
+    # Keep provider implementation details out of the public UI/API contract.
+    f["source"] = "Fundamentals provider"
+    data["warnings"] = [
+        "Some ratios are derived from the latest income statement and balance sheet and may differ slightly from reported provider ratios.",
+        "Historical CAGR metrics require the requested lookback period to be available and a positive starting value.",
+        "Financial companies use a different valuation lens: P/B, ROE and ROA are more informative than EV/EBITDA.",
+    ]
+    return data
 
 
 @router.get("/universe")
@@ -59,46 +115,25 @@ async def get_stock_universe(
         has_fundamental_filter = any(
             value is not None
             for value in (
-                min_market_cap_cr,
-                max_market_cap_cr,
-                min_pe,
-                max_pe,
-                min_roe,
-                max_roe,
-                min_pb,
-                max_pb,
-                min_peg,
-                max_peg,
-                min_roa,
-                max_roa,
-                min_debt_equity,
-                max_debt_equity,
-                min_current_ratio,
-                max_current_ratio,
-                min_ev_ebitda,
-                max_ev_ebitda,
-                min_ev_revenue,
-                max_ev_revenue,
-                min_dividend_yield,
-                max_dividend_yield,
+                min_market_cap_cr, max_market_cap_cr, min_pe, max_pe,
+                min_roe, max_roe, min_pb, max_pb, min_peg, max_peg,
+                min_roa, max_roa, min_debt_equity, max_debt_equity,
+                min_current_ratio, max_current_ratio, min_ev_ebitda,
+                max_ev_ebitda, min_ev_revenue, max_ev_revenue,
+                min_dividend_yield, max_dividend_yield,
             )
         )
 
         if not include_metrics and not has_fundamental_filter:
             stocks = load_nifty_total_market()
-
             if sector:
                 stocks = [stock for stock in stocks if stock["sector"] == sector]
-
             if query:
                 q = query.strip().lower()
                 stocks = [
-                    stock
-                    for stock in stocks
-                    if q in stock["symbol"].lower()
-                    or q in stock["name"].lower()
+                    stock for stock in stocks
+                    if q in stock["symbol"].lower() or q in stock["name"].lower()
                 ]
-
             return {
                 "sector": sector,
                 "sectors": nifty_sectors(),
@@ -110,32 +145,17 @@ async def get_stock_universe(
 
         return list_stocks(
             _get_client(),
-            sector=sector,
-            query=query,
-            min_market_cap_cr=min_market_cap_cr,
-            max_market_cap_cr=max_market_cap_cr,
-            min_pe=min_pe,
-            max_pe=max_pe,
-            min_roe=min_roe,
-            max_roe=max_roe,
-            min_pb=min_pb,
-            max_pb=max_pb,
-            min_peg=min_peg,
-            max_peg=max_peg,
-            min_roa=min_roa,
-            max_roa=max_roa,
-            min_debt_equity=min_debt_equity,
-            max_debt_equity=max_debt_equity,
-            min_current_ratio=min_current_ratio,
-            max_current_ratio=max_current_ratio,
-            min_ev_ebitda=min_ev_ebitda,
-            max_ev_ebitda=max_ev_ebitda,
-            min_ev_revenue=min_ev_revenue,
-            max_ev_revenue=max_ev_revenue,
-            min_dividend_yield=min_dividend_yield,
-            max_dividend_yield=max_dividend_yield,
+            sector=sector, query=query,
+            min_market_cap_cr=min_market_cap_cr, max_market_cap_cr=max_market_cap_cr,
+            min_pe=min_pe, max_pe=max_pe, min_roe=min_roe, max_roe=max_roe,
+            min_pb=min_pb, max_pb=max_pb, min_peg=min_peg, max_peg=max_peg,
+            min_roa=min_roa, max_roa=max_roa,
+            min_debt_equity=min_debt_equity, max_debt_equity=max_debt_equity,
+            min_current_ratio=min_current_ratio, max_current_ratio=max_current_ratio,
+            min_ev_ebitda=min_ev_ebitda, max_ev_ebitda=max_ev_ebitda,
+            min_ev_revenue=min_ev_revenue, max_ev_revenue=max_ev_revenue,
+            min_dividend_yield=min_dividend_yield, max_dividend_yield=max_dividend_yield,
         )
-
     except (NiftyUniverseError, YahooFinanceError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -149,7 +169,7 @@ async def get_stock_charts(symbol: str):
         return {
             "symbol": normalized,
             "charts": build_stock_charts(history, prices),
-            "price_source": "Yahoo Finance",
+            "price_source": "Market price history",
             "notes": [
                 "EPS and revenue charts show annual year-over-year growth.",
                 "ROE trend is derived from annual net profit and average shareholder equity.",
@@ -163,7 +183,7 @@ async def get_stock_charts(symbol: str):
 @router.get("/{symbol}")
 async def get_stock(symbol: str):
     try:
-        return get_stock_analysis(_get_client(), symbol)
+        return _enrich_public_analysis(get_stock_analysis(_get_client(), symbol))
     except YahooFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -171,6 +191,6 @@ async def get_stock(symbol: str):
 @router.get("/{symbol}/fundamentals")
 async def get_fundamentals(symbol: str):
     try:
-        return get_stock_analysis(_get_client(), symbol)["fundamentals"]
+        return _enrich_public_analysis(get_stock_analysis(_get_client(), symbol))["fundamentals"]
     except YahooFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
