@@ -25,7 +25,19 @@ function installSectorMultiSelect() {
 }
 
 function installCapFilters(){const top=document.querySelector(".stock-filter-top");if(!top||document.getElementById("stock-cap-filter"))return;const block=document.createElement("div");block.className="stock-universe-extra-filters";block.innerHTML=`<div class="stock-chip-filter" id="stock-cap-filter"><span class="stock-chip-filter-label">Market Cap</span>${CAP_BANDS.map(b=>`<label><input type="checkbox" value="${b.key}"><span>${b.label}</span></label>`).join("")}</div>`;top.appendChild(block)}
-
 function moveQuickFilters(){const card=document.querySelector("#stock-selection-screen .stock-filter-card"),body=card?.querySelector("#stock-filter-body"),top=card?.querySelector(".stock-filter-top"),toggle=card?.querySelector("#stock-filter-toggle");if(card&&body&&top&&toggle&&top.parentElement!==card)card.insertBefore(top,toggle)}
 function run(){addStockUniverseCSS();installSectorMultiSelect();installCapFilters();moveQuickFilters()}
-const observer=new MutationObserver(()=>{clearTimeout(window.__stockUniverseEnhancementTimer);window.__stockUniverseEnhancementTimer=setTimeout(run,0)});if(document.body)observer.observe(document.body,{childList:true,subtree:true});run();
+
+function install() {
+  run();
+  const screen=document.getElementById("stock-selection-screen");
+  if(!screen||screen.dataset.universeEnhancementObserverInstalled==="1") return;
+  screen.dataset.universeEnhancementObserverInstalled="1";
+  // Only observe direct replacements of the selection screen. The previous
+  // body-wide subtree observer observed its own DOM writes and created a
+  // continuous mutation/render loop.
+  const observer=new MutationObserver(()=>{clearTimeout(window.__stockUniverseEnhancementTimer);window.__stockUniverseEnhancementTimer=setTimeout(run,0)});
+  observer.observe(screen,{childList:true,subtree:false});
+}
+
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",install,{once:true}); else install();
