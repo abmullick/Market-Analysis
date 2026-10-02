@@ -10,6 +10,11 @@ Modular Indian market-analysis platform covering **Stock Analysis**, **Bond Anal
 - **Mutual Fund Portfolio Builder** — select funds, allocate weights to exactly 100%, run portfolio analysis, review Portfolio Health Score, Return Contribution, Drawdown & Recovery, Rolling Performance, and What-If Allocation.
 - **Stock Portfolio Builder** — planned product area.
 
+## Detailed Implementation References
+
+- [`STOCK_ANALYSIS.md`](STOCK_ANALYSIS.md) — complete Stock Analysis implementation and parameter reference, including selector controls, every fundamental range filter, displayed metrics, statements, charts, comparison, data sources and missing-data conventions.
+- [`BOND_ANALYSIS.md`](BOND_ANALYSIS.md) — complete Bond Analysis implementation and parameter reference, including Government/Corporate universes, selector filters, market observations, contract terms, yields, duration/convexity/DV01, ratings, source/freshness handling and missing-data conventions.
+
 ## Stock Analysis
 
 The Stock Analysis page uses the **Nifty Total Market universe — Nifty 500 + Nifty Microcap 250 source universe**. The universe is broader than the large-cap market and includes large-, mid-, small-, and micro-cap stocks.
@@ -137,8 +142,6 @@ The bond layer normalizes multiple source feeds behind the service/model layer. 
 
 Market observations can be classified as traded, indicative, MTM, reference, auction, historical, or unknown. Missing inputs do not result in fabricated analytics; unavailable calculations remain unavailable.
 
-For the detailed Bond Analysis implementation notes, see [`BOND_ANALYSIS.md`](BOND_ANALYSIS.md).
-
 ## Architecture
 
 The application follows a layered architecture:
@@ -216,7 +219,7 @@ The Help & Methodology page is the application's reference guide for how the scr
 - Mutual Fund Analysis ranking, percentiles, risk metrics, rolling returns, drawdown, and scoring.
 - Mutual Fund Portfolio Builder allocation rules, historical simulation methodology, Health Score, Return Contribution, Drawdown & Recovery, Rolling Performance, and What-If scenarios.
 - **Bond Analysis** government/corporate universes, selection identity, search and filters, market price/yield terminology, calculated versus market YTM, accrued interest, duration, convexity, DV01, coupon/redemption cash flows, corporate ratings, source/freshness information, and missing-data conventions.
-- **Stock Analysis** universe selection, sector/search/cap filtering, full-universe filtering before pagination, stock selection, automatic comparison, valuation ratios, profitability ratios, Debt / Equity, liquidity ratios, Beta, CAGR/growth, financial statements, historical charts, comparison, data-source policy, and missing-value conventions.
+- **Stock Analysis** universe selection, sector/search/cap filtering, full-universe filtering before pagination, stock selection, automatic comparison, every fundamental range filter, valuation ratios, profitability ratios, Debt / Equity, liquidity ratios, Beta, all supported growth/CAGR measures, financial statements, historical charts, comparison, data-source policy, and missing-value conventions.
 - **N/M — Not Meaningful** versus genuinely unavailable source data.
 
 Help search is client-side and does not make network or AI requests. Stock and Bond Analysis help entries are synchronized at runtime so obsolete Stock Analysis placeholder documentation is removed and the current implementations remain searchable.
