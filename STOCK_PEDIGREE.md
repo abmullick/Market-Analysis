@@ -4,7 +4,7 @@ This document describes the historical analytics added to Stock Analysis.
 
 ## Objective
 
-The feature uses Screener financial statements and shareholding history to answer a different set of questions from point-in-time valuation ratios:
+The feature extends point-in-time valuation and profitability ratios with historical diagnostics:
 
 - Is revenue growth reasonably consistent?
 - Is profit growth consistent with revenue growth?
@@ -21,8 +21,6 @@ The feature is descriptive. It does not produce an investment recommendation or 
 ## Derived metrics
 
 ### Growth consistency
-
-For each historical series, the engine counts positive year-over-year observations:
 
 `Positive Growth % = Positive YoY Growth Observations / Valid YoY Observations × 100`
 
@@ -56,15 +54,15 @@ For non-financial operating businesses:
 
 `CCC = Debtor Days + Inventory Days − Payable Days`
 
-with each day metric calculated from the corresponding annual balance divided by revenue and multiplied by 365.
+Each day metric is calculated from the corresponding annual balance relative to annual revenue and multiplied by 365.
 
 ### Indexed business scale
 
-Revenue, Profit and FCF are independently rebased to 100 at the first positive observation. This allows their historical trajectories to be compared without mixing their absolute units.
+Revenue, Profit and FCF are independently rebased to 100 at the first positive observation. This allows historical trajectories to be compared without mixing their absolute units.
 
 ## Shareholding history
 
-The Screener Shareholding Pattern is parsed into dated observations for:
+The ownership table is parsed into dated observations for:
 
 - Promoters
 - FIIs
@@ -73,9 +71,7 @@ The Screener Shareholding Pattern is parsed into dated observations for:
 - Public
 - Number of shareholders
 
-Quarterly and longer annual observations are retained where available. Duplicate dates are merged.
-
-Screener notes that classification can change from September 2022 following the XBRL format change. This limitation is displayed in the application and should be considered when comparing historical FII/DII classifications.
+Quarterly and longer annual observations are retained where available. Duplicate dates are merged. Missing observations remain missing rather than being interpolated.
 
 ## Individual analysis charts
 
@@ -86,12 +82,12 @@ The individual report contains:
 3. Cash Conversion & FCF Margin — earnings-to-cash quality.
 4. Debt Trend — historical reported debt.
 5. Working Capital Cycle — historical CCC.
-6. Historical Shareholding Pattern — ownership structure.
+6. Historical Shareholding Pattern — ownership structure over time.
 7. Shareholder Base — shareholder-count trend.
 
 ## Comparison charts
 
-The same engine is applied separately to every selected company. Compare includes:
+The same engine is applied independently to every selected company. Compare includes:
 
 1. Indexed business scale.
 2. ROE / ROCE trend.
@@ -104,8 +100,6 @@ The same engine is applied separately to every selected company. Compare include
 
 The calculations are intentionally identical between individual and comparison views.
 
-## Source discipline
+## Presentation rules
 
-The pedigree API uses Screener as the source for the underlying annual financial statements and shareholding history. The application calculates the secondary metrics itself so that formulas remain transparent.
-
-Missing observations remain missing. The engine does not interpolate or fabricate historical ownership, financial or cash-flow observations merely to make a chart complete.
+Charts are displayed as ordinary analysis metrics. The interface does not label individual metrics as being derived from a particular provider. Formula explanations belong in Help & Methodology, while the analysis page focuses on the resulting metric and trend.
