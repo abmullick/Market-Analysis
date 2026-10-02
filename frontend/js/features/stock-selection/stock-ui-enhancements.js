@@ -218,7 +218,7 @@ function renderPagination(total) {
   </div>`;
 }
 
-function renderClientResults(screen) {
+function renderClientResults(screen, force = false) {
   if (!screen || !stockUniverse.length || hasFundamentalFilters()) return false;
 
   const stocks = filterUniverse();
@@ -227,15 +227,19 @@ function renderClientResults(screen) {
   stockPage = Math.min(stockPage, pages);
   const start = (stockPage - 1) * STOCK_PAGE_SIZE;
   const visible = stocks.slice(start, start + STOCK_PAGE_SIZE);
+  const context = currentContext();
+  const renderKey = `${context.sector}|${context.query}|${stockPage}`;
 
   const filterCard = screen.querySelector(".stock-filter-card");
   const panel = screen.querySelector(".stock-picker-panel");
   if (!panel || !filterCard) return false;
 
+  let list = panel.querySelector(".stock-picker-list");
+  if (!force && list?.dataset.clientRenderKey === renderKey) return true;
+
   stockRenderInProgress = true;
 
   let summary = panel.querySelector(".stock-result-summary");
-  let list = panel.querySelector(".stock-picker-list");
   let pagination = panel.querySelector(".stock-client-pagination");
   panel.querySelector(".stock-selection-instruction")?.remove();
 
@@ -253,6 +257,7 @@ function renderClientResults(screen) {
 
   const rawQuery = document.getElementById("stock-filter-search")?.value || "";
   summary.innerHTML = `<strong>${total}</strong> stocks available${rawQuery ? ` · search: “${esc(rawQuery)}”` : ""}`;
+  list.dataset.clientRenderKey = renderKey;
   list.innerHTML = visible.length
     ? visible.map(stockRowHtml).join("")
     : `<div class="stock-no-data">No stocks match the current search.</div>`;
@@ -266,7 +271,7 @@ function renderClientResults(screen) {
     button.addEventListener("click", () => {
       stockSelectedSymbol = button.closest(".stock-picker-row")?.dataset.symbol || null;
       updateSelectedPanel();
-      renderClientResults(screen);
+      renderClientResults(screen, true);
     });
   });
 
@@ -274,7 +279,7 @@ function renderClientResults(screen) {
     button.addEventListener("click", () => {
       if (button.disabled) return;
       stockPage = Number(button.dataset.stockPage);
-      renderClientResults(screen);
+      renderClientResults(screen, true);
     });
   });
 
