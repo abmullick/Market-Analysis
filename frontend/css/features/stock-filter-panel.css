@@ -1,10 +1,12 @@
 /* Stock screener filter panel. Quick filters sit above the collapsible fundamental filters. */
 .stock-filter-card{margin-bottom:16px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 4px 16px rgba(15,23,42,.06)}
-.stock-filter-toggle{width:100%;min-height:62px;display:flex;align-items:center;gap:12px;padding:0 18px;border:0;border-bottom:1px solid #cbd5e1;background:linear-gradient(135deg,#e0f2fe,#eef2ff);color:#0f172a;cursor:pointer;text-align:left;font:inherit;font-weight:700}
-.stock-filter-toggle:hover{background:linear-gradient(135deg,#bae6fd,#e0e7ff)}
-.stock-filter-toggle-icon{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#050505;color:#fff;font-size:22px;line-height:1;font-weight:900;flex:0 0 34px;box-shadow:0 2px 5px rgba(0,0,0,.22)}
-.stock-filter-toggle-label{font-size:15px;font-weight:800;letter-spacing:.01em}
-.stock-filter-toggle-count{margin-left:auto;color:#1e3a8a;font-size:12px;font-weight:700;white-space:nowrap}
+.stock-filter-card>.stock-filter-controls{width:100%;box-sizing:border-box}
+.stock-filter-toggle{width:100%!important;min-height:68px!important;display:flex!important;align-items:center!important;gap:14px!important;padding:0 18px!important;border:0!important;border-top:1px solid #2563eb!important;border-bottom:1px solid #1d4ed8!important;background:linear-gradient(135deg,#dbeafe 0%,#e0e7ff 55%,#c7d2fe 100%)!important;color:#0f172a!important;cursor:pointer!important;text-align:left!important;font:inherit!important;font-weight:800!important;box-shadow:0 3px 10px rgba(37,99,235,.16)!important}
+.stock-filter-toggle:hover{background:linear-gradient(135deg,#bfdbfe 0%,#c7d2fe 55%,#a5b4fc 100%)!important}
+.stock-filter-toggle:focus-visible{outline:3px solid rgba(37,99,235,.35)!important;outline-offset:-3px!important}
+.stock-filter-toggle-icon{width:40px!important;height:40px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;border-radius:50%!important;background:#050505!important;color:#fff!important;font-size:25px!important;line-height:1!important;font-weight:900!important;flex:0 0 40px!important;box-shadow:0 3px 8px rgba(0,0,0,.28)!important}
+.stock-filter-toggle-label{font-size:16px!important;font-weight:900!important;letter-spacing:.01em!important}
+.stock-filter-toggle-count{margin-left:auto!important;color:#173a8f!important;font-size:13px!important;font-weight:800!important;white-space:nowrap!important}
 .stock-filter-body{padding:14px;border-top:0;background:#fbfcfe}.stock-filter-body[hidden]{display:none!important}
 .stock-filter-top{display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,1.4fr);gap:12px;padding-bottom:14px}
 .stock-filter-top label,.stock-filter-group label{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:700;color:#53637a;letter-spacing:.03em}
