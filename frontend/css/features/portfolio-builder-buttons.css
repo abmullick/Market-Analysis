@@ -1,5 +1,5 @@
-/* Portfolio Builder buttons — copy the Mutual Fund Analysis .btn-primary visual treatment exactly.
-   Size/layout remains page-specific; visual styling is intentionally identical. */
+/* Portfolio Builder buttons — copied from the Mutual Fund Analysis .btn-primary
+   style. Layout width can remain page-specific; visual properties are identical. */
 
 body[data-page="portfolio-builder"] .pb-actions .btn,
 body[data-page="portfolio-builder"] .pb-actions a.btn,
@@ -9,13 +9,20 @@ body[data-page="portfolio-builder"] .pb-empty-card .btn,
 body[data-page="portfolio-builder"] .pb-actions .ai-action,
 body[data-page="portfolio-select-funds"] .pfs-continue-btn,
 body[data-page="portfolio-select-funds"] .pfs-btn-add {
+    height: 42px;
     background: var(--color-primary);
     color: #ffffff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-family);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
     background-image: none;
-    border-color: transparent;
-    box-shadow: var(--btn-shadow);
     animation: none;
     filter: none;
+    box-shadow: var(--btn-shadow);
+    transition: background 0.15s ease, transform 0.1s ease;
 }
 
 body[data-page="portfolio-builder"] .pb-actions .btn:hover:not(:disabled),
@@ -29,10 +36,9 @@ body[data-page="portfolio-select-funds"] .pfs-btn-add:hover:not(:disabled) {
     background: var(--color-primary-light);
     color: #ffffff;
     background-image: none;
-    border-color: transparent;
-    box-shadow: var(--btn-shadow-hover);
-    transform: translateY(-2px);
     filter: none;
+    transform: translateY(-1px);
+    box-shadow: var(--btn-shadow);
 }
 
 body[data-page="portfolio-builder"] .pb-actions .btn:active,
@@ -44,7 +50,6 @@ body[data-page="portfolio-builder"] .pb-actions .ai-action:active,
 body[data-page="portfolio-select-funds"] .pfs-continue-btn:active,
 body[data-page="portfolio-select-funds"] .pfs-btn-add:active {
     transform: scale(0.98);
-    box-shadow: var(--btn-shadow-active);
 }
 
 body[data-page="portfolio-builder"] .pb-actions .btn:focus-visible,
