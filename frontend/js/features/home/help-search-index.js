@@ -22,7 +22,7 @@ export function normalizeText(value) {
         // slash notation and word notation in different places.
         .replace(/\bp\s*\/\s*e\b/gi, " pe ")
         .replace(/\bp\s*\/\s*b\b/gi, " pb ")
-        .replace(/\b ev\s*\/\s*ebitda\b/gi, " ev ebitda ")
+        .replace(/\bev\s*\/\s*ebitda\b/gi, " ev ebitda ")
         .replace(/\bev\s*\/\s*revenue\b/gi, " ev revenue ")
         .replace(/\bdebt\s*\/\s*equity\b/gi, " debt equity ")
         .toLowerCase()
