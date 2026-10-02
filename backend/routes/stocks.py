@@ -137,6 +137,7 @@ async def get_stock_universe(
     min_ev_revenue: Optional[float] = Query(default=None, ge=0), max_ev_revenue: Optional[float] = Query(default=None, ge=0),
     min_dividend_yield: Optional[float] = Query(default=None, ge=0), max_dividend_yield: Optional[float] = Query(default=None, ge=0),
     include_metrics: bool = Query(default=False),
+    include_liquidity: bool = Query(default=False),
 ):
     try:
         has_fundamental_filter = any(value is not None for value in (
@@ -154,7 +155,7 @@ async def get_stock_universe(
             if query:
                 q = query.strip().lower()
                 stocks = [stock for stock in stocks if q in stock["symbol"].lower() or q in stock["name"].lower()]
-            return {"sector": sector, "sectors": nifty_sectors(), "stocks": stocks, "count": len(stocks), "universe": "Nifty Total Market", "classification_source": "NSE Indices / Nifty Total Market constituent CSV"}
+            return {"sector": sector, "sectors": nifty_sectors(), "stocks": stocks, "count": len(stocks), "universe": "Nifty Total Market", "classification_source": "NSE Indices / Nifty Total Market constituent CSV", "liquidity_loaded": False}
 
         return list_stocks(
             _get_client(), sector=sector, query=query,
@@ -166,7 +167,7 @@ async def get_stock_universe(
             max_current_ratio=max_current_ratio, min_ev_ebitda=min_ev_ebitda,
             max_ev_ebitda=max_ev_ebitda, min_ev_revenue=min_ev_revenue,
             max_ev_revenue=max_ev_revenue, min_dividend_yield=min_dividend_yield,
-            max_dividend_yield=max_dividend_yield,
+            max_dividend_yield=max_dividend_yield, include_liquidity=include_liquidity,
         )
     except (NiftyUniverseError, YahooFinanceError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -180,12 +181,7 @@ async def get_stock_charts(symbol: str):
         history = stock_client.financial_history(normalized)
         prices = yahoo_annual_prices(normalized, years=7)
         quote = stock_client._screener.quote_summary(normalized)
-        charts = build_stock_charts(
-            history,
-            prices,
-            current_price=quote.get("regularMarketPrice"),
-            current_pb=quote.get("priceToBook"),
-        )
+        charts = build_stock_charts(history, prices, current_price=quote.get("regularMarketPrice"), current_pb=quote.get("priceToBook"))
         return {"symbol": normalized, "charts": charts, "price_source": "Market price history", "notes": [
             "EPS and revenue charts show annual year-over-year growth.",
             "ROE trend is derived from annual net profit and average shareholder equity.",
