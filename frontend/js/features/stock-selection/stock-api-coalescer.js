@@ -20,10 +20,6 @@
 
   function stockApiKey(url, init) {
     if (init?.method && String(init.method).toUpperCase() !== "GET") return null;
-    if (init?.headers) {
-      const headers = new Headers(init.headers);
-      if (headers.get("X-Stock-Core-Request") === "comparison") return null;
-    }
     try {
       const u = new URL(url, window.location.href);
       if (u.origin !== window.location.origin || !u.pathname.startsWith("/api/stocks")) return null;
