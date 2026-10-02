@@ -107,7 +107,8 @@ function injectStyles() {
       box-shadow:var(--btn-shadow)!important;
       white-space:nowrap!important;
     }
-    .stock-select-btn{width:auto!important;min-width:104px!important;flex:0 0 auto!important;background:linear-gradient(135deg,var(--color-primary),var(--color-primary-light))!important;color:#fff!important}
+    .stock-select-btn,
+    .stock-picker-row .stock-select-btn{width:104px!important;min-width:104px!important;max-width:104px!important;flex:0 0 104px!important;background:linear-gradient(135deg,var(--color-primary),var(--color-primary-light))!important;color:#fff!important}
     .stock-select-btn:hover,.stock-compare-action:hover{background:linear-gradient(135deg,var(--color-primary-light),var(--color-primary))!important;color:#fff!important;transform:translateY(-1px)!important;box-shadow:var(--btn-shadow-hover)!important}
     .stock-select-btn:active,.stock-compare-action:active{transform:translateY(0)!important;box-shadow:var(--btn-shadow-active)!important}
 
@@ -131,11 +132,11 @@ function injectStyles() {
     .stock-comparison-header h1{margin:0 0 5px;color:var(--color-primary);font-size:1.55rem}
     .stock-comparison-header p{margin:0;color:var(--color-text-light);font-size:13px}
     .stock-comparison-table-wrap{overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:0 6px 22px rgba(15,23,42,.06)}
-    .stock-comparison-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px}
-    .stock-comparison-table th,.stock-comparison-table td{padding:12px 14px;border-bottom:1px solid #edf1f6;text-align:right;font-size:13px;font-variant-numeric:tabular-nums}
-    .stock-comparison-table th:first-child,.stock-comparison-table td:first-child{text-align:left;position:sticky;left:0;background:var(--color-surface);z-index:1}
-    .stock-comparison-table thead th{background:#f1f6fc;color:var(--color-primary);font-weight:700;position:sticky;top:0;z-index:2}
-    .stock-comparison-table thead th:first-child{z-index:3}
+    .stock-comparison-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px;table-layout:fixed}
+    .stock-comparison-table th,.stock-comparison-table td{padding:12px 14px;border-bottom:1px solid #edf1f6;text-align:right;font-size:13px;font-variant-numeric:tabular-nums;overflow:hidden}
+    .stock-comparison-table th:first-child,.stock-comparison-table td:first-child{text-align:left;position:sticky;left:0;background:var(--color-surface);z-index:1;width:22%}
+    .stock-comparison-table thead th{background:#f1f6fc;color:var(--color-primary);font-weight:700;position:sticky;top:0;z-index:2;text-align:center;vertical-align:middle;white-space:normal;line-height:1.25}
+    .stock-comparison-table thead th:first-child{z-index:3;text-align:left}
     .stock-comparison-table .compare-group td{padding:11px 14px;background:#edf4fb;color:#1e3a5f;font-weight:700;text-align:left;border-bottom:1px solid #dbe7f3;letter-spacing:.02em}
     .stock-comparison-table tbody tr:hover td{background:#fbfdff}
     .stock-comparison-table tbody tr:last-child td{border-bottom:0}
@@ -266,7 +267,8 @@ function comparisonTable(datas) {
       rows += `<tr><td>${esc(label)}</td>${fs.map((f) => { const d = metricDisplay(f, key, type, currency); const cls = comparisonCellClass(f, key, fs); return `<td class="${cls}"${d.title ? ` title="${esc(d.title)}"` : ""}>${esc(d.text)}</td>`; }).join("")}</tr>`;
     }
   }
-  return `<div class="stock-comparison-table-wrap"><table class="stock-comparison-table"><thead><tr><th>Metric</th>${fs.map((f) => `<th>${esc(f.name || f.symbol || "Stock")}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  const stockWidth = (78 / fs.length).toFixed(4);
+  return `<div class="stock-comparison-table-wrap"><table class="stock-comparison-table"><colgroup><col style="width:22%">${fs.map(() => `<col style="width:${stockWidth}%">`).join("")}</colgroup><thead><tr><th>Metric</th>${fs.map((f) => `<th>${esc(f.name || f.symbol || "Stock")}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 async function showComparison(symbols) {
