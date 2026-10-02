@@ -1,61 +1,214 @@
-# Stock Analysis — Current Implementation
+# Stock Analysis — Implementation & Parameter Reference
 
-## Universe
+## 1. Purpose
 
-The Stock Analysis selector uses the **Nifty Total Market** source universe: Nifty 500 + Nifty Microcap 250. The universe is broader than a large-cap-only universe and contains large-, mid-, small-, and micro-cap stocks.
+Stock Analysis is the application's stock-screening, individual-company analysis, and side-by-side comparison module. It uses the loaded Nifty Total Market source universe and lets the user refine the universe, select a stock, analyse it, and optionally compare it with other selected stocks.
 
-## Selection & Screening
+This document describes the implementation currently exposed by the application. It is intentionally source-aware: a field is documented as available only where the underlying provider supplies a usable value.
 
-The selector provides:
+## 2. Stock Universe
 
-- Multi-select **Sector** filtering.
-- Company/symbol **Search**.
-- **Market Cap** presets: Large Cap, Mid Cap, Small Cap, Micro Cap.
-- Liquidity controls where supplied by the current selector implementation.
-- Quick local refinement of the already-loaded universe where possible.
-- Filtering across the full loaded universe before the displayed result page is limited for presentation; sector/cap selection is not restricted to the first result page.
-- Filter Results is independently collapsible; Sector, Search, and quick filters remain outside the collapsible result body.
+The selector uses the **Nifty Total Market** source universe represented by:
 
-Sector, search, and quick-cap interactions should not repeatedly rebuild the entire page or trigger unnecessary backend universe loads.
+- Nifty 500.
+- Nifty Microcap 250.
 
-## Selection → Analysis → Compare
+The resulting universe is broader than a large-cap-only universe and is classified into:
 
-Selecting a stock makes it the active analysis stock and automatically adds it to the Compare Stocks list. The user can subsequently remove it from comparison.
+- Large Cap
+- Mid Cap
+- Small Cap
+- Micro Cap
 
-The individual analysis page and comparison page share the same fundamental-data model so that metrics remain consistent between views.
+The displayed result list is paginated for presentation, but filtering is performed against the loaded universe before pagination. A sector selection therefore is **not** limited to stocks appearing on page 1.
 
-## Individual Analysis
+## 3. Selector Controls
 
-The analysis page includes:
+### 3.1 Sector
 
-- Company summary and market-cap information.
-- Market Cap, Enterprise Value, Revenue, Net Profit, EBITDA, and Free Cash Flow where available.
-- Valuation metrics: P/E, Forward P/E, Price/Book, Price/Sales, PEG, EV/EBITDA, EV/Revenue, Dividend Yield, Payout Ratio.
-- Profitability metrics: ROE, ROA, Gross Margin, Operating Margin, Net Margin.
-- Financial Health metrics: **Debt / Equity**, Current Ratio, Quick Ratio, Beta.
-- Growth metrics and CAGR measures.
-- Annual Income Statement, Balance Sheet, and Cash Flow tables.
-- Historical price/performance and valuation charts, including P/E and P/B history where source data is available.
-- Data Notes positioned at the bottom of the analysis page.
+**Sector** is a multi-select control. Multiple selected sectors use OR semantics: a stock is retained when its sector matches any selected sector.
 
-## Metric Definitions
+### 3.2 Search
 
-- **P/E** — market price relative to earnings per share.
-- **Forward P/E** — market price relative to forward earnings expectations when supplied by Yahoo Finance; supplemental market data, not the primary Screener fundamental field.
-- **P/B** — market price relative to book value per share.
-- **PEG** — valuation relative to a supported earnings-growth measure.
-- **ROE / ROA** — profitability relative to shareholders' equity / total assets.
-- **Gross / Operating / Net Margin** — profit retained at the respective income-statement levels as a percentage of revenue.
-- **Debt / Equity** — debt relative to shareholders' equity; a first-class financial-health metric.
-- **Current Ratio / Quick Ratio** — balance-sheet liquidity measures.
-- **Beta** — market sensitivity relative to the market benchmark, supplied as supplemental Yahoo market data where available.
-- **CAGR** — annualized historical growth over a supported period; descriptive, not a forecast.
+**Search company or symbol** performs local refinement against the loaded universe. It is intended for company-name and ticker/symbol discovery.
 
-## Charts & Report
+### 3.3 Market-cap presets
 
-The individual stock report combines summary metrics, valuation/profitability/financial-health cards, financial statements, and historical charts. Supported charts include historical price/performance and valuation trends such as P/E and P/B where source data exists. Charts describe historical observations and do not forecast future prices or returns.
+The quick market-cap controls are:
 
-## Data Source Policy
+- **Large Cap**
+- **Mid Cap**
+- **Small Cap**
+- **Micro Cap**
+
+They refine the currently loaded universe and do not intentionally reload the entire backend universe for every click.
+
+### 3.4 Filter Results
+
+The **Filter Results** bar is independently collapsible. Sector, Search and market-cap controls remain outside the collapsible results body so that they remain usable when the detailed fundamental filters are hidden.
+
+## 4. Fundamental Range Filters
+
+The detailed Stock Analysis filter set currently contains the following range parameters. Each parameter has a minimum and maximum input; an empty boundary means that side of the range is not constrained.
+
+| API / field parameter | UI label | Unit | Meaning |
+|---|---|---:|---|
+| `min_market_cap_cr` | Market Cap Min | ₹ Cr | Minimum market capitalisation |
+| `max_market_cap_cr` | Market Cap Max | ₹ Cr | Maximum market capitalisation |
+| `min_pe` | P/E Min | x | Minimum price-to-earnings ratio |
+| `max_pe` | P/E Max | x | Maximum price-to-earnings ratio |
+| `min_pb` | P/B Min | x | Minimum price-to-book ratio |
+| `max_pb` | P/B Max | x | Maximum price-to-book ratio |
+| `min_peg` | PEG Min | x | Minimum PEG ratio |
+| `max_peg` | PEG Max | x | Maximum PEG ratio |
+| `min_roe` | ROE Min | % | Minimum return on equity |
+| `max_roe` | ROE Max | % | Maximum return on equity |
+| `min_roa` | ROA Min | % | Minimum return on assets |
+| `max_roa` | ROA Max | % | Maximum return on assets |
+| `min_debt_equity` | D/E Min | x | Minimum debt/equity |
+| `max_debt_equity` | D/E Max | x | Maximum debt/equity |
+| `min_current_ratio` | Current Ratio Min | x | Minimum current ratio |
+| `max_current_ratio` | Current Ratio Max | x | Maximum current ratio |
+| `min_ev_ebitda` | EV/EBITDA Min | x | Minimum enterprise-value-to-EBITDA |
+| `max_ev_ebitda` | EV/EBITDA Max | x | Maximum enterprise-value-to-EBITDA |
+| `min_ev_revenue` | EV/Revenue Min | x | Minimum enterprise-value-to-revenue |
+| `max_ev_revenue` | EV/Revenue Max | x | Maximum enterprise-value-to-revenue |
+| `min_dividend_yield` | Dividend Yield Min | % | Minimum dividend yield |
+| `max_dividend_yield` | Dividend Yield Max | % | Maximum dividend yield |
+
+**Quick controls and range filters are different layers:** market-cap presets are quick selectors, while the range fields are explicit fundamental constraints applied when **Apply Filters** is used.
+
+The selector displays **Apply Filters** and **Clear Filters** actions. Clear Filters removes the detailed range constraints; it does not intentionally erase the stock universe itself.
+
+## 5. Selection → Analysis → Comparison
+
+The workflow is deliberately separate:
+
+1. Click **Select** on a stock result.
+2. The stock becomes the **Selected Stock** on the left.
+3. The same stock is automatically added to the **Compare Stocks** staging list.
+4. The user may remove it from the comparison list later.
+5. Clicking **Analyze Stock** opens the individual stock analysis view for the selected stock.
+6. Comparison is a separate action and requires the appropriate number of staged stocks.
+
+Selecting a result should not directly navigate away from the selector.
+
+## 6. Individual Stock Summary
+
+The individual analysis view can display the following company-level fields where supplied:
+
+- Exchange
+- Symbol
+- Company name
+- Sector
+- Industry
+- Country
+- Current price
+- Currency
+- Market Cap
+- Enterprise Value
+- Latest Revenue
+- Latest Net Profit
+- Latest EBITDA
+- Latest Free Cash Flow
+- Data-as-of date
+- Source
+- Data warnings / notes
+
+Financial statement values can be displayed in the source/international B/T representation or, for INR companies, in **₹ Cr**.
+
+## 7. Valuation Metrics
+
+The Valuation group contains:
+
+| Parameter | Display label | Unit | Description |
+|---|---|---:|---|
+| `pe` | P/E | x | Price relative to earnings per share |
+| `forward_pe` | Forward P/E | x | Price relative to forward earnings expectation supplied by supplemental market data |
+| `pb` | Price / Book | x | Price relative to book value per share |
+| `ps` | Price / Sales | x | Price relative to sales |
+| `peg` | PEG | x | P/E relative to the supported earnings-growth measure |
+| `ev_ebitda` | EV / EBITDA | x | Enterprise value relative to EBITDA |
+| `ev_revenue` | EV / Revenue | x | Enterprise value relative to revenue |
+| `dividend_yield` | Dividend Yield | % | Dividend yield |
+| `payout_ratio` | Payout Ratio | % | Portion of earnings distributed as dividends |
+
+Where the application can show the PEG calculation note, it uses the implemented relationship **P/E ÷ 3Y EPS CAGR**.
+
+## 8. Profitability Metrics
+
+| Parameter | Display label | Unit | Description |
+|---|---|---:|---|
+| `roe` | ROE | % | Return on shareholders' equity |
+| `roa` | ROA | % | Return on assets |
+| `gross_margin` | Gross Margin | % | Gross profit as a percentage of revenue |
+| `operating_margin` | Operating Margin | % | Operating profit as a percentage of revenue |
+| `profit_margin` | Net Margin | % | Net profit as a percentage of revenue |
+
+## 9. Financial Health Metrics
+
+| Parameter | Display label | Unit | Description |
+|---|---|---:|---|
+| `debt_equity` | Debt / Equity | x | Debt relative to shareholders' equity |
+| `current_ratio` | Current Ratio | x | Current assets relative to current liabilities |
+| `quick_ratio` | Quick Ratio | x | More liquid current assets relative to current liabilities |
+| `beta` | Beta | number | Supplemental market-sensitivity measure relative to the market benchmark |
+
+Debt / Equity is a first-class metric used in individual analysis, screening where the corresponding range parameters are present, and comparison.
+
+## 10. Growth Metrics
+
+The Growth group contains:
+
+| Parameter | Display label | Unit |
+|---|---|---:|
+| `revenue_growth` | Revenue Growth | % |
+| `profit_growth` | Profit Growth | % |
+| `eps_growth` | EPS Growth | % |
+| `revenue_cagr_3y` | Revenue CAGR 3Y | % |
+| `revenue_cagr_5y` | Revenue CAGR 5Y | % |
+| `profit_cagr_3y` | Profit CAGR 3Y | % |
+| `profit_cagr_5y` | Profit CAGR 5Y | % |
+| `eps_cagr_3y` | EPS CAGR 3Y | % |
+| `eps_cagr_5y` | EPS CAGR 5Y | % |
+| `fcf_cagr_3y` | FCF CAGR 3Y | % |
+| `fcf_cagr_5y` | FCF CAGR 5Y | % |
+| `operating_margin_change` | Operating Margin Change | percentage points (pp) |
+
+CAGR is an annualised historical growth measure. It is descriptive of the selected historical period and is not a forecast.
+
+## 11. Financial Statements
+
+The report contains three statement tabs:
+
+- **Income Statement**
+- **Balance Sheet**
+- **Cash Flow**
+
+The statement renderer derives the displayed row names from the returned provider fields and displays annual periods. EPS-like fields are displayed as numeric per-share values; other financial statement values follow the selected financial display convention.
+
+The financial-unit selector is:
+
+- **B / T** — international/broad financial-unit display.
+- **₹ Cr** — Indian crore representation when the underlying company currency is INR.
+
+## 12. Historical Charts
+
+The Stock Analysis implementation includes historical stock trend/price data and valuation-trend visualisations where the source provides sufficient observations. Supported valuation history includes:
+
+- Historical P/E trend.
+- Historical P/B trend.
+- Historical price/performance trend data.
+
+Charts are historical/descriptive. They are not forecasts and do not manufacture future prices or returns.
+
+## 13. Comparison
+
+The comparison view uses the same source-aware fundamental model as individual analysis. Core comparison metrics include valuation, profitability, financial-health and growth measures, including Debt / Equity. Comparison is intended to put the same metrics side-by-side rather than recomputing them with a different methodology.
+
+The comparison UI also distinguishes metrics where lower values are generally preferable (for example P/E, P/B, PEG, EV multiples and Debt / Equity) from metrics where higher values are generally preferable (for example dividend yield, ROE, ROA, margins, liquidity ratios and supported growth measures). This is presentation guidance rather than an investment recommendation.
+
+## 14. Data Sources
 
 ### Primary fundamental source
 
@@ -63,53 +216,42 @@ The individual stock report combines summary metrics, valuation/profitability/fi
 
 ### Supplemental market source
 
-**Yahoo Finance** is supplemental and is used for market-data fields that are not treated as primary Screener fundamentals, including Forward P/E and Beta where available.
+**Yahoo Finance** is supplemental and is used for market-data fields such as Forward P/E and Beta where available.
 
-The application should never silently replace unavailable source values with invented estimates.
+The application keeps source roles distinct rather than silently replacing one provider's value with another provider's value.
 
-## Missing / Non-Meaningful Values
+## 15. Missing and Non-Meaningful Values
 
 The UI distinguishes:
 
-- **N/M — Not Meaningful** — the metric is not meaningful for the company's financial model, particularly for financial companies where certain enterprise-value metrics are not useful.
+- **N/M — Not Meaningful** — the metric does not meaningfully apply to the company's financial model. This is especially relevant to certain enterprise-value metrics for financial companies.
 - **Unavailable / missing** — the source did not provide a usable value.
+- **Data Notes** — source/warning information is shown at the bottom of the analysis report.
 
-This prevents a plain `—` from incorrectly suggesting that a metric simply failed to load when the metric is actually not meaningful for the company type.
+A missing value is not silently replaced with an invented estimate.
 
-## Debt / Equity
+## 16. Performance and Stability
 
-Debt / Equity is a first-class Stock Analysis metric and is included in:
+The selector is designed so that quick filter changes operate against the loaded universe whenever possible. Identical lightweight universe requests are coalesced, and the filter UI avoids MutationObserver feedback loops and repeated full-page DOM rebuilds.
 
-1. Individual stock analysis → Financial Health.
-2. Stock screening/range filters where applicable.
-3. Stock comparison.
+The intended architecture is:
 
-## Comparison
+```text
+Loaded stock universe
+        ↓
+Sector / Search / Market-cap refinement
+        ↓
+Fundamental range filtering
+        ↓
+Pagination for display
+        ↓
+Select → Selected Stock + Compare Stocks
+        ↓
+Analyze Stock → Individual report
+```
 
-The comparison page uses the same source-aware fundamental data model as individual analysis and includes Debt / Equity with the other core metrics. Table sizing is kept consistent across metric groups.
+## 17. Help & Methodology
 
-## UI / Stability
+The in-application Help & Methodology page is intended to expose the same terminology as this document, including every selector control, fundamental filter, displayed ratio, growth metric, financial statement, chart, comparison field, source convention, and missing-data convention.
 
-The Stock Analysis selector has been hardened against repeated DOM mutation:
-
-- Enhancement observers do not watch their own DOM mutations.
-- Lightweight stock-universe requests are coalesced.
-- Quick filters use the loaded universe when possible.
-- Sector/search/cap interactions do not repeatedly rebuild the whole page.
-- Filter controls remain outside the collapsible Filter Results body.
-- The filter results bar is visually distinct and collapsible without taking the quick controls with it.
-
-## Action Button Styling
-
-Stock Analysis action controls use a common visual language:
-
-- Select
-- Analyze Stock
-- Apply Filters
-- Clear Filters
-
-Primary actions use the same dark/blue treatment and sizing; Clear Filters uses the corresponding secondary outline treatment.
-
-## Help & Methodology
-
-The Help & Methodology page is the user-facing reference for Stock Analysis. It explains the selector, sector/search/cap filters, analysis workflow, valuation and profitability ratios, Debt / Equity, Beta, CAGR/growth, financial statements, historical charts, comparison, data sources, and the distinction between `N/M — Not Meaningful` and unavailable data. Its client-side search is kept free of obsolete "Coming Soon" Stock Analysis entries.
+The detailed UI help should be treated as the user-facing version of this implementation reference; this file is the repository-level engineering reference.
