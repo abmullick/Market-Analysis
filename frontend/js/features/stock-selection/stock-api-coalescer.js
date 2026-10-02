@@ -1,25 +1,31 @@
-// Coalesce identical lightweight stock-universe requests made by multiple
-// Stock Analysis modules. The selection page has several enhancement modules,
-// but the Nifty Total Market universe must be fetched only once per page load.
+// Coalesce Stock Analysis API requests made by multiple frontend modules.
+//
+// A single analysis page can have several enhancement modules requesting the
+// same analysis/charts/pedigree payload. Keep one in-flight request per exact
+// URL and reuse successful responses for the lifetime of this page. This avoids
+// duplicate backend work and prevents the enhancement modules from turning one
+// stock selection into a request storm.
 (() => {
   if (window.__stockApiCoalescerInstalled) return;
   window.__stockApiCoalescerInstalled = true;
 
   const nativeFetch = window.fetch.bind(window);
   const inflight = new Map();
-  const CACHE_KEY = "market-analysis:stock-universe:v1";
-  const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+  const responseCache = new Map();
+  const controllers = new Set();
+  const CACHE_TTL_MS = 60 * 1000;
   const REQUEST_TIMEOUT_MS = 45 * 1000;
+  const UNIVERSE_CACHE_KEY = "market-analysis:stock-universe:v2";
+  const UNIVERSE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-  function isLightweightUniverse(url, init) {
-    if (init?.method && String(init.method).toUpperCase() !== "GET") return false;
+  function stockApiKey(url, init) {
+    if (init?.method && String(init.method).toUpperCase() !== "GET") return null;
     try {
       const u = new URL(url, window.location.href);
-      return u.origin === window.location.origin &&
-        u.pathname === "/api/stocks/universe" &&
-        !u.search;
+      if (u.origin !== window.location.origin || !u.pathname.startsWith("/api/stocks")) return null;
+      return u.href;
     } catch {
-      return false;
+      return null;
     }
   }
 
@@ -31,13 +37,14 @@
     });
   }
 
-  function readCachedResponse() {
+  function readUniverseCache(key) {
+    if (key !== `${window.location.origin}/api/stocks/universe`) return null;
     try {
-      const raw = window.sessionStorage.getItem(CACHE_KEY);
+      const raw = window.sessionStorage.getItem(UNIVERSE_CACHE_KEY);
       if (!raw) return null;
       const data = JSON.parse(raw);
-      if (!data?.savedAt || Date.now() - data.savedAt > CACHE_TTL_MS) {
-        window.sessionStorage.removeItem(CACHE_KEY);
+      if (!data?.savedAt || Date.now() - data.savedAt > UNIVERSE_CACHE_TTL_MS) {
+        window.sessionStorage.removeItem(UNIVERSE_CACHE_KEY);
         return null;
       }
       if (typeof data.body !== "string" || !Number.isFinite(Number(data.status))) return null;
@@ -47,53 +54,74 @@
     }
   }
 
-  function writeCachedResponse(data) {
+  function writeUniverseCache(key, data) {
+    if (key !== `${window.location.origin}/api/stocks/universe`) return;
     try {
-      window.sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-        ...data,
-        savedAt: Date.now(),
-      }));
+      window.sessionStorage.setItem(UNIVERSE_CACHE_KEY, JSON.stringify({ ...data, savedAt: Date.now() }));
     } catch {
-      // Storage can be unavailable in private/restricted browser contexts.
+      // Storage may be unavailable in private/restricted browser contexts.
     }
   }
 
+  function readMemoryCache(key) {
+    const entry = responseCache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.savedAt > CACHE_TTL_MS) {
+      responseCache.delete(key);
+      return null;
+    }
+    return entry.data;
+  }
+
+  function abortAll() {
+    controllers.forEach((controller) => controller.abort());
+    controllers.clear();
+    inflight.clear();
+  }
+
+  window.__stockApiAbortAll = abortAll;
+  window.addEventListener("pagehide", abortAll, { once: true });
+
   window.fetch = function(input, init) {
     const url = typeof input === "string" ? input : input?.url;
-    if (!isLightweightUniverse(url, init)) return nativeFetch(input, init);
+    const key = stockApiKey(url, init);
+    if (!key) return nativeFetch(input, init);
 
-    const key = new URL(url, window.location.href).href;
+    const universe = readUniverseCache(key);
+    if (universe) return Promise.resolve(makeResponse(universe));
 
-    // Once the universe has loaded successfully, navigation back to stock
-    // selection should be instant and must not depend on another network call.
-    const cached = readCachedResponse();
+    const cached = readMemoryCache(key);
     if (cached) return Promise.resolve(makeResponse(cached));
 
-    let pending = inflight.get(key);
-    if (!pending) {
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-      const requestInit = { ...(init || {}), signal: controller.signal };
+    const pending = inflight.get(key);
+    if (pending) return pending.then(makeResponse);
 
-      pending = nativeFetch(input, requestInit)
-        .then(async (response) => ({
-          status: response.status,
-          statusText: response.statusText,
-          headers: [...response.headers.entries()],
-          body: await response.text(),
-        }))
-        .then((data) => {
-          if (data.status >= 200 && data.status < 300) writeCachedResponse(data);
-          return data;
-        })
-        .finally(() => {
-          window.clearTimeout(timeoutId);
-          inflight.delete(key);
-        });
+    const controller = new AbortController();
+    controllers.add(controller);
+    const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const requestInit = { ...(init || {}), signal: controller.signal };
 
-      inflight.set(key, pending);
-    }
+    const promise = nativeFetch(input, requestInit)
+      .then(async (response) => ({
+        status: response.status,
+        statusText: response.statusText,
+        headers: [...response.headers.entries()],
+        body: await response.text(),
+      }))
+      .then((data) => {
+        if (data.status >= 200 && data.status < 300) {
+          responseCache.set(key, { savedAt: Date.now(), data });
+          writeUniverseCache(key, data);
+        }
+        return data;
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId);
+        controllers.delete(controller);
+        inflight.delete(key);
+      });
 
-    return pending.then(makeResponse);
+    inflight.set(key, promise);
+    return promise.then(makeResponse);
   };
 })();
