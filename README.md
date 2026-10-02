@@ -13,7 +13,7 @@ Modular Indian market-analysis platform covering **Stock Analysis**, **Mutual Fu
 
 The Stock Analysis page uses the **Nifty Total Market universe — Nifty 500 + Nifty Microcap 250 source universe**. The universe is broader than the large-cap market and includes large-, mid-, small-, and micro-cap stocks.
 
-### Stock selector
+### Stock selector and screening
 
 The selector supports:
 
@@ -22,6 +22,8 @@ The selector supports:
 - **Market-cap presets** — Large Cap, Mid Cap, Small Cap, and Micro Cap.
 - **Liquidity controls** where supplied by the current stock-selection implementation.
 - Local refinement of the already-loaded universe for quick controls, avoiding unnecessary repeated backend requests.
+- Filter Results is independently collapsible; Sector, Search, and quick filters remain usable when results are collapsed.
+- The complete loaded universe is filtered before the displayed result page is limited for presentation, so selecting a sector or cap is not restricted to the first page of the universe.
 - A selected stock becomes the active analysis stock and is also added automatically to the **Compare Stocks** list. The user can remove it later.
 - Comparison supports staging multiple stocks for side-by-side fundamental comparison.
 
@@ -35,8 +37,25 @@ The individual analysis page includes source-aware company fundamentals and fina
 - Financial Health: **Debt / Equity**, Current Ratio, Quick Ratio, and Beta where available.
 - Growth and CAGR metrics.
 - Annual Income Statement, Balance Sheet, and Cash Flow data.
-- Historical valuation/performance trend charts, including P/E and P/B history where source data supports them.
+- Historical price/performance and valuation trend charts, including P/E and P/B history where source data supports them.
 - Data Notes at the bottom of the analysis page rather than interrupting the financial-statement sections.
+
+### Metric interpretation
+
+- **P/E** compares market price with earnings per share.
+- **Forward P/E** uses forward earnings expectations where Yahoo market data provides the field; it is supplemental market data rather than the primary Screener fundamental field.
+- **P/B** compares market price with book value per share.
+- **PEG** relates valuation to an earnings-growth measure where supported.
+- **ROE** measures return generated on shareholders' equity; **ROA** measures return relative to the asset base.
+- **Margins** show the share of revenue retained at gross, operating, and net-profit levels.
+- **Debt / Equity** measures debt relative to shareholders' equity and is treated as a core financial-health metric.
+- **Current Ratio** and **Quick Ratio** are liquidity indicators derived from balance-sheet data.
+- **Beta** is a market-sensitivity measure supplied as supplemental Yahoo market data where available.
+- **CAGR** annualizes historical growth over a supported period; it is descriptive of the historical period, not a forecast.
+
+### Charts and reports
+
+Stock charts are descriptive historical views. Depending on source availability, the application can show price/performance trends and valuation histories such as P/E and P/B. Individual-stock analysis combines summary metrics, ratio cards, financial statements, historical charts, and Data Notes into a research report. Comparison presents the same core metrics in a side-by-side view.
 
 ### Data-source policy
 
@@ -123,7 +142,14 @@ The portfolio builder supports 2–10 mutual funds, allocations totaling exactly
 
 ## Help & Methodology
 
-The Help & Methodology page documents the application's formulas, data-source conventions, freshness treatment, mutual-fund methodology, portfolio methodology, and the current Stock Analysis workflow. The Help page's search is client-side and does not make network or AI requests.
+The Help & Methodology page is the application's reference guide for how the screens, metrics, ratios, filters, charts, comparison tables, and reports should be interpreted. It covers:
+
+- Mutual Fund Analysis ranking, percentiles, risk metrics, rolling returns, drawdown, and scoring.
+- Mutual Fund Portfolio Builder allocation rules, historical simulation methodology, Health Score, Return Contribution, Drawdown & Recovery, Rolling Performance, and What-If scenarios.
+- Stock Analysis universe selection, sector/search/cap filtering, stock selection, automatic comparison, valuation ratios, profitability ratios, Debt / Equity, liquidity ratios, Beta, CAGR/growth, financial statements, historical charts, comparison, data-source policy, and missing-value conventions.
+- **N/M — Not Meaningful** versus genuinely unavailable source data.
+
+Help search is client-side and does not make network or AI requests. Stock Analysis help entries are synchronized at runtime so obsolete "Coming Soon" documentation is removed from the searchable Help index.
 
 ## Environment Variables
 
@@ -177,6 +203,7 @@ Stock-specific tests live under `tests/stocks/`; frontend tests live under `test
 - Expanded the stock universe to the Nifty Total Market source universe.
 - Added Large/Mid/Small/Micro Cap classification and selection.
 - Added multi-sector selection and responsive local filtering.
+- Ensured filtering is performed across the full loaded universe rather than only the first displayed page.
 - Added automatic Compare Stocks inclusion when a stock is selected for analysis.
 - Added Debt / Equity throughout stock analysis and comparison.
 - Added supplemental Yahoo Forward P/E and Beta while retaining Screener as the primary Indian fundamental source.
@@ -185,6 +212,7 @@ Stock-specific tests live under `tests/stocks/`; frontend tests live under `test
 - Stabilized the stock filter UI by eliminating MutationObserver feedback loops and repeated DOM rebuilds.
 - Unified the visual language of Stock Analysis action controls (Select, Analyze, Apply Filters, and Clear Filters).
 - Updated Help & Methodology to describe the current Stock Analysis implementation rather than treating it as a placeholder.
+- Updated the home-page Stock Analysis card to **Explore Stocks**.
 
 ## Notes
 
