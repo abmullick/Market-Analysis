@@ -551,8 +551,6 @@ function renderSelection(data, screen, notice = "") {
   sector.addEventListener("change", () => {
     selectedStock = null;
 
-    // Sector changes use the already-loaded Nifty universe. This is
-    // instantaneous and avoids replacing the page with a loading state.
     if (universeStocks.length) {
       renderSelection(clientSectorData(), screen);
     } else {
@@ -641,10 +639,23 @@ function showAnalysis(symbol) {
 }
 
 function showSelection() {
-  document.getElementById("stock-analysis-screen").hidden = true;
+  const analysis = document.getElementById("stock-analysis-screen");
   const s = document.getElementById("stock-selection-screen");
+  if (!analysis || !s) return;
+
+  // Reset the actual module state instead of only hiding the analysis screen.
+  // This keeps the selection page clean on every device and avoids stale stock
+  // details when the user selects another company.
+  selectedStock = null;
+  const details = document.getElementById("stock-details");
+  const status = document.getElementById("stock-analysis-status");
+  if (details) details.replaceChildren();
+  if (status) status.textContent = "";
+
+  analysis.hidden = true;
   s.hidden = false;
-  history.pushState({}, "", location.pathname);
+  history.replaceState({}, "", location.pathname);
+  window.scrollTo(0, 0);
   loadUniverse(s);
 }
 
@@ -652,7 +663,10 @@ export function initStockAnalysis() {
   const s = document.getElementById("stock-selection-screen");
   if (!s) return;
 
-  document.getElementById("stock-back-to-selection")?.addEventListener("click", showSelection);
+  document.getElementById("stock-back-to-selection")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    showSelection();
+  });
 
   const symbol = (new URLSearchParams(location.search).get("symbol") || "").trim().toUpperCase();
 
