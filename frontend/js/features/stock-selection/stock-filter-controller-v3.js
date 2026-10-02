@@ -83,6 +83,40 @@ function sfMoveQuickFiltersOutsideCollapse() {
   if (extra) extra.style.display = "block";
 }
 
+function sfWireSelectionButtons(result, list) {
+  const selected = String(window.__stockAnalysisSelectedSymbol || "").trim().toUpperCase();
+  list.querySelectorAll(".stock-select-btn").forEach(button => {
+    const row = button.closest(".stock-picker-row");
+    const symbol = String(row?.dataset.symbol || "").trim().toUpperCase();
+    if (symbol === selected) {
+      row?.classList.add("selected");
+      button.textContent = "Selected";
+    }
+
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const stock = result.find(s => String(s.symbol || "").trim().toUpperCase() === symbol);
+      if (!stock) return;
+
+      // The stock-detail module owns the actual selectedStock state and the
+      // left-side Selected Stock card. v3 only renders the list, so hand the
+      // selection to that module instead of navigating or rebuilding the list.
+      if (typeof window.__stockAnalysisSelectStock === "function") {
+        window.__stockAnalysisSelectStock(stock);
+      }
+      window.__stockAnalysisSelectedSymbol = symbol;
+
+      list.querySelectorAll(".stock-picker-row").forEach(r => {
+        const isSelected = String(r.dataset.symbol || "").trim().toUpperCase() === symbol;
+        r.classList.toggle("selected", isSelected);
+        const b = r.querySelector(".stock-select-btn");
+        if (b) b.textContent = isSelected ? "Selected" : "Select";
+      });
+    });
+  });
+}
+
 function sfRender() {
   const screen = document.getElementById("stock-selection-screen");
   if (!screen || !stockFilterStocks.length) return;
@@ -95,16 +129,12 @@ function sfRender() {
   if (!list) return;
 
   list.innerHTML = result.slice(start, start + STOCK_FILTER_PAGE_SIZE).map(sfRow).join("") || `<div class="stock-no-data">No stocks match the current selection.</div>`;
+  sfWireSelectionButtons(result, list);
+
   const summary = screen.querySelector(".stock-result-summary");
   if (summary) summary.innerHTML = `<strong>${result.length}</strong> stock${result.length === 1 ? "" : "s"} match the current selection${sfContext().query ? ` · search: “${sfEsc(sfContext().query)}”` : ""}.`;
   const count = document.getElementById("stock-filter-toggle-count");
   if (count) count.textContent = `${result.length} stocks`;
-
-  // Selecting a stock is deliberately different from analyzing it. The
-  // stock-detail module owns selectedStock and the left-side Selected Stock
-  // card. Do not navigate here; its handler runs first and updates that state.
-  // The separate compare auto-add module also observes this click and adds the
-  // symbol to Compare Stocks.
 
   screen.querySelector(".stock-filter-controller-pagination")?.remove();
   if (pages > 1) {
