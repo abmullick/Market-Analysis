@@ -3,22 +3,36 @@ function addQuickFilterLayoutStyles() {
   const style = document.createElement("style");
   style.id = "stock-quick-filter-layout-styles";
   style.textContent = `
+    #stock-selection-screen .stock-filter-card {
+      display:flex;
+      flex-direction:column;
+    }
     #stock-selection-screen .stock-filter-card > .stock-filter-controls {
       display:block;
       width:100%;
-      margin:0 0 12px;
+      margin:0;
+      order:1;
+    }
+    #stock-selection-screen .stock-filter-card > #stock-filter-toggle {
+      order:2;
+    }
+    #stock-selection-screen .stock-filter-card > #stock-filter-body {
+      order:3;
     }
     #stock-selection-screen .stock-filter-card > .stock-filter-controls > .stock-filter-top {
       display:grid;
       grid-template-columns:minmax(0,1fr) minmax(0,1fr);
       gap:12px;
-      margin:0;
+      margin:0 0 12px;
     }
     #stock-selection-screen .stock-filter-card > .stock-filter-controls > .stock-universe-extra-filters {
       display:grid;
-      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+      grid-template-columns:repeat(2,minmax(0,1fr));
       gap:12px;
-      margin-top:12px;
+      margin:0 0 12px;
+    }
+    #stock-selection-screen .stock-filter-card > .stock-filter-controls > .stock-universe-extra-filters:last-child {
+      margin-bottom:12px;
     }
     #stock-selection-screen .stock-filter-card > #stock-filter-body {
       margin-top:0;
@@ -48,17 +62,19 @@ function moveStockQuickFiltersOutsideCollapse() {
 
   const body = card.querySelector("#stock-filter-body");
   const top = card.querySelector(".stock-filter-top");
-  if (!body || !top) return;
+  const toggle = card.querySelector("#stock-filter-toggle");
+  if (!body || !top || !toggle) return;
 
   let controls = card.querySelector(":scope > .stock-filter-controls");
   if (!controls) {
     controls = document.createElement("div");
     controls.className = "stock-filter-controls";
-    card.insertBefore(controls, body);
   }
 
-  // Sector, Search, Market Cap and Liquidity are quick filters. They must be
-  // siblings of the collapsible body, never descendants of it.
+  // Sector, Search, Market Cap and any remaining quick filters are siblings
+  // of the collapsible Filter Results body. Put them before the toggle so
+  // the visible order is: quick filters -> Filter Results -> fundamentals.
+  if (controls.parentElement !== card) card.insertBefore(controls, toggle);
   if (top.parentElement !== controls) controls.appendChild(top);
 
   const extra = top.querySelector(":scope > .stock-universe-extra-filters");
