@@ -1,5 +1,6 @@
 const API_BASE = "/api/stocks";
 const MAX_COMPARE = 4;
+const CORE_COMPARE_TIMEOUT_MS = 30 * 1000;
 
 const COMPARE_GROUPS = [
   { title: "Valuation", metrics: [["price", "Price", "price"], ["market_cap", "Market Cap", "money"], ["enterprise_value", "Enterprise Value", "money"], ["pe", "P/E", "ratio"], ["forward_pe", "Forward P/E", "ratio"], ["pb", "Price / Book", "ratio"], ["ps", "Price / Sales", "ratio"], ["peg", "PEG", "ratio"], ["ev_ebitda", "EV / EBITDA", "ratio"], ["ev_revenue", "EV / Revenue", "ratio"], ["dividend_yield", "Dividend Yield", "percent"], ["payout_ratio", "Payout Ratio", "percent"]] },
@@ -174,9 +175,9 @@ function renderCompareBar() {
   const slots = Array.from({ length: MAX_COMPARE }, (_, i) => {
     const symbol = compareSymbols[i];
     return symbol
-      ? `<div class="stock-compare-slot filled"><span class="stock-compare-slot-name">${esc(symbol.replace(/\\.NS$|\\.BO$/i, ""))}</span><button type="button" class="stock-compare-remove" data-remove-symbol="${esc(symbol)}" aria-label="Remove ${esc(symbol)}">×</button></div>`
+      ? `<div class="stock-compare-slot filled"><span class="stock-compare-slot-name">${esc(symbol.replace(/\\.NS$|\\.BO$/i, ""))}</span><button class="stock-compare-remove" type="button" data-remove-symbol="${esc(symbol)}" aria-label="Remove ${esc(symbol)}">×</button></div>`
       : `<div class="stock-compare-slot"><span class="stock-compare-slot-name">Stock ${i + 1}</span></div>`;
-  }).join("");
+  });
 
   const canCompare = compareSymbols.length >= 2;
   const buttonText = canCompare ? `Compare ${compareSymbols.length} Stocks` : `Select ${2 - compareSymbols.length} More`;
@@ -251,10 +252,20 @@ function decorateRows() {
 }
 
 async function fetchStock(symbol) {
-  const r = await fetch(`${API_BASE}/${encodeURIComponent(symbol)}`, { headers: { Accept: "application/json" }, cache: "no-store" });
-  const d = await r.json();
-  if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`);
-  return d;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), CORE_COMPARE_TIMEOUT_MS);
+  try {
+    const r = await fetch(`${API_BASE}/${encodeURIComponent(symbol)}`, {
+      headers: { Accept: "application/json", "X-Stock-Core-Request": "comparison" },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`);
+    return d;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 function comparisonTable(datas) {
