@@ -21,14 +21,27 @@ function setMarketAnalysisHeaderLogo() {
     });
 }
 
+function loadPortfolioBuilderButtonTheme() {
+    if (document.body?.dataset.page !== "portfolio-builder") return;
+    if (document.getElementById("portfolio-builder-button-theme")) return;
+
+    const stylesheet = document.createElement("link");
+    stylesheet.id = "portfolio-builder-button-theme";
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = "/css/features/portfolio-builder-buttons.css?v=1";
+    document.head.appendChild(stylesheet);
+}
+
 setMarketAnalysisFavicon();
 setMarketAnalysisHeaderLogo();
+loadPortfolioBuilderButtonTheme();
 
 export function initNavigation() {
     const nav = document.getElementById("main-nav");
     if (!nav) return;
 
     setMarketAnalysisHeaderLogo();
+    loadPortfolioBuilderButtonTheme();
 
     const path = window.location.pathname;
     const isActive = (href) => href === "/" ? path === "/" : path === href;
