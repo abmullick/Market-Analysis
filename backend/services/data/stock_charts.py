@@ -23,10 +23,12 @@ def _date(row: dict[str, Any]) -> str:
 
 def _value(row: dict[str, Any], key: str) -> float | None:
     value = row.get("reportedValue")
-    if isinstance(value, dict):
-        value = value.get("raw")
     if value is None:
         value = row.get(key)
+    # Screener history stores values as {"raw": number}; Yahoo also uses
+    # reportedValue in that shape. Unwrap whichever representation we got.
+    if isinstance(value, dict):
+        value = value.get("raw")
     try:
         return float(value) if value is not None else None
     except (TypeError, ValueError):
@@ -50,7 +52,7 @@ def _growth(series: list[tuple[str, float]]) -> list[dict[str, float | str | Non
         previous = series[index - 1][1]
         current = series[index][1]
         growth = None
-        if previous > 0 and current > 0:
+        if previous != 0 and current >= 0:
             growth = (current / previous - 1) * 100
         out.append({"year": year, "value": growth})
     return out
