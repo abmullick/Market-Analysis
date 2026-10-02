@@ -68,9 +68,6 @@ def _enrich_public_analysis(data: dict[str, Any]) -> dict[str, Any]:
     if f.get("roe") is None and f.get("net_profit") is not None and equity not in (None, 0):
         f["roe"] = f["net_profit"] / equity * 100
 
-    # ROCE is reported directly by Screener. Use the already-cached Screener
-    # response so it is available even when the annual balance sheet does not
-    # expose current liabilities for the company type.
     if f.get("roce") is None and str(f.get("symbol", "")).upper().endswith((".NS", ".BO")):
         try:
             raw = _get_client()._screener.quote_summary(f["symbol"])
@@ -179,11 +176,21 @@ async def get_stock_universe(
 async def get_stock_charts(symbol: str):
     try:
         normalized = symbol.strip().upper()
-        history = _get_client().financial_history(normalized)
+        stock_client = _get_client()
+        history = stock_client.financial_history(normalized)
         prices = yahoo_annual_prices(normalized, years=7)
-        return {"symbol": normalized, "charts": build_stock_charts(history, prices), "price_source": "Market price history", "notes": [
+        quote = stock_client._screener.quote_summary(normalized)
+        charts = build_stock_charts(
+            history,
+            prices,
+            current_price=quote.get("regularMarketPrice"),
+            current_pb=quote.get("priceToBook"),
+        )
+        return {"symbol": normalized, "charts": charts, "price_source": "Market price history", "notes": [
             "EPS and revenue charts show annual year-over-year growth.",
             "ROE trend is derived from annual net profit and average shareholder equity.",
+            "Historical P/E uses year-end market price divided by annual EPS.",
+            "Historical P/B is derived from annual equity and the current share count; it is an approximation where share count changed materially.",
             "Price CAGR uses Screener's 1Y, 3Y, 5Y and 10Y figures for Indian equities, with rolling market-price CAGR as fallback.",
         ]}
     except YahooFinanceError as exc:
