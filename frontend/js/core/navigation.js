@@ -33,9 +33,28 @@ function loadPortfolioBuilderButtonTheme() {
     document.head.appendChild(stylesheet);
 }
 
+function loadHorizontalTableScrollTheme() {
+    if (!document.getElementById("horizontal-table-scroll-theme")) {
+        const stylesheet = document.createElement("link");
+        stylesheet.id = "horizontal-table-scroll-theme";
+        stylesheet.rel = "stylesheet";
+        stylesheet.href = "/css/features/horizontal-table-scroll.css?v=20261003-1";
+        document.head.appendChild(stylesheet);
+    }
+
+    if (!document.getElementById("horizontal-table-scroll-script")) {
+        const script = document.createElement("script");
+        script.id = "horizontal-table-scroll-script";
+        script.type = "module";
+        script.src = "/js/core/horizontal-table-scroll.js?v=20261003-1";
+        document.head.appendChild(script);
+    }
+}
+
 setMarketAnalysisFavicon();
 setMarketAnalysisHeaderLogo();
 loadPortfolioBuilderButtonTheme();
+loadHorizontalTableScrollTheme();
 
 export function initNavigation() {
     const nav = document.getElementById("main-nav");
@@ -43,6 +62,7 @@ export function initNavigation() {
 
     setMarketAnalysisHeaderLogo();
     loadPortfolioBuilderButtonTheme();
+    loadHorizontalTableScrollTheme();
 
     const path = window.location.pathname;
     const isActive = (href) => href === "/" ? path === "/" : path === href;
