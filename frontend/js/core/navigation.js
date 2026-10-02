@@ -1,4 +1,5 @@
-const MARKET_ANALYSIS_FAVICON = "/static/images/hero-market-analysis.png?v=3";
+const MARKET_ANALYSIS_FAVICON = "/static/images/hero-market-analysis.png?v=4";
+const MARKET_ANALYSIS_LOGO = "/static/images/hero-market-analysis.png?v=4";
 
 // Apply the home-page Market Analysis artwork as the favicon on every page
 // that loads the shared navigation module. Remove older favicon declarations
@@ -13,11 +14,21 @@ function setMarketAnalysisFavicon() {
     document.head.appendChild(favicon);
 }
 
+function setMarketAnalysisHeaderLogo() {
+    document.querySelectorAll(".site-header .logo").forEach((logo) => {
+        logo.src = MARKET_ANALYSIS_LOGO;
+        logo.alt = "Market Analysis";
+    });
+}
+
 setMarketAnalysisFavicon();
+setMarketAnalysisHeaderLogo();
 
 export function initNavigation() {
     const nav = document.getElementById("main-nav");
     if (!nav) return;
+
+    setMarketAnalysisHeaderLogo();
 
     const path = window.location.pathname;
     const isActive = (href) => href === "/" ? path === "/" : path === href;
