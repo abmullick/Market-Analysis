@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 def _yahoo_supplemental(symbol: str) -> dict[str, float | None]:
-    """Fetch only market-data fields that are intentionally supplemental to Screener."""
+    """Fetch market-data fields used as supplemental observations."""
     client = stock_routes._get_client()
     try:
         payload = client._get_json(
@@ -68,7 +68,7 @@ def _supplement(data: dict[str, Any], symbol: str) -> dict[str, Any]:
         "debt_equity": f.get("debt_equity"),
     }
 
-    # Compute conventional non-financial-company metrics when the source did not provide them.
+    # Compute conventional non-financial-company metrics when the underlying data permits it.
     if not financial:
         market_cap = number(f.get("market_cap"))
         if computed["enterprise_value"] is None and market_cap is not None and total_debt is not None and cash is not None:
@@ -84,13 +84,11 @@ def _supplement(data: dict[str, Any], symbol: str) -> dict[str, Any]:
         if computed["quick_ratio"] is None and current_assets is not None and current_liabilities not in (None, 0):
             computed["quick_ratio"] = (current_assets - (inventory or 0)) / current_liabilities
 
-    # Debt / Equity is meaningful for lenders as well and is therefore computed for all sectors.
     if computed["debt_equity"] is None and total_debt is not None and equity not in (None, 0):
         computed["debt_equity"] = total_debt / equity
 
     yahoo = _yahoo_supplemental(symbol)
 
-    # These metrics are intentionally marked N/M for financial companies.
     nm = {
         "enterprise_value": financial,
         "ebitda": financial,
@@ -107,7 +105,6 @@ def _supplement(data: dict[str, Any], symbol: str) -> dict[str, Any]:
         "computed": computed,
         "yahoo": yahoo,
         "not_meaningful": nm,
-        "source_note": "Screener.in remains the primary Indian fundamental-data source. Forward P/E and Beta are supplemental Yahoo Finance market data.",
     }
 
 
