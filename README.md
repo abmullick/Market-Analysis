@@ -12,7 +12,7 @@ Modular Indian market-analysis platform covering **Stock Analysis**, **Bond Anal
 
 ## Detailed Implementation References
 
-- [`STOCK_ANALYSIS.md`](STOCK_ANALYSIS.md) — complete Stock Analysis implementation and parameter reference, including selector controls, every fundamental range filter, displayed metrics, statements, charts, comparison, data sources and missing-data conventions.
+- [`STOCK_ANALYSIS.md`](STOCK_ANALYSIS.md) — complete Stock Analysis implementation and parameter reference, including selector controls, every fundamental range filter, displayed metrics, statements, charts, comparison, pedigree analytics, AI Insights and missing-data conventions.
 - [`BOND_ANALYSIS.md`](BOND_ANALYSIS.md) — complete Bond Analysis implementation and parameter reference, including Government/Corporate universes, selector filters, market observations, contract terms, yields, duration/convexity/DV01, ratings, source/freshness handling and missing-data conventions.
 
 ## Stock Analysis
@@ -34,7 +34,7 @@ The selector supports:
 
 ### Individual stock analysis
 
-The individual analysis page includes source-aware company fundamentals and financial analysis, including:
+The individual analysis page includes company fundamentals and financial analysis, including:
 
 - Company summary and market-cap information.
 - Valuation: P/E, Forward P/E, Price/Book, Price/Sales, PEG, EV/EBITDA, EV/Revenue, Dividend Yield, and Payout Ratio where meaningful.
@@ -42,13 +42,15 @@ The individual analysis page includes source-aware company fundamentals and fina
 - Financial Health: **Debt / Equity**, Current Ratio, Quick Ratio, and Beta where available.
 - Growth and CAGR metrics.
 - Annual Income Statement, Balance Sheet, and Cash Flow data.
-- Historical price/performance and valuation trend charts, including P/E and P/B history where source data supports them.
+- Historical price/performance and valuation trend charts, including P/E and P/B history where data supports them.
+- Historical pedigree, consistency, shareholding, earnings-quality, capital-allocation and dilution analytics.
+- **AI Insights** that interpret the deterministic report without replacing its calculations or rankings.
 - Data Notes at the bottom of the analysis page rather than interrupting the financial-statement sections.
 
 ### Metric interpretation
 
 - **P/E** compares market price with earnings per share.
-- **Forward P/E** uses forward earnings expectations where Yahoo market data provides the field; it is supplemental market data rather than the primary Screener fundamental field.
+- **Forward P/E** uses forward earnings expectations where available.
 - **P/B** compares market price with book value per share.
 - **P/S** compares market value with sales.
 - **PEG** relates valuation to a supported earnings-growth measure.
@@ -56,27 +58,29 @@ The individual analysis page includes source-aware company fundamentals and fina
 - **Margins** show the share of revenue retained at gross, operating, and net-profit levels.
 - **Debt / Equity** measures debt relative to shareholders' equity and is treated as a core financial-health metric.
 - **Current Ratio** and **Quick Ratio** are liquidity indicators derived from balance-sheet data.
-- **Beta** is a market-sensitivity measure supplied as supplemental Yahoo market data where available.
+- **Beta** is a market-sensitivity measure where available.
 - **CAGR** annualizes historical growth over a supported period; it is descriptive of the historical period, not a forecast.
 
 ### Charts and reports
 
-Stock charts are descriptive historical views. Depending on source availability, the application can show price/performance trends and valuation histories such as P/E and P/B. Individual-stock analysis combines summary metrics, ratio cards, financial statements, historical charts, and Data Notes into a research report. Comparison presents the same core metrics in a side-by-side view.
+Stock charts are descriptive historical views. Depending on data availability, the application can show price/performance trends and valuation histories such as P/E and P/B. Individual-stock analysis combines summary metrics, ratio cards, financial statements, historical charts, pedigree analytics and Data Notes into a research report. Comparison presents the same core metrics in a side-by-side view and also exposes the same quality, consistency and trend analytics.
 
-### Data-source policy
-
-**Screener is the primary Indian fundamental-data source** for stock financials and ratios. **Yahoo market data is supplemental** and is used for market-data fields such as Forward P/E and Beta where available.
+### Missing values
 
 The UI distinguishes different reasons for a value not being displayed:
 
 - **N/M — Not Meaningful** — the metric does not meaningfully apply to the business/financial model, such as certain enterprise-value metrics for financial companies.
-- **Missing/unavailable data** — the relevant source did not provide a usable value.
+- **Missing/unavailable data** — the relevant observation is not available.
 
 The application does not invent fundamentals or substitute arbitrary estimates simply to fill a card.
 
 ### Stock comparison
 
-The comparison page uses the same source-aware fundamental model and includes **Debt / Equity** alongside the other core valuation, profitability, growth, and financial-health metrics. Table dimensions are kept consistent across metric groups.
+The comparison page uses the same fundamental model and derived analytics as the individual report. It includes **Debt / Equity** alongside the other core valuation, profitability, growth, and financial-health metrics, plus historical trend and quality comparisons.
+
+### Stock AI Insights
+
+The Stock Analysis report and Compare view include an **AI Insights** action. The AI receives a compact representation of the existing deterministic analysis and returns a summary, key points, risks, opportunities and a recommendation/next-step view. It is an interpretation layer only: it does not create new calculations, scores or numerical rankings. AI credentials remain server-side and the deterministic report remains usable when the AI service is unavailable.
 
 ## Bond Analysis
 
@@ -163,7 +167,7 @@ External / source data providers
 - `frontend/html/` — page shells.
 - `frontend/js/core/` — application-wide API, navigation, configuration, and utilities.
 - `frontend/js/components/` — reusable UI components.
-- `frontend/js/features/stock-selection/` — Stock Analysis selector, filtering, comparison, analysis, charts, and UI enhancements.
+- `frontend/js/features/stock-selection/` — Stock Analysis selector, filtering, comparison, analysis, charts, AI Insights and UI enhancements.
 - `frontend/js/features/bond-analysis/` — Bond Analysis selection, filtering, bond details, analytics, and UI behaviour.
 - `frontend/js/features/mutual-fund-analysis/` — Mutual Fund Analysis and comparison.
 - `frontend/js/features/portfolio-builder/` — Mutual Fund Portfolio Builder.
@@ -174,10 +178,12 @@ Important Stock Analysis frontend modules include:
 
 - `stock-detail/index.js` — stock analysis page, financial metrics, statements, filters, and rendering.
 - `stock-comparison.js` — side-by-side stock comparison.
+- `stock-ai-context.js` — bounded deterministic context builder for AI interpretation.
+- `stock-ai-request.js` — individual and comparison AI API requests.
+- `stock-ai-response.js` — AI loading, error and response renderers.
+- `stock-ai-ui.js` — AI Insights actions for individual analysis and comparison.
 - `stock-compare-auto-add.js` — automatically adds an analyzed/selected stock to comparison.
 - `stock-filter-controller*.js` — stock filtering and screening behaviour.
-- `stock-filter-controls-layout.js` — filter-control placement.
-- `stock-filter-interaction-fix.js` — stable sector/search/cap interaction layer.
 - `stock-api-coalescer.js` — prevents duplicate lightweight universe requests.
 - `stock-universe-enhancements*.js` — stock-universe UI enhancements.
 - `stock-valuation-trends.js` — historical valuation trend charts.
@@ -186,7 +192,7 @@ Important Stock Analysis frontend modules include:
 ### Backend structure
 
 - `backend/routes/` — thin HTTP handlers.
-- `backend/services/data/` — provider and normalization layer, including Screener/Yahoo-backed stock data.
+- `backend/services/data/` — provider and normalization layer.
 - `backend/services/stocks/` — stock universe, market-cap classification, screening, and stock-selection business logic.
 - `backend/services/bonds/` — bond source normalization, selection, market observations, and bond analytics.
 - `backend/services/mutual_funds/` — mutual-fund calculations and ranking.
@@ -218,87 +224,4 @@ The Help & Methodology page is the application's reference guide for how the scr
 
 - Mutual Fund Analysis ranking, percentiles, risk metrics, rolling returns, drawdown, and scoring.
 - Mutual Fund Portfolio Builder allocation rules, historical simulation methodology, Health Score, Return Contribution, Drawdown & Recovery, Rolling Performance, and What-If scenarios.
-- **Bond Analysis** government/corporate universes, selection identity, search and filters, market price/yield terminology, calculated versus market YTM, accrued interest, duration, convexity, DV01, coupon/redemption cash flows, corporate ratings, source/freshness information, and missing-data conventions.
-- **Stock Analysis** universe selection, sector/search/cap filtering, full-universe filtering before pagination, stock selection, automatic comparison, every fundamental range filter, valuation ratios, profitability ratios, Debt / Equity, liquidity ratios, Beta, all supported growth/CAGR measures, financial statements, historical charts, comparison, data-source policy, and missing-value conventions.
-- **N/M — Not Meaningful** versus genuinely unavailable source data.
-
-Help search is client-side and does not make network or AI requests. Stock and Bond Analysis help entries are synchronized at runtime so obsolete Stock Analysis placeholder documentation is removed and the current implementations remain searchable.
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and configure the required provider credentials:
-
-```bash
-cp .env.example .env
-```
-
-Typical configuration includes:
-
-- `STOXIM_API_KEY`
-- `GROQ_API_KEY`
-- `GROQ_MODEL` (optional)
-- `APP_ENV`
-- `APP_PORT` (default `20090`)
-- `APP_DEBUG`
-
-## Running Locally
-
-```bash
-pip install -r requirements.txt
-python run.py
-```
-
-The application is normally available at `http://localhost:20090`.
-
-## Testing
-
-```bash
-pytest tests/
-```
-
-Stock-specific tests live under `tests/stocks/`; bond tests and frontend tests live under `tests/` and `tests/frontend/` respectively.
-
-## Key Engineering Principles
-
-- Keep dependencies flowing **Frontend → Routes → Services → Models → Providers**.
-- Keep product modules isolated.
-- Keep routes thin and business logic in services.
-- Keep provider access in the shared data layer.
-- Never expose provider credentials to frontend JavaScript.
-- Keep deterministic calculations independent of AI.
-- Prefer cached/local data and client-side refinement for quick UI filters over repeated expensive backend work.
-- Do not invent missing financial or bond data merely to populate a UI field.
-- Keep documentation synchronized with implemented behaviour.
-
-## Recent Stock Analysis Developments
-
-- Activated the Stock Analysis selector and individual-stock analysis workflow.
-- Expanded the stock universe to the Nifty Total Market source universe.
-- Added Large/Mid/Small/Micro Cap classification and selection.
-- Added multi-sector selection and responsive local filtering.
-- Ensured filtering is performed across the full loaded universe rather than only the first displayed page.
-- Added automatic Compare Stocks inclusion when a stock is selected for analysis.
-- Added Debt / Equity throughout stock analysis and comparison.
-- Added supplemental Yahoo Forward P/E and Beta while retaining Screener as the primary Indian fundamental source.
-- Added source-aware `N/M — Not Meaningful` treatment for financial-company-specific metrics.
-- Added/maintained historical P/E and P/B valuation trend charts.
-- Stabilized the stock filter UI by eliminating MutationObserver feedback loops and repeated DOM rebuilds.
-- Unified the visual language of Stock Analysis action controls (Select, Analyze, Apply Filters, and Clear Filters).
-- Updated Help & Methodology to describe the current Stock Analysis implementation rather than treating it as a placeholder.
-- Updated the home-page Stock Analysis card to **Explore Stocks**.
-
-## Recent Bond Analysis Documentation
-
-- Documented the separate Government and Corporate Bond universes.
-- Documented ISIN/record-ID identity handling and lazy loading.
-- Documented bond search, sorting, instrument/source filters, range filters, and corporate credit-rating filters.
-- Documented clean/dirty price, Market YTM, Calculated YTM, Current Yield, accrued interest, duration, convexity, and DV01.
-- Documented coupon/redemption cash flows, corporate bond terms, rating observations, and source/freshness classifications.
-- Added a dedicated `BOND_ANALYSIS.md` implementation reference.
-
-## Notes
-
-- No database is used yet; provider data is normalized and cached where applicable.
-- Authentication is not implemented yet.
-- Stock Portfolio Builder remains a planned product area.
-- Financial and market data are presented for research and informational purposes and should not be treated as personalized investment advice.
+- Stock Analysis selection, fundamental metrics, historical pedigree and consistency analytics, shareholding trends, earnings quality, capital allocation, dilution analytics, comparison and AI Insights.
