@@ -27,6 +27,19 @@ function valuationOptions() {
 }
 
 function selectedSymbols() {
+  // Comparison mode stores the symbols in the URL and hides the stock
+  // selection screen, so there are no selected picker rows to inspect.
+  const params = new URLSearchParams(location.search);
+  const compare = params.get("compare");
+  if (compare) {
+    return [...new Set(compare.split(",").map((x) => decodeURIComponent(x).trim().toUpperCase()).filter(Boolean))];
+  }
+
+  // Individual analysis mode also stores the selected symbol in the URL.
+  const symbol = (params.get("symbol") || "").trim().toUpperCase();
+  if (symbol) return [symbol];
+
+  // Fallback for selection-screen contexts where a picker row is available.
   const rows = [...document.querySelectorAll(".stock-picker-row.selected[data-symbol]")];
   return [...new Set(rows.map((el) => el.dataset.symbol).filter(Boolean))];
 }
@@ -85,10 +98,9 @@ async function renderValuationCharts(section) {
   try {
     const responses = await Promise.all(symbols.map(valuationJson));
     const charts = responses.map((response) => response.charts || {});
-    const names = symbols.map((symbol) => symbol.replace(/\.NS$|\.BO$/i, ""));
+    const names = responses.map((response, index) => response.name || response.symbol || symbols[index].replace(/\.NS$|\.BO$/i, ""));
 
-    // Render the cards directly into the existing Historical Growth & Return Trends
-    // grid. This works for both the individual-stock and comparison pages.
+    // Render the cards directly into the existing Historical Growth & Return Trends grid.
     if (!grid.querySelector(".stock-valuation-chart-card")) {
       grid.insertAdjacentHTML(
         "beforeend",
