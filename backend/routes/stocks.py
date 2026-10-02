@@ -202,30 +202,48 @@ async def get_market_cap_bands():
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@router.get("/{symbol}/charts")
-async def get_stock_charts(symbol: str):
-    try:
-        normalized = symbol.strip().upper()
-        stock_client = _get_client()
-        history = stock_client.financial_history(normalized)
-        prices = yahoo_annual_prices(normalized, years=7)
-        quote = stock_client._screener.quote_summary(normalized)
-        charts = build_stock_charts(history, prices, current_price=quote.get("regularMarketPrice"), current_pb=quote.get("priceToBook"))
-        return {"symbol": normalized, "charts": charts, "price_source": "Market price history", "notes": [
+def _load_stock_charts(symbol: str) -> dict[str, Any]:
+    normalized = symbol.strip().upper()
+    stock_client = _get_client()
+    history = stock_client.financial_history(normalized)
+    prices = yahoo_annual_prices(normalized, years=7)
+    quote = stock_client._screener.quote_summary(normalized)
+    charts = build_stock_charts(
+        history,
+        prices,
+        current_price=quote.get("regularMarketPrice"),
+        current_pb=quote.get("priceToBook"),
+    )
+    return {
+        "symbol": normalized,
+        "charts": charts,
+        "price_source": "Market price history",
+        "notes": [
             "EPS and revenue charts show annual year-over-year growth.",
             "ROE trend is derived from annual net profit and average shareholder equity.",
             "Historical P/E uses year-end market price divided by annual EPS.",
             "Historical P/B is derived from annual equity and the current share count; it is an approximation where share count changed materially.",
             "Price CAGR uses Screener's 1Y, 3Y, 5Y and 10Y figures for Indian equities, with rolling market-price CAGR as fallback.",
-        ]}
+        ],
+    }
+
+
+@router.get("/{symbol}/charts")
+async def get_stock_charts(symbol: str):
+    try:
+        return await asyncio.to_thread(_load_stock_charts, symbol)
     except YahooFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+def _load_stock_analysis(symbol: str) -> dict[str, Any]:
+    return _enrich_public_analysis(get_stock_analysis(_get_client(), symbol))
 
 
 @router.get("/{symbol}")
 async def get_stock(symbol: str):
     try:
-        return _enrich_public_analysis(get_stock_analysis(_get_client(), symbol))
+        return await asyncio.to_thread(_load_stock_analysis, symbol)
     except YahooFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -233,6 +251,7 @@ async def get_stock(symbol: str):
 @router.get("/{symbol}/fundamentals")
 async def get_fundamentals(symbol: str):
     try:
-        return _enrich_public_analysis(get_stock_analysis(_get_client(), symbol))["fundamentals"]
+        data = await asyncio.to_thread(_load_stock_analysis, symbol)
+        return data["fundamentals"]
     except YahooFinanceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
