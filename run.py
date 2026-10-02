@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from backend.config.settings import Settings
 from backend.routes.screener import router as screener_router
 from backend.routes.stocks import router as stocks_router
+from backend.routes.stock_pedigree import router as stock_pedigree_router
 from backend.routes.stock_supplemental import router as stock_supplemental_router
 from backend.routes.stock_market_cap import router as stock_market_cap_router
 from backend.routes.insights import router as insights_router
@@ -86,6 +87,8 @@ app.mount("/js", StaticFiles(directory="frontend/js"), name="js")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(screener_router, prefix="/api/stocks", tags=["stocks"])
+# Must precede the generic /{symbol} route in stocks_router.
+app.include_router(stock_pedigree_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(stocks_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(stock_supplemental_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(stock_market_cap_router, prefix="/api/stocks", tags=["stocks"])
