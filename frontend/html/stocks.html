@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="/css/features/stock-analysis-polish.css">
     <link rel="stylesheet" href="/css/features/stock-negative.css">
     <link rel="stylesheet" href="/css/features/stock-trends.css">
-    <link rel="stylesheet" href="/css/features/stock-universe-enhancements.css?v=20261002-4">
+    <link rel="stylesheet" href="/css/features/stock-universe-enhancements.css?v=20261002-6">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -66,10 +66,10 @@
     initStockComparison();
 </script>
 <script type="module" src="/js/features/stock-selection/stock-compare-auto-add.js"></script>
-<script type="module" src="/js/features/stock-selection/stock-universe-enhancements.js?v=20261002-5"></script>
-<script type="module" src="/js/features/stock-selection/stock-filter-controller.js?v=20261002-5"></script>
+<script type="module" src="/js/features/stock-selection/stock-universe-enhancements.js?v=20261002-6"></script>
+<script type="module" src="/js/features/stock-selection/stock-filter-controller-v3.js?v=20261002-6"></script>
 <script type="module" src="/js/features/stock-selection/stock-filter-controls-layout.js?v=20261002-4"></script>
-<!-- stock-filter-interaction-fix.js intentionally removed: it maintained a second, page-only filter state and could turn valid multi-sector selections into zero results. -->
+<!-- The v3 controller is the single owner of sector/search/cap filtering. -->
 <script type="module" src="/js/features/stock-selection/stock-trends.js"></script>
 <script type="module" src="/js/features/stock-selection/stock-valuation-trends.js"></script>
 <script type="module" src="/js/features/stock-selection/stock-supplemental.js"></script>
