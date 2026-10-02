@@ -2,7 +2,8 @@ const PAGE_SIZE = 40;
 let stocks = [];
 let page = 1;
 let installed = false;
-let loading = false;
+let metricsPromise = null;
+let liquidityPromise = null;
 
 function esc(v) {
   return String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
@@ -51,7 +52,10 @@ function rowHtml(s) {
   const capLabel = cap === "large" ? "Large Cap" : cap === "mid" ? "Mid Cap" : cap === "small" ? "Small Cap" : cap === "micro" ? "Micro Cap" : "";
   const liqLabel = liq === "high" ? "Highly liquid" : liq === "moderate" ? "Moderately liquid" : liq === "low" ? "Low liquidity" : liq === "illiquid" ? "Illiquid" : "Liquidity unavailable";
   const traded = Number(s.avg_daily_traded_value_3m_cr);
-  const tradedTitle = Number.isFinite(traded) ? `3M average daily traded value: ₹${traded.toLocaleString("en-IN", {maximumFractionDigits:1})} Cr/day` : "Liquidity data unavailable";
+  const fallback = String(s.liquidity_source || "").includes("fallback");
+  const tradedTitle = Number.isFinite(traded)
+    ? `${fallback ? "Current traded value proxy" : "3M average daily traded value"}: ₹${traded.toLocaleString("en-IN", {maximumFractionDigits:1})} Cr/day`
+    : "Liquidity data unavailable";
   return `<div class="stock-picker-row" data-symbol="${esc(s.symbol)}"><div><strong>${esc(s.name)}${capLabel ? ` <span class="stock-cap-badge ${cap}">${capLabel}</span>` : ""}</strong><small>${esc(s.symbol)}</small></div><div class="stock-picker-metrics"><span>Market Cap <b>${s.market_cap_cr == null ? "—" : `₹${Number(s.market_cap_cr).toLocaleString("en-IN", {maximumFractionDigits:0})} Cr`}</b></span><span>Sector <b>${esc(s.sector || "—")}</b></span><span class="stock-liquidity-badge ${esc(liq)}" title="${esc(tradedTitle)}"><i class="liquidity-dot ${esc(liq)}"></i>${esc(liqLabel)}</span></div><button class="stock-select-btn" type="button">Select</button></div>`;
 }
 
@@ -70,7 +74,6 @@ function ensureListShell(screen) {
 }
 
 function updateCounts(total) {
-  document.querySelectorAll(".stock-filter-footer span:last-child").forEach(el => { el.textContent = `${total} stocks`; });
   const toggle = document.getElementById("stock-filter-toggle-count");
   if (toggle) toggle.textContent = `${total} stocks`;
 }
@@ -111,6 +114,39 @@ function render() {
   }
 }
 
+function mergeStocks(extra) {
+  const bySymbol = new Map(stocks.map(s => [s.symbol, s]));
+  for (const s of extra || []) bySymbol.set(s.symbol, {...(bySymbol.get(s.symbol) || {}), ...s});
+  stocks = [...bySymbol.values()];
+}
+
+function loadMetrics() {
+  if (metricsPromise) return metricsPromise;
+  metricsPromise = fetch("/api/stocks/universe?include_metrics=true", {headers:{Accept:"application/json"}, cache:"no-store"})
+    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`); mergeStocks(d.stocks); return d; })
+    .catch(e => { metricsPromise = null; throw e; });
+  return metricsPromise;
+}
+
+function loadLiquidity() {
+  if (liquidityPromise) return liquidityPromise;
+  liquidityPromise = fetch("/api/stocks/universe?include_metrics=true&include_liquidity=true", {headers:{Accept:"application/json"}, cache:"no-store"})
+    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`); mergeStocks(d.stocks); return d; })
+    .catch(e => { liquidityPromise = null; throw e; });
+  return liquidityPromise;
+}
+
+async function applyAsyncData(kind) {
+  try {
+    if (kind === "liquidity") await loadLiquidity();
+    else await loadMetrics();
+  } catch (e) {
+    console.warn(`Unable to load ${kind} stock data:`, e);
+  }
+  page = 1;
+  render();
+}
+
 function stopCoreSectorHandler() {
   document.addEventListener("change", event => {
     if (event.target?.id !== "stock-sector") return;
@@ -124,11 +160,13 @@ function stopCoreSectorHandler() {
 function bindFilters() {
   document.addEventListener("change", event => {
     const t = event.target;
-    if (t?.matches("#stock-cap-filter input, #stock-liquidity-filter input")) {
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      page = 1;
-      render();
+    if (t?.matches("#stock-cap-filter input")) {
+      event.stopPropagation(); event.stopImmediatePropagation(); page = 1;
+      if (t.checked) { render(); applyAsyncData("metrics"); } else render();
+    }
+    if (t?.matches("#stock-liquidity-filter input")) {
+      event.stopPropagation(); event.stopImmediatePropagation(); page = 1;
+      if (t.checked) { render(); applyAsyncData("liquidity"); } else render();
     }
   }, true);
   document.addEventListener("input", event => {
@@ -139,20 +177,16 @@ function bindFilters() {
   }, true);
 }
 
-async function load() {
-  if (loading) return;
-  loading = true;
+async function loadBasicUniverse() {
   try {
-    const r = await fetch("/api/stocks/universe?include_metrics=true", { headers: {Accept:"application/json"}, cache:"no-store" });
+    const r = await fetch("/api/stocks/universe", {headers:{Accept:"application/json"}, cache:"no-store"});
     const data = await r.json();
     if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
     stocks = Array.isArray(data.stocks) ? data.stocks : [];
     window.__stockFilterControllerStocks = stocks;
     render();
   } catch (e) {
-    console.warn("Stock filter controller could not load the universe:", e);
-  } finally {
-    loading = false;
+    console.warn("Unable to load the lightweight stock universe:", e);
   }
 }
 
@@ -161,7 +195,7 @@ function init() {
   installed = true;
   stopCoreSectorHandler();
   bindFilters();
-  load();
+  loadBasicUniverse();
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, {once:true});
