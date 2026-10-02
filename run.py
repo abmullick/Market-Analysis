@@ -76,8 +76,8 @@ async def read_bond_analysis():
 
 @app.get("/favicon.ico")
 async def favicon():
-    # Use the site's primary logo as the browser favicon.
-    return FileResponse("static/images/logo.png", media_type="image/png")
+    # Use the Market Analysis hero artwork (the old-man logo) as the browser favicon.
+    return FileResponse("static/images/hero-market-analysis.png", media_type="image/png")
 
 # Serve static assets
 app.mount("/css", StaticFiles(directory="frontend/css"), name="css")
