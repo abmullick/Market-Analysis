@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 from backend.models.fundamentals import FinancialPeriod, Fundamentals
 from backend.services.data.yahoo import YahooFinanceClient, number
+from backend.services.stocks.screener import ScreenerEngine
 
 
 def field(raw: dict[str, Any], name: str) -> Optional[float]:
@@ -118,7 +119,7 @@ def get_stock_analysis(client: YahooFinanceClient, symbol: str) -> dict[str, Any
     ]
     cash_keys = ["annualOperatingCashFlow", "annualCapitalExpenditure", "annualFreeCashFlow"]
 
-    return {
+    result = {
         "fundamentals": fundamentals.model_dump(),
         "income_statement": [item.model_dump() for item in build_periods(history["income"], income_keys)],
         "balance_sheet": [item.model_dump() for item in build_periods(history["balance"], balance_keys)],
@@ -129,3 +130,5 @@ def get_stock_analysis(client: YahooFinanceClient, symbol: str) -> dict[str, Any
             "CAGR metrics require the requested lookback period and a positive starting value.",
         ],
     }
+    result["derived_analysis"] = ScreenerEngine().derive_fundamental_metrics(result)
+    return result
