@@ -6,6 +6,10 @@ function valuationFmt(v) {
   return Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
+function valuationCard(id, title, subtitle) {
+  return `<div class="stock-chart-card stock-valuation-chart-card"><h3>${title}</h3><small>${subtitle}</small><div style="position:relative;height:250px"><canvas id="${id}" class="stock-chart-canvas"></canvas></div></div>`;
+}
+
 function valuationOptions() {
   return {
     responsive: true,
@@ -22,64 +26,98 @@ function valuationOptions() {
   };
 }
 
-function valuationCard(id, title, subtitle) {
-  return `<div class="stock-chart-card stock-valuation-chart-card"><h3>${title}</h3><small>${subtitle}</small><canvas id="${id}" class="stock-chart-canvas"></canvas></div>`;
+function selectedSymbols() {
+  const rows = [...document.querySelectorAll(".stock-picker-row.selected[data-symbol]")];
+  return [...new Set(rows.map((el) => el.dataset.symbol).filter(Boolean))];
 }
 
 async function valuationJson(symbol) {
-  const response = await fetch(`${VALUATION_API}/${encodeURIComponent(symbol)}/charts`, { headers: { Accept: "application/json" }, cache: "no-store" });
+  const response = await fetch(`${VALUATION_API}/${encodeURIComponent(symbol)}/charts`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
 
-function selectedSymbols() {
-  return [...document.querySelectorAll(".stock-picker-row.selected[data-symbol]")].map((el) => el.dataset.symbol).filter(Boolean);
-}
+function drawValuationChart(canvas, seriesList, labels) {
+  if (typeof Chart === "undefined" || !canvas) return;
+  if (!seriesList.some((series) => series?.length)) return;
 
-function drawValuationChart(canvas, seriesList, labels, yLabel) {
-  if (typeof Chart === "undefined" || !canvas || !seriesList.some((s) => s.length)) return;
-  const years = [...new Set(seriesList.flatMap((s) => s.map((x) => x.year)))].sort();
+  const years = [...new Set(seriesList.flatMap((series) => (series || []).map((x) => x.year)))].sort();
   if (!years.length) return;
+
   new Chart(canvas, {
     type: "line",
-    data: { labels: years, datasets: seriesList.map((series, index) => {
-      const map = Object.fromEntries(series.map((x) => [x.year, x.value]));
-      const color = VALUATION_PALETTE[index % VALUATION_PALETTE.length];
-      return { label: labels[index], data: years.map((y) => map[y] ?? null), borderColor: color, backgroundColor: `${color}12`, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, tension: .25, spanGaps: true, fill: true };
-    }) },
+    data: {
+      labels: years,
+      datasets: seriesList.map((series, index) => {
+        const map = Object.fromEntries((series || []).map((x) => [x.year, x.value]));
+        const color = VALUATION_PALETTE[index % VALUATION_PALETTE.length];
+        return {
+          label: labels[index],
+          data: years.map((year) => map[year] ?? null),
+          borderColor: color,
+          backgroundColor: `${color}12`,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          tension: .25,
+          spanGaps: true,
+          fill: true,
+        };
+      }),
+    },
     options: valuationOptions(),
   });
 }
 
 async function renderValuationCharts(section) {
   if (section.dataset.valuationCharts === "done" || section.dataset.valuationCharts === "loading") return;
+
   const symbols = selectedSymbols();
   if (!symbols.length) return;
-  section.dataset.valuationCharts = "loading";
 
+  const grid = section.querySelector(".stock-trends-grid");
+  if (!grid) return;
+
+  section.dataset.valuationCharts = "loading";
   try {
     const responses = await Promise.all(symbols.map(valuationJson));
-    const charts = responses.map((x) => x.charts || {});
-    const names = symbols.map((s) => s.replace(/\.NS$|\.BO$/i, ""));
-    const grid = section.querySelector(".stock-trends-grid");
-    if (!grid) return;
+    const charts = responses.map((response) => response.charts || {});
+    const names = symbols.map((symbol) => symbol.replace(/\.NS$|\.BO$/i, ""));
 
-    grid.insertAdjacentHTML("beforeend", valuationCard("valuation-pe-history", "P/E History", "Year-end market P/E based on annual EPS"));
-    grid.insertAdjacentHTML("beforeend", valuationCard("valuation-pb-history", "P/B History", "Historical price-to-book multiple"));
+    // Render the cards directly into the existing Historical Growth & Return Trends
+    // grid. This works for both the individual-stock and comparison pages.
+    if (!grid.querySelector(".stock-valuation-chart-card")) {
+      grid.insertAdjacentHTML(
+        "beforeend",
+        valuationCard("valuation-pe-history", "P/E History", "Year-end market P/E based on annual EPS") +
+        valuationCard("valuation-pb-history", "P/B History", "Historical price-to-book multiple"),
+      );
+    }
 
-    drawValuationChart(document.getElementById("valuation-pe-history"), charts.map((c) => c.pe_history || []), names, "P/E (x)");
-    drawValuationChart(document.getElementById("valuation-pb-history"), charts.map((c) => c.pb_history || []), names, "P/B (x)");
+    const peCanvas = grid.querySelector("#valuation-pe-history");
+    const pbCanvas = grid.querySelector("#valuation-pb-history");
+
+    drawValuationChart(peCanvas, charts.map((chart) => chart.pe_history || []), names);
+    drawValuationChart(pbCanvas, charts.map((chart) => chart.pb_history || []), names);
+
     section.dataset.valuationCharts = "done";
   } catch (error) {
     delete section.dataset.valuationCharts;
-    console.warn("Historical valuation charts unavailable:", error);
+    console.warn("Historical P/E and P/B charts unavailable:", error);
   }
 }
 
 function scanValuationSections() {
-  document.querySelectorAll(".stock-trends-section").forEach(renderValuationCharts);
+  document.querySelectorAll(".stock-trends-section").forEach((section) => {
+    renderValuationCharts(section);
+  });
 }
 
 const valuationObserver = new MutationObserver(scanValuationSections);
 valuationObserver.observe(document.body, { childList: true, subtree: true });
+
+document.addEventListener("DOMContentLoaded", scanValuationSections);
 scanValuationSections();
