@@ -172,21 +172,14 @@ class ScreenerFinanceClient:
     ) -> float | None:
         if index is None:
             return None
-
         wanted = [cls._normal_label(label).rstrip("+").strip() for label in labels]
         for actual, values in rows.items():
             actual_normal = cls._normal_label(actual).rstrip("+").strip()
             if actual_normal in wanted and index < len(values) and values[index] is not None:
                 return values[index]
-
-        # Screener occasionally changes a displayed label by adding a footnote,
-        # plus sign or whitespace. Prefix matching is deliberately a fallback.
         for actual, values in rows.items():
             actual_normal = cls._normal_label(actual).rstrip("+").strip()
-            if any(
-                actual_normal.startswith(label) or label.startswith(actual_normal)
-                for label in wanted
-            ) and index < len(values) and values[index] is not None:
+            if any(actual_normal.startswith(label) or label.startswith(actual_normal) for label in wanted) and index < len(values) and values[index] is not None:
                 return values[index]
         return None
 
@@ -199,7 +192,6 @@ class ScreenerFinanceClient:
             "Stock Price CAGR": ["10 Years", "5 Years", "3 Years", "1 Year"],
             "Return on Equity": ["10 Years", "5 Years", "3 Years", "Last Year"],
         }
-
         for table in soup.find_all("table"):
             text = table.get_text(" ", strip=True)
             for title, periods in titles.items():
@@ -222,10 +214,7 @@ class ScreenerFinanceClient:
         try:
             target = symbol.upper()
             for stock in load_nifty_total_market():
-                if stock.get("symbol", "").upper() in {
-                    target,
-                    target.removesuffix(".NS").removesuffix(".BO"),
-                }:
+                if stock.get("symbol", "").upper() in {target, target.removesuffix(".NS").removesuffix(".BO")}:
                     return stock.get("sector")
         except Exception:
             pass
@@ -247,7 +236,6 @@ class ScreenerFinanceClient:
         growth = extracted["growth"]
         heading = soup.find("h1")
         name = heading.get_text(" ", strip=True) if heading else self._symbol(symbol)
-
         sector = self._sector_for_symbol(symbol)
         is_financial = self._is_financial_company(sector)
         price = ratios.get("Current Price")
@@ -261,7 +249,6 @@ class ScreenerFinanceClient:
         revenue_labels = ["Revenue", "Revenue +", "Sales", "Sales +"]
         operating_labels = ["Operating Profit", "Financing Profit"]
         profit_labels = ["Net Profit", "Net Profit +", "Profit after tax"]
-
         latest_sales = self._row(pl_rows, revenue_labels, latest)
         latest_op = self._row(pl_rows, operating_labels, latest)
         latest_profit = self._row(pl_rows, profit_labels, latest)
@@ -311,68 +298,33 @@ class ScreenerFinanceClient:
         debt_equity = debt_cr / equity_cr if debt_cr is not None and equity_cr not in (None, 0) else None
         roa = latest_profit / assets_cr if latest_profit is not None and assets_cr not in (None, 0) else None
         current_ratio = current_assets_cr / current_liabilities_cr if current_assets_cr is not None and current_liabilities_cr not in (None, 0) else None
-
         pe = ratios.get("Stock P/E")
         peg = pe / (eps_cagr_3y * 100) if pe is not None and eps_cagr_3y is not None and eps_cagr_3y > 0 else None
-
         annual_ebitda = None if is_financial else ((latest_op or 0) + (latest_dep or 0) if latest_op is not None or latest_dep is not None else None)
         ttm_ebitda = None if is_financial else ((ttm_op or 0) + (ttm_dep or 0) if ttm_op is not None or ttm_dep is not None else None)
         enterprise_value = None if is_financial or market_cap is None or debt is None else market_cap + debt
         ev_ebitda = enterprise_value / self._cr(ttm_ebitda) if enterprise_value is not None and ttm_ebitda not in (None, 0) else None
         ev_revenue = enterprise_value / self._cr(ttm_sales) if enterprise_value is not None and ttm_sales not in (None, 0) else None
-
         financing_margin = self._row(pl_rows, ["Financing Margin %"], ttm if ttm is not None else latest)
-        operating_margin = (
-            self._pct(financing_margin)
-            if is_financial and financing_margin is not None
-            else self._pct(ttm_op / ttm_sales * 100) if ttm_op is not None and ttm_sales not in (None, 0) else None
-        )
+        operating_margin = self._pct(financing_margin) if is_financial and financing_margin is not None else self._pct(ttm_op / ttm_sales * 100) if ttm_op is not None and ttm_sales not in (None, 0) else None
         profit_margin = self._pct(ttm_profit / ttm_sales * 100) if ttm_profit is not None and ttm_sales not in (None, 0) else None
 
         return {
-            "longName": name,
-            "shortName": name,
-            "exchangeName": "NSE",
-            "fullExchangeName": "National Stock Exchange of India",
-            "currency": "INR",
-            "country": "India",
-            "regularMarketPrice": price,
-            "marketCap": market_cap,
-            "enterpriseValue": enterprise_value,
-            "sharesOutstanding": shares,
-            "trailingPE": pe,
-            "priceToBook": pb,
-            "pegRatio": peg,
-            "priceToSalesTrailing12Months": market_cap_cr / ttm_sales if market_cap_cr is not None and ttm_sales not in (None, 0) else None,
-            "enterpriseToEbitda": ev_ebitda,
-            "enterpriseToRevenue": ev_revenue,
-            "dividendYield": self._pct(ratios.get("Dividend Yield")),
-            "returnOnEquity": self._pct(ratios.get("ROE")),
-            "returnOnAssets": roa,
-            "returnOnCapitalEmployed": self._pct(ratios.get("ROCE")),
-            "debtToEquity": debt_equity,
-            "currentRatio": current_ratio,
-            "sector": sector,
-            "industry": None,
-            "_source": "Screener.in",
-            "totalRevenue": self._cr(ttm_sales),
-            "operatingProfit": self._cr(ttm_op),
-            "netIncomeToCommon": self._cr(ttm_profit),
-            "trailingEps": ttm_eps,
-            "ebitda": self._cr(ttm_ebitda),
-            "operatingCashflow": self._cr(operating_cashflow_cr),
-            "freeCashflow": self._cr(free_cashflow_cr),
-            "capitalExpenditure": self._cr(capital_expenditure_cr),
-            "totalCash": None,
-            "totalDebt": debt,
-            "totalAssets": self._cr(assets_cr),
-            "totalLiabilities": self._cr(liabilities_cr),
-            "operatingMargins": operating_margin,
-            "profitMargins": profit_margin,
-            "payoutRatio": self._pct(latest_payout),
+            "longName": name, "shortName": name, "exchangeName": "NSE", "fullExchangeName": "National Stock Exchange of India",
+            "currency": "INR", "country": "India", "regularMarketPrice": price, "marketCap": market_cap,
+            "enterpriseValue": enterprise_value, "sharesOutstanding": shares, "trailingPE": pe, "priceToBook": pb,
+            "pegRatio": peg, "priceToSalesTrailing12Months": market_cap_cr / ttm_sales if market_cap_cr is not None and ttm_sales not in (None, 0) else None,
+            "enterpriseToEbitda": ev_ebitda, "enterpriseToRevenue": ev_revenue, "dividendYield": self._pct(ratios.get("Dividend Yield")),
+            "returnOnEquity": self._pct(ratios.get("ROE")), "returnOnAssets": roa, "returnOnCapitalEmployed": self._pct(ratios.get("ROCE")),
+            "debtToEquity": debt_equity, "currentRatio": current_ratio, "sector": sector, "industry": None, "_source": "Screener.in",
+            "totalRevenue": self._cr(ttm_sales), "operatingProfit": self._cr(ttm_op), "netIncomeToCommon": self._cr(ttm_profit),
+            "trailingEps": ttm_eps, "ebitda": self._cr(ttm_ebitda), "operatingCashflow": self._cr(operating_cashflow_cr),
+            "freeCashflow": self._cr(free_cashflow_cr), "capitalExpenditure": self._cr(capital_expenditure_cr), "totalCash": None,
+            "totalDebt": debt, "totalAssets": self._cr(assets_cr), "totalLiabilities": self._cr(liabilities_cr),
+            "currentAssets": self._cr(current_assets_cr), "currentLiabilities": self._cr(current_liabilities_cr),
+            "operatingMargins": operating_margin, "profitMargins": profit_margin, "payoutRatio": self._pct(latest_payout),
             "revenueGrowth": self._pct(growth.get("Compounded Sales Growth", {}).get("TTM")),
-            "earningsGrowth": self._pct(growth.get("Compounded Profit Growth", {}).get("TTM")),
-            "earningsQuarterlyGrowth": None,
+            "earningsGrowth": self._pct(growth.get("Compounded Profit Growth", {}).get("TTM")), "earningsQuarterlyGrowth": None,
         }
 
     def financial_history(self, symbol: str) -> dict[str, dict[str, list[dict[str, Any]]]]:
@@ -380,7 +332,6 @@ class ScreenerFinanceClient:
         growth = extracted["growth"]
         sector = self._sector_for_symbol(symbol)
         is_financial = self._is_financial_company(sector)
-
         income_headers, income = self._table(soup, "profit-loss")
         balance_headers, balance = self._table(soup, "balance-sheet")
         cash_headers, cash = self._table(soup, "cash-flow")
@@ -416,11 +367,23 @@ class ScreenerFinanceClient:
             debt = value(balance, ["Borrowings", "Borrowings +", "Borrowing"], index)
             assets = value(balance, ["Total Assets"], index)
             liabilities = value(balance, ["Total Liabilities"], index)
+            current_assets = value(balance, ["Current Assets"], index)
+            current_liabilities = value(balance, ["Current Liabilities"], index)
+            net_block = value(balance, ["Net Block"], index)
+            debtors = value(balance, ["Debtors", "Trade Receivables"], index)
+            inventory = value(balance, ["Inventory", "Inventories"], index)
+            payables = value(balance, ["Trade Payables", "Creditors"], index)
             row: dict[str, Any] = {"asOfDate": f"{period[-4:]}-03-31", "periodType": "12M"}
             if equity_capital is not None or reserves is not None: row["annualStockholdersEquity"] = {"raw": self._cr((equity_capital or 0) + (reserves or 0))}
             if debt is not None: row["annualTotalDebt"] = {"raw": self._cr(debt)}
             if assets is not None: row["annualTotalAssets"] = {"raw": self._cr(assets)}
             if liabilities is not None: row["annualTotalLiabilitiesNetMinorityInterest"] = {"raw": self._cr(liabilities)}
+            if current_assets is not None: row["annualCurrentAssets"] = {"raw": self._cr(current_assets)}
+            if current_liabilities is not None: row["annualCurrentLiabilities"] = {"raw": self._cr(current_liabilities)}
+            if net_block is not None: row["annualNetBlock"] = {"raw": self._cr(net_block)}
+            if debtors is not None: row["annualDebtors"] = {"raw": self._cr(debtors)}
+            if inventory is not None: row["annualInventory"] = {"raw": self._cr(inventory)}
+            if payables is not None: row["annualTradePayables"] = {"raw": self._cr(payables)}
             balance_rows.append(row)
 
         cash_rows: list[dict[str, Any]] = []
@@ -437,23 +400,8 @@ class ScreenerFinanceClient:
             cash_rows.append(row)
 
         return {
-            "income": {
-                "annualTotalRevenue": income_rows,
-                "annualOperatingIncome": income_rows,
-                "annualEBITDA": income_rows,
-                "annualNetIncome": income_rows,
-                "annualDilutedEPS": income_rows,
-            },
-            "balance": {
-                "annualTotalAssets": balance_rows,
-                "annualTotalLiabilitiesNetMinorityInterest": balance_rows,
-                "annualStockholdersEquity": balance_rows,
-                "annualTotalDebt": balance_rows,
-            },
-            "cash": {
-                "annualOperatingCashFlow": cash_rows,
-                "annualCapitalExpenditure": cash_rows,
-                "annualFreeCashFlow": cash_rows,
-            },
+            "income": {"annualTotalRevenue": income_rows, "annualOperatingIncome": income_rows, "annualEBITDA": income_rows, "annualNetIncome": income_rows, "annualDilutedEPS": income_rows},
+            "balance": {"annualTotalAssets": balance_rows, "annualTotalLiabilitiesNetMinorityInterest": balance_rows, "annualStockholdersEquity": balance_rows, "annualTotalDebt": balance_rows, "annualCurrentAssets": balance_rows, "annualCurrentLiabilities": balance_rows, "annualNetBlock": balance_rows, "annualDebtors": balance_rows, "annualInventory": balance_rows, "annualTradePayables": balance_rows},
+            "cash": {"annualOperatingCashFlow": cash_rows, "annualCapitalExpenditure": cash_rows, "annualFreeCashFlow": cash_rows},
             "growth": growth,
         }
