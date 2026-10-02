@@ -158,8 +158,22 @@ function scoreEntry(entry, tokens, normalizedQuery) {
     if (titleTokens.length) score += (titleOverlap / titleTokens.length) * 45;
     score += bodyOverlap * 24;
 
-    // Give a strong boost when the query is a natural phrase that appears
-    // verbatim in the card, e.g. "market cap min" or "debt / equity".
+    // A short financial term such as PEG, PE, ROE, ROA, Beta, CAGR, YTM,
+    // DV01, etc. is a valid search intent on its own. Give an exact token
+    // match enough weight to pass the navigation threshold used by help.js.
+    // This is deliberately token-based so "PE" does not accidentally match
+    // unrelated words such as "price" or "performance".
+    if (tokens.length === 1 && bodyTokens.has(tokens[0])) {
+        score += 60;
+    }
+
+    if (tokens.length === 1 && titleTokens.includes(tokens[0])) {
+        score += 45;
+    }
+
+    // Give a strong boost when the query is a natural phrase whose meaningful
+    // tokens are all present in the card, e.g. "market cap min" or
+    // "debt / equity".
     const phraseTokens = meaningfulTokens(normalizedQuery);
     if (phraseTokens.length >= 2 && phraseTokens.every((token) => bodyTokens.has(token))) {
         score += 30;
