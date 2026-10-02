@@ -375,6 +375,7 @@
 }
 
 #stock-analysis-screen #stock-details > .stock-warnings {
+    order: 999;
     margin-top: auto;
     background: #f8fafc;
 }
