@@ -8,10 +8,6 @@ from typing import Any
 import curl_cffi.requests
 
 
-# NSE publishes the complete Nifty Total Market constituent file directly.
-# This is the preferred source because it already contains the combined
-# Nifty 500 + Nifty Microcap 250 universe and the current NSE industry
-# classification. The two component files are retained only as fallbacks.
 NIFTY_TOTAL_MARKET_SOURCES = (
     (
         "https://nsearchives.nseindia.com/content/indices/ind_niftytotalmarket_list.csv",
@@ -92,9 +88,6 @@ def _parse_csv(payload: bytes) -> list[dict[str, str]]:
     if "<html" in sample or "<!doctype" in sample or "<script" in sample:
         raise NiftyUniverseError("Constituent endpoint returned HTML instead of CSV")
 
-    # NSE's CSVs normally start with the header, but tolerate a small amount
-    # of metadata before it so a future file-format change does not empty the
-    # universe silently.
     lines = text.splitlines()
     header_index: int | None = None
     for index, line in enumerate(lines[:100]):
@@ -114,10 +107,10 @@ def _parse_csv(payload: bytes) -> list[dict[str, str]]:
     symbol_col = _find_column(fieldnames, "Symbol", "Stock Symbol", "Security Symbol")
     name_col = _find_column(fieldnames, "Company Name", "CompanyName", "Company")
 
-    # Prefer the combined sector/industry field when an NSE source exposes
-    # more than one classification column.  Using a narrower "Industry"
-    # field first can silently collapse a valid sector (for example,
-    # Consumer Services) into only a handful of rows.
+    # Prefer the combined sector/industry field whenever the source exposes
+    # one. This avoids accidentally choosing a narrower classification field
+    # and silently reducing a valid sector such as Consumer Services to a few
+    # rows.
     industry_col = _find_column(
         fieldnames,
         "Industry / Sector",
@@ -143,8 +136,6 @@ def _parse_csv(payload: bytes) -> list[dict[str, str]]:
         sector = str(row.get(industry_col) or "").strip() if industry_col else ""
         isin = str(row.get(isin_col) or "").strip() if isin_col else ""
 
-        # NSE has historically used placeholder rows in some constituent
-        # files. Do not expose those as selectable stocks.
         if symbol in {".NS", "DUMMYALCAR.NS"}:
             continue
         if not symbol or not name or symbol in seen:
@@ -163,6 +154,31 @@ def _parse_csv(payload: bytes) -> list[dict[str, str]]:
             "Constituent CSV contained no usable stocks "
             f"(headers received: {', '.join(fieldnames)})"
         )
+    return stocks
+
+
+def _validate_universe(stocks: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Reject a silently malformed 750-ish universe before it reaches the UI."""
+    if len(stocks) < 500:
+        raise NiftyUniverseError(
+            f"only {len(stocks)} usable stocks were parsed; refusing an incomplete universe"
+        )
+
+    sector_counts: dict[str, int] = {}
+    for stock in stocks:
+        sector = str(stock.get("sector") or "Other")
+        sector_counts[sector] = sector_counts.get(sector, 0) + 1
+
+    # Current Nifty Total Market has dozens of Consumer Services constituents.
+    # A tiny count is a strong signal that the CSV classification column was
+    # parsed incorrectly. Fail closed rather than presenting a misleading
+    # sector filter to the user.
+    if len(stocks) >= 700 and sector_counts.get("Consumer Services", 0) < 10:
+        raise NiftyUniverseError(
+            "Nifty Total Market sector classification looks incomplete: "
+            f"Consumer Services has only {sector_counts.get('Consumer Services', 0)} constituents"
+        )
+
     return stocks
 
 
@@ -204,11 +220,7 @@ def _load_direct_total_market() -> list[dict[str, str]]:
     errors: list[str] = []
     for url, label in NIFTY_TOTAL_MARKET_SOURCES:
         try:
-            stocks = _parse_csv(_download(url))
-            if len(stocks) < 500:
-                raise NiftyUniverseError(
-                    f"only {len(stocks)} usable stocks were parsed; refusing an incomplete universe"
-                )
+            stocks = _validate_universe(_parse_csv(_download(url)))
             return stocks
         except Exception as exc:
             errors.append(f"{label}: {exc}")
@@ -227,9 +239,7 @@ def _load_from_component_sources() -> list[dict[str, str]]:
                 raise NiftyUniverseError(f"{label}: {exc}") from exc
 
         deduped = {item["symbol"]: item for item in combined}
-        if len(deduped) >= 500:
-            return list(deduped.values())
-        raise NiftyUniverseError(f"only {len(deduped)} usable stocks were parsed")
+        return _validate_universe(list(deduped.values()))
     except Exception as exc:
         errors.append(str(exc))
 
@@ -238,9 +248,7 @@ def _load_from_component_sources() -> list[dict[str, str]]:
         for url in NIFTY_TOTAL_MARKET_COMPONENT_FALLBACK_SOURCES:
             combined.extend(_parse_csv(_download(url)))
         deduped = {item["symbol"]: item for item in combined}
-        if len(deduped) >= 500:
-            return list(deduped.values())
-        raise NiftyUniverseError(f"only {len(deduped)} usable stocks were parsed")
+        return _validate_universe(list(deduped.values()))
     except Exception as exc:
         errors.append(str(exc))
 
