@@ -133,6 +133,7 @@ def build_stock_pedigree(client: ScreenerFinanceClient, symbol: str) -> dict[str
     eps = _series(income, "annualDilutedEPS")
     ebitda = _series(income, "annualEBITDA")
     cfo = _series(cash, "annualOperatingCashFlow")
+    capex = _series(cash, "annualCapitalExpenditure")
     fcf = _series(cash, "annualFreeCashFlow")
     debt = _series(balance, "annualTotalDebt")
     equity = _series(balance, "annualStockholdersEquity")
@@ -149,6 +150,7 @@ def build_stock_pedigree(client: ScreenerFinanceClient, symbol: str) -> dict[str
         "current_assets": current_assets, "current_liabilities": current_liabilities,
         "net_block": net_block, "debtors": debtors, "inventory": inventory,
         "payables": payables, "operating": operating, "fcf": fcf,
+        "capex": capex, "profit": profit, "eps": eps, "cfo": cfo,
     }.items()}
 
     roe: list[tuple[str, float]] = []
@@ -158,7 +160,12 @@ def build_stock_pedigree(client: ScreenerFinanceClient, symbol: str) -> dict[str
     net_margin: list[tuple[str, float]] = []
     fcf_margin: list[tuple[str, float]] = []
     cash_conversion: list[tuple[str, float]] = []
+    fcf_conversion: list[tuple[str, float]] = []
     ccc: list[tuple[str, float]] = []
+    capex_to_cfo: list[tuple[str, float]] = []
+    capex_to_revenue: list[tuple[str, float]] = []
+    implied_shares: list[tuple[str, float]] = []
+    profit_eps_gap: list[tuple[str, float]] = []
 
     for i, (year, profit_value) in enumerate(profit):
         eq, asset = maps["equity"].get(year), maps["assets"].get(year)
@@ -183,10 +190,28 @@ def build_stock_pedigree(client: ScreenerFinanceClient, symbol: str) -> dict[str
             debtor, inv, payable = maps["debtors"].get(year), maps["inventory"].get(year), maps["payables"].get(year)
             if debtor is not None and inv is not None and payable is not None:
                 ccc.append((year, (debtor + inv - payable) / rev * 365))
+            capex_value = maps["capex"].get(year)
+            if capex_value is not None:
+                capex_to_revenue.append((year, abs(capex_value) / abs(rev) * 100))
 
-        cash_value = dict(cfo).get(year)
+        cash_value = maps["cfo"].get(year)
         if cash_value is not None and profit_value != 0:
             cash_conversion.append((year, cash_value / profit_value * 100))
+        fcf_value = maps["fcf"].get(year)
+        if fcf_value is not None and profit_value != 0:
+            fcf_conversion.append((year, fcf_value / profit_value * 100))
+        capex_value = maps["capex"].get(year)
+        if capex_value is not None and cash_value not in (None, 0):
+            capex_to_cfo.append((year, abs(capex_value) / abs(cash_value) * 100))
+
+        eps_value = maps["eps"].get(year)
+        if eps_value not in (None, 0):
+            # Net profit is in crore and EPS is rupees/share, so this yields
+            # an implied share count in crore shares. It is a useful historical
+            # dilution proxy when annual share-count history is not separately reported.
+            implied = profit_value / eps_value
+            if implied > 0:
+                implied_shares.append((year, implied))
 
         nb, ca, cl = maps["net_block"].get(year), maps["current_assets"].get(year), maps["current_liabilities"].get(year)
         if op is not None and nb is not None and ca is not None and cl is not None:
@@ -210,6 +235,10 @@ def build_stock_pedigree(client: ScreenerFinanceClient, symbol: str) -> dict[str
     def latest_change(series, years=3):
         return series[-1][1] - series[-(years + 1)][1] if len(series) >= years + 1 else None
 
+    def aligned_growth(a: list[tuple[str, float]], b: list[tuple[str, float]], years: int) -> float | None:
+        ca, cb = _cagr(a, years), _cagr(b, years)
+        return ca - cb if ca is not None and cb is not None else None
+
     consistency = {
         "revenue": _consistency(revenue), "profit": _consistency(profit),
         "eps": _consistency(eps), "fcf": _consistency(fcf),
@@ -218,6 +247,45 @@ def build_stock_pedigree(client: ScreenerFinanceClient, symbol: str) -> dict[str
         "roce_average": mean(v for _, v in roce) if roce else None,
         "operating_margin_average": mean(v for _, v in opm) if opm else None,
         "debt_change_3y": latest_change(debt, 3), "debt_change_5y": latest_change(debt, 5),
+    }
+
+    # Capital allocation, earnings quality and dilution analytics.
+    capital_allocation = {
+        "capex": _trend(capex),
+        "cfo": _trend(cfo),
+        "fcf": _trend(fcf),
+        "capex_to_cfo": _trend(capex_to_cfo),
+        "capex_to_revenue": _trend(capex_to_revenue),
+        "fcf_to_cfo": _trend([(y, f / c * 100) for y, f in fcf if (c := maps["cfo"].get(y)) not in (None, 0)]),
+        "debt": _trend(debt),
+        "debt_change": _growth(debt),
+    }
+    earnings_quality = {
+        "net_profit": _trend(profit),
+        "cfo": _trend(cfo),
+        "fcf": _trend(fcf),
+        "cfo_to_profit": _trend(cash_conversion),
+        "fcf_to_profit": _trend(fcf_conversion),
+        "net_profit_indexed": _indexed(profit),
+        "cfo_indexed": _indexed(cfo),
+        "fcf_indexed": _indexed(fcf),
+        "profit_growth": _growth(profit),
+        "cfo_growth": _growth(cfo),
+        "fcf_growth": _growth(fcf),
+        "cfo_profit_gap_3y": aligned_growth(cfo, profit, 3),
+        "cfo_profit_gap_5y": aligned_growth(cfo, profit, 5),
+        "fcf_profit_gap_3y": aligned_growth(fcf, profit, 3),
+        "fcf_profit_gap_5y": aligned_growth(fcf, profit, 5),
+    }
+    dilution = {
+        "implied_shares": _trend(implied_shares),
+        "share_count_growth": _growth(implied_shares),
+        "share_count_cagr_3y": _cagr(implied_shares, 3),
+        "share_count_cagr_5y": _cagr(implied_shares, 5),
+        "profit_vs_eps_cagr_gap_3y": aligned_growth(profit, eps, 3),
+        "profit_vs_eps_cagr_gap_5y": aligned_growth(profit, eps, 5),
+        "eps_cagr_3y": _cagr(eps, 3),
+        "eps_cagr_5y": _cagr(eps, 5),
     }
 
     return {
@@ -235,6 +303,9 @@ def build_stock_pedigree(client: ScreenerFinanceClient, symbol: str) -> dict[str
             "promoter_holding": _trend(promoter), "fii_holding": _trend(fii), "dii_holding": _trend(dii),
             "government_holding": _trend(government), "public_holding": _trend(public), "shareholders": _trend(shareholders),
         },
+        "capital_allocation": capital_allocation,
+        "earnings_quality": earnings_quality,
+        "dilution": dilution,
         "consistency": consistency,
         "cagr": {
             "revenue_3y": _cagr(revenue, 3), "revenue_5y": _cagr(revenue, 5),
