@@ -25,31 +25,79 @@ def _get_client() -> YahooFinanceClient:
     return client
 
 
-def _latest_statement_value(
-    rows: list[dict[str, Any]],
-    key: str,
-) -> float | None:
+def _latest_statement_value(rows: list[dict[str, Any]], key: str) -> float | None:
     if not rows:
         return None
     return rows[0].get("values", {}).get(key)
 
 
+def _growth_from_rows(rows: list[dict[str, Any]], key: str) -> float | None:
+    values: list[float] = []
+    for row in rows:
+        value = row.get("values", {}).get(key)
+        if value is not None:
+            try:
+                values.append(float(value))
+            except (TypeError, ValueError):
+                pass
+    if len(values) < 2 or values[1] == 0:
+        return None
+    return (values[0] / values[1] - 1) * 100
+
+
 def _enrich_public_analysis(data: dict[str, Any]) -> dict[str, Any]:
-    """Add cross-statement ratios used by the analysis UI without exposing provider details."""
+    """Fill display metrics from the same historical statements used by the analysis."""
     f = data.get("fundamentals", {})
+    income = data.get("income_statement", [])
     balance = data.get("balance_sheet", [])
+    cash_flow = data.get("cash_flow", [])
+
+    # Statement fallbacks are important for Indian financial companies where a
+    # provider's snapshot can omit fields that are present in the annual tables.
+    statement_fallbacks = {
+        "revenue": _latest_statement_value(income, "TotalRevenue"),
+        "operating_profit": _latest_statement_value(income, "OperatingIncome"),
+        "ebitda": _latest_statement_value(income, "EBITDA"),
+        "net_profit": _latest_statement_value(income, "NetIncome"),
+        "eps": _latest_statement_value(income, "DilutedEPS"),
+        "operating_cash_flow": _latest_statement_value(cash_flow, "OperatingCashFlow"),
+        "capital_expenditure": _latest_statement_value(cash_flow, "CapitalExpenditure"),
+        "free_cash_flow": _latest_statement_value(cash_flow, "FreeCashFlow"),
+        "total_debt": _latest_statement_value(balance, "TotalDebt"),
+    }
+    for key, value in statement_fallbacks.items():
+        if f.get(key) is None and value is not None:
+            f[key] = value
 
     assets = _latest_statement_value(balance, "TotalAssets")
+    equity = _latest_statement_value(balance, "StockholdersEquity")
     current_liabilities = _latest_statement_value(balance, "CurrentLiabilities")
 
+    if f.get("roa") is None and f.get("net_profit") is not None and assets not in (None, 0):
+        f["roa"] = f["net_profit"] / assets * 100
+
+    if f.get("roe") is None and f.get("net_profit") is not None and equity not in (None, 0):
+        f["roe"] = f["net_profit"] / equity * 100
+
     if (
-        f.get("sector") != "Financial Services"
+        f.get("roce") is None
+        and f.get("sector") != "Financial Services"
         and f.get("operating_profit") is not None
         and assets is not None
         and current_liabilities is not None
         and assets != current_liabilities
     ):
         f["roce"] = f["operating_profit"] / (assets - current_liabilities) * 100
+
+    # Latest YoY growth is used only as a fallback when the snapshot omitted it.
+    growth_fallbacks = {
+        "revenue_growth": _growth_from_rows(income, "TotalRevenue"),
+        "profit_growth": _growth_from_rows(income, "NetIncome"),
+        "eps_growth": _growth_from_rows(income, "DilutedEPS"),
+    }
+    for key, value in growth_fallbacks.items():
+        if f.get(key) is None and value is not None:
+            f[key] = value
 
     revenue = f.get("revenue")
     fcf = f.get("free_cash_flow")
@@ -73,10 +121,10 @@ def _enrich_public_analysis(data: dict[str, Any]) -> dict[str, Any]:
     ):
         f["net_debt_ebitda"] = f["net_debt"] / ebitda
 
-    # Keep provider implementation details out of the public UI/API contract.
+    # Provider implementation details are intentionally hidden from the UI.
     f["source"] = "Fundamentals provider"
     data["warnings"] = [
-        "Some ratios are derived from the latest income statement and balance sheet and may differ slightly from reported provider ratios.",
+        "Some ratios are derived from the latest income statement and balance sheet and may differ slightly from reported ratios.",
         "Historical CAGR metrics require the requested lookback period to be available and a positive starting value.",
         "Financial companies use a different valuation lens: P/B, ROE and ROA are more informative than EV/EBITDA.",
     ]
@@ -173,7 +221,7 @@ async def get_stock_charts(symbol: str):
             "notes": [
                 "EPS and revenue charts show annual year-over-year growth.",
                 "ROE trend is derived from annual net profit and average shareholder equity.",
-                "Price CAGR uses annual closing prices and is shown as rolling 3-year and 5-year CAGR.",
+                "Price CAGR uses Screener's 1Y, 3Y, 5Y and 10Y figures for Indian equities, with rolling market-price CAGR as fallback.",
             ],
         }
     except YahooFinanceError as exc:
