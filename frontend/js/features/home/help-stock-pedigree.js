@@ -21,6 +21,7 @@ function addStockPedigreeHelp() {
         ["Quality Comparison", "The same earnings-quality, capital-allocation and dilution calculations are available in Compare, allowing companies to be examined side-by-side using identical historical definitions."],
         ["Comparison Trend Charts", "The same calculations are used in Compare. Selected companies can be compared on indexed business scale, ROE/ROCE, operating margin, FCF margin, debt, promoter holding, institutional holding and shareholder count. This keeps the methodology consistent between individual and side-by-side analysis."],
         ["Ownership History", "Ownership charts are historical observations. Missing periods remain missing rather than being interpolated, and category changes over time should be considered when comparing long historical series."],
+        ["AI Insights", "The Stock Analysis report and Compare view include an <strong>AI Insights</strong> action. It interprets the deterministic metrics and historical trends already shown in the report, highlighting key observations, risks, opportunities and a concise next-step view. The AI does not create new financial calculations, scores or rankings."],
     ];
 
     cards.forEach(([heading, body]) => {
