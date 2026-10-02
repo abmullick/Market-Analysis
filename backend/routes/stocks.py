@@ -8,6 +8,7 @@ from backend.services.data.fundamentals import get_stock_analysis
 from backend.services.data.stock_charts import build_stock_charts, yahoo_annual_prices
 from backend.services.data.yahoo import YahooFinanceClient, YahooFinanceError
 from backend.services.stocks.fast_nifty_universe import load_fast_nifty_total_market
+from backend.services.stocks.market_cap_bands import load_market_cap_bands
 from backend.services.stocks.nifty_universe import NiftyUniverseError, nifty_sectors
 from backend.services.stocks.screening import list_stocks
 
@@ -151,9 +152,6 @@ async def get_stock_universe(
         ))
 
         if not include_metrics and not has_fundamental_filter:
-            # Never block the FastAPI event loop on NSE/network I/O during a
-            # normal page refresh. The coalescing service also prevents two
-            # frontend modules from downloading the same universe concurrently.
             stocks = await asyncio.to_thread(load_fast_nifty_total_market)
             if sector:
                 stocks = [stock for stock in stocks if stock["sector"] == sector]
@@ -177,6 +175,19 @@ async def get_stock_universe(
             max_dividend_yield=max_dividend_yield, include_liquidity=include_liquidity,
         )
     except (NiftyUniverseError, YahooFinanceError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/market-cap-bands")
+async def get_market_cap_bands():
+    try:
+        bands = await asyncio.to_thread(load_market_cap_bands)
+        return {
+            "bands": bands,
+            "source": "NSE Indices constituent files",
+            "cached_for_hours": 24,
+        }
+    except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
