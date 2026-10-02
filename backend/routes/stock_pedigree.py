@@ -32,7 +32,7 @@ async def compare_stock_pedigree(
 
     if not results and errors:
         raise HTTPException(status_code=502, detail=errors[0]["error"])
-    return {"stocks": results, "errors": errors, "source": "Screener.in"}
+    return {"stocks": results, "errors": errors}
 
 
 @router.get("/pedigree/{symbol}")
