@@ -4,13 +4,17 @@ let page = 1;
 let installed = false;
 let metricsPromise = null;
 let liquidityPromise = null;
+let capBandsPromise = null;
 
 function esc(v) {
   return String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
-function capKey(value) {
-  const n = Number(value);
+function capKey(stockOrValue) {
+  if (stockOrValue && typeof stockOrValue === "object" && stockOrValue.market_cap_band) {
+    return stockOrValue.market_cap_band;
+  }
+  const n = Number(stockOrValue);
   if (!Number.isFinite(n)) return null;
   if (n >= 100000) return "large";
   if (n >= 20000) return "mid";
@@ -36,7 +40,7 @@ function filtered() {
   const f = context();
   return stocks.filter(s => {
     if (f.sectors.length && !f.sectors.includes(String(s.sector || ""))) return false;
-    if (f.caps.length && !f.caps.includes(capKey(s.market_cap_cr))) return false;
+    if (f.caps.length && !f.caps.includes(capKey(s))) return false;
     if (f.liquidity.length && (!s.liquidity_status || !f.liquidity.includes(s.liquidity_status))) return false;
     if (f.query) {
       const q = `${s.name || ""} ${s.symbol || ""}`.toLowerCase();
@@ -48,7 +52,7 @@ function filtered() {
 
 function rowHtml(s) {
   const liq = s.liquidity_status || "";
-  const cap = capKey(s.market_cap_cr);
+  const cap = capKey(s);
   const capLabel = cap === "large" ? "Large Cap" : cap === "mid" ? "Mid Cap" : cap === "small" ? "Small Cap" : cap === "micro" ? "Micro Cap" : "";
   const liqLabel = liq === "high" ? "Highly liquid" : liq === "moderate" ? "Moderately liquid" : liq === "low" ? "Low liquidity" : liq === "illiquid" ? "Illiquid" : "Liquidity unavailable";
   const traded = Number(s.avg_daily_traded_value_3m_cr);
@@ -120,6 +124,20 @@ function mergeStocks(extra) {
   stocks = [...bySymbol.values()];
 }
 
+function loadCapBands() {
+  if (capBandsPromise) return capBandsPromise;
+  capBandsPromise = fetch("/api/stocks/market-cap-bands", {headers:{Accept:"application/json"}, cache:"no-store"})
+    .then(async r => {
+      const d = await r.json();
+      if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`);
+      const bands = d?.bands || {};
+      stocks = stocks.map(s => ({...s, market_cap_band: bands[s.symbol] || null}));
+      return d;
+    })
+    .catch(e => { capBandsPromise = null; throw e; });
+  return capBandsPromise;
+}
+
 function loadMetrics() {
   if (metricsPromise) return metricsPromise;
   metricsPromise = fetch("/api/stocks/universe?include_metrics=true", {headers:{Accept:"application/json"}, cache:"no-store"})
@@ -138,7 +156,8 @@ function loadLiquidity() {
 
 async function applyAsyncData(kind) {
   try {
-    if (kind === "liquidity") await loadLiquidity();
+    if (kind === "cap") await loadCapBands();
+    else if (kind === "liquidity") await loadLiquidity();
     else await loadMetrics();
   } catch (e) {
     console.warn(`Unable to load ${kind} stock data:`, e);
@@ -162,7 +181,7 @@ function bindFilters() {
     const t = event.target;
     if (t?.matches("#stock-cap-filter input")) {
       event.stopPropagation(); event.stopImmediatePropagation(); page = 1;
-      if (t.checked) { render(); applyAsyncData("metrics"); } else render();
+      if (t.checked) applyAsyncData("cap"); else render();
     }
     if (t?.matches("#stock-liquidity-filter input")) {
       event.stopPropagation(); event.stopImmediatePropagation(); page = 1;
