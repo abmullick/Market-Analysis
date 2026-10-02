@@ -1,0 +1,28 @@
+.stock-metric-card.stock-negative-card {
+    background: var(--color-red-50) !important;
+    border-color: #f1c4c4 !important;
+}
+
+.stock-metric-card.stock-negative-card::after {
+    content: "⚠";
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    color: var(--color-red-600);
+    font-size: 13px;
+}
+
+.stock-metric-card.stock-negative-card .stock-metric-value {
+    color: var(--color-red-700) !important;
+}
+
+.stock-table td.stock-negative-cell {
+    background: var(--color-red-50);
+    color: var(--color-red-700);
+    font-weight: 700;
+}
+
+.stock-table td.stock-negative-cell::before {
+    content: "⚠ ";
+    font-size: 10px;
+}
