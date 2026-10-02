@@ -3,17 +3,24 @@ from __future__ import annotations
 from typing import Any
 
 from backend.services.data.yahoo import YahooFinanceClient, number
-from backend.services.stocks.nifty_universe import (
-    load_nifty_total_market,
-    nifty_sectors,
-)
+from backend.services.stocks.nifty_universe import load_nifty_total_market, nifty_sectors
+
+LIQUIDITY_THRESHOLDS_CR = {"high": 50.0, "moderate": 10.0, "low": 2.0}
 
 
-def _matches(
-    value: float | None,
-    minimum: float | None,
-    maximum: float | None,
-) -> bool:
+def _liquidity_status(avg_traded_value_cr: float | None) -> str | None:
+    if avg_traded_value_cr is None:
+        return None
+    if avg_traded_value_cr >= LIQUIDITY_THRESHOLDS_CR["high"]:
+        return "high"
+    if avg_traded_value_cr >= LIQUIDITY_THRESHOLDS_CR["moderate"]:
+        return "moderate"
+    if avg_traded_value_cr >= LIQUIDITY_THRESHOLDS_CR["low"]:
+        return "low"
+    return "illiquid"
+
+
+def _matches(value: float | None, minimum: float | None, maximum: float | None) -> bool:
     if minimum is not None and (value is None or value < minimum):
         return False
     if maximum is not None and (value is None or value > maximum):
@@ -21,19 +28,12 @@ def _matches(
     return True
 
 
-def _peg_from_history(
-    client: YahooFinanceClient,
-    symbol: str,
-    pe: float | None,
-) -> float | None:
-    """Derive PEG from P/E and the same 3Y EPS CAGR used by stock analysis."""
+def _peg_from_history(client: YahooFinanceClient, symbol: str, pe: float | None) -> float | None:
     if pe is None or pe <= 0:
         return None
-
     try:
         history = client.financial_history(symbol)
         rows = history.get("income", {}).get("annualDilutedEPS", [])
-
         series: list[tuple[str, float]] = []
         for row in rows:
             date = str(row.get("asOfDate") or row.get("periodEnd") or "")[:10]
@@ -43,31 +43,20 @@ def _peg_from_history(
             value = number(value)
             if date and value is not None:
                 series.append((date, value))
-
         series = sorted({date: value for date, value in series}.items())
         if len(series) < 4:
             return None
-
         end_date, end_eps = series[-1]
         target_year = int(end_date[:4]) - 3
-        candidates = [
-            (date, value)
-            for date, value in series[:-1]
-            if int(date[:4]) <= target_year
-        ]
+        candidates = [(date, value) for date, value in series[:-1] if int(date[:4]) <= target_year]
         if not candidates:
             return None
-
         start_date, start_eps = candidates[-1]
         actual_years = int(end_date[:4]) - int(start_date[:4])
         if actual_years < 3 or start_eps <= 0 or end_eps <= 0:
             return None
-
         eps_cagr = (end_eps / start_eps) ** (1 / actual_years) - 1
-        if eps_cagr <= 0:
-            return None
-
-        return pe / (eps_cagr * 100)
+        return pe / (eps_cagr * 100) if eps_cagr > 0 else None
     except Exception:
         return None
 
@@ -99,83 +88,45 @@ def list_stocks(
     min_dividend_yield: float | None = None,
     max_dividend_yield: float | None = None,
 ) -> dict[str, Any]:
-
     items = load_nifty_total_market()
-
     if sector:
         items = [item for item in items if item["sector"] == sector]
-
     if query:
         q = query.strip().lower()
-        items = [
-            item
-            for item in items
-            if q in item["symbol"].lower() or q in item["name"].lower()
-        ]
+        items = [item for item in items if q in item["symbol"].lower() or q in item["name"].lower()]
 
     stocks: list[dict[str, Any]] = []
-
     for item in items:
         try:
             quote = client.quote_summary(item["symbol"])
-
             market_cap = number(quote.get("marketCap"))
+            price = number(quote.get("regularMarketPrice"))
+            avg_volume_3m = number(quote.get("averageDailyVolume3Month")) or number(quote.get("averageVolume"))
+            avg_traded_value_cr = avg_volume_3m * price / 1e7 if avg_volume_3m is not None and price is not None else None
             pe = number(quote.get("trailingPE"))
-            pb = number(quote.get("priceToBook"))
-            peg = number(quote.get("pegRatio"))
-            if peg is None:
-                peg = _peg_from_history(client, item["symbol"], pe)
-
-            roe = number(quote.get("returnOnEquity"))
-            roa = number(quote.get("returnOnAssets"))
-            debt_equity = number(quote.get("debtToEquity"))
-            current_ratio = number(quote.get("currentRatio"))
-            ev_ebitda = number(quote.get("enterpriseToEbitda"))
-            ev_revenue = number(quote.get("enterpriseToRevenue"))
-            dividend_yield = number(quote.get("dividendYield"))
-
+            peg = number(quote.get("pegRatio")) or _peg_from_history(client, item["symbol"], pe)
             stocks.append({
                 **item,
                 "market_cap": market_cap,
-                "market_cap_cr": (
-                    market_cap / 1e7
-                    if market_cap is not None
-                    else None
-                ),
+                "market_cap_cr": market_cap / 1e7 if market_cap is not None else None,
                 "pe": pe,
-                "pb": pb,
+                "pb": number(quote.get("priceToBook")),
                 "peg": peg,
-                "roe": roe * 100 if roe is not None else None,
-                "roa": roa * 100 if roa is not None else None,
-                "debt_equity": debt_equity,
-                "current_ratio": current_ratio,
-                "ev_ebitda": ev_ebitda,
-                "ev_revenue": ev_revenue,
-                "dividend_yield": (
-                    dividend_yield * 100
-                    if dividend_yield is not None
-                    else None
-                ),
-                "price": number(quote.get("regularMarketPrice")),
+                "roe": (number(quote.get("returnOnEquity")) or 0) * 100 if number(quote.get("returnOnEquity")) is not None else None,
+                "roa": (number(quote.get("returnOnAssets")) or 0) * 100 if number(quote.get("returnOnAssets")) is not None else None,
+                "debt_equity": number(quote.get("debtToEquity")),
+                "current_ratio": number(quote.get("currentRatio")),
+                "ev_ebitda": number(quote.get("enterpriseToEbitda")),
+                "ev_revenue": number(quote.get("enterpriseToRevenue")),
+                "dividend_yield": (number(quote.get("dividendYield")) or 0) * 100 if number(quote.get("dividendYield")) is not None else None,
+                "price": price,
+                "avg_daily_volume_3m": avg_volume_3m,
+                "avg_daily_traded_value_3m_cr": avg_traded_value_cr,
+                "liquidity_status": _liquidity_status(avg_traded_value_cr),
+                "liquidity_source": "Yahoo Finance 3M average volume × current price",
             })
-
         except Exception:
-            stocks.append({
-                **item,
-                "market_cap": None,
-                "market_cap_cr": None,
-                "pe": None,
-                "pb": None,
-                "peg": None,
-                "roe": None,
-                "roa": None,
-                "debt_equity": None,
-                "current_ratio": None,
-                "ev_ebitda": None,
-                "ev_revenue": None,
-                "dividend_yield": None,
-                "price": None,
-            })
+            stocks.append({**item, "market_cap": None, "market_cap_cr": None, "pe": None, "pb": None, "peg": None, "roe": None, "roa": None, "debt_equity": None, "current_ratio": None, "ev_ebitda": None, "ev_revenue": None, "dividend_yield": None, "price": None, "avg_daily_volume_3m": None, "avg_daily_traded_value_3m_cr": None, "liquidity_status": None, "liquidity_source": None})
 
     stocks = [
         s for s in stocks
@@ -191,20 +142,14 @@ def list_stocks(
         and _matches(s["ev_revenue"], min_ev_revenue, max_ev_revenue)
         and _matches(s["dividend_yield"], min_dividend_yield, max_dividend_yield)
     ]
-
-    stocks.sort(
-        key=lambda s: (
-            s["market_cap_cr"] is not None,
-            s["market_cap_cr"] or 0,
-        ),
-        reverse=True,
-    )
-
+    stocks.sort(key=lambda s: (s["market_cap_cr"] is not None, s["market_cap_cr"] or 0), reverse=True)
     return {
         "sector": sector,
         "stocks": stocks,
         "count": len(stocks),
         "universe": "Nifty Total Market",
         "classification_source": "NSE Indices / Nifty Total Market constituent CSV",
+        "liquidity_method": "3-month average daily volume × current price; thresholds are application screening thresholds",
+        "liquidity_thresholds_cr": {"high": 50, "moderate": 10, "low": 2, "illiquid": 0},
         "sectors": nifty_sectors(),
     }
