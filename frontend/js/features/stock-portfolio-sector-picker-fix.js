@@ -1,5 +1,57 @@
-/* Stock Selection parity fix: use the same mobile-safe portal behavior as Stock Analysis. */
+/* Stock Selection parity fix: mobile-safe portal plus reliable sector population. */
 (function installPortfolioSectorPickerFix() {
+    let cachedSectors = null;
+    let loading = null;
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    async function loadSectors() {
+        if (cachedSectors) return cachedSectors;
+        if (loading) return loading;
+        loading = fetch("/api/stocks/universe", { headers: { Accept: "application/json" }, cache: "no-store" })
+            .then(response => response.json().then(data => {
+                if (!response.ok) throw new Error(data?.detail || `HTTP ${response.status}`);
+                const stocks = Array.isArray(data?.stocks) ? data.stocks : [];
+                cachedSectors = [...new Set(stocks.map(stock => String(stock?.sector || "").trim()).filter(Boolean))]
+                    .sort((a, b) => a.localeCompare(b));
+                return cachedSectors;
+            }))
+            .catch(error => {
+                console.warn("Unable to load portfolio sectors:", error);
+                return [];
+            })
+            .finally(() => { loading = null; });
+        return loading;
+    }
+
+    async function populate(dropdown) {
+        const list = document.getElementById("portfolio-sector-list");
+        if (!list) return;
+        const sectors = await loadSectors();
+        if (!sectors.length) return;
+
+        const selected = new Set(
+            [...list.querySelectorAll(".category-picker-item.selected")]
+                .map(item => String(item.dataset.value || "").trim())
+                .filter(Boolean)
+        );
+        const search = String(document.getElementById("portfolio-sector-search")?.value || "").trim().toLowerCase();
+        const visible = sectors.filter(sector => sector.toLowerCase().includes(search));
+
+        list.innerHTML = visible.map(sector => `
+            <div class="category-picker-item ${selected.has(sector) ? "selected" : ""}" data-value="${escapeHtml(sector)}">
+                <span class="category-picker-checkbox">${selected.has(sector) ? "✓" : ""}</span>
+                <span>${escapeHtml(sector)}</span>
+            </div>`).join("");
+    }
+
     function boot() {
         const trigger = document.getElementById("portfolio-sector-trigger");
         const dropdown = document.getElementById("portfolio-sector-dropdown");
@@ -59,7 +111,12 @@
             event.stopImmediatePropagation();
             dropdown.hidden = !dropdown.hidden;
             trigger.setAttribute("aria-expanded", String(!dropdown.hidden));
-            if (!dropdown.hidden) requestAnimationFrame(position);
+            if (!dropdown.hidden) {
+                requestAnimationFrame(() => {
+                    populate(dropdown);
+                    position();
+                });
+            }
         }, true);
     }
 
@@ -69,7 +126,6 @@
         boot();
     }
 
-    // The application mounts feature HTML dynamically during navigation.
     const observer = new MutationObserver(() => boot());
     observer.observe(document.documentElement, { childList: true, subtree: true });
 })();
