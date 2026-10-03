@@ -1,20 +1,41 @@
-/* Stock statements & historical trend — full-width research-table treatment */
+/* Stock statements & historical trend — premium research-table treatment */
 .stock-derived-analysis .stock-derived-trend {
-    margin-top: 20px;
-    padding-top: 4px;
+    margin-top: 24px;
+    padding-top: 6px;
 }
 
 .stock-derived-analysis .stock-derived-trend h3 {
-    margin: 0 0 10px;
-    color: var(--color-primary);
+    margin: 0 0 12px;
+    color: #17355d;
     font-size: 16px;
-    font-weight: 750;
-    letter-spacing: -.01em;
+    font-weight: 800;
+    letter-spacing: -.015em;
 }
 
 .stock-table-wrap {
     width: 100%;
     box-sizing: border-box;
+    position: relative;
+    overflow-x: auto;
+    border: 1px solid #d7e3ef;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(247,250,253,.98));
+    box-shadow: 0 10px 28px rgba(25, 55, 90, .07), 0 1px 2px rgba(25, 55, 90, .04);
+    scrollbar-width: thin;
+    scrollbar-color: #b9cce0 transparent;
+}
+
+.stock-table-wrap::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 18px;
+    right: 18px;
+    height: 3px;
+    border-radius: 0 0 4px 4px;
+    background: linear-gradient(90deg, #2f6df6, #7c5cff, #b26cff);
+    pointer-events: none;
+    z-index: 4;
 }
 
 .stock-table {
@@ -23,11 +44,12 @@
     table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
+    overflow: hidden;
 }
 
 .stock-table th,
 .stock-table td {
-    padding: 11px 12px;
+    padding: 12px 14px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -48,50 +70,66 @@
 }
 
 .stock-table thead th {
-    height: 42px;
-    padding-top: 9px;
-    padding-bottom: 9px;
-    background: linear-gradient(180deg, #edf5fb, #e4eef7);
-    border-bottom: 1px solid #cbdbea;
-    color: var(--color-primary);
-    font-size: 12px;
-    font-weight: 750;
+    height: 46px;
+    padding-top: 12px;
+    padding-bottom: 11px;
+    background: linear-gradient(180deg, #f0f6fc 0%, #e7f0f8 100%);
+    border-bottom: 1px solid #cfdeeb;
+    color: #173b68;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .055em;
+    text-transform: uppercase;
+}
+
+.stock-table thead th:first-child {
+    border-top-left-radius: 14px;
+}
+
+.stock-table thead th:last-child {
+    border-top-right-radius: 14px;
 }
 
 .stock-table tbody td {
-    height: 39px;
-    border-bottom: 1px solid rgba(203, 213, 225, .58);
-    color: #24405f;
+    height: 43px;
+    border-bottom: 1px solid rgba(205, 218, 231, .62);
+    color: #284666;
     font-size: 12px;
+    background: rgba(255,255,255,.68);
+    transition: background .16s ease, box-shadow .16s ease;
+}
+
+.stock-table tbody tr:nth-child(even) td {
+    background: rgba(244, 248, 252, .72);
 }
 
 .stock-table tbody tr:last-child td {
     border-bottom: 0;
 }
 
-.stock-table tbody tr:nth-child(even) td {
-    background: rgba(247, 250, 253, .72);
-}
-
 .stock-table tbody tr:hover td {
-    background: #eef7ff;
+    background: linear-gradient(90deg, rgba(236,246,255,.98), rgba(246,244,255,.92));
+    box-shadow: inset 0 1px 0 rgba(74, 112, 160, .05), inset 0 -1px 0 rgba(74, 112, 160, .05);
 }
 
 .stock-table tbody td:first-child {
-    color: #17355d;
-    font-weight: 650;
+    color: #16385f;
+    font-weight: 750;
+    letter-spacing: -.005em;
 }
 
-/* Give the historical six-year snapshot more visual weight without making it bulky. */
+/* Give the historical snapshot a stronger research-report identity. */
 .stock-derived-trend .stock-table-wrap {
-    border-radius: 14px;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, .045);
-    border-color: #d4e1ec;
+    margin-top: 4px;
+}
+
+.stock-derived-trend .stock-table tbody tr:first-child td {
+    border-top: 1px solid rgba(218, 229, 239, .55);
 }
 
 /* Financial statements are a primary research section: use the available width. */
 #stock-details > .stock-section:has(.stock-statement-tabs) .stock-table-wrap {
-    margin-top: 12px;
+    margin-top: 14px;
 }
 
 #stock-details > .stock-section:has(.stock-statement-tabs) .stock-table {
@@ -104,10 +142,20 @@
 }
 
 #stock-details > .stock-section:has(.stock-statement-tabs) .stock-table tbody td {
-    height: 42px;
+    height: 45px;
+}
+
+/* Financial statement rows benefit from a stronger first-column anchor. */
+#stock-details > .stock-section:has(.stock-statement-tabs) .stock-table tbody td:first-child {
+    color: #143761;
+    font-weight: 750;
 }
 
 @media (max-width: 900px) {
+    .stock-table-wrap {
+        border-radius: 14px;
+    }
+
     .stock-table {
         table-layout: auto;
         min-width: 720px;
@@ -119,7 +167,7 @@
         position: sticky;
         left: 0;
         z-index: 2;
-        background: #fff;
+        box-shadow: 7px 0 12px rgba(25, 55, 90, .055);
     }
 
     .stock-table thead th:first-child {
@@ -128,11 +176,11 @@
     }
 
     .stock-table tbody tr:nth-child(even) td:first-child {
-        background: #f7fafd;
+        background: #f4f8fc;
     }
 
     .stock-table tbody tr:hover td:first-child {
-        background: #eef7ff;
+        background: #edf6ff;
     }
 }
 
