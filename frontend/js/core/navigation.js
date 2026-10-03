@@ -21,6 +21,23 @@ function setMarketAnalysisHeaderLogo() {
     });
 }
 
+function normalizeStockPortfolioHeader() {
+    if (document.body?.dataset.page !== "stock-portfolio-builder") return;
+    const header = document.querySelector(".site-header");
+    if (!header || header.dataset.stockHeaderNormalized === "1") return;
+
+    // Stock Portfolio Builder must use the exact same header structure as
+    // Stock Analysis. Do not use the large hero artwork as the header logo.
+    header.innerHTML = `
+        <div class="header-left">
+            <img src="/static/images/logo.png" alt="Market Analysis" class="logo">
+            <h1>Stock Portfolio Builder</h1>
+        </div>
+        <nav id="main-nav"></nav>
+    `;
+    header.dataset.stockHeaderNormalized = "1";
+}
+
 function loadPortfolioBuilderButtonTheme() {
     const page = document.body?.dataset.page;
     if (page !== "portfolio-builder" && page !== "portfolio-select-funds") return;
@@ -30,6 +47,17 @@ function loadPortfolioBuilderButtonTheme() {
     stylesheet.id = "portfolio-builder-button-theme";
     stylesheet.rel = "stylesheet";
     stylesheet.href = "/css/features/portfolio-builder-buttons.css?v=2";
+    document.head.appendChild(stylesheet);
+}
+
+function loadStockPortfolioBuilderExactTheme() {
+    if (document.body?.dataset.page !== "stock-portfolio-builder") return;
+    if (document.getElementById("stock-portfolio-builder-exact-theme")) return;
+
+    const stylesheet = document.createElement("link");
+    stylesheet.id = "stock-portfolio-builder-exact-theme";
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = "/css/features/stock-portfolio-builder-buttons-exact.css?v=20261004-1";
     document.head.appendChild(stylesheet);
 }
 
@@ -58,18 +86,23 @@ function configureHelpLinks() {
     });
 }
 
+normalizeStockPortfolioHeader();
 setMarketAnalysisFavicon();
 setMarketAnalysisHeaderLogo();
 loadPortfolioBuilderButtonTheme();
+loadStockPortfolioBuilderExactTheme();
 loadHorizontalTableScrollTheme();
 configureHelpLinks();
 
 export function initNavigation() {
+    normalizeStockPortfolioHeader();
+
     const nav = document.getElementById("main-nav");
     if (!nav) return;
 
     setMarketAnalysisHeaderLogo();
     loadPortfolioBuilderButtonTheme();
+    loadStockPortfolioBuilderExactTheme();
     loadHorizontalTableScrollTheme();
 
     const path = window.location.pathname;
