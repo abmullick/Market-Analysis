@@ -1,4 +1,4 @@
-/* Stock Selection parity fix: mobile-safe portal plus reliable sector population. */
+/* Stock Selection parity fix: mobile-safe portal, reliable sector population and selection. */
 (function installPortfolioSectorPickerFix() {
     let cachedSectors = null;
     let loading = null;
@@ -31,17 +31,46 @@
         return loading;
     }
 
-    async function populate(dropdown) {
+    function selectedSectorItems() {
+        return [...document.querySelectorAll("#portfolio-sector-list .category-picker-item.selected")];
+    }
+
+    function updateSelectionUi() {
+        const items = selectedSectorItems();
+        const values = items.map(item => String(item.dataset.value || "").trim()).filter(Boolean);
+        const value = document.getElementById("portfolio-sector-value");
+        const count = document.getElementById("portfolio-sector-count");
+
+        document.querySelectorAll("#portfolio-sector-list .category-picker-item").forEach(item => {
+            const selected = item.classList.contains("selected");
+            const checkbox = item.querySelector(".category-picker-checkbox");
+            if (checkbox) checkbox.textContent = selected ? "✓" : "";
+        });
+
+        if (value) {
+            value.textContent = values.length === 0
+                ? "All Sectors"
+                : values.length === 1
+                    ? values[0]
+                    : `${values.length} sectors selected`;
+            value.classList.toggle("has-selection", values.length > 0);
+        }
+        if (count) count.textContent = `${values.length} selected`;
+
+        // Reuse the existing Stock Analysis filtering event. The portfolio
+        // builder's stock-search listener calls pbRenderStockList(), which
+        // reads the selected sector classes above.
+        const search = document.getElementById("portfolio-stock-search");
+        search?.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    async function populate() {
         const list = document.getElementById("portfolio-sector-list");
         if (!list) return;
         const sectors = await loadSectors();
         if (!sectors.length) return;
 
-        const selected = new Set(
-            [...list.querySelectorAll(".category-picker-item.selected")]
-                .map(item => String(item.dataset.value || "").trim())
-                .filter(Boolean)
-        );
+        const selected = new Set(selectedSectorItems().map(item => String(item.dataset.value || "").trim()).filter(Boolean));
         const search = String(document.getElementById("portfolio-sector-search")?.value || "").trim().toLowerCase();
         const visible = sectors.filter(sector => sector.toLowerCase().includes(search));
 
@@ -49,7 +78,7 @@
             <div class="category-picker-item ${selected.has(sector) ? "selected" : ""}" data-value="${escapeHtml(sector)}">
                 <span class="category-picker-checkbox">${selected.has(sector) ? "✓" : ""}</span>
                 <span>${escapeHtml(sector)}</span>
-            </div>`).join("");
+            </div>`).join("") || `<div class="category-picker-footer">No sectors found</div>`;
     }
 
     function boot() {
@@ -105,7 +134,39 @@
         window.addEventListener("resize", position, { passive: true });
         window.addEventListener("scroll", position, { passive: true, capture: true });
 
+        // The portal moves the dropdown outside .portfolio-sector-picker.
+        // Handle selection here in capture phase so the old document-level
+        // click handler cannot swallow the sector click before filtering runs.
         document.addEventListener("click", event => {
+            const item = event.target.closest?.("#portfolio-sector-list .category-picker-item");
+            if (item) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                item.classList.toggle("selected");
+                updateSelectionUi();
+                return;
+            }
+
+            const selectAll = event.target.closest?.("#portfolio-sector-select-all");
+            if (selectAll) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                document.querySelectorAll("#portfolio-sector-list .category-picker-item")
+                    .forEach(option => option.classList.add("selected"));
+                updateSelectionUi();
+                return;
+            }
+
+            const clearAll = event.target.closest?.("#portfolio-sector-clear-all");
+            if (clearAll) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                document.querySelectorAll("#portfolio-sector-list .category-picker-item.selected")
+                    .forEach(option => option.classList.remove("selected"));
+                updateSelectionUi();
+                return;
+            }
+
             if (event.target !== trigger && !trigger.contains(event.target)) return;
             event.preventDefault();
             event.stopImmediatePropagation();
@@ -113,7 +174,7 @@
             trigger.setAttribute("aria-expanded", String(!dropdown.hidden));
             if (!dropdown.hidden) {
                 requestAnimationFrame(() => {
-                    populate(dropdown);
+                    populate();
                     position();
                 });
             }
