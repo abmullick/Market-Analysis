@@ -25,26 +25,70 @@ function cagr(s, years = 3) {
 }
 function latest(s) { const a = arr(s); return a.length ? a[a.length - 1].value : null; }
 function trend(data, key) { return data?.trends?.[key] || data?.pedigree?.trends?.[key] || []; }
-function valuationMetric(f) { return financialLens(f) ? {label:"P/B", value:n(f?.pb)} : {label:"P/E", value:n(f?.pe)}; }
-function qualityMetric(f) { return financialLens(f) ? {label:"ROA", value:n(f?.roa)} : {label:"ROE", value:n(f?.roe)}; }
-function earningsGrowth(f, p) {
-  return n(f?.profit_cagr_5y ?? f?.eps_cagr_5y ?? f?.profit_cagr_3y ?? f?.eps_cagr_3y) ?? cagr(trend(p,"profit"),5) ?? cagr(trend(p,"eps"),5);
+function statementSeries(core, statement, key) {
+  const rows = Array.isArray(core?.[statement]) ? core[statement] : [];
+  return rows.map(r => ({year:String(r?.period || r?.year || r?.date || ""), value:n(r?.values?.[key])})).filter(x => x.year && x.value != null).reverse();
 }
-function funding(f, p) {
+function derived(core) { return core?.derived_analysis || {}; }
+function pctValue(value, derivedRatio = false) {
+  const v = n(value);
+  if (v == null) return null;
+  return derivedRatio && Math.abs(v) <= 1.5 ? v * 100 : v;
+}
+function valuationMetric(f, core) {
   const financial = financialLens(f);
-  const growth = earningsGrowth(f,p);
-  const roe = n(f?.roe);
+  if (financial) {
+    const equity = latest(statementSeries(core,"balance_sheet","StockholdersEquity"));
+    const marketCap = n(f?.market_cap);
+    return {label:"P/B", value:n(f?.pb) ?? (marketCap != null && equity > 0 ? marketCap / equity : null)};
+  }
+  const eps = n(f?.eps), price = n(f?.price), profit = n(f?.net_profit), marketCap = n(f?.market_cap);
+  return {label:"P/E", value:n(f?.pe) ?? (price != null && eps > 0 ? price / eps : (marketCap != null && profit > 0 ? marketCap / profit : null))};
+}
+function qualityMetric(f, core) {
+  const d = derived(core);
+  if (financialLens(f)) return {label:"ROA", value:pctValue(f?.roa) ?? pctValue(d?.roa_derived,true)};
+  return {label:"ROE", value:pctValue(f?.roe) ?? pctValue(d?.roe_derived,true)};
+}
+function earningsGrowth(f, p, core) {
+  const d = derived(core);
+  // Decision Lens uses a stable multi-year earnings measure. Provider "earningsGrowth"
+  // can represent a different period (often quarterly/TTM), so it must not override
+  // the application's own annual CAGR when the latter is available.
+  return n(d?.profit_cagr_3y_derived) * 100
+    || n(f?.profit_cagr_3y)
+    || n(d?.eps_cagr_3y_derived) * 100
+    || n(f?.eps_cagr_3y)
+    || n(f?.profit_growth)
+    || n(f?.eps_growth)
+    || cagr(statementSeries(core,"income_statement","NetIncome"),3)
+    || cagr(trend(p,"profit"),3)
+    || cagr(trend(p,"eps"),3);
+}
+function funding(f, p, core) {
+  const financial = financialLens(f);
+  const d = derived(core);
+  const growth = earningsGrowth(f,p,core);
+  const roe = pctValue(f?.roe) ?? pctValue(d?.roe_derived,true);
   const payout = n(f?.payout_ratio);
   const retention = payout == null ? null : Math.max(0, Math.min(100, 100 - payout));
   const retainedCapacity = roe != null && retention != null ? roe * retention / 100 : null;
   const growthGap = growth != null && retainedCapacity != null ? growth - retainedCapacity : (growth != null && roe != null ? growth - roe : null);
-  const debtGrowth = cagr(trend(p,"debt"),3);
-  const assetGrowth = cagr(trend(p,"assets"),3);
-  const equityGrowth = cagr(trend(p,"equity"),3);
-  const cfoGrowth = cagr(trend(p,"cfo"),3) ?? cagr(p?.capital_allocation?.cfo,3);
-  const fcfGrowth = cagr(trend(p,"fcf"),3) ?? cagr(p?.capital_allocation?.fcf,3);
+  const debtSeries = statementSeries(core,"balance_sheet","TotalDebt");
+  const assetSeries = statementSeries(core,"balance_sheet","TotalAssets");
+  const equitySeries = statementSeries(core,"balance_sheet","StockholdersEquity");
+  const cfoSeries = statementSeries(core,"cash_flow","OperatingCashFlow");
+  const fcfSeries = statementSeries(core,"cash_flow","FreeCashFlow");
+  const debtGrowth = cagr(debtSeries,3) ?? cagr(trend(p,"debt"),3);
+  const assetGrowth = cagr(assetSeries,3) ?? cagr(trend(p,"assets"),3);
+  const equityGrowth = cagr(equitySeries,3) ?? cagr(trend(p,"equity"),3);
+  const cfoGrowth = cagr(cfoSeries,3) ?? cagr(trend(p,"cfo"),3) ?? cagr(p?.capital_allocation?.cfo,3);
+  const fcfGrowth = cagr(fcfSeries,3) ?? cagr(trend(p,"fcf"),3) ?? cagr(p?.capital_allocation?.fcf,3);
   const shareCagr = n(p?.dilution?.share_count_cagr_3y ?? p?.dilution?.share_count_cagr_5y);
-  const debtEq = n(f?.debt_equity), interest = n(f?.interest_coverage), nde = n(f?.net_debt_ebitda);
+  const latestDebt = latest(debtSeries), latestEquity = latest(equitySeries), latestEbitda = latest(statementSeries(core,"income_statement","EBITDA"));
+  const debtEq = n(f?.debt_equity) ?? (latestDebt != null && latestEquity > 0 ? latestDebt / latestEquity : null);
+  const interest = n(f?.interest_coverage);
+  const nde = n(f?.net_debt_ebitda) ?? n(d?.net_debt_ebitda);
   const cashConversion = latest(p?.earnings_quality?.cfo_to_profit);
   let label = "Funding evidence is limited";
   if (!financial) {
@@ -54,7 +98,7 @@ function funding(f, p) {
     else if (growthGap != null && growthGap <= 5) label = "Growth is broadly within retained-earnings capacity";
     else if (growthGap != null && growthGap > 5) label = "Growth exceeds simple retained-earnings capacity";
   }
-  return {financial,growth,roe,payout,retention,retainedCapacity,growthGap,debtGrowth,assetGrowth,equityGrowth,cfoGrowth,fcfGrowth,shareCagr,debtEq,interest,nde,cashConversion,label};
+  return {financial,growth,roe,payout,retention,retainedCapacity,growthGap,debtGrowth,assetGrowth,equityGrowth,cfoGrowth,fcfGrowth,shareCagr,debtEq,interest,nde,cashConversion,label,latestDebt,latestEquity,latestEbitda};
 }
 function metric(label, value, suffix, note) {
   return `<div class="qgv-metric"><span>${esc(label)}</span><strong>${value == null ? "—" : esc(Number(value).toFixed(1))}${suffix || ""}</strong>${note ? `<small>${esc(note)}</small>` : ""}</div>`;
@@ -63,10 +107,11 @@ function chip(label,value,kind="neutral") { return `<span class="qgv-chip ${kind
 function scoreKind(v){return v == null ? "neutral" : v >= 15 ? "good" : v >= 5 ? "mid" : "weak";}
 
 function individualHtml(data) {
-  const f = data?.fundamentals || {};
-  const p = data?.pedigree || {};
+  const core = data?.core || data || {};
+  const f = core?.fundamentals || data?.fundamentals || {};
+  const p = data?.pedigree || core?.pedigree || {};
   const financial = financialLens(f);
-  const v = valuationMetric(f), q = qualityMetric(f), g = earningsGrowth(f,p), fund = funding(f,p);
+  const v = valuationMetric(f,core), q = qualityMetric(f,core), g = earningsGrowth(f,p,core), fund = funding(f,p,core);
   const lens = financial ? "FINANCIAL SERVICES LENS" : "OPERATING BUSINESS LENS";
   const fundingTitle = financial ? "Capital & Growth Context" : "Growth Funding & Capital Efficiency";
   const fundingDescription = financial
@@ -74,23 +119,24 @@ function individualHtml(data) {
     : "Connects earnings growth with retained-earnings capacity, leverage, cash generation and share-count expansion using only observable data.";
   const growthSignal = fund.growthGap == null ? "Insufficient funding comparison" : fund.growthGap > 5 ? "Growth is above simple internal capacity" : "Growth is broadly supported by internal capacity";
   const signalKind = fund.growthGap == null ? "neutral" : fund.growthGap > 5 ? "watch" : "good";
+  const growthLabel = "3Y earnings CAGR";
   const fundingBlocks = financial ? `
     <div class="qgv-financial-strip">
       ${chip("P/B", ratio(v.value), "blue")}
       ${chip("ROA", pct(q.value), q.value != null && q.value >= 2 ? "good" : "neutral")}
-      ${chip("Earnings growth", pct(g), g != null && g >= 10 ? "good" : "neutral")}
+      ${chip(growthLabel, pct(g), g != null && g >= 10 ? "good" : "neutral")}
       ${chip("Asset growth", pct(fund.assetGrowth), "neutral")}
       ${chip("Book growth", pct(fund.equityGrowth), "neutral")}
       ${chip("Share-count CAGR", pct(fund.shareCagr), fund.shareCagr != null && fund.shareCagr > 1 ? "watch" : "good")}
     </div>
     <div class="qgv-capital-note"><b>How to read it</b><span>For a lender, a high P/B is more meaningful when ROA and earnings growth are weak; a lower P/B paired with stronger ROA and growth represents a different quality/valuation relationship. Asset and book growth provide the capital-growth context.</span></div>` : `
     <div class="qgv-funding-grid">
-      ${metric("Earnings growth",fund.growth,"%","5Y/3Y CAGR available")}
+      ${metric(growthLabel,fund.growth,"%","3-year profit CAGR preferred; EPS CAGR used if unavailable")}
       ${metric("ROE",fund.roe,"%","Current return on equity")}
       ${metric("Retained-earnings capacity",fund.retainedCapacity,"%","ROE × (1 − payout)")}
       ${metric("Growth gap",fund.growthGap," pp","Growth minus retained-earnings capacity")}
       ${metric("Debt / Equity",fund.debtEq,"x","Current leverage")}
-      ${metric("Interest coverage",fund.interest,"x","Current coverage where available")}
+      ${metric("Interest coverage",fund.interest,"x","Only shown when the source supplies interest expense/coverage")}
       ${metric("Net Debt / EBITDA",fund.nde,"x","Current debt burden")}
       ${metric("Debt growth 3Y",fund.debtGrowth,"%","Historical debt CAGR")}
       ${metric("Operating cash growth 3Y",fund.cfoGrowth,"%","Historical CFO CAGR")}
@@ -103,11 +149,11 @@ function individualHtml(data) {
   return `<section class="qgv-section qgv-individual">
     <div class="qgv-head"><div><div class="qgv-eyebrow">DECISION LENS</div><h2>Quality × Growth × Valuation</h2><p>${financial ? "P/B × ROA × earnings growth" : "P/E × ROE × earnings growth"}. The engine connects the factors investors often read together instead of presenting them as isolated ratios.</p></div><span class="qgv-lens">${lens}</span></div>
     <div class="qgv-top-grid">
-      <div class="qgv-score-card"><div class="qgv-kicker">CURRENT RELATIONSHIP</div><div class="qgv-three"><div><b>${ratio(v.value)}</b><small>${esc(v.label)}</small></div><div><b>${pct(q.value)}</b><small>${esc(q.label)}</small></div><div><b>${pct(g)}</b><small>Earnings growth</small></div></div><div class="qgv-flow"><span>Valuation</span><i></i><span>Quality</span><i></i><span>Growth</span></div><p>${financial ? `Current ${v.label} ${ratio(v.value)} is being read together with ${q.label} ${pct(q.value)} and earnings growth ${pct(g)}.` : `${growthSignal}. A positive gap is an investigation signal, not proof that the company raised external capital.`}</p></div>
+      <div class="qgv-score-card"><div class="qgv-kicker">CURRENT RELATIONSHIP</div><div class="qgv-three"><div><b>${ratio(v.value)}</b><small>${esc(v.label)}</small></div><div><b>${pct(q.value)}</b><small>${esc(q.label)}</small></div><div><b>${pct(g)}</b><small>${growthLabel}</small></div></div><div class="qgv-flow"><span>Valuation</span><i></i><span>Quality</span><i></i><span>Growth</span></div><p>${financial ? `Current ${v.label} ${ratio(v.value)} is being read together with ${q.label} ${pct(q.value)} and ${growthLabel.toLowerCase()} ${pct(g)}.` : `${growthSignal}. A positive gap is an investigation signal, not proof that the company raised external capital.`}</p></div>
       <div class="qgv-story-card"><div class="qgv-kicker">THE QUESTION THIS ENGINE ANSWERS</div><div class="qgv-story-line"><strong>${esc(v.label)}</strong><span>×</span><strong>${esc(q.label)}</strong><span>×</span><strong>Earnings growth</strong></div><p>Lower valuation with stronger business quality and sustained growth is fundamentally different from a low multiple caused by weak returns or deteriorating earnings.</p><div class="qgv-story-badge ${signalKind}">${esc(growthSignal)}</div></div>
     </div>
-    <div class="qgv-funding"><div class="qgv-subhead"><div><h3>${fundingTitle}</h3><p>${fundingDescription}</p></div><span class="qgv-info" title="Growth above ROE is an investigation signal, not proof that external capital was raised.">i</span></div>${fundingBlocks}<div class="qgv-conclusion"><b>Engine read:</b> ${esc(financial ? "Use P/B, ROA and earnings growth together, then inspect asset/book growth and dilution." : fund.label + ".")}</div></div>
-    <div class="qgv-method"><b>Method</b><span>${esc(financial ? "Financial services use P/B + ROA + earnings growth. Debt is not treated like industrial leverage." : "Retained-earnings capacity = ROE × (1 − payout). The gap is descriptive. Debt, cash-flow and share-count trends are used only as observable funding evidence; no external funding event is assumed without evidence.")}</span></div>
+    <div class="qgv-funding"><div class="qgv-subhead"><div><h3>${fundingTitle}</h3><p>${fundingDescription}</p></div><span class="qgv-info" title="Growth above ROE is an investigation signal, not proof that external capital was raised.">i</span></div>${fundingBlocks}<div class="qgv-conclusion"><b>Engine read:</b> ${esc(financial ? "Use P/B, ROA and 3Y earnings growth together, then inspect asset/book growth and dilution." : fund.label + ".")}</div></div>
+    <div class="qgv-method"><b>Method</b><span>${esc(financial ? "Financial services use P/B + ROA + 3Y earnings growth. Debt is not treated like industrial leverage." : "Retained-earnings capacity = ROE × (1 − payout). The gap is descriptive. Debt, cash-flow and share-count trends are used only as observable funding evidence; no external funding event is assumed without evidence.")}</span></div>
   </section>`;
 }
 
@@ -121,11 +167,11 @@ function relativeValuationScore(f, charts) {
   return m > 0 ? Math.max(0,Math.min(100,50 + ((m-current)/m)*100)) : null;
 }
 function compareHtml(rows) {
-  const items = rows.map(r => { const f=r.core?.fundamentals||{}, p=r.pedigree||{}, charts=r.charts||{}; return {r,f,p,charts,financial:financialLens(f),v:valuationMetric(f),q:qualityMetric(f),g:earningsGrowth(f,p),fund:funding(f,p),rel:relativeValuationScore(f,charts),name:f.name||f.longName||r.symbol,short:String(r.symbol).replace(/\.NS$|\.BO$/i,"")}; });
+  const items = rows.map(r => { const core=r.core||{}, f=core?.fundamentals||{}, p=r.pedigree||{}, charts=r.charts||{}; return {r,core,f,p,charts,financial:financialLens(f),v:valuationMetric(f,core),q:qualityMetric(f,core),g:earningsGrowth(f,p,core),fund:funding(f,p,core),rel:relativeValuationScore(f,charts),name:f.name||f.longName||r.symbol,short:String(r.symbol).replace(/\.NS$|\.BO$/i,"")}; });
   const valid = items.filter(x => x.q.value != null && x.rel != null && x.g != null);
-  const dots = valid.map(x => { const xs=valid.map(i=>i.rel), ys=valid.map(i=>i.q.value), gs=valid.map(i=>i.g); const xmin=Math.min(...xs), xmax=Math.max(...xs), ymin=Math.min(...ys), ymax=Math.max(...ys), gmin=Math.min(...gs), gmax=Math.max(...gs); const left=xmax===xmin?50:8+((x.rel-xmin)/(xmax-xmin))*84, top=ymax===ymin?50:92-((x.q.value-ymin)/(ymax-ymin))*84, size=18+(gmax===gmin?7:Math.max(0,Math.min(22,(x.g-gmin)/(gmax-gmin)*22))); return `<button class="qgv-dot" style="left:${left}%;top:${top}%;width:${size}px;height:${size}px" title="${esc(x.name)} · relative valuation ${x.rel.toFixed(0)}/100 · ${x.q.label} ${x.q.value.toFixed(1)}% · earnings growth ${x.g.toFixed(1)}%"><span>${esc(x.short)}</span></button>`; }).join("");
-  const cards=items.map(x=>`<article class="qgv-compare-card"><header><div><h3>${esc(x.name)}</h3><span>${esc(x.short)}</span></div><em>${x.financial?"Financial lens":"Operating lens"}</em></header><div class="qgv-compare-metrics">${metric(x.v.label,x.v.value,"x")}${metric(x.q.label,x.q.value,"%")}${metric("Earnings growth",x.g,"%")}</div>${x.financial?`<div class="qgv-compare-funding"><span>Asset growth <b>${pct(x.fund.assetGrowth)}</b></span><span>Book growth <b>${pct(x.fund.equityGrowth)}</b></span><span>Share count <b>${pct(x.fund.shareCagr)}</b></span></div>`:`<div class="qgv-compare-funding"><span>Retained capacity <b>${pct(x.fund.retainedCapacity)}</b></span><span>Growth gap <b>${pct(x.fund.growthGap)}</b></span><span>Debt growth <b>${pct(x.fund.debtGrowth)}</b></span><span>D/E <b>${ratio(x.fund.debtEq)}</b></span></div>`}</article>`).join("");
-  return `<section class="qgv-section qgv-compare"><div class="qgv-head"><div><div class="qgv-eyebrow">COMPARATIVE DECISION LENS</div><h2>Quality × Growth × Valuation</h2><p>Each stock keeps its own sector-aware lens. Relative valuation is normalized to each company's own historical multiple so mixed-sector comparisons remain meaningful.</p></div><span class="qgv-lens">${items.length} stocks</span></div>${valid.length>=2?`<div class="qgv-map"><div class="qgv-plot"><div class="qgv-quadrant qgv-q1">Stronger quality<br><small>Lower relative valuation</small></div><div class="qgv-quadrant qgv-q2">Stronger quality<br><small>Higher relative valuation</small></div><div class="qgv-quadrant qgv-q3">Weaker quality<br><small>Lower relative valuation</small></div><div class="qgv-quadrant qgv-q4">Weaker quality<br><small>Higher relative valuation</small></div>${dots}<div class="qgv-axis-x"><span>Higher valuation attractiveness</span><span>Lower valuation attractiveness</span></div><div class="qgv-axis-y"><span>Higher quality</span><span>Lower quality</span></div></div><div class="qgv-legend"><span>Bubble size = earnings growth</span><span>Horizontal = relative valuation · Vertical = quality</span></div></div>`:`<div class="qgv-empty">Not enough historical valuation data to plot the normalized comparison.</div>`}<div class="qgv-compare-grid">${cards}</div><div class="qgv-compare-note"><b>Funding lens:</b> Financial companies are read through ROA, asset/book growth and dilution context. Non-lenders add retained-earnings capacity, debt growth, leverage and cash-growth evidence. Nothing here assumes an external funding event without observable evidence.</div></section>`;
+  const dots = valid.map(x => { const xs=valid.map(i=>i.rel), ys=valid.map(i=>i.q.value), gs=valid.map(i=>i.g); const xmin=Math.min(...xs), xmax=Math.max(...xs), ymin=Math.min(...ys), ymax=Math.max(...ys), gmin=Math.min(...gs), gmax=Math.max(...gs); const left=xmax===xmin?50:8+((x.rel-xmin)/(xmax-xmin))*84, top=ymax===ymin?50:92-((x.q.value-ymin)/(ymax-ymin))*84, size=18+(gmax===gmin?7:Math.max(0,Math.min(22,(x.g-gmin)/(gmax-gmin)*22))); return `<button class="qgv-dot" style="left:${left}%;top:${top}%;width:${size}px;height:${size}px" title="${esc(x.name)} · relative valuation ${x.rel.toFixed(0)}/100 · ${x.q.label} ${x.q.value.toFixed(1)}% · 3Y earnings CAGR ${x.g.toFixed(1)}%"><span>${esc(x.short)}</span></button>`; }).join("");
+  const cards=items.map(x=>`<article class="qgv-compare-card"><header><div><h3>${esc(x.name)}</h3><span>${esc(x.short)}</span></div><em>${x.financial?"Financial lens":"Operating lens"}</em></header><div class="qgv-compare-metrics">${metric(x.v.label,x.v.value,"x")}${metric(x.q.label,x.q.value,"%")}${metric("3Y earnings CAGR",x.g,"%")}</div>${x.financial?`<div class="qgv-compare-funding"><span>Asset growth <b>${pct(x.fund.assetGrowth)}</b></span><span>Book growth <b>${pct(x.fund.equityGrowth)}</b></span><span>Share count <b>${pct(x.fund.shareCagr)}</b></span><span>D/E <b>${ratio(x.fund.debtEq)}</b></span></div>`:`<div class="qgv-compare-funding"><span>Retained capacity <b>${pct(x.fund.retainedCapacity)}</b></span><span>Growth gap <b>${pct(x.fund.growthGap)}</b></span><span>Debt growth <b>${pct(x.fund.debtGrowth)}</b></span><span>D/E <b>${ratio(x.fund.debtEq)}</b></span></div>`}</article>`).join("");
+  return `<section class="qgv-section qgv-compare"><div class="qgv-head"><div><div class="qgv-eyebrow">COMPARATIVE DECISION LENS</div><h2>Quality × Growth × Valuation</h2><p>Each stock keeps its own sector-aware lens. Relative valuation is normalized to each company's own historical multiple so mixed-sector comparisons remain meaningful.</p></div><span class="qgv-lens">${items.length} stocks</span></div>${valid.length>=2?`<div class="qgv-map"><div class="qgv-plot"><div class="qgv-quadrant qgv-q1">Stronger quality<br><small>Lower relative valuation</small></div><div class="qgv-quadrant qgv-q2">Stronger quality<br><small>Higher relative valuation</small></div><div class="qgv-quadrant qgv-q3">Weaker quality<br><small>Lower relative valuation</small></div><div class="qgv-quadrant qgv-q4">Weaker quality<br><small>Higher relative valuation</small></div>${dots}<div class="qgv-axis-x"><span>Higher valuation attractiveness</span><span>Lower valuation attractiveness</span></div><div class="qgv-axis-y"><span>Higher quality</span><span>Lower quality</span></div></div><div class="qgv-legend"><span>Bubble size = 3Y earnings growth</span><span>Horizontal = relative valuation · Vertical = quality</span></div></div>`:`<div class="qgv-empty">Not enough historical valuation data to plot the normalized comparison.</div>`}<div class="qgv-compare-grid">${cards}</div><div class="qgv-compare-note"><b>Funding lens:</b> Financial companies are read through ROA, asset/book growth and dilution context. Non-lenders add retained-earnings capacity, debt growth, leverage and cash-growth evidence. Nothing here assumes an external funding event without observable evidence.</div></section>`;
 }
 
 async function getJson(path) { const r=await fetch(path,{headers:{Accept:"application/json","X-Stock-Decision-Lens":"1"},cache:"no-store"}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
