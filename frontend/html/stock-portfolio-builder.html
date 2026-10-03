@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="/css/features/stock-portfolio-builder.css?v=20261004-6">
     <link rel="stylesheet" href="/css/features/stock-portfolio-builder-button-theme.css?v=20261004-7">
     <link rel="stylesheet" href="/css/features/stock-portfolio-analysis.css?v=20261004-1">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 </head>
 <body data-page="stock-portfolio-builder">
 <header class="site-header">
@@ -133,7 +134,7 @@
 <script type="module">
     import { initNavigation } from '/js/core/navigation.js';
     import { initStockPortfolioBuilder } from '/js/features/stock-portfolio-builder.js?v=20261004-1';
-    import { initStockPortfolioAnalysis } from '/js/features/stock-portfolio-analysis.js?v=20261004-1';
+    import { initStockPortfolioAnalysis } from '/js/features/stock-portfolio-analysis.js?v=20261004-2';
     initNavigation();
     initStockPortfolioBuilder();
     initStockPortfolioAnalysis();
