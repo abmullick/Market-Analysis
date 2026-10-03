@@ -37,9 +37,7 @@ function pbLoadSavedPortfolio() {
         saved.forEach(item => {
             const symbol = String(item?.symbol || "").trim().toUpperCase();
             const allocation = Number(item?.allocation);
-            if (symbol && Number.isFinite(allocation) && allocation > 0) {
-                portfolioHoldings.set(symbol, { allocation });
-            }
+            if (symbol && Number.isFinite(allocation) && allocation > 0) portfolioHoldings.set(symbol, { allocation });
         });
     } catch (_) {
         portfolioHoldings.clear();
@@ -47,15 +45,8 @@ function pbLoadSavedPortfolio() {
 }
 
 function pbSavePortfolio() {
-    const payload = [...portfolioHoldings.entries()].map(([symbol, value]) => ({
-        symbol,
-        allocation: Number(value.allocation) || 0,
-    }));
+    const payload = [...portfolioHoldings.entries()].map(([symbol, value]) => ({ symbol, allocation: Number(value.allocation) || 0 }));
     localStorage.setItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(payload));
-}
-
-function pbSelectedCount() {
-    return portfolioHoldings.size;
 }
 
 function pbTotalAllocation() {
@@ -66,14 +57,26 @@ function pbFormatPercent(value) {
     return Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
+function pbSelectedSectors() {
+    return [...document.querySelectorAll("#portfolio-sector-list .category-picker-item.selected")]
+        .map(item => String(item.dataset.value || "").trim())
+        .filter(Boolean);
+}
+
+function pbSelectedCaps() {
+    return [...document.querySelectorAll("#portfolio-cap-filter input:checked")]
+        .map(input => String(input.value || "").trim().toLowerCase());
+}
+
 function pbFilteredStocks() {
     const query = String(document.getElementById("portfolio-stock-search")?.value || "").trim().toLowerCase();
-    const sector = String(document.getElementById("portfolio-sector-filter")?.value || "").trim();
-    const cap = String(document.getElementById("portfolio-cap-filter")?.value || "").trim().toLowerCase();
+    const sectors = pbSelectedSectors();
+    const caps = pbSelectedCaps();
 
     return portfolioStocks.filter(stock => {
-        if (sector && String(stock.sector || "").trim() !== sector) return false;
-        if (cap && pbCapKey(stock) !== cap) return false;
+        const sector = String(stock.sector || "").trim();
+        if (sectors.length && !sectors.includes(sector)) return false;
+        if (caps.length && !caps.includes(pbCapKey(stock))) return false;
         if (query) {
             const haystack = `${stock.name || ""} ${stock.symbol || ""}`.toLowerCase();
             if (!haystack.includes(query)) return false;
@@ -86,7 +89,6 @@ function pbStockRow(stock) {
     const symbol = String(stock.symbol || "").trim().toUpperCase();
     const selected = portfolioHoldings.has(symbol);
     const capLabel = pbCapLabel(stock);
-
     return `<div class="stock-picker-row ${selected ? "selected" : ""}" data-symbol="${pbEsc(symbol)}">
         <div>
             <strong>${pbEsc(stock.name || symbol)}${capLabel ? ` <span class="stock-cap-badge ${pbEsc(pbCapKey(stock))}">${pbEsc(capLabel)}</span>` : ""}</strong>
@@ -111,10 +113,7 @@ function pbRenderStockList() {
     const start = (portfolioPage - 1) * PORTFOLIO_PAGE_SIZE;
     const visible = result.slice(start, start + PORTFOLIO_PAGE_SIZE);
 
-    list.innerHTML = visible.length
-        ? visible.map(pbStockRow).join("")
-        : `<div class="stock-no-data">No stocks match the current selection.</div>`;
-
+    list.innerHTML = visible.length ? visible.map(pbStockRow).join("") : `<div class="stock-no-data">No stocks match the current selection.</div>`;
     summary.innerHTML = `<strong>${result.length}</strong> stock${result.length === 1 ? "" : "s"} available${result.length !== portfolioStocks.length ? " after the current filters" : ""}.`;
 
     list.querySelectorAll(".stock-select-btn").forEach(button => {
@@ -122,16 +121,10 @@ function pbRenderStockList() {
             event.preventDefault();
             const row = button.closest(".stock-picker-row");
             const symbol = String(row?.dataset.symbol || "").trim().toUpperCase();
-            if (!symbol) return;
             const stock = portfolioStocks.find(item => String(item.symbol || "").trim().toUpperCase() === symbol);
             if (!stock) return;
-
-            if (portfolioHoldings.has(symbol)) {
-                portfolioHoldings.delete(symbol);
-            } else {
-                portfolioHoldings.set(symbol, { allocation: 0 });
-            }
-
+            if (portfolioHoldings.has(symbol)) portfolioHoldings.delete(symbol);
+            else portfolioHoldings.set(symbol, { allocation: 0 });
             pbSavePortfolio();
             pbRenderStockList();
             pbRenderPortfolio();
@@ -163,13 +156,8 @@ function pbRenderPortfolio() {
     if (!empty || !holdings || !totalEl || !status || !continueButton || !clearButton || !count) return;
 
     const entries = [...portfolioHoldings.entries()]
-        .map(([symbol, value]) => ({
-            symbol,
-            stock: portfolioStocks.find(item => String(item.symbol || "").trim().toUpperCase() === symbol),
-            allocation: Number(value.allocation) || 0,
-        }))
+        .map(([symbol, value]) => ({ symbol, stock: portfolioStocks.find(item => String(item.symbol || "").trim().toUpperCase() === symbol), allocation: Number(value.allocation) || 0 }))
         .filter(item => item.stock);
-
     const total = pbTotalAllocation();
     const valid = entries.length > 0 && Math.abs(total - 100) < 0.01;
 
@@ -179,15 +167,11 @@ function pbRenderPortfolio() {
     holdings.hidden = entries.length === 0;
     clearButton.hidden = entries.length === 0;
 
-    if (!entries.length) {
-        holdings.innerHTML = "";
-    } else {
+    if (!entries.length) holdings.innerHTML = "";
+    else {
         holdings.innerHTML = entries.map(({ symbol, stock, allocation }) => `
             <div class="portfolio-holding" data-symbol="${pbEsc(symbol)}">
-                <div class="portfolio-holding-info">
-                    <strong>${pbEsc(stock.name || symbol)}</strong>
-                    <small>${pbEsc(symbol)} · ${pbEsc(stock.sector || "—")}</small>
-                </div>
+                <div class="portfolio-holding-info"><strong>${pbEsc(stock.name || symbol)}</strong><small>${pbEsc(symbol)} · ${pbEsc(stock.sector || "—")}</small></div>
                 <div class="portfolio-allocation-control">
                     <label class="sr-only" for="portfolio-allocation-${pbEsc(symbol)}">Allocation for ${pbEsc(stock.name || symbol)}</label>
                     <input id="portfolio-allocation-${pbEsc(symbol)}" class="portfolio-allocation-input" type="number" min="0" max="100" step="0.1" value="${pbEsc(allocation)}" inputmode="decimal" aria-label="Allocation for ${pbEsc(stock.name || symbol)}">
@@ -196,41 +180,31 @@ function pbRenderPortfolio() {
                 <button class="portfolio-remove" type="button" title="Remove ${pbEsc(stock.name || symbol)}" aria-label="Remove ${pbEsc(stock.name || symbol)}">×</button>
             </div>`).join("");
 
-        holdings.querySelectorAll(".portfolio-allocation-input").forEach(input => {
-            input.addEventListener("input", () => {
-                const row = input.closest(".portfolio-holding");
-                const symbol = String(row?.dataset.symbol || "").trim().toUpperCase();
-                let value = Number(input.value);
-                if (!Number.isFinite(value)) value = 0;
-                value = Math.max(0, Math.min(100, value));
-                portfolioHoldings.set(symbol, { allocation: value });
-                pbSavePortfolio();
-                pbUpdatePortfolioSummary();
-            });
-        });
+        holdings.querySelectorAll(".portfolio-allocation-input").forEach(input => input.addEventListener("input", () => {
+            const row = input.closest(".portfolio-holding");
+            const symbol = String(row?.dataset.symbol || "").trim().toUpperCase();
+            let value = Number(input.value);
+            if (!Number.isFinite(value)) value = 0;
+            value = Math.max(0, Math.min(100, value));
+            portfolioHoldings.set(symbol, { allocation: value });
+            pbSavePortfolio();
+            pbUpdatePortfolioSummary();
+        }));
 
-        holdings.querySelectorAll(".portfolio-remove").forEach(button => {
-            button.addEventListener("click", () => {
-                const row = button.closest(".portfolio-holding");
-                const symbol = String(row?.dataset.symbol || "").trim().toUpperCase();
-                if (!symbol) return;
-                portfolioHoldings.delete(symbol);
-                pbSavePortfolio();
-                pbRenderPortfolio();
-                pbRenderStockList();
-            });
-        });
+        holdings.querySelectorAll(".portfolio-remove").forEach(button => button.addEventListener("click", () => {
+            const row = button.closest(".portfolio-holding");
+            const symbol = String(row?.dataset.symbol || "").trim().toUpperCase();
+            if (!symbol) return;
+            portfolioHoldings.delete(symbol);
+            pbSavePortfolio();
+            pbRenderPortfolio();
+            pbRenderStockList();
+        }));
     }
 
     continueButton.disabled = !valid;
     status.className = `portfolio-status ${valid ? "portfolio-status-success" : "portfolio-status-warn"}`;
-    status.textContent = valid
-        ? "Portfolio allocation is complete. You can continue to portfolio analysis."
-        : entries.length === 0
-            ? "Add stocks and set the allocation to 100%."
-            : total < 100
-                ? `Allocate another ${pbFormatPercent(100 - total)}% to reach 100%.`
-                : `Reduce the allocation by ${pbFormatPercent(total - 100)}% to reach 100%.`;
+    status.textContent = valid ? "Portfolio allocation is complete. You can continue to portfolio analysis." : entries.length === 0 ? "Add stocks and set the allocation to 100%." : total < 100 ? `Allocate another ${pbFormatPercent(100 - total)}% to reach 100%.` : `Reduce the allocation by ${pbFormatPercent(total - 100)}% to reach 100%.`;
 }
 
 function pbUpdatePortfolioSummary() {
@@ -238,46 +212,97 @@ function pbUpdatePortfolioSummary() {
     const status = document.getElementById("portfolio-status");
     const continueButton = document.getElementById("portfolio-continue");
     if (!totalEl || !status || !continueButton) return;
-
     const total = pbTotalAllocation();
     const valid = portfolioHoldings.size > 0 && Math.abs(total - 100) < 0.01;
     totalEl.textContent = `${pbFormatPercent(total)}%`;
     continueButton.disabled = !valid;
     status.className = `portfolio-status ${valid ? "portfolio-status-success" : "portfolio-status-warn"}`;
-    status.textContent = valid
-        ? "Portfolio allocation is complete. You can continue to portfolio analysis."
-        : total < 100
-            ? `Allocate another ${pbFormatPercent(100 - total)}% to reach 100%.`
-            : `Reduce the allocation by ${pbFormatPercent(total - 100)}% to reach 100%.`;
+    status.textContent = valid ? "Portfolio allocation is complete. You can continue to portfolio analysis." : total < 100 ? `Allocate another ${pbFormatPercent(100 - total)}% to reach 100%.` : `Reduce the allocation by ${pbFormatPercent(total - 100)}% to reach 100%.`;
+}
+
+function pbRenderSectorPicker() {
+    const list = document.getElementById("portfolio-sector-list");
+    if (!list) return;
+    const query = String(document.getElementById("portfolio-sector-search")?.value || "").trim().toLowerCase();
+    const sectors = [...new Set(portfolioStocks.map(stock => String(stock.sector || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const selected = new Set(pbSelectedSectors());
+    const filtered = sectors.filter(sector => sector.toLowerCase().includes(query));
+    list.innerHTML = filtered.map(sector => `<div class="category-picker-item ${selected.has(sector) ? "selected" : ""}" data-value="${pbEsc(sector)}"><span class="category-picker-checkbox">${selected.has(sector) ? "✓" : ""}</span><span>${pbEsc(sector)}</span></div>`).join("") || `<div class="category-picker-footer">No sectors found</div>`;
+
+    const value = document.getElementById("portfolio-sector-value");
+    const count = document.getElementById("portfolio-sector-count");
+    const values = [...selected];
+    if (value) {
+        value.textContent = values.length === 0 ? "All Sectors" : values.length === 1 ? values[0] : `${values.length} sectors selected`;
+        value.classList.toggle("has-selection", values.length > 0);
+    }
+    if (count) count.textContent = `${values.length} selected`;
 }
 
 function pbPopulateSectors() {
-    const select = document.getElementById("portfolio-sector-filter");
-    if (!select) return;
-    const sectors = [...new Set(portfolioStocks.map(stock => String(stock.sector || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    select.innerHTML = `<option value="">All sectors</option>${sectors.map(sector => `<option value="${pbEsc(sector)}">${pbEsc(sector)}</option>`).join("")}`;
+    pbRenderSectorPicker();
+}
+
+function pbResetFilters() {
+    const search = document.getElementById("portfolio-stock-search");
+    if (search) search.value = "";
+    document.querySelectorAll("#portfolio-cap-filter input").forEach(input => { input.checked = false; });
+    document.querySelectorAll("#portfolio-sector-list .category-picker-item.selected").forEach(item => item.classList.remove("selected"));
+    pbRenderSectorPicker();
+    portfolioPage = 1;
+    pbRenderStockList();
 }
 
 function pbBindFilters() {
     const search = document.getElementById("portfolio-stock-search");
-    const sector = document.getElementById("portfolio-sector-filter");
-    const cap = document.getElementById("portfolio-cap-filter");
     const reset = document.getElementById("portfolio-reset-filters");
+    const trigger = document.getElementById("portfolio-sector-trigger");
+    const dropdown = document.getElementById("portfolio-sector-dropdown");
+    const sectorList = document.getElementById("portfolio-sector-list");
+    const sectorSearch = document.getElementById("portfolio-sector-search");
 
-    const render = () => {
+    search?.addEventListener("input", () => { portfolioPage = 1; pbRenderStockList(); });
+    document.querySelectorAll("#portfolio-cap-filter input").forEach(input => input.addEventListener("change", () => { portfolioPage = 1; pbRenderStockList(); }));
+
+    trigger?.addEventListener("click", event => {
+        event.stopPropagation();
+        const open = dropdown?.hidden;
+        if (dropdown) dropdown.hidden = !open;
+        trigger.setAttribute("aria-expanded", String(Boolean(open)));
+    });
+    dropdown?.addEventListener("click", event => event.stopPropagation());
+    document.addEventListener("click", event => {
+        if (!document.querySelector(".portfolio-sector-picker")?.contains(event.target)) {
+            if (dropdown) dropdown.hidden = true;
+            trigger?.setAttribute("aria-expanded", "false");
+        }
+    });
+    sectorSearch?.addEventListener("input", pbRenderSectorPicker);
+    sectorList?.addEventListener("click", event => {
+        const item = event.target.closest(".category-picker-item");
+        if (!item) return;
+        item.classList.toggle("selected");
+        pbRenderSectorPicker();
         portfolioPage = 1;
         pbRenderStockList();
-    };
-
-    search?.addEventListener("input", render);
-    sector?.addEventListener("change", render);
-    cap?.addEventListener("change", render);
-    reset?.addEventListener("click", () => {
-        if (search) search.value = "";
-        if (sector) sector.value = "";
-        if (cap) cap.value = "";
-        render();
     });
+    document.getElementById("portfolio-sector-select-all")?.addEventListener("click", () => {
+        const query = String(sectorSearch?.value || "").trim().toLowerCase();
+        const sectors = [...new Set(portfolioStocks.map(stock => String(stock.sector || "").trim()).filter(Boolean))];
+        const visible = sectors.filter(sector => sector.toLowerCase().includes(query));
+        const list = document.getElementById("portfolio-sector-list");
+        list?.querySelectorAll(".category-picker-item").forEach(item => { if (visible.includes(item.dataset.value)) item.classList.add("selected"); });
+        pbRenderSectorPicker();
+        portfolioPage = 1;
+        pbRenderStockList();
+    });
+    document.getElementById("portfolio-sector-clear-all")?.addEventListener("click", () => {
+        document.querySelectorAll("#portfolio-sector-list .category-picker-item.selected").forEach(item => item.classList.remove("selected"));
+        pbRenderSectorPicker();
+        portfolioPage = 1;
+        pbRenderStockList();
+    });
+    reset?.addEventListener("click", pbResetFilters);
 
     document.getElementById("portfolio-clear")?.addEventListener("click", () => {
         portfolioHoldings.clear();
@@ -291,9 +316,7 @@ function pbBindFilters() {
         sessionStorage.setItem("market-analysis-stock-portfolio-current", JSON.stringify(payload));
         const button = document.getElementById("portfolio-continue");
         if (button) button.textContent = "Portfolio Saved";
-        window.setTimeout(() => {
-            if (button) button.textContent = "Continue to Portfolio Analysis";
-        }, 1200);
+        window.setTimeout(() => { if (button) button.textContent = "Continue to Portfolio Analysis"; }, 1200);
     });
 }
 
