@@ -93,9 +93,6 @@
 <script type="module" src="/js/features/stock-selection/stock-shareholding-intelligence.js?v=20261003-1"></script>
 <script type="module" src="/js/features/stock-selection/stock-quality-growth-valuation.js?v=20261003-2"></script>
 <script>
-    // The stock detail screen is built asynchronously. Re-run the decision-lens module
-    // once after the detail lifecycle settles so a cached/early module execution cannot
-    // miss the dynamically-created stock analysis DOM.
     window.addEventListener('load', () => {
         window.setTimeout(() => {
             import('/js/features/stock-selection/stock-quality-growth-valuation.js?v=20261003-2&retry=1').catch(() => {});
@@ -103,6 +100,7 @@
     });
 </script>
 <script type="module" src="/js/features/stock-selection/stock-quality-growth-valuation-data-fix.js?v=20261003-1"></script>
+<script type="module" src="/js/features/stock-selection/stock-quality-growth-valuation-compare-fix.js?v=20261003-1"></script>
 <script type="module" src="/js/features/stock-selection/stock-mobile-reset-fix.js?v=20261002-1"></script>
 <script type="module" src="/js/features/stock-selection/stock-navigation-guard.js?v=20261002-3"></script>
 </body>
