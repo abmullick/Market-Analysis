@@ -286,3 +286,192 @@ AI requests use a compact payload with an explicit size guard. Provider credenti
 ## 26. Desktop Presentation
 
 The application uses a normal **100% desktop presentation scale** by default. Responsive layouts continue to apply on smaller screens.
+
+## 27. Sector-aware Valuation Context
+
+The individual report now contains a dedicated historical valuation-context engine. It does not attempt to estimate intrinsic value. Instead, it asks how the current valuation multiple compares with the company's own historical range.
+
+### 27.1 Historical reference
+
+For P/E and P/B, the engine takes the available positive historical observations and calculates the median. The current P/E/P/B is then compared with that company-specific median.
+
+### 27.2 Component score
+
+For a multiple M and historical median H:
+
+**Relative Valuation Score = clamp(50 + ((H − M) / H) × 100)**
+
+50 means the current multiple is at its own historical median. A score above 50 means the current multiple is lower than the median; a score below 50 means it is higher.
+
+### 27.3 Business-type weighting
+
+The engine changes the weighting by business type:
+
+- **Financial-services lens:** P/B 70%, P/E 30%.
+- **Capital-intensive lens:** P/E 60%, P/B 40%.
+- **Operating-business lens:** P/E 70%, P/B 30%.
+
+The final Valuation Context score is the weighted average of available component scores. If one component is unavailable, the remaining weights are normalized. The timeline reconstructs the same framework for earlier observations using the company's historical median as the reference.
+
+This is descriptive historical context. It is not a peer-relative valuation, intrinsic-value estimate, return forecast, or investment recommendation.
+
+## 28. Fundamental Momentum Index
+
+Fundamental Momentum is a 0–100 measure of the direction of the company's underlying business trajectory. It is separate from market-price momentum.
+
+### 28.1 Core trend scoring
+
+For each supported trend series, the engine compares the latest three-year average with the preceding three-year average.
+
+**Component Score = clamp(50 + (Recent 3Y Average − Previous 3Y Average) / Scale × 50)**
+
+A scale of 8 is used for growth-rate series such as Revenue Growth, Profit Growth and EPS Growth. A scale of 5 is used for ROE and ROCE. A scale of 20 is used for cash-conversion measures where applicable, and 5 for FCF margin.
+
+### 28.2 Component weights
+
+The final index uses:
+
+- Growth Momentum — 30%.
+- Return Momentum — 25%.
+- Earnings Consistency / Cash Conversion — 20%.
+- Share Discipline / Balance-sheet Discipline — 15%.
+- Business Consistency — 10%.
+
+Missing components are excluded and the available weights are normalized.
+
+### 28.3 Component definitions
+
+**Growth Momentum** is the average of the independently scored changes in Revenue Growth, Profit Growth and EPS Growth.
+
+**Return Momentum** is the average of scored changes in ROE and ROCE.
+
+For financial services, **Earnings Consistency** combines positive-growth persistence and ROE stability. For operating businesses, the 20% quality component uses Cash Conversion and FCF Margin trend.
+
+For financial services, **Share Discipline** uses historical share-count CAGR. Stable or declining share count scores higher; share-count expansion reduces the score. For operating businesses, **Balance-sheet Discipline** uses the direction of Debt and Debt / Equity relative to their recent levels; falling leverage scores higher and rising leverage scores lower.
+
+**Business Consistency** combines positive-growth persistence with ROE stability. Growth persistence is the average percentage of available annual Revenue, Profit and FCF observations with positive growth. ROE stability is:
+
+**ROE Stability Score = clamp(100 − ROE Volatility × 10)**
+
+where ROE Volatility is the population standard deviation of the available annual ROE observations.
+
+### 28.4 Interpretation
+
+- **65–100:** Strengthening.
+- **45–64:** Stable.
+- **0–44:** Weakening.
+
+The Momentum Index is a historical trajectory indicator. It is not a price signal, forecast or investment recommendation.
+
+## 29. Fundamental Trend Timeline
+
+The individual report reconstructs the Momentum Index at earlier historical points rather than storing historical Momentum values.
+
+At each historical point, only observations available up to that point are used. The same three-year-versus-preceding-three-year comparison, component scoring and weights are applied. The most recent timeline point should therefore broadly correspond to the current Momentum Index, although differences can occur when newer data or different component availability is present.
+
+## 30. Quality × Growth × Valuation
+
+The decision lens connects three dimensions that are normally viewed separately.
+
+### 30.1 Operating-business lens
+
+For operating businesses the primary relationship is:
+
+**P/E × ROE × 3Y Earnings CAGR**
+
+P/E is the valuation anchor, ROE is the quality anchor, and 3Y earnings CAGR is the growth anchor.
+
+### 30.2 Financial-services lens
+
+For banks, NBFCs, insurers and similar financial-services businesses the relationship becomes:
+
+**P/B × ROA × 3Y Earnings CAGR**
+
+Debt is not treated as ordinary industrial leverage for this lens because borrowings are part of the operating model.
+
+### 30.3 Earnings CAGR
+
+Where annual statement history supports it:
+
+**3Y Earnings CAGR = ((Ending Earnings / Starting Earnings) ^ (1 / 3) − 1) × 100**
+
+The implementation prefers a stable annual profit CAGR and uses supported EPS CAGR as a fallback where appropriate. Starting and ending values must be positive for the CAGR calculation.
+
+## 31. Growth Funding & Capital Efficiency
+
+For operating businesses the engine examines whether earnings growth is broadly consistent with internally retained earnings and then displays observable funding evidence.
+
+### 31.1 Retained-earnings capacity
+
+**Retained-Earnings Capacity = ROE × (1 − Payout Ratio)**
+
+Payout Ratio is bounded to 0–100% for this calculation, so retention is the complementary percentage.
+
+### 31.2 Growth gap
+
+**Growth Gap = 3Y Earnings CAGR − Retained-Earnings Capacity**
+
+A positive gap means historical earnings growth is above the simple retained-earnings capacity implied by current ROE and payout. It is an investigation signal only. The engine does not infer that a company raised debt or equity without observable evidence.
+
+### 31.3 Funding evidence
+
+Where data exists, the report also shows:
+
+- Debt CAGR over 3 years.
+- Asset CAGR over 3 years.
+- Equity/book-value CAGR over 3 years.
+- Operating Cash Flow CAGR over 3 years.
+- Free Cash Flow CAGR over 3 years.
+- Debt / Equity.
+- Interest Coverage.
+- Net Debt / EBITDA.
+- Share-count CAGR.
+
+For financial services, the panel instead emphasizes asset growth, book growth, earnings growth and share-count movement and avoids interpreting debt as industrial leverage.
+
+## 32. Shareholding Intelligence
+
+Shareholding Intelligence is a separate historical ownership lens built from the same shareholding observations used by the pedigree section.
+
+### 32.1 Latest ownership
+
+The latest available observation is displayed for Promoters, FIIs, DIIs, Government and Public shareholders. Institutional ownership is:
+
+**Institutional Ownership = FII Holding + DII Holding**
+
+### 32.2 Historical change
+
+For a selected period:
+
+**Ownership Change (percentage points) = Latest Holding − Historical Holding**
+
+The 1Y and 3Y controls select the historical observation closest to one or three calendar years before the latest observation. The All control compares the latest with the earliest available observation.
+
+The panel describes ownership movement. It does not infer buying intent, selling intent, conviction or causality from the ownership changes.
+
+## 33. Advanced Stock Comparison
+
+Compare now reuses the individual stock engines independently for every selected company.
+
+### 33.1 Business–Valuation Matrix
+
+Each stock is plotted using:
+
+- X-axis = Valuation Context, where 0 means above the company's own historical valuation, 50 means near its own history and 100 means below its own history.
+- Y-axis = Fundamental Momentum, from 0 to 100.
+
+No combined score is created. The matrix is a visualization of two independent historical indicators.
+
+### 33.2 Stock Comparison Summary
+
+The summary reports the observed Momentum and Valuation Context ranges across the selected stocks and identifies the strongest and weakest available Momentum components for each company. It reuses the same individual calculations and does not create a new ranking.
+
+### 33.3 Comparison calculation consistency
+
+The comparison cards call the same `buildMomentum` engine and the same historical valuation-context logic used by the individual report. This prevents the comparison view from silently using a different formula or weighting model.
+
+## 34. Help & Methodology Coverage
+
+The in-application Help & Methodology page has been expanded to document the new Stock Analysis engines. New formula cards cover Sector-aware Valuation Context, Fundamental Momentum, Momentum Consistency & Stability, Fundamental Trend Timeline, Quality × Growth × Valuation, Growth Funding & Capital Efficiency, Shareholding Intelligence, Business–Valuation Matrix and Stock Comparison Summary.
+
+The Help search indexes visible cards and metric accordions. Searching for a new metric or formula opens the matching collapsible card and highlights it. The formulas shown in Help are intended to match the calculations implemented by the frontend engines and the normalized data model.
