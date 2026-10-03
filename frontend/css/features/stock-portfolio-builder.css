@@ -17,6 +17,7 @@
 .category-picker-value.has-selection { color:#0f172a; font-weight:600; }
 .category-picker-dropdown { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:99999; max-height:430px; overflow:hidden; background:#fff; border:1px solid #dbe4f0; border-radius:12px; box-shadow:0 16px 36px rgba(15,23,42,.20); }
 .category-picker-dropdown[hidden] { display:none; }
+.category-picker-dropdown.pb-sector-portal { position:fixed !important; left:auto; right:auto; top:auto; width:var(--pb-picker-width,420px); max-height:min(430px,calc(100vh - 24px)); z-index:2147483000 !important; overflow:hidden; transform:none !important; }
 .category-picker-search { display:flex; align-items:center; gap:8px; padding:10px; border-bottom:1px solid #e2e8f0; }
 .category-picker-search-input { flex:1; min-width:0; border:0; outline:0; background:transparent; font:inherit; font-size:13px; }
 .category-picker-actions { display:flex; justify-content:space-between; padding:8px 10px; border-bottom:1px solid #e2e8f0; }
