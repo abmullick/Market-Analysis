@@ -2,8 +2,7 @@
 export const HELP_SEARCH_INDEX = [];
 
 const STOP_WORDS = new Set([
-    "a", "an", "the", "is", "are", "was", "were", "do", "does", "did", "how", "what",
-    "why", "when", "which", "of", "in", "on", "for", "to", "and", "or", "it", "this",
+    "a", "an", "the", "is", "are", "was", "were", "do", "does", "did", "how", "what", "why", "when", "which", "of", "in", "on", "for", "to", "and", "or", "it", "this",
     "that", "i", "my", "me", "can", "be", "with", "there",
 ]);
 
@@ -155,5 +154,28 @@ export function searchHelp(query) {
     return results;
 }
 
+// Keep live search results directly below the search box so users can see and tap
+// a matching Help topic without scrolling past the suggested-question chips.
+function positionSearchResults() {
+    const wrapper = document.getElementById("help-search");
+    const results = wrapper?.querySelector("#help-search-results");
+    const suggestions = wrapper?.querySelector(".help-search-suggestions");
+    if (!results || !suggestions) return;
+    if (results.nextElementSibling !== suggestions) {
+        wrapper.insertBefore(results, suggestions);
+    }
+}
+
+function installSearchResultPositioning() {
+    const start = () => {
+        positionSearchResults();
+        const observer = new MutationObserver(positionSearchResults);
+        if (document.body) observer.observe(document.body, { childList: true, subtree: true });
+    };
+    if (document.body) start();
+    else document.addEventListener("DOMContentLoaded", start, { once: true });
+}
+
 installStockFormulaEnhancer();
+installSearchResultPositioning();
 import "./help-stock-pedigree.js";
