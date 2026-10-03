@@ -26,31 +26,17 @@
 </head>
 <body>
 <header class="site-header">
-    <div class="header-left">
-        <img src="/static/images/logo.png" alt="Market Analysis" class="logo">
-        <h1>Stock Analysis</h1>
-    </div>
+    <div class="header-left"><img src="/static/images/logo.png" alt="Market Analysis" class="logo"><h1>Stock Analysis</h1></div>
     <nav id="main-nav"></nav>
 </header>
 <main class="container">
     <div id="stock-analysis-content">
-        <div class="pb-page-header-text">
-            <h1 class="mf-page-title">Stock Analysis</h1>
-            <p class="mf-page-subtitle">Choose from the Nifty Total Market universe — Nifty 500 + Nifty Microcap 250. The universe is broader than the large-cap market and includes large, mid, small and micro-cap stocks.</p>
-        </div>
+        <div class="pb-page-header-text"><h1 class="mf-page-title">Stock Analysis</h1><p class="mf-page-subtitle">Choose from the Nifty Total Market universe — Nifty 500 + Nifty Microcap 250. The universe is broader than the large-cap market and includes large, mid, small and micro-cap stocks.</p></div>
         <div id="stock-selection-screen"></div>
-        <div id="stock-analysis-screen" hidden>
-            <button id="stock-back-to-selection" class="stock-back-btn" type="button">← Back to Stock Selection</button>
-            <div id="stock-analysis-status" class="stock-analysis-status" aria-live="polite"></div>
-            <div id="stock-details"></div>
-        </div>
+        <div id="stock-analysis-screen" hidden><button id="stock-back-to-selection" class="stock-back-btn" type="button">← Back to Stock Selection</button><div id="stock-analysis-status" class="stock-analysis-status" aria-live="polite"></div><div id="stock-details"></div></div>
     </div>
 </main>
-<a href="/help.html" class="help-link" title="Help & Methodology">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line>
-    </svg><span>Help & Methodology</span>
-</a>
+<a href="/help.html" class="help-link" title="Help & Methodology"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg><span>Help & Methodology</span></a>
 <footer class="site-footer"><div class="container"><p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p></div></footer>
 <script type="module" src="/js/features/stock-selection/stock-api-coalescer.js?v=20261002-3"></script>
 <script type="module">
@@ -68,7 +54,7 @@
 <script type="module" src="/js/features/stock-selection/stock-trends.js"></script>
 <script type="module" src="/js/features/stock-selection/stock-analysis-chart-cards.js?v=20261004-1"></script>
 <script type="module" src="/js/features/stock-selection/stock-valuation-trends.js"></script>
-<script type="module" src="/js/features/stock-supplemental.js"></script>
+<script type="module" src="/js/features/stock-selection/stock-supplemental.js"></script>
 <script type="module" src="/js/features/stock-selection/stock-fundamental-momentum.js?v=20261003-3"></script>
 <script type="module" src="/js/features/stock-selection/stock-valuation-engine.js?v=20261003-2"></script>
 <script type="module" src="/js/features/stock-selection/stock-valuation-engine-refresh.js?v=20261003-1"></script>
