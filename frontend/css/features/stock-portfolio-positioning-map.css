@@ -1,0 +1,111 @@
+/* Stock Portfolio — Quality × Growth positioning map */
+.portfolio-positioning-section {
+    overflow: hidden;
+}
+
+.portfolio-positioning-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 5px 10px;
+    border: 1px solid #dbe3ee;
+    border-radius: 9px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.portfolio-positioning-chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 390px;
+    margin-top: 18px;
+    padding: 14px 16px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+    box-sizing: border-box;
+}
+
+.portfolio-positioning-chart {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.portfolio-positioning-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px 18px;
+    margin-top: 13px;
+    color: #64748b;
+    font-size: 0.82rem;
+}
+
+.portfolio-positioning-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.portfolio-positioning-legend strong {
+    color: #334155;
+}
+
+.position-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #0f172a;
+    border: 2px solid #2563eb;
+    box-sizing: border-box;
+}
+
+.portfolio-positioning-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.portfolio-positioning-summary > div {
+    min-width: 0;
+    padding: 14px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 13px;
+    background: #fff;
+}
+
+.portfolio-positioning-summary strong,
+.portfolio-positioning-summary span {
+    display: block;
+}
+
+.portfolio-positioning-summary strong {
+    color: #111827;
+    font-size: 1.2rem;
+    line-height: 1.2;
+}
+
+.portfolio-positioning-summary span {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+@media (max-width: 640px) {
+    .portfolio-positioning-chart-wrap {
+        height: 330px;
+        padding: 10px 8px 8px;
+    }
+
+    .portfolio-positioning-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .portfolio-positioning-legend {
+        gap: 7px 13px;
+        font-size: 0.76rem;
+    }
+}
