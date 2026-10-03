@@ -4,6 +4,7 @@ const PORTFOLIO_PAGE_SIZE = 40;
 let portfolioStocks = [];
 let portfolioHoldings = new Map();
 let portfolioPage = 1;
+let portfolioSelectedSectors = new Set();
 
 function pbEsc(value) {
     return String(value ?? "")
@@ -58,9 +59,7 @@ function pbFormatPercent(value) {
 }
 
 function pbSelectedSectors() {
-    return [...document.querySelectorAll("#portfolio-sector-list .category-picker-item.selected")]
-        .map(item => String(item.dataset.value || "").trim())
-        .filter(Boolean);
+    return [...portfolioSelectedSectors];
 }
 
 function pbSelectedCaps() {
@@ -222,33 +221,127 @@ function pbUpdatePortfolioSummary() {
 
 function pbRenderSectorPicker() {
     const list = document.getElementById("portfolio-sector-list");
+    const value = document.getElementById("portfolio-sector-value");
     if (!list) return;
+
     const query = String(document.getElementById("portfolio-sector-search")?.value || "").trim().toLowerCase();
     const sectors = [...new Set(portfolioStocks.map(stock => String(stock.sector || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const selected = new Set(pbSelectedSectors());
     const filtered = sectors.filter(sector => sector.toLowerCase().includes(query));
-    list.innerHTML = filtered.map(sector => `<div class="category-picker-item ${selected.has(sector) ? "selected" : ""}" data-value="${pbEsc(sector)}"><span class="category-picker-checkbox">${selected.has(sector) ? "✓" : ""}</span><span>${pbEsc(sector)}</span></div>`).join("") || `<div class="category-picker-footer">No sectors found</div>`;
 
-    const value = document.getElementById("portfolio-sector-value");
-    const count = document.getElementById("portfolio-sector-count");
-    const values = [...selected];
+    list.innerHTML = filtered.map(sector => {
+        const selected = portfolioSelectedSectors.has(sector);
+        return `<div class="category-picker-item ${selected ? "selected" : ""}" data-value="${pbEsc(sector)}"><span class="category-picker-checkbox">${selected ? "✓" : ""}</span><span>${pbEsc(sector)}</span></div>`;
+    }).join("") || `<div class="category-picker-footer">No sectors found</div>`;
+
+    const values = pbSelectedSectors();
     if (value) {
         value.textContent = values.length === 0 ? "All Sectors" : values.length === 1 ? values[0] : `${values.length} sectors selected`;
         value.classList.toggle("has-selection", values.length > 0);
     }
-    if (count) count.textContent = `${values.length} selected`;
 }
 
-function pbPopulateSectors() {
-    pbRenderSectorPicker();
+function pbSetSectorDropdown(open) {
+    const trigger = document.getElementById("portfolio-sector-trigger");
+    const dropdown = document.getElementById("portfolio-sector-dropdown");
+    if (!trigger || !dropdown) return;
+    dropdown.hidden = !open;
+    trigger.setAttribute("aria-expanded", String(open));
+    if (open) requestAnimationFrame(() => pbPositionSectorDropdown());
+}
+
+function pbPositionSectorDropdown() {
+    const trigger = document.getElementById("portfolio-sector-trigger");
+    const dropdown = document.getElementById("portfolio-sector-dropdown");
+    if (!trigger || !dropdown || dropdown.hidden) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.max(rect.width, 360);
+    const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - width - 8));
+    const below = window.innerHeight - rect.bottom - 8;
+    const above = rect.top - 8;
+    const openBelow = below >= 280 || below >= above;
+    const height = Math.min(430, Math.max(220, openBelow ? below : above));
+
+    dropdown.style.left = `${left}px`;
+    dropdown.style.width = `${width}px`;
+    dropdown.style.maxHeight = `${height}px`;
+    dropdown.style.top = openBelow
+        ? `${Math.min(window.innerHeight - height - 8, rect.bottom + 6)}px`
+        : `${Math.max(8, rect.top - height - 6)}px`;
+}
+
+function pbInstallSectorDropdown() {
+    const trigger = document.getElementById("portfolio-sector-trigger");
+    const dropdown = document.getElementById("portfolio-sector-dropdown");
+    const wrap = document.querySelector(".portfolio-sector-picker");
+    if (!trigger || !dropdown || !wrap || trigger.dataset.pbBound === "1") return;
+    trigger.dataset.pbBound = "1";
+
+    dropdown.classList.add("pb-sector-portal");
+    document.body.appendChild(dropdown);
+
+    const closeIfOutside = event => {
+        if (!wrap.contains(event.target) && !dropdown.contains(event.target)) pbSetSectorDropdown(false);
+    };
+
+    trigger.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        pbRenderSectorPicker();
+        pbSetSectorDropdown(dropdown.hidden);
+    });
+
+    dropdown.addEventListener("click", event => event.stopPropagation());
+    document.addEventListener("click", closeIfOutside);
+    window.addEventListener("resize", pbPositionSectorDropdown, { passive: true });
+    window.addEventListener("scroll", pbPositionSectorDropdown, { passive: true, capture: true });
+
+    const sectorSearch = document.getElementById("portfolio-sector-search");
+    sectorSearch?.addEventListener("input", pbRenderSectorPicker);
+
+    dropdown.querySelector("#portfolio-sector-list")?.addEventListener("click", event => {
+        const item = event.target.closest(".category-picker-item");
+        if (!item) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const sector = String(item.dataset.value || "").trim();
+        if (!sector) return;
+        if (portfolioSelectedSectors.has(sector)) portfolioSelectedSectors.delete(sector);
+        else portfolioSelectedSectors.add(sector);
+        pbRenderSectorPicker();
+        portfolioPage = 1;
+        pbRenderStockList();
+    });
+
+    document.getElementById("portfolio-sector-select-all")?.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const query = String(sectorSearch?.value || "").trim().toLowerCase();
+        [...new Set(portfolioStocks.map(stock => String(stock.sector || "").trim()).filter(Boolean))]
+            .filter(sector => sector.toLowerCase().includes(query))
+            .forEach(sector => portfolioSelectedSectors.add(sector));
+        pbRenderSectorPicker();
+        portfolioPage = 1;
+        pbRenderStockList();
+    });
+
+    document.getElementById("portfolio-sector-clear-all")?.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        portfolioSelectedSectors.clear();
+        pbRenderSectorPicker();
+        portfolioPage = 1;
+        pbRenderStockList();
+    });
 }
 
 function pbResetFilters() {
     const search = document.getElementById("portfolio-stock-search");
     if (search) search.value = "";
     document.querySelectorAll("#portfolio-cap-filter input").forEach(input => { input.checked = false; });
-    document.querySelectorAll("#portfolio-sector-list .category-picker-item.selected").forEach(item => item.classList.remove("selected"));
+    portfolioSelectedSectors.clear();
     pbRenderSectorPicker();
+    pbSetSectorDropdown(false);
     portfolioPage = 1;
     pbRenderStockList();
 }
@@ -256,52 +349,9 @@ function pbResetFilters() {
 function pbBindFilters() {
     const search = document.getElementById("portfolio-stock-search");
     const reset = document.getElementById("portfolio-reset-filters");
-    const trigger = document.getElementById("portfolio-sector-trigger");
-    const dropdown = document.getElementById("portfolio-sector-dropdown");
-    const sectorList = document.getElementById("portfolio-sector-list");
-    const sectorSearch = document.getElementById("portfolio-sector-search");
 
     search?.addEventListener("input", () => { portfolioPage = 1; pbRenderStockList(); });
     document.querySelectorAll("#portfolio-cap-filter input").forEach(input => input.addEventListener("change", () => { portfolioPage = 1; pbRenderStockList(); }));
-
-    trigger?.addEventListener("click", event => {
-        event.stopPropagation();
-        const open = dropdown?.hidden;
-        if (dropdown) dropdown.hidden = !open;
-        trigger.setAttribute("aria-expanded", String(Boolean(open)));
-    });
-    dropdown?.addEventListener("click", event => event.stopPropagation());
-    document.addEventListener("click", event => {
-        if (!document.querySelector(".portfolio-sector-picker")?.contains(event.target)) {
-            if (dropdown) dropdown.hidden = true;
-            trigger?.setAttribute("aria-expanded", "false");
-        }
-    });
-    sectorSearch?.addEventListener("input", pbRenderSectorPicker);
-    sectorList?.addEventListener("click", event => {
-        const item = event.target.closest(".category-picker-item");
-        if (!item) return;
-        item.classList.toggle("selected");
-        pbRenderSectorPicker();
-        portfolioPage = 1;
-        pbRenderStockList();
-    });
-    document.getElementById("portfolio-sector-select-all")?.addEventListener("click", () => {
-        const query = String(sectorSearch?.value || "").trim().toLowerCase();
-        const sectors = [...new Set(portfolioStocks.map(stock => String(stock.sector || "").trim()).filter(Boolean))];
-        const visible = sectors.filter(sector => sector.toLowerCase().includes(query));
-        const list = document.getElementById("portfolio-sector-list");
-        list?.querySelectorAll(".category-picker-item").forEach(item => { if (visible.includes(item.dataset.value)) item.classList.add("selected"); });
-        pbRenderSectorPicker();
-        portfolioPage = 1;
-        pbRenderStockList();
-    });
-    document.getElementById("portfolio-sector-clear-all")?.addEventListener("click", () => {
-        document.querySelectorAll("#portfolio-sector-list .category-picker-item.selected").forEach(item => item.classList.remove("selected"));
-        pbRenderSectorPicker();
-        portfolioPage = 1;
-        pbRenderStockList();
-    });
     reset?.addEventListener("click", pbResetFilters);
 
     document.getElementById("portfolio-clear")?.addEventListener("click", () => {
@@ -328,7 +378,7 @@ async function pbLoadUniverse() {
         const data = await response.json();
         if (!response.ok) throw new Error(data?.detail || `HTTP ${response.status}`);
         portfolioStocks = Array.isArray(data.stocks) ? data.stocks : [];
-        pbPopulateSectors();
+        pbRenderSectorPicker();
         pbRenderStockList();
         pbRenderPortfolio();
     } catch (error) {
@@ -341,5 +391,6 @@ async function pbLoadUniverse() {
 export function initStockPortfolioBuilder() {
     pbLoadSavedPortfolio();
     pbBindFilters();
+    pbInstallSectorDropdown();
     pbLoadUniverse();
 }
