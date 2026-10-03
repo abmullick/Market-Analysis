@@ -34,9 +34,17 @@ def _safe_div(a: Optional[float], b: Optional[float]) -> Optional[float]:
 
 
 def _cagr(values: list[float], years: int) -> Optional[float]:
-    if len(values) <= years or values[0] <= 0 or values[-1] <= 0:
+    # _series() is oldest -> newest. Use the latest observation and the
+    # observation exactly `years` annual periods before it. The previous
+    # implementation compared the full history regardless of `years`, which
+    # made a requested 3Y CAGR become an 11Y CAGR for long histories.
+    if len(values) < years + 1 or years <= 0:
         return None
-    return (values[-1] / values[0]) ** (1 / years) - 1
+    start = values[-(years + 1)]
+    end = values[-1]
+    if start <= 0 or end <= 0:
+        return None
+    return (end / start) ** (1 / years) - 1
 
 
 class ScreenerEngine:
