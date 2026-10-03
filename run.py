@@ -11,6 +11,7 @@ from backend.routes.stock_supplemental import router as stock_supplemental_route
 from backend.routes.stock_market_cap import router as stock_market_cap_router
 from backend.routes.insights import router as insights_router
 from backend.routes.portfolio import router as portfolio_router
+from backend.routes.stock_portfolio_benchmarks import router as stock_portfolio_benchmarks_router
 from backend.routes.mutual_funds import router as mutual_funds_router
 from backend.routes.bonds import router as bonds_router
 
@@ -93,6 +94,7 @@ app.include_router(stocks_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(stock_supplemental_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(stock_market_cap_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(portfolio_router, prefix="/api/portfolio", tags=["portfolio"])
+app.include_router(stock_portfolio_benchmarks_router, prefix="/api/stock-benchmarks", tags=["stock-benchmarks"])
 app.include_router(mutual_funds_router, prefix="/api/mutual-funds", tags=["mutual-funds"])
 app.include_router(insights_router, prefix="/api/insights", tags=["insights"])
 app.include_router(bonds_router, prefix="/api/bonds", tags=["bonds"])
