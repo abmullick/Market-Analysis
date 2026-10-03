@@ -8,9 +8,20 @@
     <link rel="stylesheet" href="/css/base.css">
     <link rel="stylesheet" href="/css/layout.css">
     <link rel="stylesheet" href="/css/components.css">
-    <link rel="stylesheet" href="/css/features/stock-selection.css?v=20261003-2">
+    <!-- Use the same Stock Analysis visual stack so controls remain identical. -->
+    <link rel="stylesheet" href="/css/features/stock-selection.css?v=20261002-4">
+    <link rel="stylesheet" href="/css/features/stock-filter-panel.css?v=20261002-3">
+    <link rel="stylesheet" href="/css/features/mutual-fund-analysis.css">
+    <link rel="stylesheet" href="/css/features/stock-filter-mirror.css?v=20261002-2">
     <link rel="stylesheet" href="/css/features/stock-analysis-polish.css?v=20261003-1">
-    <link rel="stylesheet" href="/css/features/stock-portfolio-builder.css?v=20261003-2">
+    <link rel="stylesheet" href="/css/features/stock-negative.css">
+    <link rel="stylesheet" href="/css/features/stock-trends.css">
+    <link rel="stylesheet" href="/css/features/stock-pedigree.css">
+    <link rel="stylesheet" href="/css/features/stock-universe-enhancements.css?v=20261002-6">
+    <link rel="stylesheet" href="/css/features/stock-filter-ui-polish.css?v=20261002-1">
+    <link rel="stylesheet" href="/css/features/analysis-filter-card-theme.css?v=20261002-1">
+    <link rel="stylesheet" href="/css/features/stock-statement-layout.css?v=20261003-1">
+    <link rel="stylesheet" href="/css/features/stock-portfolio-builder.css?v=20261003-3">
 </head>
 <body data-page="stock-portfolio-builder">
 <header class="site-header">
@@ -41,7 +52,7 @@
                 </div>
                 <div id="portfolio-status" class="portfolio-status portfolio-status-warn">Add stocks and set the allocation to 100%.</div>
                 <button id="portfolio-continue" class="stock-analyze-btn" type="button" disabled>Continue to Portfolio Analysis</button>
-                <button id="portfolio-clear" class="stock-secondary-btn portfolio-clear-btn" type="button" hidden>Clear Portfolio</button>
+                <button id="portfolio-clear" class="stock-page-btn stock-secondary-btn portfolio-clear-btn" type="button" hidden>Clear Portfolio</button>
             </aside>
 
             <section class="stock-picker-panel">
@@ -108,7 +119,7 @@
 
 <script type="module">
     import { initNavigation } from '/js/core/navigation.js';
-    import { initStockPortfolioBuilder } from '/js/features/stock-portfolio-builder.js?v=20261003-2';
+    import { initStockPortfolioBuilder } from '/js/features/stock-portfolio-builder.js?v=20261003-3';
     initNavigation();
     initStockPortfolioBuilder();
 </script>
