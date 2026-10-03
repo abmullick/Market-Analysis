@@ -21,6 +21,7 @@
     <link rel="stylesheet" href="/css/features/analysis-filter-card-theme.css?v=20261002-1">
     <link rel="stylesheet" href="/css/features/stock-statement-layout.css?v=20261003-1">
     <link rel="stylesheet" href="/css/features/stock-portfolio-builder.css?v=20261004-6">
+    <link rel="stylesheet" href="/css/features/stock-portfolio-analysis.css?v=20261004-1">
 </head>
 <body data-page="stock-portfolio-builder">
 <header class="site-header">
@@ -105,6 +106,14 @@
             </section>
         </div>
     </section>
+
+    <section id="stock-portfolio-analysis-content" hidden aria-live="polite">
+        <div class="portfolio-analysis-topbar">
+            <h2>Stock Portfolio Analysis</h2>
+            <button id="portfolio-analysis-back" class="portfolio-analysis-back" type="button">← Back to Portfolio Builder</button>
+        </div>
+        <div id="portfolio-analysis-results"></div>
+    </section>
 </main>
 
 <a href="/help.html" class="help-link" title="Help & Methodology">
@@ -120,12 +129,13 @@
     <div class="container"><p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p></div>
 </footer>
 
-<!-- Use the same direct-module initialization pattern as the working Stock Analysis page. -->
 <script type="module">
     import { initNavigation } from '/js/core/navigation.js';
     import { initStockPortfolioBuilder } from '/js/features/stock-portfolio-builder.js?v=20261004-1';
+    import { initStockPortfolioAnalysis } from '/js/features/stock-portfolio-analysis.js?v=20261004-1';
     initNavigation();
     initStockPortfolioBuilder();
+    initStockPortfolioAnalysis();
 </script>
 </body>
 </html>
