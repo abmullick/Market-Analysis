@@ -1,4 +1,3 @@
-const API = "/api/stocks/pedigree";
 const num = (v) => Number.isFinite(Number(v)) ? Number(v) : null;
 const esc = (v) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 const clamp = (v) => Math.max(0, Math.min(100, v));
@@ -12,10 +11,8 @@ function score(d, scale) { return d == null ? null : clamp(50 + d / scale * 50);
 function consistency(data) {
   const c = data.consistency || {};
   const growth = [c.revenue?.positive_growth_pct, c.profit?.positive_growth_pct, c.fcf?.positive_growth_pct].filter(v => num(v) != null).map(Number);
-  const growthScore = avg(growth);
-  const roeVol = num(c.roe_volatility);
-  const stabilityScore = roeVol == null ? null : clamp(100 - roeVol * 10);
-  return avg([growthScore, stabilityScore].filter(v => v != null));
+  const stability = num(c.roe_volatility) == null ? null : clamp(100 - Number(c.roe_volatility) * 10);
+  return avg([avg(growth), stability].filter(v => v != null));
 }
 
 function buildMomentum(data, financial) {
@@ -29,8 +26,7 @@ function buildMomentum(data, financial) {
     if (shares != null) discipline = clamp(80 - Math.max(0, shares * 100 - 1) * 12);
   } else {
     const debt = delta(t.debt), de = delta(t.debt_equity);
-    const debtBase = Math.max(Math.abs(recent(t.debt) || 1), 1);
-    const deBase = Math.max(Math.abs(recent(t.debt_equity) || 1), 0.25);
+    const debtBase = Math.max(Math.abs(recent(t.debt) || 1), 1), deBase = Math.max(Math.abs(recent(t.debt_equity) || 1), .25);
     discipline = avg([debt == null ? null : clamp(50 - debt / debtBase * 100), de == null ? null : clamp(50 - de / deBase * 100)].filter(v => v != null));
   }
   const components = [
@@ -40,12 +36,10 @@ function buildMomentum(data, financial) {
     [financial ? "Share discipline" : "Balance-sheet discipline", discipline, .15, financial ? "Historical share-count stability" : "Direction of debt and debt/equity"],
     ["Business consistency", consistency(data), .10, "Persistence of growth and stability of returns"],
   ];
-  const available = components.filter(([, v]) => v != null);
-  const weight = available.reduce((s, [, , w]) => s + w, 0);
+  const available = components.filter(([, v]) => v != null), weight = available.reduce((s, [, , w]) => s + w, 0);
   const index = weight ? available.reduce((s, [, v, w]) => s + v * w, 0) / weight : null;
   const label = index == null ? "Insufficient history" : index >= 65 ? "Strengthening" : index >= 45 ? "Stable" : "Weakening";
-  const ranked = available.slice().sort((a, b) => b[1] - a[1]);
-  const observations = [];
+  const ranked = available.slice().sort((a, b) => b[1] - a[1]), observations = [];
   if (ranked[0]) observations.push(`${ranked[0][0]} is the strongest part of the current trajectory.`);
   if (ranked.at(-1) && ranked.at(-1) !== ranked[0]) observations.push(`${ranked.at(-1)[0]} is the main area of pressure in the current trajectory.`);
   const growthConsistency = avg([data.consistency?.revenue?.positive_growth_pct, data.consistency?.profit?.positive_growth_pct, data.consistency?.fcf?.positive_growth_pct].filter(v => num(v) != null).map(Number));
@@ -70,27 +64,28 @@ function render(data, details) {
   if (anchor) anchor.insertAdjacentElement("afterend", section); else details.prepend(section);
 }
 
-async function load() {
-  const details = document.getElementById("stock-details");
-  const symbol = (new URLSearchParams(location.search).get("symbol") || "").trim().toUpperCase();
-  if (!details || !symbol) return;
-  try {
-    const r = await fetch(`${API}/${encodeURIComponent(symbol)}`, { cache: "no-store", headers: { Accept: "application/json" } });
-    if (r.ok) render(await r.json(), details);
-  } catch (e) { console.warn("Fundamental momentum unavailable:", e); }
+function addStyles() {
+  if (document.getElementById("stock-fundamental-momentum-styles")) return;
+  const style = document.createElement("style"); style.id = "stock-fundamental-momentum-styles";
+  style.textContent = `.stock-fundamental-signals{display:none!important}.stock-fundamental-momentum{margin-top:18px}.stock-momentum-header{display:flex;justify-content:space-between;align-items:center;gap:18px;padding-bottom:14px;border-bottom:1px solid #e2e8f0}.stock-momentum-header h2{margin:0;color:#0f1d35;font-size:18px}.stock-momentum-header p{margin:5px 0 0;color:#64748b;font-size:12px;line-height:1.5;max-width:760px}.stock-momentum-index{min-width:130px;padding:10px 14px;border:1px solid #dbe6f1;border-radius:12px;background:#fff;text-align:center}.stock-momentum-index span{display:block;color:#64748b;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}.stock-momentum-index strong{display:block;margin-top:2px;color:#0f2748;font-size:28px;line-height:1.1}.stock-momentum-index small{display:block;margin-top:3px;font-weight:700;font-size:10px}.stock-momentum-index.strong small{color:#16803c}.stock-momentum-index.stable small{color:#9a6700}.stock-momentum-index.weak small{color:#c0392b}.stock-momentum-index.neutral small{color:#64748b}.stock-momentum-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}.stock-momentum-component{padding:12px;border:1px solid #dbe6f1;border-radius:11px;background:#fff}.stock-momentum-component-head{display:flex;justify-content:space-between;align-items:center;color:#17355d;font-size:12px;font-weight:700}.stock-momentum-component-head strong{font-size:15px;color:#0f2748;font-variant-numeric:tabular-nums}.stock-momentum-bar{height:6px;margin:8px 0 6px;background:#edf2f7;border-radius:99px;overflow:hidden}.stock-momentum-bar span{display:block;height:100%;background:#2563eb;border-radius:99px}.stock-momentum-component small{color:#7a8aa0;font-size:10px;line-height:1.35}.stock-momentum-observations{margin-top:12px;padding:12px 14px;border:1px solid #dbe6f1;border-radius:11px;background:#fff}.stock-momentum-observations h3{margin:0 0 6px;color:#17355d;font-size:13px}.stock-momentum-observations ul{margin:0;padding-left:18px;color:#475569;font-size:12px;line-height:1.55}.stock-momentum-observations small{display:block;margin-top:7px;color:#7a8aa0;font-size:10px}@media(max-width:700px){.stock-momentum-header{align-items:flex-start;flex-direction:column}.stock-momentum-index{width:100%;box-sizing:border-box}.stock-momentum-grid{grid-template-columns:1fr}}`;
+  document.head.appendChild(style);
 }
 
 function init() {
-  if (document.getElementById("stock-fundamental-momentum-styles")) return;
-  const style = document.createElement("style");
-  style.id = "stock-fundamental-momentum-styles";
-  style.textContent = `.stock-fundamental-signals{display:none!important}.stock-fundamental-momentum{margin-top:18px}.stock-momentum-header{display:flex;justify-content:space-between;align-items:center;gap:18px;padding-bottom:14px;border-bottom:1px solid #e2e8f0}.stock-momentum-header h2{margin:0;color:#0f1d35;font-size:18px}.stock-momentum-header p{margin:5px 0 0;color:#64748b;font-size:12px;line-height:1.5;max-width:760px}.stock-momentum-index{min-width:130px;padding:10px 14px;border:1px solid #dbe6f1;border-radius:12px;background:#fff;text-align:center}.stock-momentum-index span{display:block;color:#64748b;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}.stock-momentum-index strong{display:block;margin-top:2px;color:#0f2748;font-size:28px;line-height:1.1}.stock-momentum-index small{display:block;margin-top:3px;font-weight:700;font-size:10px}.stock-momentum-index.strong small{color:#16803c}.stock-momentum-index.stable small{color:#9a6700}.stock-momentum-index.weak small{color:#c0392b}.stock-momentum-index.neutral small{color:#64748b}.stock-momentum-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}.stock-momentum-component{padding:12px;border:1px solid #dbe6f1;border-radius:11px;background:#fff}.stock-momentum-component-head{display:flex;justify-content:space-between;align-items:center;color:#17355d;font-size:12px;font-weight:700}.stock-momentum-component-head strong{font-size:15px;color:#0f2748;font-variant-numeric:tabular-nums}.stock-momentum-bar{height:6px;margin:8px 0 6px;background:#edf2f7;border-radius:99px;overflow:hidden}.stock-momentum-bar span{display:block;height:100%;background:#2563eb;border-radius:99px}.stock-momentum-component small{color:#7a8aa0;font-size:10px;line-height:1.35}.stock-momentum-observations{margin-top:12px;padding:12px 14px;border:1px solid #dbe6f1;border-radius:11px;background:#fff}.stock-momentum-observations h3{margin:0 0 6px;color:#17355d;font-size:13px}.stock-momentum-observations ul{margin:0;padding-left:18px;color:#475569;font-size:12px;line-height:1.55}.stock-momentum-observations small{display:block;margin-top:7px;color:#7a8aa0;font-size:10px}@media(max-width:700px){.stock-momentum-header{align-items:flex-start;flex-direction:column}.stock-momentum-index{width:100%;box-sizing:border-box}.stock-momentum-grid{grid-template-columns:1fr}}`;
-  document.head.appendChild(style);
+  addStyles();
   const details = document.getElementById("stock-details");
   if (!details) return;
-  const observer = new MutationObserver(() => { details.querySelector(".stock-fundamental-signals")?.remove(); if (details.querySelector(".stock-hero") && !details.querySelector(".stock-fundamental-momentum")) load(); });
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const response = await originalFetch(...args);
+    const url = String(args[0]?.url || args[0] || "");
+    if (url.includes("/api/stocks/pedigree/") && !url.includes("/compare?")) {
+      response.clone().json().then(data => render(data, details)).catch(() => {});
+    }
+    return response;
+  };
+  const observer = new MutationObserver(() => details.querySelector(".stock-fundamental-signals")?.remove());
   observer.observe(details, { childList: true, subtree: true });
-  setTimeout(load, 250);
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true }); else init();
