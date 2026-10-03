@@ -1,0 +1,136 @@
+/* Stock Portfolio Analysis — presentation layer.
+   The base collapsible-card geometry is intentionally inherited from
+   frontend/css/features/portfolio-builder.css, the same stylesheet used by
+   Mutual Fund Portfolio Builder. This file only adapts the existing stock
+   content and adds the compact KPI highlights. */
+
+#stock-portfolio-analysis-content .stock-portfolio-collapsible-card {
+    width: 100%;
+    max-width: none;
+    margin: 16px 0;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+#stock-portfolio-analysis-content .stock-pb-card-header {
+    min-height: 118px;
+}
+
+#stock-portfolio-analysis-content .stock-pb-icon {
+    font-weight: 800;
+}
+
+#stock-portfolio-analysis-content .stock-pb-icon svg {
+    width: 22px;
+    height: 22px;
+    stroke-width: 2.35;
+}
+
+#stock-portfolio-analysis-content .stock-pb-kpis {
+    gap: 0;
+}
+
+#stock-portfolio-analysis-content .stock-pb-highlight {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 82px;
+    padding: 0 16px;
+    border-left: 1px solid var(--pb-border, var(--color-border));
+    line-height: 1.1;
+}
+
+#stock-portfolio-analysis-content .stock-pb-highlight:first-child {
+    border-left: 0;
+}
+
+#stock-portfolio-analysis-content .stock-pb-highlight strong {
+    color: var(--color-primary);
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+}
+
+#stock-portfolio-analysis-content .stock-pb-highlight small {
+    display: block;
+    margin-top: 5px;
+    color: var(--color-text-light);
+    font-size: 0.69rem;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+#stock-portfolio-analysis-content .stock-portfolio-collapsible-content {
+    padding: 20px 24px 24px;
+    border-top: 1px solid var(--pb-border, var(--color-border));
+}
+
+#stock-portfolio-analysis-content .stock-portfolio-collapsible-content > .stock-section-header {
+    display: none;
+}
+
+#stock-portfolio-analysis-content .stock-portfolio-collapsible-content .stock-section,
+#stock-portfolio-analysis-content .stock-portfolio-collapsible-content .portfolio-analysis-section {
+    margin-top: 0;
+}
+
+#stock-portfolio-analysis-content .stock-portfolio-collapsible-content .stock-section-header {
+    display: flex;
+}
+
+#stock-portfolio-analysis-content .stock-portfolio-collapsible-content > .portfolio-analysis-note:first-child {
+    margin-top: 0;
+}
+
+#stock-portfolio-analysis-content .stock-portfolio-collapsible-card.is-open .stock-pb-caret {
+    transform: rotate(180deg);
+}
+
+#stock-portfolio-analysis-content .stock-pb-caret {
+    transition: transform 0.22s ease;
+}
+
+/* Data Notes deliberately sits after What-If and Action View, at the very
+   bottom of the analysis page. It remains visually quiet rather than acting
+   like another headline analytical card. */
+#stock-portfolio-analysis-content > .stock-portfolio-collapsible-card[data-pb-notes="1"] {
+    margin-top: 24px;
+}
+
+#stock-portfolio-analysis-content > .stock-portfolio-collapsible-card[data-pb-notes="1"] .stock-pb-card-header {
+    min-height: 88px;
+}
+
+@media (max-width: 760px) {
+    #stock-portfolio-analysis-content .stock-pb-card-header {
+        min-height: 0;
+    }
+
+    #stock-portfolio-analysis-content .stock-pb-kpis {
+        margin-top: 6px;
+    }
+
+    #stock-portfolio-analysis-content .stock-pb-highlight {
+        min-width: 76px;
+        padding: 0 11px;
+    }
+
+    #stock-portfolio-analysis-content .stock-pb-highlight strong {
+        font-size: 0.96rem;
+    }
+
+    #stock-portfolio-analysis-content .stock-pb-highlight small {
+        font-size: 0.63rem;
+    }
+
+    #stock-portfolio-analysis-content .stock-portfolio-collapsible-content {
+        padding: 16px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #stock-portfolio-analysis-content .stock-pb-caret {
+        transition: none;
+    }
+}
