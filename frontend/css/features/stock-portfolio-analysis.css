@@ -35,6 +35,37 @@
 .portfolio-partial-warning { margin:12px 0; padding:10px 12px; border:1px solid #fef3c7; border-radius:9px; background:#fffbeb; color:#92400e; font-size:11px; line-height:1.5; }
 .portfolio-analysis-error p { color:#64748b; font-size:13px; }
 .portfolio-analysis-error .stock-analyze-btn { margin-top:14px; }
+
+/* -------------------------------------------------------------------------
+   Portfolio Performance — the next analysis layer after Holding Analysis.
+   Uses Stock Analysis' existing historical price CAGR endpoint and the same
+   visual language, with a little more visual hierarchy for the dashboard view.
+   ------------------------------------------------------------------------- */
+.portfolio-performance-section { overflow:hidden; }
+.portfolio-performance-section .stock-section-header { align-items:flex-start; }
+.portfolio-performance-section .stock-section-header h2 { margin-bottom:3px; }
+.portfolio-performance-badge { display:inline-flex; align-items:center; padding:5px 9px; border:1px solid #dbe4f0; border-radius:999px; background:#f8fafc; color:#475569; font-size:10px; font-weight:800; letter-spacing:.06em; }
+.portfolio-performance-cards { margin-top:14px; }
+.portfolio-performance-visual { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(260px,.8fr); gap:16px; margin-top:16px; }
+.portfolio-performance-chart-wrap { min-height:270px; padding:16px 16px 12px; border:1px solid #dfe7f0; border-radius:14px; background:linear-gradient(145deg,#ffffff,#f7fbff); box-shadow:0 8px 22px rgba(15,23,42,.05); }
+.portfolio-performance-chart { width:100% !important; height:238px !important; }
+.portfolio-performance-side { padding:16px; border:1px solid #dfe7f0; border-radius:14px; background:linear-gradient(145deg,#f9fbff,#ffffff); }
+.portfolio-performance-side-title { margin-bottom:14px; color:#172033; font-size:14px; font-weight:800; }
+.portfolio-performance-holding-bars { display:flex; flex-direction:column; gap:13px; }
+.portfolio-performance-holding-label { display:flex; justify-content:space-between; gap:10px; color:#475569; font-size:11px; }
+.portfolio-performance-holding-label span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.portfolio-performance-holding-label strong { flex:0 0 auto; color:#111827; }
+.portfolio-performance-holding-track { height:8px; margin-top:5px; overflow:hidden; border-radius:999px; background:#e8eef6; }
+.portfolio-performance-holding-track span { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#0f172a,#2563eb); }
+.portfolio-performance-holding-track span.negative { background:linear-gradient(90deg,#7f1d1d,#dc2626); }
+.portfolio-performance-holding small { display:block; margin-top:3px; color:#94a3b8; font-size:9px; }
+.portfolio-performance-empty { color:#64748b; font-size:11px; line-height:1.5; }
+
+@media(max-width:760px) {
+  .portfolio-performance-visual { grid-template-columns:1fr; }
+  .portfolio-performance-chart-wrap { min-height:245px; }
+  .portfolio-performance-chart { height:215px !important; }
+}
 @media(max-width:600px) {
   .portfolio-analysis-topbar { align-items:flex-start; }
   .portfolio-analysis-hero { align-items:flex-start; }
