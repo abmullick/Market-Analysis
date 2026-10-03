@@ -51,10 +51,18 @@ function loadHorizontalTableScrollTheme() {
     }
 }
 
+function configureHelpLinks() {
+    document.querySelectorAll('a[href="/help.html"], a[href="help.html"]').forEach((link) => {
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+    });
+}
+
 setMarketAnalysisFavicon();
 setMarketAnalysisHeaderLogo();
 loadPortfolioBuilderButtonTheme();
 loadHorizontalTableScrollTheme();
+configureHelpLinks();
 
 export function initNavigation() {
     const nav = document.getElementById("main-nav");
@@ -74,6 +82,6 @@ export function initNavigation() {
         <a href="/bond-analysis.html" class="${isActive("/bond-analysis.html") ? "active" : ""}">Bond Analysis</a>
         <a href="/stocks.html" class="${isActive("/stocks.html") ? "active" : ""}">Stock Analysis</a>
         <a href="/stock-portfolio-builder.html" class="${isActive("/stock-portfolio-builder.html") ? "active" : ""}">Stock Portfolio Builder</a>
-        <a href="/help.html" class="${isActive("/help.html") ? "active" : ""}">Help</a>
+        <a href="/help.html" target="_blank" rel="noopener noreferrer" class="${isActive("/help.html") ? "active" : ""}">Help</a>
     `;
 }
