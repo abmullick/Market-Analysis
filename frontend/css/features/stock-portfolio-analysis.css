@@ -1,0 +1,42 @@
+/* Portfolio Analysis intentionally reuses Stock Analysis visual components. */
+#stock-portfolio-analysis-content { padding-bottom:48px; }
+#stock-portfolio-analysis-content[hidden] { display:none; }
+.portfolio-analysis-topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:18px 0 14px; }
+.portfolio-analysis-topbar h2 { margin:0; color:#111827; font-size:24px; }
+.portfolio-analysis-back { border:0; background:transparent; color:#2563eb; font:inherit; font-weight:700; cursor:pointer; padding:8px 2px; }
+.portfolio-analysis-section { margin-top:18px; }
+.portfolio-analysis-hero { align-items:center; }
+.portfolio-analysis-hero h1 { margin:0; }
+.portfolio-analysis-total { min-width:88px; text-align:center; padding:12px 14px; border:1px solid #dbe4f0; border-radius:12px; background:#f8fafc; }
+.portfolio-analysis-total strong { display:block; color:#111827; font-size:24px; }
+.portfolio-analysis-total span { color:#64748b; font-size:11px; }
+.portfolio-summary-grid { margin-top:14px; }
+.portfolio-analysis-metric { min-height:74px; }
+.portfolio-metric-note { display:block; margin-top:5px; color:#64748b; font-size:10px; line-height:1.35; }
+.portfolio-analysis-note { margin-top:12px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:9px; background:#f8fafc; color:#64748b; font-size:11px; line-height:1.5; }
+.portfolio-sector-bars { display:flex; flex-direction:column; gap:13px; }
+.portfolio-sector-label { display:flex; justify-content:space-between; gap:12px; margin-bottom:5px; color:#475569; font-size:12px; }
+.portfolio-sector-label strong { color:#111827; }
+.portfolio-sector-track { height:9px; overflow:hidden; border-radius:999px; background:#e8eef6; }
+.portfolio-sector-track span { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#0f172a,#2563eb); }
+.portfolio-analysis-table-wrap { overflow-x:auto; }
+.portfolio-analysis-table th,.portfolio-analysis-table td { white-space:nowrap; vertical-align:middle; }
+.portfolio-analysis-table td:first-child { white-space:normal; min-width:150px; }
+.portfolio-analysis-table td:first-child strong,.portfolio-analysis-table td:first-child small,.portfolio-analysis-table td:last-child small { display:block; }
+.portfolio-analysis-table td:first-child small,.portfolio-analysis-table td:last-child small { margin-top:3px; color:#64748b; font-size:10px; line-height:1.35; }
+.portfolio-signal { display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; font-size:10px; font-weight:700; }
+.portfolio-signal.positive { color:#166534; background:#f0fdf4; border:1px solid #dcfce7; }
+.portfolio-signal.watch { color:#92400e; background:#fffbeb; border:1px solid #fef3c7; }
+.portfolio-signal.mixed { color:#1d4ed8; background:#eff6ff; border:1px solid #dbeafe; }
+.portfolio-signal.neutral { color:#475569; background:#f8fafc; border:1px solid #e2e8f0; }
+.portfolio-data-notes { margin:0; padding-left:18px; color:#64748b; font-size:11px; line-height:1.6; }
+.portfolio-analysis-loading { text-align:center; padding:28px; }
+.portfolio-analysis-loading p { color:#64748b; font-size:12px; }
+.portfolio-partial-warning { margin:12px 0; padding:10px 12px; border:1px solid #fef3c7; border-radius:9px; background:#fffbeb; color:#92400e; font-size:11px; line-height:1.5; }
+.portfolio-analysis-error p { color:#64748b; font-size:13px; }
+.portfolio-analysis-error .stock-analyze-btn { margin-top:14px; }
+@media(max-width:600px) {
+  .portfolio-analysis-topbar { align-items:flex-start; }
+  .portfolio-analysis-hero { align-items:flex-start; }
+  .portfolio-analysis-total { min-width:72px; }
+}
