@@ -1,0 +1,96 @@
+/* Stock Portfolio Builder controls: exact visual language copied from the shared
+   Stock Analysis .btn / .btn-primary system. Do not create a separate palette. */
+
+body[data-page="stock-portfolio-builder"] .stock-analyze-btn,
+body[data-page="stock-portfolio-builder"] .stock-select-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: var(--btn-height);
+    min-height: var(--btn-height);
+    padding: 0 var(--btn-padding-x);
+    border-radius: var(--radius-pill);
+    font-family: var(--font-family);
+    font-size: var(--btn-font-size);
+    font-weight: var(--btn-font-weight);
+    line-height: 1;
+    letter-spacing: .01em;
+    border: 1px solid transparent;
+    cursor: pointer;
+    background-size: 200% 200%;
+    animation: pulse-gradient 3s ease infinite;
+    transition: var(--btn-transition);
+    box-shadow: var(--btn-shadow);
+    position: relative;
+    text-decoration: none;
+    white-space: nowrap;
+    background: linear-gradient(135deg,#0f172a,#2563eb 125%);
+    color: #fff;
+}
+
+body[data-page="stock-portfolio-builder"] .stock-analyze-btn:hover:not(:disabled),
+body[data-page="stock-portfolio-builder"] .stock-select-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--btn-shadow-hover);
+    background: linear-gradient(135deg,#1e293b,#1d4ed8 125%);
+    color: #fff;
+}
+
+body[data-page="stock-portfolio-builder"] .stock-analyze-btn:active:not(:disabled),
+body[data-page="stock-portfolio-builder"] .stock-select-btn:active:not(:disabled) {
+    transform: translateY(0) scale(.98);
+    box-shadow: var(--btn-shadow-active);
+}
+
+body[data-page="stock-portfolio-builder"] .stock-analyze-btn:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+    animation: none;
+    box-shadow: none;
+    transform: none;
+    background: var(--color-slate-200);
+    color: #fff;
+}
+
+/* Secondary controls use the same shared modal-close treatment. */
+body[data-page="stock-portfolio-builder"] .stock-secondary-btn,
+body[data-page="stock-portfolio-builder"] .portfolio-reset-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0 18px;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-family);
+    font-size: .875rem;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: .01em;
+    border: 1px solid var(--color-slate-200);
+    cursor: pointer;
+    background: linear-gradient(135deg,#fff,#f1f5f9);
+    color: var(--color-slate-600);
+    box-shadow: var(--btn-shadow);
+    transition: var(--btn-transition);
+}
+
+body[data-page="stock-portfolio-builder"] .stock-secondary-btn:hover:not(:disabled),
+body[data-page="stock-portfolio-builder"] .portfolio-reset-btn:hover:not(:disabled) {
+    background: #fff;
+    border-color: var(--color-slate-400);
+    color: var(--color-primary);
+    transform: translateY(-1px);
+    box-shadow: var(--btn-shadow-hover);
+}
+
+/* The row Add/Added control keeps the exact primary geometry while retaining
+   its existing width. */
+body[data-page="stock-portfolio-builder"] .stock-picker-row .stock-select-btn {
+    min-width: 104px;
+    width: 104px;
+    max-width: 104px;
+    flex: 0 0 104px;
+}
