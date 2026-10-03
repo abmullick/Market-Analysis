@@ -4,86 +4,105 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Portfolio Builder | Market Analysis</title>
-    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/static/images/hero-market-analysis.png?v=4" type="image/png">
     <link rel="stylesheet" href="/css/base.css">
     <link rel="stylesheet" href="/css/layout.css">
     <link rel="stylesheet" href="/css/components.css">
-    <link rel="stylesheet" href="/css/features/portfolio-builder.css">
+    <link rel="stylesheet" href="/css/features/stock-selection.css?v=20261003-2">
+    <link rel="stylesheet" href="/css/features/stock-portfolio-builder.css?v=20261003-1">
 </head>
-<body>
-    <header class="site-header">
-        <div class="header-left">
-            <img src="/static/images/logo.png" alt="Market Analysis" class="logo">
-            <h1>Stock Portfolio Builder</h1>
+<body data-page="stock-portfolio-builder">
+<header class="site-header">
+    <div class="header-left">
+        <img src="/static/images/logo.png" alt="Market Analysis" class="logo">
+        <h1>Stock Portfolio Builder</h1>
+    </div>
+    <nav id="main-nav"></nav>
+</header>
+
+<main class="container">
+    <div id="stock-portfolio-builder-content">
+        <div class="pb-page-header-text">
+            <h1 class="mf-page-title">Stock Portfolio Builder</h1>
+            <p class="mf-page-subtitle">Build a portfolio of individual stocks with configurable allocations.</p>
         </div>
-        <nav id="main-nav"></nav>
-    </header>
-    <main class="container">
-        <div class="page-header">
-            <div id="stock-portfolio-builder-content">
-                <div class="pb-page-header-text">
-                    <h1 class="mf-page-title">Stock Portfolio Builder</h1>
-                    <p class="mf-page-subtitle">Build and analyze your stock portfolio.</p>
+
+        <div id="stock-portfolio-construction" class="stock-selection-layout">
+            <aside class="stock-selected-panel stock-portfolio-panel">
+                <div class="stock-selection-kicker">YOUR PORTFOLIO</div>
+                <div id="portfolio-empty" class="stock-no-selection">
+                    Add stocks from the list to start building your portfolio.
                 </div>
-                <div class="pb-stage">
-                    <section class="pb-panel">
-                        <div class="pb-panel-header">
-                            <h2 class="pb-panel-title">Coming Soon</h2>
-                        </div>
-                        <p>Stock Portfolio Builder is coming soon.</p>
-                        <p class="pb-page-note">Stock portfolio construction and analysis functionality will arrive in a later phase.</p>
-                    </section>
-                    <section class="pb-preview-section">
-                        <h2 class="pb-preview-heading">What to Expect</h2>
-                        <div class="pb-preview-grid">
-                            <div class="pb-preview-card">
-                                <h3>Portfolio Construction</h3>
-                                <p>Build and organize a portfolio of individual stocks with configurable allocations.</p>
-                            </div>
-                            <div class="pb-preview-card">
-                                <h3>Portfolio Performance</h3>
-                                <p>Analyze portfolio returns, growth, CAGR, and performance over time.</p>
-                            </div>
-                            <div class="pb-preview-card">
-                                <h3>Risk &amp; Volatility</h3>
-                                <p>Understand portfolio volatility, drawdowns, and other portfolio-level risk characteristics.</p>
-                            </div>
-                            <div class="pb-preview-card">
-                                <h3>Diversification &amp; Concentration</h3>
-                                <p>Evaluate diversification, concentration, sector exposure, and the distribution of portfolio holdings.</p>
-                            </div>
-                            <div class="pb-preview-card">
-                                <h3>Benchmark Comparison</h3>
-                                <p>Compare portfolio performance against relevant market benchmarks.</p>
-                            </div>
-                            <div class="pb-preview-card">
-                                <h3>Portfolio Insights</h3>
-                                <p>Get an overall view of portfolio strengths, weaknesses, and important areas to consider.</p>
-                            </div>
-                        </div>
-                    </section>
+                <div id="portfolio-holdings" class="portfolio-holdings" hidden></div>
+                <div class="portfolio-total-row">
+                    <span>Total Allocation</span>
+                    <strong id="portfolio-total">0%</strong>
                 </div>
-            </div>
+                <div id="portfolio-status" class="portfolio-status portfolio-status-warn">Add stocks and set the allocation to 100%.</div>
+                <button id="portfolio-continue" class="stock-analyze-btn" type="button" disabled>Continue to Portfolio Analysis</button>
+                <button id="portfolio-clear" class="stock-secondary-btn portfolio-clear-btn" type="button" hidden>Clear Portfolio</button>
+            </aside>
+
+            <section class="stock-picker-panel">
+                <div class="stock-section-header portfolio-picker-header">
+                    <div>
+                        <h2>Choose Stocks</h2>
+                        <span>Select the stocks you want in the portfolio.</span>
+                    </div>
+                    <span id="portfolio-stock-count" class="portfolio-count">0 selected</span>
+                </div>
+
+                <div class="stock-picker-filters">
+                    <label>
+                        Search
+                        <input id="portfolio-stock-search" type="search" placeholder="Company or symbol">
+                    </label>
+                    <label>
+                        Sector
+                        <select id="portfolio-sector-filter">
+                            <option value="">All sectors</option>
+                        </select>
+                    </label>
+                    <label>
+                        Market Cap
+                        <select id="portfolio-cap-filter">
+                            <option value="">All market caps</option>
+                            <option value="large">Large Cap</option>
+                            <option value="mid">Mid Cap</option>
+                            <option value="small">Small Cap</option>
+                            <option value="micro">Micro Cap</option>
+                        </select>
+                    </label>
+                    <button id="portfolio-reset-filters" class="stock-page-btn stock-secondary-btn" type="button">Clear Filters</button>
+                </div>
+
+                <div id="portfolio-result-summary" class="stock-result-summary">Loading stock universe…</div>
+                <div id="portfolio-stock-list" class="stock-picker-list">
+                    <div class="stock-loading">Loading stocks…</div>
+                </div>
+            </section>
         </div>
-    </main>
-    <a href="/help.html" class="help-link" title="Help & Methodology">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-        </svg>
-        <span>Help & Methodology</span>
-    </a>
-    <footer class="site-footer">
-        <div class="container">
-            <p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p>
-        </div>
-    </footer>
-    <script type="module" src="/js/core/config.js"></script>
-    <script type="module" src="/js/core/navigation.js"></script>
-    <script type="module">
-        import { initNavigation } from '/js/core/navigation.js';
-        initNavigation();
-    </script>
+    </div>
+</main>
+
+<a href="/help.html" class="help-link" title="Help & Methodology">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+    </svg>
+    <span>Help & Methodology</span>
+</a>
+
+<footer class="site-footer">
+    <div class="container"><p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p></div>
+</footer>
+
+<script type="module">
+    import { initNavigation } from '/js/core/navigation.js';
+    import { initStockPortfolioBuilder } from '/js/features/stock-portfolio-builder.js?v=20261003-1';
+    initNavigation();
+    initStockPortfolioBuilder();
+</script>
 </body>
 </html>
