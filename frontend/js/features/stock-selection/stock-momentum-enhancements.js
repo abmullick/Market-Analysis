@@ -122,6 +122,8 @@ function addStyles() {
 }
 
 function init() {
+  // Comparison pages have their own per-stock momentum presentation. Do not inject the individual-stock enhancement here.
+  if (new URLSearchParams(location.search).has('compare')) return;
   addStyles();
   enhanceIndex();
   const details = document.getElementById('stock-details');
