@@ -137,7 +137,15 @@
     function init() {
         const results = document.getElementById("portfolio-analysis-results");
         if (!results) return;
-        new MutationObserver(schedule).observe(results, { childList: true, subtree: true });
+        new MutationObserver(mutations => {
+            const current = document.getElementById(ROOT_ID);
+            const onlyRiskMutation = current && mutations.every(m =>
+                m.target?.closest?.(`#${ROOT_ID}`) ||
+                [...m.addedNodes].includes(current) ||
+                [...m.removedNodes].some(node => node?.id === ROOT_ID)
+            );
+            if (!onlyRiskMutation) schedule();
+        }).observe(results, { childList: true, subtree: true });
         schedule();
     }
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
