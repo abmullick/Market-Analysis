@@ -81,7 +81,7 @@ function individualStory(details) {
   if (momentum && valuationEngine && !details.querySelector(".stock-story-synthesis")) {
     const synthesis = document.createElement("div");
     synthesis.className = "stock-story-synthesis";
-    synthesis.innerHTML = `<div class="stock-story-synthesis-line"><span>Business trajectory</span><i>+</i><span>Market valuation</span><strong>→</strong><b>Business–Valuation Matrix</b></div><small>The two engines are designed to be read together: one describes how fundamentals are changing; the other describes where the current valuation sits relative to the company's own history.</small>`;
+    synthesis.innerHTML = `<div class="stock-story-synthesis-line"><span>Business trajectory</span><i>+</i><span>Market valuation</span><strong>→</strong><b>Combined business–valuation view</b></div><small>The two engines are designed to be read together: one describes how fundamentals are changing; the other describes where the current valuation sits relative to the company's own history. The comparison page takes this one step further with the Business–Valuation Matrix.</small>`;
     valuationEngine.insertAdjacentElement("afterend", synthesis);
   }
 }
