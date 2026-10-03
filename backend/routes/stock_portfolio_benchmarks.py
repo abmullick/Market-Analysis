@@ -1,5 +1,6 @@
 from typing import Any
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, HTTPException
 
@@ -29,18 +30,23 @@ def _cagr(prices: list[dict[str, Any]], years: int) -> float | None:
     return ((end / start) ** (1 / actual_years) - 1) * 100
 
 
+def _load_one(key: str, meta: dict[str, str]) -> tuple[str, dict[str, Any]]:
+    prices = yahoo_annual_prices(meta["symbol"], years=12)
+    return key, {
+        "label": meta["label"],
+        "symbol": meta["symbol"],
+        "available": bool(prices),
+        "prices": prices,
+        "cagr": {str(years): _cagr(prices, years) for years in (1, 3, 5, 10)},
+    }
+
+
 def _load_benchmarks() -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, meta in BENCHMARKS.items():
-        prices = yahoo_annual_prices(meta["symbol"], years=12)
-        result[key] = {
-            "label": meta["label"],
-            "symbol": meta["symbol"],
-            "available": bool(prices),
-            "prices": prices,
-            "cagr": {str(years): _cagr(prices, years) for years in (1, 3, 5, 10)},
-        }
-    return result
+    # Fetch the three independent benchmark series concurrently so opening the
+    # comparison does not wait on three sequential Yahoo requests.
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        loaded = list(executor.map(lambda item: _load_one(*item), BENCHMARKS.items()))
+    return dict(loaded)
 
 
 @router.get("/comparison")
