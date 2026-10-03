@@ -1,0 +1,165 @@
+/* Portfolio vs Benchmark — uses the same Stock Analysis visual language. */
+.portfolio-benchmark-section {
+    overflow: hidden;
+}
+
+.portfolio-benchmark-header {
+    align-items: flex-start;
+    gap: 18px;
+}
+
+.portfolio-benchmark-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 150px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.portfolio-benchmark-selector select {
+    appearance: auto;
+    min-height: 42px;
+    padding: 9px 34px 9px 12px;
+    border: 1px solid #d7e0e9;
+    border-radius: 10px;
+    background: #fff;
+    color: #172033;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    outline: none;
+}
+
+.portfolio-benchmark-selector select:focus {
+    border-color: #94a3b8;
+    box-shadow: 0 0 0 3px rgba(148, 163, 184, .16);
+}
+
+.portfolio-benchmark-status {
+    margin: 2px 0 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.portfolio-benchmark-highlight {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 14px 0;
+}
+
+.portfolio-benchmark-highlight-card {
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid #e1e7ee;
+    border-radius: 14px;
+    background: linear-gradient(145deg, #ffffff, #f8fbfe);
+}
+
+.portfolio-benchmark-highlight-card span,
+.portfolio-benchmark-highlight-card small {
+    display: block;
+    color: #64748b;
+}
+
+.portfolio-benchmark-highlight-card span {
+    margin-bottom: 7px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.portfolio-benchmark-highlight-card strong {
+    display: block;
+    color: #111827;
+    font-size: 25px;
+    line-height: 1.1;
+}
+
+.portfolio-benchmark-highlight-card small {
+    margin-top: 7px;
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+.portfolio-benchmark-relative {
+    background: linear-gradient(145deg, #f4f8fd, #eef4fb);
+}
+
+.portfolio-benchmark-chart-wrap {
+    position: relative;
+    height: 300px;
+    margin: 14px 0 18px;
+    padding: 14px 14px 8px;
+    border: 1px solid #e1e7ee;
+    border-radius: 16px;
+    background: #fff;
+}
+
+.portfolio-benchmark-table-wrap {
+    padding: 14px;
+    border: 1px solid #e1e7ee;
+    border-radius: 16px;
+    background: #fff;
+}
+
+.portfolio-benchmark-table-title {
+    margin-bottom: 10px;
+    color: #172033;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.portfolio-benchmark-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.portfolio-benchmark-table {
+    min-width: 560px;
+    margin: 0;
+}
+
+.portfolio-benchmark-table th,
+.portfolio-benchmark-table td {
+    white-space: nowrap;
+}
+
+.portfolio-benchmark-table th {
+    color: #334155;
+}
+
+.portfolio-benchmark-table td {
+    color: #475569;
+}
+
+.portfolio-benchmark-table td:first-child,
+.portfolio-benchmark-table td:nth-child(2) {
+    color: #172033;
+}
+
+@media (max-width: 640px) {
+    .portfolio-benchmark-header {
+        flex-direction: column;
+    }
+
+    .portfolio-benchmark-selector {
+        width: 100%;
+    }
+
+    .portfolio-benchmark-selector select {
+        width: 100%;
+    }
+
+    .portfolio-benchmark-highlight {
+        grid-template-columns: 1fr;
+    }
+
+    .portfolio-benchmark-chart-wrap {
+        height: 270px;
+    }
+}
