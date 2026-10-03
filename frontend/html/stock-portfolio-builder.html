@@ -9,7 +9,8 @@
     <link rel="stylesheet" href="/css/layout.css">
     <link rel="stylesheet" href="/css/components.css">
     <link rel="stylesheet" href="/css/features/stock-selection.css?v=20261003-2">
-    <link rel="stylesheet" href="/css/features/stock-portfolio-builder.css?v=20261003-1">
+    <link rel="stylesheet" href="/css/features/stock-analysis-polish.css?v=20261003-1">
+    <link rel="stylesheet" href="/css/features/stock-portfolio-builder.css?v=20261003-2">
 </head>
 <body data-page="stock-portfolio-builder">
 <header class="site-header">
@@ -52,28 +53,35 @@
                     <span id="portfolio-stock-count" class="portfolio-count">0 selected</span>
                 </div>
 
-                <div class="stock-picker-filters">
-                    <label>
+                <div class="stock-picker-filters portfolio-filters">
+                    <label class="portfolio-search-field">
                         Search
                         <input id="portfolio-stock-search" type="search" placeholder="Company or symbol">
                     </label>
-                    <label>
-                        Sector
-                        <select id="portfolio-sector-filter">
-                            <option value="">All sectors</option>
-                        </select>
-                    </label>
-                    <label>
-                        Market Cap
-                        <select id="portfolio-cap-filter">
-                            <option value="">All market caps</option>
-                            <option value="large">Large Cap</option>
-                            <option value="mid">Mid Cap</option>
-                            <option value="small">Small Cap</option>
-                            <option value="micro">Micro Cap</option>
-                        </select>
-                    </label>
-                    <button id="portfolio-reset-filters" class="stock-page-btn stock-secondary-btn" type="button">Clear Filters</button>
+                    <div class="portfolio-sector-field">
+                        <span class="portfolio-filter-label">Sector</span>
+                        <div class="category-picker portfolio-sector-picker">
+                            <button id="portfolio-sector-trigger" type="button" class="category-picker-trigger" aria-expanded="false">
+                                <span id="portfolio-sector-value" class="category-picker-value">All Sectors</span><span>⌄</span>
+                            </button>
+                            <div id="portfolio-sector-dropdown" class="category-picker-dropdown" hidden>
+                                <div class="category-picker-search"><span>⌕</span><input class="category-picker-search-input" id="portfolio-sector-search" placeholder="Search sectors..." autocomplete="off"></div>
+                                <div class="category-picker-actions"><button type="button" class="category-picker-action" id="portfolio-sector-select-all">Select All</button><button type="button" class="category-picker-action" id="portfolio-sector-clear-all">Clear</button></div>
+                                <div class="category-picker-list" id="portfolio-sector-list"></div>
+                                <div class="category-picker-footer" id="portfolio-sector-count">0 selected</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="portfolio-cap-field">
+                        <span class="portfolio-filter-label">Market Cap</span>
+                        <div class="stock-chip-filter" id="portfolio-cap-filter">
+                            <label><input type="checkbox" value="large"><span>Large Cap</span></label>
+                            <label><input type="checkbox" value="mid"><span>Mid Cap</span></label>
+                            <label><input type="checkbox" value="small"><span>Small Cap</span></label>
+                            <label><input type="checkbox" value="micro"><span>Micro Cap</span></label>
+                        </div>
+                    </div>
+                    <button id="portfolio-reset-filters" class="stock-page-btn stock-secondary-btn portfolio-reset-btn" type="button">Clear Filters</button>
                 </div>
 
                 <div id="portfolio-result-summary" class="stock-result-summary">Loading stock universe…</div>
@@ -100,7 +108,7 @@
 
 <script type="module">
     import { initNavigation } from '/js/core/navigation.js';
-    import { initStockPortfolioBuilder } from '/js/features/stock-portfolio-builder.js?v=20261003-1';
+    import { initStockPortfolioBuilder } from '/js/features/stock-portfolio-builder.js?v=20261003-2';
     initNavigation();
     initStockPortfolioBuilder();
 </script>
