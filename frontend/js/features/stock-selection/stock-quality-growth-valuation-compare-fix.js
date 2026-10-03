@@ -11,7 +11,7 @@ function derive(data) {
   const profit3 = num(d.profit_cagr_3y_derived), eps3 = num(d.eps_cagr_3y_derived);
   const growth = profit3 != null ? profit3 * 100 : eps3 != null ? eps3 * 100 : cagr(values(data, "income_statement", "NetIncome"), 3) ?? cagr(values(data, "income_statement", "DilutedEPS"), 3);
   const roe = num(d.roe_derived) != null ? num(d.roe_derived) * 100 : num(f.roe);
-  const roa = num(d.roa_derived) != null ? num(d.roa_derived) * 100 : num(f.roa);
+  const roa = fin ? num(f.roa) : num(d.roa_derived) != null ? num(d.roa_derived) * 100 : num(f.roa);
   const debt = values(data, "balance_sheet", "TotalDebt"), equity = values(data, "balance_sheet", "StockholdersEquity");
   const debtEq = num(f.debt_equity) ?? (debt[0] != null && equity[0] != null && equity[0] !== 0 ? debt[0] / equity[0] : null);
   const payout = num(f.payout_ratio), retained = roe != null && payout != null ? roe * Math.max(0, Math.min(100, 100 - payout)) / 100 : null;
