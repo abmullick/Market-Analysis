@@ -5,54 +5,21 @@ const GROUPS = {
   pedigreeIndividual: { key:"company-pedigree", title:"Company Pedigree, Consistency & Trends", subtitle:"Historical business quality, cash generation, leverage and ownership", icon:"pedigree", accent:"#7c3aed", tint:"rgba(124,58,237,.055)", border:"rgba(124,58,237,.22)" },
   earningsCompare: { key:"earnings-capital-dilution", title:"Earnings Quality, Capital Allocation & Dilution Comparison", subtitle:"Cash earnings, reinvestment discipline and per-share value creation", icon:"quality", accent:"#b45309", tint:"rgba(180,83,9,.055)", border:"rgba(180,83,9,.22)" },
 };
-const ICONS = {
-  growth:'<polyline points="3 17 9 11 13 14 21 5"></polyline><polyline points="15 5 21 5 21 11"></polyline>',
-  pedigree:'<path d="M12 3l7 4v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V7l7-4z"></path><path d="M8 12l2.5 2.5L16 9"></path>',
-  quality:'<path d="M4 19V9"></path><path d="M10 19V5"></path><path d="M16 19v-7"></path><path d="M22 19V3"></path><path d="M2 19h21"></path>',
-};
-const esc = v => String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
-const iconSvg = type => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[type] || ICONS.growth}</svg>`;
-function chartInstances(root){ if(typeof Chart === "undefined") return []; return [...root.querySelectorAll("canvas")].map(c=>Chart.getChart(c)).filter(Boolean); }
-function makeGroupCard(config, content, index){
-  const card=document.createElement("section"); card.className="stock-analysis-chart-group pb-section-card pb-health-card"; card.dataset.stockChartGroup=config.key;
-  card.style.setProperty("--pb-accent",config.accent); card.style.setProperty("--pb-tint",config.tint); card.style.setProperty("--pb-border",config.border);
-  const contentId=`stock-chart-group-content-${config.key}-${index}`;
-  const header=document.createElement("div"); header.className="stock-analysis-chart-group-header pb-section-header pb-health-header"; header.setAttribute("role","button"); header.tabIndex=0; header.setAttribute("aria-expanded","false"); header.setAttribute("aria-controls",contentId);
-  header.innerHTML=`<div class="pb-health-header-main"><span class="pb-section-icon pb-health-icon stock-analysis-group-icon">${iconSvg(config.icon)}</span><span class="pb-section-titlewrap pb-health-summary-label">${esc(config.title)}<small>${esc(config.subtitle)}</small></span></div><div class="pb-section-kpis stock-analysis-group-kpis" aria-label="Group highlights"></div><div class="pb-section-controls"><button type="button" class="pb-section-caret-btn pb-health-caret-button stock-analysis-group-caret" aria-expanded="false" aria-controls="${contentId}" aria-label="Expand ${esc(config.title)}"><svg class="pb-section-caret pb-health-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5"></path></svg></button></div>`;
-  const body=document.createElement("div"); body.className="stock-analysis-chart-group-content pb-section-content pb-health-content"; body.id=contentId; body.appendChild(content);
-  const setOpen=open=>{ header.setAttribute("aria-expanded",String(open)); body.hidden=!open; card.classList.toggle("is-open",open); const b=header.querySelector("button"); if(b){b.setAttribute("aria-expanded",String(open)); b.setAttribute("aria-label",`${open?"Collapse":"Expand"} ${config.title}`);} if(open) requestAnimationFrame(()=>chartInstances(body).forEach(c=>c.resize())); };
-  const toggle=()=>setOpen(header.getAttribute("aria-expanded")!=="true");
-  header.addEventListener("click",e=>{if(!e.target.closest("button"))toggle()});
-  header.addEventListener("keydown",e=>{if(e.target.closest("button"))return;if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle()}});
-  header.querySelector("button")?.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();toggle()});
-  card.append(header,body); return card;
+const ICONS = { growth:'<polyline points="3 17 9 11 13 14 21 5"></polyline><polyline points="15 5 21 5 21 11"></polyline>', pedigree:'<path d="M12 3l7 4v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V7l7-4z"></path><path d="M8 12l2.5 2.5L16 9"></path>', quality:'<path d="M4 19V9"></path><path d="M10 19V5"></path><path d="M16 19v-7"></path><path d="M22 19V3"></path><path d="M2 19h21"></path>' };
+const esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+const iconSvg=type=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[type]||ICONS.growth}</svg>`;
+function chartInstances(root){if(typeof Chart==="undefined")return[];return[...root.querySelectorAll("canvas")].map(c=>Chart.getChart(c)).filter(Boolean)}
+function makeGroupCard(config,content,index){
+ const card=document.createElement("section");card.className="stock-analysis-chart-group pb-section-card pb-health-card";card.dataset.stockChartGroup=config.key;card.style.setProperty("--pb-accent",config.accent);card.style.setProperty("--pb-tint",config.tint);card.style.setProperty("--pb-border",config.border);
+ const contentId=`stock-chart-group-content-${config.key}-${index}`;const header=document.createElement("div");header.className="stock-analysis-chart-group-header pb-section-header pb-health-header";header.setAttribute("role","button");header.tabIndex=0;header.setAttribute("aria-expanded","false");header.setAttribute("aria-controls",contentId);
+ header.innerHTML=`<div class="pb-health-header-main"><span class="pb-section-icon pb-health-icon stock-analysis-group-icon">${iconSvg(config.icon)}</span><span class="pb-section-titlewrap pb-health-summary-label">${esc(config.title)}<small>${esc(config.subtitle)}</small></span></div><div class="pb-section-kpis stock-analysis-group-kpis" aria-label="Group highlights"></div><div class="pb-section-controls"><button type="button" class="pb-section-caret-btn pb-health-caret-button stock-analysis-group-caret" aria-expanded="false" aria-controls="${contentId}" aria-label="Expand ${esc(config.title)}"><svg class="pb-section-caret pb-health-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5"></path></svg></button></div>`;
+ const body=document.createElement("div");body.className="stock-analysis-chart-group-content pb-section-content pb-health-content";body.id=contentId;body.appendChild(content);
+ const setOpen=open=>{header.setAttribute("aria-expanded",String(open));body.hidden=!open;card.classList.toggle("is-open",open);const b=header.querySelector("button");if(b){b.setAttribute("aria-expanded",String(open));b.setAttribute("aria-label",`${open?"Collapse":"Expand"} ${config.title}`)}if(open)requestAnimationFrame(()=>chartInstances(body).forEach(c=>c.resize()))};
+ const toggle=()=>setOpen(header.getAttribute("aria-expanded")!=="true");header.addEventListener("click",e=>{if(!e.target.closest("button"))toggle()});header.addEventListener("keydown",e=>{if(e.target.closest("button"))return;if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle()}});header.querySelector("button")?.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();toggle()});card.append(header,body);return card;
 }
-function populateHighlights(card){
-  const target=card.querySelector(".stock-analysis-group-kpis"); if(!target)return;
-  const values=[]; chartInstances(card).forEach(chart=>{const data=(chart.data?.datasets?.[0]?.data||[]).map(Number).filter(Number.isFinite);if(!data.length)return;const latest=data[data.length-1],label=chart.data?.datasets?.[0]?.label||"Latest";values.push(`<span class="stock-analysis-group-highlight"><strong>${latest.toLocaleString("en-IN",{maximumFractionDigits:1})}</strong><small>${esc(label)}</small></span>`);});
-  target.innerHTML=values.slice(0,3).join("");
-}
-function groupTrendsSection(section){
-  if(!section||section.dataset.stockChartGroupWrapped==="1")return; const grid=section.querySelector(":scope > .stock-trends-grid"); if(!grid||!grid.querySelector(".stock-chart-card"))return;
-  const wrapper=makeGroupCard(GROUPS.trends,grid,"trends"); grid.parentNode.replaceChild(wrapper,grid); section.dataset.stockChartGroupWrapped="1"; populateHighlights(wrapper);
-}
-function groupPedigreeSection(section){
-  if(!section||section.dataset.stockChartGroupWrapped==="1")return; const grid=section.querySelector(":scope > .stock-pedigree-chart-grid"); if(!grid||!grid.querySelector(".stock-pedigree-chart-card"))return;
-  const config=section.classList.contains("stock-pedigree-compare")?GROUPS.pedigreeCompare:GROUPS.pedigreeIndividual; const wrapper=makeGroupCard(config,grid,section.classList.contains("stock-pedigree-compare")?"compare":"individual"); grid.parentNode.replaceChild(wrapper,grid); section.dataset.stockChartGroupWrapped="1"; populateHighlights(wrapper);
-}
-function groupEarningsCapitalSection(section){
-  if(!section||section.dataset.stockChartGroupWrapped==="1")return; const heading=section.querySelector("h2,h3"),text=(heading?.textContent||"").toLowerCase();
-  if(!(text.includes("earnings quality")||text.includes("capital allocation")||text.includes("dilution")))return;
-  const grid=section.querySelector(":scope > .stock-pedigree-chart-grid, :scope > .stock-trends-grid"); if(!grid)return;
-  const candidates=[...grid.querySelectorAll(".stock-chart-card,.stock-pedigree-chart-card")]; if(!candidates.length)return;
-  const fragment=document.createDocumentFragment(); candidates.forEach(node=>fragment.appendChild(node));
-  const wrapper=makeGroupCard(GROUPS.earningsCompare,fragment,"earnings"); grid.parentNode.replaceChild(wrapper,grid); section.dataset.stockChartGroupWrapped="1"; populateHighlights(wrapper);
-}
-function scan(){
-  document.querySelectorAll("#stock-details .stock-trends-section,#stock-analysis-screen .stock-trends-section").forEach(groupTrendsSection);
-  document.querySelectorAll("#stock-details .stock-pedigree-section,#stock-analysis-screen .stock-pedigree-section").forEach(groupPedigreeSection);
-  document.querySelectorAll("#stock-details section,#stock-analysis-screen section").forEach(groupEarningsCapitalSection);
-}
-const observer=new MutationObserver(()=>{clearTimeout(observer.timer);observer.timer=setTimeout(scan,80)});
-function init(){scan();observer.observe(document.body,{childList:true,subtree:true});}
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+function populateHighlights(card){const target=card.querySelector(".stock-analysis-group-kpis");if(!target)return;const values=[];chartInstances(card).forEach(chart=>{const data=(chart.data?.datasets?.[0]?.data||[]).map(Number).filter(Number.isFinite);if(!data.length)return;const latest=data[data.length-1],label=chart.data?.datasets?.[0]?.label||"Latest";values.push(`<span class="stock-analysis-group-highlight"><strong>${latest.toLocaleString("en-IN",{maximumFractionDigits:1})}</strong><small>${esc(label)}</small></span>`)});target.innerHTML=values.slice(0,3).join("")}
+function groupTrendsSection(section){if(!section||section.dataset.stockChartGroupWrapped==="1")return;const grid=section.querySelector(":scope > .stock-trends-grid");if(!grid||!grid.querySelector(".stock-chart-card"))return;const wrapper=makeGroupCard(GROUPS.trends,grid,"trends");grid.parentNode.replaceChild(wrapper,grid);section.dataset.stockChartGroupWrapped="1";populateHighlights(wrapper)}
+function groupPedigreeSection(section){if(!section||section.dataset.stockChartGroupWrapped==="1")return;const grid=section.querySelector(":scope > .stock-pedigree-chart-grid");if(!grid||!grid.querySelector(".stock-pedigree-chart-card"))return;const config=section.classList.contains("stock-pedigree-compare")?GROUPS.pedigreeCompare:GROUPS.pedigreeIndividual;const wrapper=makeGroupCard(config,grid,section.classList.contains("stock-pedigree-compare")?"compare":"individual");grid.parentNode.replaceChild(wrapper,grid);section.dataset.stockChartGroupWrapped="1";populateHighlights(wrapper)}
+function groupEarningsCapitalSection(section){if(!section||section.dataset.stockChartGroupWrapped==="1")return;const heading=section.querySelector("h2,h3"),text=(heading?.textContent||"").toLowerCase();if(!(text.includes("earnings quality")||text.includes("capital allocation")||text.includes("dilution")))return;const grid=section.querySelector(":scope > .stock-pedigree-chart-grid, :scope > .stock-trends-grid");if(!grid)return;const candidates=[...grid.querySelectorAll(".stock-chart-card,.stock-pedigree-chart-card")];if(!candidates.length)return;const fragment=document.createDocumentFragment();candidates.forEach(node=>fragment.appendChild(node));const wrapper=makeGroupCard(GROUPS.earningsCompare,fragment,"earnings");grid.parentNode.replaceChild(wrapper,grid);section.dataset.stockChartGroupWrapped="1";populateHighlights(wrapper)}
+function scan(){document.querySelectorAll("#stock-details section,#stock-analysis-screen section").forEach(groupEarningsCapitalSection);document.querySelectorAll("#stock-details .stock-trends-section,#stock-analysis-screen .stock-trends-section").forEach(groupTrendsSection);document.querySelectorAll("#stock-details .stock-pedigree-section,#stock-analysis-screen .stock-pedigree-section").forEach(groupPedigreeSection)}
+const observer=new MutationObserver(()=>{clearTimeout(observer.timer);observer.timer=setTimeout(scan,80)});function init(){scan();observer.observe(document.body,{childList:true,subtree:true})}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
