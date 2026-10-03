@@ -9,13 +9,15 @@ function series(data, statement, key) { return (data?.[statement] || []).map(r =
 function cagr(values, years = 3) { if (values.length < years + 1) return null; const end = values[0], start = values[years]; if (start <= 0 || end <= 0) return null; return (Math.pow(end / start, 1 / years) - 1) * 100; }
 function derive(data) {
   const f = data?.fundamentals || {}, d = data?.derived_analysis || {}, financial = isFinancial(f);
-  const income = data?.income_statement || [], balance = data?.balance_sheet || [];
-  // Earnings growth = net-income CAGR over exactly three annual periods. EPS is fallback only when profit history is unavailable.
+  const debt = series(data, "balance_sheet", "TotalDebt"), equity = series(data, "balance_sheet", "StockholdersEquity");
+  // Backend derived CAGRs are now period-correct. Keep the statement fallback for resilience.
   const profit3 = num(d.profit_cagr_3y_derived), eps3 = num(d.eps_cagr_3y_derived);
   const growth = profit3 != null ? profit3 * 100 : eps3 != null ? eps3 * 100 : cagr(series(data, "income_statement", "NetIncome"), 3) ?? cagr(series(data, "income_statement", "DilutedEPS"), 3);
   const roe = num(d.roe_derived) != null ? num(d.roe_derived) * 100 : num(f.roe);
-  const roa = num(d.roa_derived) != null ? num(d.roa_derived) * 100 : num(f.roa);
-  const debt = series(data, "balance_sheet", "TotalDebt"), equity = series(data, "balance_sheet", "StockholdersEquity");
+  // For the financial-services lens, use the current ROA supplied from the same Screener snapshot.
+  // The engine's average-assets ROA remains available elsewhere, but the lens asks
+  // how much current profit is generated per unit of current assets.
+  const roa = financial ? num(f.roa) : num(d.roa_derived) != null ? num(d.roa_derived) * 100 : num(f.roa);
   const debtEq = num(f.debt_equity) ?? (debt[0] != null && equity[0] != null && equity[0] !== 0 ? debt[0] / equity[0] : null);
   const payout = num(f.payout_ratio), retention = payout == null ? null : Math.max(0, Math.min(100, 100 - payout));
   const retained = roe != null && retention != null ? roe * retention / 100 : null;
@@ -31,7 +33,7 @@ function repairIndividual(root, data) {
   const three = root.querySelectorAll(".qgv-three > div");
   if (three.length >= 3) { setText(three[0].querySelector("b"), ratio(valuation)); setText(three[0].querySelector("small"), valuationLabel); setText(three[1].querySelector("b"), pct(quality)); setText(three[1].querySelector("small"), qualityLabel); setText(three[2].querySelector("b"), pct(x.growth)); setText(three[2].querySelector("small"), "3Y earnings CAGR"); }
   const story = root.querySelector(".qgv-story-line"); if (story) story.innerHTML = `<strong>${valuationLabel}</strong><span>×</span><strong>${qualityLabel}</strong><span>×</span><strong>3Y earnings CAGR</strong>`;
-  const scoreP = root.querySelector(".qgv-score-card p"); if (scoreP) scoreP.textContent = x.financial ? `Current ${valuationLabel} ${ratio(valuation)} is being read with derived ${qualityLabel} ${pct(quality)} and 3Y earnings CAGR ${pct(x.growth)}.` : `${x.gap == null ? "Funding comparison is limited" : x.gap > 5 ? "Growth is above simple internal capacity" : "Growth is broadly supported by internal capacity"}. A positive gap is an investigation signal, not proof of external funding.`;
+  const scoreP = root.querySelector(".qgv-score-card p"); if (scoreP) scoreP.textContent = x.financial ? `Current ${valuationLabel} ${ratio(valuation)} is being read with current ${qualityLabel} ${pct(quality)} and 3Y earnings CAGR ${pct(x.growth)}.` : `${x.gap == null ? "Funding comparison is limited" : x.gap > 5 ? "Growth is above simple internal capacity" : "Growth is broadly supported by internal capacity"}. A positive gap is an investigation signal, not proof of external funding.`;
   if (x.financial) { setChip(root, "P/B", ratio(valuation)); setChip(root, "ROA", pct(quality)); setChip(root, "Earnings growth", pct(x.growth)); setChip(root, "Asset growth", pct(x.assetGrowth)); setChip(root, "Book growth", pct(x.equityGrowth)); }
   else { setMetricByLabel(root, "Earnings growth", x.growth, "%"); setMetricByLabel(root, "ROE", x.roe, "%"); setMetricByLabel(root, "Retained-earnings capacity", x.retained, "%"); setMetricByLabel(root, "Growth gap", x.gap, " pp"); setMetricByLabel(root, "Debt / Equity", x.debtEq, "x"); setMetricByLabel(root, "Interest coverage", x.interest, "x"); setMetricByLabel(root, "Net Debt / EBITDA", x.nde, "x"); setMetricByLabel(root, "Debt growth 3Y", x.debtGrowth, "%"); setMetricByLabel(root, "Operating cash growth 3Y", x.cfoGrowth, "%"); setMetricByLabel(root, "FCF growth 3Y", x.fcfGrowth, "%"); }
   const path = root.querySelectorAll(".qgv-path-node"); if (path.length >= 4) { setText(path[0].querySelector("b"), pct(x.growth)); setText(path[1].querySelector("b"), pct(x.retained)); setText(path[2].querySelector("b"), pct(x.debtGrowth)); }
