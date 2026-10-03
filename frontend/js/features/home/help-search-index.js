@@ -179,3 +179,4 @@ function installSearchResultPositioning() {
 installStockFormulaEnhancer();
 installSearchResultPositioning();
 import "./help-stock-pedigree.js";
+import "./help-stock-portfolio.js";
