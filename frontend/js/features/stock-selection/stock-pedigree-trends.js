@@ -1,3 +1,5 @@
+import { buildFundamentalSignals } from "./stock-fundamental-signals.js";
+
 const API = "/api/stocks/pedigree";
 const COLORS = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6"];
 let loading = false;
@@ -18,3 +20,26 @@ function scheduleLoad(){setTimeout(load,120);}
 function init(){const details=document.getElementById("stock-details");if(!details)return;const observer=new MutationObserver(()=>{if(!details.querySelector(".stock-pedigree-section"))scheduleLoad();});observer.observe(details,{childList:true,subtree:true});scheduleLoad();window.addEventListener("popstate",()=>{lastRequestKey="";scheduleLoad();});}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 import "./stock-source-label-cleanup.js";
+
+function renderFundamentalSignals(data, details) {
+	if (!details || details.querySelector(".stock-fundamental-signals")) return;
+	const signals = buildFundamentalSignals(data);
+
+	const renderGroup = (title, items, type) => items.length
+		? `<div class="stock-fundamental-signal-group ${type}"><h3>${title}</h3><ul>${items.map((item) => `<li>${esc(item)}</li>`).join("")}</ul></div>`
+		: `<div class="stock-fundamental-signal-group ${type}"><h3>${title}</h3><p class="stock-fundamental-signal-empty">No supported signals from available history.</p></div>`;
+	const section = document.createElement("section");
+	section.className = "stock-section stock-fundamental-signals";
+	section.setAttribute("aria-label", "Fundamental Signals");
+	section.innerHTML = `<div class="stock-section-header"><h2>Fundamental Signals</h2></div><div class="stock-fundamental-signal-groups">${renderGroup("Positive Signals", signals.positive, "positive")}${renderGroup("Areas to Watch", signals.watch, "watch")}</div>`;
+
+	const anchor = details.querySelector(".stock-summary-grid, .stock-hero");
+	if (anchor) anchor.after(section);
+	else details.prepend(section);
+}
+
+const renderIndividualWithPedigree = renderIndividual;
+renderIndividual = (data, details) => {
+	renderIndividualWithPedigree(data, details);
+	renderFundamentalSignals(data, details);
+};

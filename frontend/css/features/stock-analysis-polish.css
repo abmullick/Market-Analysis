@@ -100,6 +100,16 @@
 #stock-analysis-screen #stock-details > .stock-warnings { order:999; margin-top:auto; background:linear-gradient(180deg,#fbfdff,#f3f7fb); }
 .stock-warnings { background:linear-gradient(180deg,#fbfdff,#f3f7fb); }
 .stock-warnings .stock-section-header { margin-bottom:10px; }
+.stock-fundamental-signals { margin-top:0; margin-bottom:16px; }
+.stock-fundamental-signal-groups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.stock-fundamental-signal-group { min-width:0; padding:12px 14px; border:1px solid #dbe6f1; border-radius:10px; background:#fff; }
+.stock-fundamental-signal-group h3 { margin:0 0 7px; color:var(--color-primary); font-size:13px; }
+.stock-fundamental-signal-group ul { display:grid; gap:5px; margin:0; padding:0; list-style:none; }
+.stock-fundamental-signal-empty { margin:0; color:var(--color-text-light); font-size:12px; line-height:1.4; }
+.stock-fundamental-signal-group li { position:relative; padding-left:17px; color:var(--color-text); font-size:12px; line-height:1.4; }
+.stock-fundamental-signal-group li::before { position:absolute; left:0; top:0; font-size:11px; font-weight:800; }
+.stock-fundamental-signal-group.positive li::before { content:"●"; color:#16834a; }
+.stock-fundamental-signal-group.watch li::before { content:"●"; color:#c43d3d; }
 
 @media (max-width:700px) {
     .stock-hero{padding:22px;}
@@ -109,4 +119,5 @@
     .stock-ai-insights-heading { display:block; }
     .stock-ai-insights-button { margin-top:10px; }
     .stock-comparison-header .stock-ai-comparison-button { margin-left:0; }
+    .stock-fundamental-signal-groups { grid-template-columns:1fr; }
 }

@@ -166,6 +166,11 @@ def build_stock_pedigree(client: ScreenerFinanceClient, symbol: str) -> dict[str
     capex_to_revenue: list[tuple[str, float]] = []
     implied_shares: list[tuple[str, float]] = []
     profit_eps_gap: list[tuple[str, float]] = []
+    debt_equity = [
+        (year, debt_value / equity_value)
+        for year, debt_value in debt
+        if (equity_value := maps["equity"].get(year)) is not None and equity_value > 0
+    ]
 
     for i, (year, profit_value) in enumerate(profit):
         eq, asset = maps["equity"].get(year), maps["assets"].get(year)
@@ -294,6 +299,7 @@ def build_stock_pedigree(client: ScreenerFinanceClient, symbol: str) -> dict[str
         "trends": {
             "revenue": _trend(revenue), "profit": _trend(profit), "ebitda": _trend(ebitda),
             "cfo": _trend(cfo), "fcf": _trend(fcf), "debt": _trend(debt),
+            "debt_equity": _trend(debt_equity),
             "roe": _trend(roe), "roa": _trend(roa), "roce": _trend(roce),
             "operating_margin": _trend(opm), "net_margin": _trend(net_margin),
             "fcf_margin": _trend(fcf_margin), "cash_conversion": _trend(cash_conversion),
