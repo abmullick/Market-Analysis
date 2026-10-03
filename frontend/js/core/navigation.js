@@ -74,14 +74,19 @@ export function initNavigation() {
 
     const path = window.location.pathname;
     const isActive = (href) => href === "/" ? path === "/" : path === href;
+    const navLink = (href, label) => {
+        const active = isActive(href);
+        const target = active ? "" : ' target="_blank" rel="noopener noreferrer"';
+        return `<a href="${href}"${target} class="${active ? "active" : ""}">${label}</a>`;
+    };
 
     nav.innerHTML = `
-        <a href="/" target="_blank" rel="noopener noreferrer" class="${isActive("/") ? "active" : ""}">Home</a>
-        <a href="/mutual-funds.html" target="_blank" rel="noopener noreferrer" class="${isActive("/mutual-funds.html") ? "active" : ""}">Mutual Fund Analysis</a>
-        <a href="/portfolio-builder.html" target="_blank" rel="noopener noreferrer" class="${isActive("/portfolio-builder.html") ? "active" : ""}">Mutual Fund Portfolio Builder</a>
-        <a href="/bond-analysis.html" target="_blank" rel="noopener noreferrer" class="${isActive("/bond-analysis.html") ? "active" : ""}">Bond Analysis</a>
-        <a href="/stocks.html" target="_blank" rel="noopener noreferrer" class="${isActive("/stocks.html") ? "active" : ""}">Stock Analysis</a>
-        <a href="/stock-portfolio-builder.html" target="_blank" rel="noopener noreferrer" class="${isActive("/stock-portfolio-builder.html") ? "active" : ""}">Stock Portfolio Builder</a>
-        <a href="/help.html" target="_blank" rel="noopener noreferrer" class="${isActive("/help.html") ? "active" : ""}">Help</a>
+        ${navLink("/", "Home")}
+        ${navLink("/mutual-funds.html", "Mutual Fund Analysis")}
+        ${navLink("/portfolio-builder.html", "Mutual Fund Portfolio Builder")}
+        ${navLink("/bond-analysis.html", "Bond Analysis")}
+        ${navLink("/stocks.html", "Stock Analysis")}
+        ${navLink("/stock-portfolio-builder.html", "Stock Portfolio Builder")}
+        ${navLink("/help.html", "Help")}
     `;
 }
