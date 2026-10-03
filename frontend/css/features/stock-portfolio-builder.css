@@ -76,6 +76,75 @@
 .stock-picker-row .stock-select-btn { width:104px; min-width:104px; max-width:104px; flex:0 0 104px; justify-self:start; }
 .stock-cap-badge { display:inline-flex; align-items:center; margin-left:4px; padding:1px 5px; border:1px solid #dbe4f0; border-radius:5px; background:#f8fafc; color:#64748b; font-size:9px; font-weight:700; vertical-align:middle; }
 
+/* Force portfolio-builder actions to use the exact Stock Analysis CTA palette and geometry. */
+.stock-portfolio-panel .stock-analyze-btn,
+.stock-picker-row .stock-select-btn {
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:8px !important;
+    min-height:var(--btn-height) !important;
+    height:var(--btn-height) !important;
+    padding:0 var(--btn-padding-x) !important;
+    border-radius:var(--radius-pill) !important;
+    font-family:var(--font-family) !important;
+    font-size:var(--btn-font-size) !important;
+    font-weight:var(--btn-font-weight) !important;
+    line-height:1 !important;
+    letter-spacing:.01em !important;
+    border:1px solid transparent !important;
+    background:linear-gradient(135deg,#0f172a,#2563eb 125%) !important;
+    color:#fff !important;
+    cursor:pointer !important;
+    transition:var(--btn-transition) !important;
+    box-shadow:var(--btn-shadow) !important;
+    text-decoration:none !important;
+    white-space:nowrap !important;
+}
+.stock-portfolio-panel .stock-analyze-btn:hover:not(:disabled),
+.stock-picker-row .stock-select-btn:hover:not(:disabled) {
+    background:linear-gradient(135deg,#1e293b,#1d4ed8 125%) !important;
+    color:#fff !important;
+    transform:translateY(-2px) !important;
+    box-shadow:0 7px 18px rgba(37,99,235,.20) !important;
+}
+.stock-portfolio-panel .stock-analyze-btn:active:not(:disabled),
+.stock-picker-row .stock-select-btn:active:not(:disabled) {
+    transform:translateY(0) scale(.98) !important;
+    box-shadow:var(--btn-shadow-active) !important;
+}
+.stock-portfolio-panel .stock-analyze-btn:disabled {
+    opacity:.5 !important;
+    cursor:not-allowed !important;
+    box-shadow:none !important;
+    transform:none !important;
+}
+.stock-portfolio-panel .stock-page-btn.stock-secondary-btn {
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    min-height:var(--btn-height) !important;
+    height:var(--btn-height) !important;
+    padding:0 var(--btn-padding-x) !important;
+    border-radius:var(--radius-pill) !important;
+    font-family:var(--font-family) !important;
+    font-size:var(--btn-font-size) !important;
+    font-weight:var(--btn-font-weight) !important;
+    line-height:1 !important;
+    border:1px solid var(--color-slate-200) !important;
+    background:linear-gradient(135deg,#fff,#f1f5f9) !important;
+    color:var(--color-slate-600) !important;
+    box-shadow:var(--btn-shadow) !important;
+    transition:var(--btn-transition) !important;
+}
+.stock-portfolio-panel .stock-page-btn.stock-secondary-btn:hover:not(:disabled) {
+    background:#fff !important;
+    border-color:var(--color-slate-400) !important;
+    color:var(--color-primary) !important;
+    transform:translateY(-1px) !important;
+    box-shadow:var(--btn-shadow-hover) !important;
+}
+
 @media(max-width:900px) {
     .portfolio-filters { grid-template-columns:1fr 1fr; }
     .portfolio-search-field { grid-column:1/-1; }
