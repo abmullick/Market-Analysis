@@ -189,4 +189,5 @@ def build_stock_charts(
         "price_cagr_5y": rolling_5y,
         "pe_history": pe_history,
         "pb_history": pb_history,
+        "annual_prices": prices,
     }
