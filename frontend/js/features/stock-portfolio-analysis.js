@@ -23,12 +23,55 @@ function allocationRows(rows) {
     rows.forEach(row => { const sector = String(row.data?.fundamentals?.sector || "Other"); groups.set(sector, (groups.get(sector) || 0) + (num(row.allocation) || 0)); });
     return [...groups.entries()].sort((a, b) => b[1] - a[1]);
 }
+
+function fallbackFundamentalSignals(data) {
+    const f = data?.fundamentals || {};
+    const positive = [], watch = [];
+    const roe = num(f.roe), roce = num(f.roce), revenueGrowth = num(f.revenue_growth), profitGrowth = num(f.profit_growth);
+    const debtEquity = num(f.debt_equity), pe = num(f.pe);
+
+    if (roe != null) {
+        if (roe >= 15) positive.push("ROE is healthy");
+        else if (roe < 10) watch.push("ROE is weak");
+    }
+    if (roce != null) {
+        if (roce >= 15) positive.push("ROCE is healthy");
+        else if (roce < 10) watch.push("ROCE is weak");
+    }
+    if (revenueGrowth != null) {
+        if (revenueGrowth >= 10) positive.push("Revenue growth is strong");
+        else if (revenueGrowth < 0) watch.push("Revenue is declining");
+    }
+    if (profitGrowth != null) {
+        if (profitGrowth >= 10) positive.push("Profit growth is strong");
+        else if (profitGrowth < 0) watch.push("Profit is declining");
+    }
+    if (debtEquity != null) {
+        if (debtEquity <= 0.5) positive.push("Debt/Equity is low");
+        else if (debtEquity > 1.5) watch.push("Debt/Equity is high");
+    }
+    if (pe != null && pe > 0) {
+        if (pe > 50) watch.push("Valuation is elevated");
+    }
+    return { positive, watch };
+}
+
 function signalFor(data) {
-    const signals = buildFundamentalSignals(data || {}), positive = signals.positive || [], watch = signals.watch || [];
-    if (watch.length && !positive.length) return { label: "Watch", cls: "watch", detail: watch[0] };
-    if (positive.length && !watch.length) return { label: "Positive", cls: "positive", detail: positive[0] };
-    if (positive.length || watch.length) return { label: "Mixed", cls: "mixed", detail: watch[0] || positive[0] };
-    return { label: "Limited data", cls: "neutral", detail: "No directional signal available" };
+    const engine = buildFundamentalSignals(data || {}), positive = [...(engine.positive || [])], watch = [...(engine.watch || [])];
+    const fallback = fallbackFundamentalSignals(data);
+
+    // Keep the Stock Analysis signal engine as the primary source. Some portfolio
+    // API responses contain current fundamentals but not the historical trend series
+    // required by that engine, so use the current fundamentals only as a fallback.
+    if (!positive.length && !watch.length) {
+        positive.push(...fallback.positive);
+        watch.push(...fallback.watch);
+    }
+
+    if (watch.length && !positive.length) return { label: "Watch", cls: "watch", detail: watch.slice(0, 2).join(" · ") };
+    if (positive.length && !watch.length) return { label: "Positive", cls: "positive", detail: positive.slice(0, 2).join(" · ") };
+    if (positive.length || watch.length) return { label: "Mixed", cls: "mixed", detail: [...positive.slice(0, 1), ...watch.slice(0, 1)].join(" · ") };
+    return { label: "No signal", cls: "neutral", detail: "Insufficient fundamental data for a directional signal" };
 }
 function metricCard(label, value, note = "") {
     return `<div class="stock-metric-card portfolio-analysis-metric"><span class="stock-metric-label">${esc(label)}</span><strong class="stock-metric-value">${esc(value)}</strong>${note ? `<small class="portfolio-metric-note">${esc(note)}</small>` : ""}</div>`;
@@ -48,7 +91,7 @@ function renderSummary(rows) {
 <section class="stock-summary-grid portfolio-summary-grid">${metricCard("Holdings", String(rows.length))}${metricCard("Largest Position", pct(largest?.allocation, 1), largestName)}${metricCard("Sectors", String(sectorRows.length))}${metricCard("Concentration", pct(concentration * 100, 1), "Based on HHI")}</section>
 <section class="stock-section portfolio-analysis-section"><div class="stock-section-header"><h2>Portfolio Quality</h2><span>Allocation-weighted</span></div><div class="stock-metrics-grid">${metricCard("ROE", pct(weightedRoe), `Coverage ${pct(weightedCoverage(rows, "roe"))}`)}${metricCard("ROCE", pct(weightedRoce), `Coverage ${pct(weightedCoverage(rows, "roce"))}`)}${metricCard("Revenue Growth", pct(weightedRevenueGrowth), `Coverage ${pct(weightedCoverage(rows, "revenue_growth"))}`)}${metricCard("Profit Growth", pct(weightedProfitGrowth), `Coverage ${pct(weightedCoverage(rows, "profit_growth"))}`)}${metricCard("Debt / Equity", ratio(weightedDebtEquity), `Coverage ${pct(weightedCoverage(rows, "debt_equity"))}`)}</div></section>
 <section class="stock-section portfolio-analysis-section"><div class="stock-section-header"><h2>Portfolio Valuation</h2><span>Allocation-weighted · not a portfolio P/E</span></div><div class="stock-metrics-grid">${metricCard("P/E", ratio(weightedPe), `Coverage ${pct(weightedCoverage(rows, "pe"))}`)}${metricCard("P/B", ratio(weightedPb), `Coverage ${pct(weightedCoverage(rows, "pb"))}`)}${metricCard("EV / EBITDA", ratio(weightedEbitda), `Coverage ${pct(weightedCoverage(rows, "ev_ebitda"))}`)}${metricCard("Dividend Yield", pct(weightedDividend), `Coverage ${pct(weightedCoverage(rows, "dividend_yield"))}`)}</div><div class="portfolio-analysis-note">Ratios are weighted by portfolio allocation. They are exposure indicators rather than a mathematically aggregated portfolio valuation multiple.</div></section>
-${renderAllocation(sectorRows)}${renderHoldingTable(rows)}<section class="stock-section portfolio-analysis-section"><div class="stock-section-header"><h2>Data Notes</h2></div><ul class="portfolio-data-notes"><li>Metrics reuse the same stock fundamentals endpoint and calculations used by Stock Analysis.</li><li>Coverage shows the percentage of portfolio allocation for which a metric is available.</li><li>Financial-sector holdings can have a different valuation lens; EV/EBITDA is not equally informative for financial companies.</li></ul></section>`;
+${renderAllocation(sectorRows)}${renderHoldingTable(rows)}<section class="stock-section portfolio-analysis-section"><div class="stock-section-header"><h2>Data Notes</h2></div><ul class="portfolio-data-notes"><li>Metrics reuse the same stock fundamentals endpoint and calculations used by Stock Analysis.</li><li>Signals use the shared Stock Analysis trend engine when historical series are available, with a current-fundamentals fallback when only snapshot metrics are returned.</li><li>Coverage shows the percentage of portfolio allocation for which a metric is available.</li><li>Financial-sector holdings can have a different valuation lens; EV/EBITDA is not equally informative for financial companies.</li></ul></section>`;
 }
 function renderError(container, errors) {
     container.innerHTML = `<section class="stock-section portfolio-analysis-section portfolio-analysis-error"><div class="stock-section-header"><h2>Portfolio Analysis</h2></div><p>Some holdings could not be loaded.</p><small>${esc(errors.join(" · "))}</small><button id="portfolio-analysis-retry" class="stock-analyze-btn" type="button">Retry Analysis</button></section>`;
