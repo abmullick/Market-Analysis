@@ -44,8 +44,35 @@ function addStockPedigreeHelp() {
     section.dataset.pedigreeHelpAdded = "true";
 }
 
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", addStockPedigreeHelp, { once: true });
-} else {
-    addStockPedigreeHelp();
+function installStockPedigreeHelp() {
+    const tryAdd = () => {
+        addStockPedigreeHelp();
+        const section = [...document.querySelectorAll(".help-section")].find((candidate) => {
+            const heading = candidate.querySelector("h2, h3");
+            return heading && heading.textContent.trim() === "Stock Analysis";
+        });
+        if (section?.dataset.pedigreeHelpAdded === "true") return true;
+        return false;
+    };
+
+    if (tryAdd()) return;
+
+    const root = document.body;
+    if (!root) {
+        document.addEventListener("DOMContentLoaded", installStockPedigreeHelp, { once: true });
+        return;
+    }
+
+    const observer = new MutationObserver(() => {
+        if (tryAdd()) observer.disconnect();
+    });
+    observer.observe(root, { childList: true, subtree: true });
 }
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", installStockPedigreeHelp, { once: true });
+} else {
+    installStockPedigreeHelp();
+}
+
+export { addStockPedigreeHelp };
