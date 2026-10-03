@@ -1,0 +1,148 @@
+/* Stock statements & historical trend — full-width research-table treatment */
+.stock-derived-analysis .stock-derived-trend {
+    margin-top: 20px;
+    padding-top: 4px;
+}
+
+.stock-derived-analysis .stock-derived-trend h3 {
+    margin: 0 0 10px;
+    color: var(--color-primary);
+    font-size: 16px;
+    font-weight: 750;
+    letter-spacing: -.01em;
+}
+
+.stock-table-wrap {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.stock-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.stock-table th,
+.stock-table td {
+    padding: 11px 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+}
+
+.stock-table th:first-child,
+.stock-table td:first-child {
+    width: 18%;
+    text-align: left;
+    font-variant-numeric: normal;
+}
+
+.stock-table th:not(:first-child),
+.stock-table td:not(:first-child) {
+    width: auto;
+    text-align: right;
+}
+
+.stock-table thead th {
+    height: 42px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+    background: linear-gradient(180deg, #edf5fb, #e4eef7);
+    border-bottom: 1px solid #cbdbea;
+    color: var(--color-primary);
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.stock-table tbody td {
+    height: 39px;
+    border-bottom: 1px solid rgba(203, 213, 225, .58);
+    color: #24405f;
+    font-size: 12px;
+}
+
+.stock-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.stock-table tbody tr:nth-child(even) td {
+    background: rgba(247, 250, 253, .72);
+}
+
+.stock-table tbody tr:hover td {
+    background: #eef7ff;
+}
+
+.stock-table tbody td:first-child {
+    color: #17355d;
+    font-weight: 650;
+}
+
+/* Give the historical six-year snapshot more visual weight without making it bulky. */
+.stock-derived-trend .stock-table-wrap {
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, .045);
+    border-color: #d4e1ec;
+}
+
+/* Financial statements are a primary research section: use the available width. */
+#stock-details > .stock-section:has(.stock-statement-tabs) .stock-table-wrap {
+    margin-top: 12px;
+}
+
+#stock-details > .stock-section:has(.stock-statement-tabs) .stock-table {
+    table-layout: fixed;
+}
+
+#stock-details > .stock-section:has(.stock-statement-tabs) .stock-table th:first-child,
+#stock-details > .stock-section:has(.stock-statement-tabs) .stock-table td:first-child {
+    width: 16%;
+}
+
+#stock-details > .stock-section:has(.stock-statement-tabs) .stock-table tbody td {
+    height: 42px;
+}
+
+@media (max-width: 900px) {
+    .stock-table {
+        table-layout: auto;
+        min-width: 720px;
+    }
+
+    .stock-table th:first-child,
+    .stock-table td:first-child {
+        width: 150px;
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #fff;
+    }
+
+    .stock-table thead th:first-child {
+        background: #e7f0f8;
+        z-index: 3;
+    }
+
+    .stock-table tbody tr:nth-child(even) td:first-child {
+        background: #f7fafd;
+    }
+
+    .stock-table tbody tr:hover td:first-child {
+        background: #eef7ff;
+    }
+}
+
+@media (max-width: 600px) {
+    .stock-table {
+        min-width: 680px;
+    }
+
+    .stock-table th,
+    .stock-table td {
+        padding: 10px 9px;
+    }
+}
