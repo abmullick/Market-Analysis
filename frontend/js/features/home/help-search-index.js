@@ -13,6 +13,9 @@ const STOCK_FORMULA_HEADINGS = new Set([
     "ROE (Return on Equity)", "ROA (Return on Assets)", "Gross Margin", "Operating Margin", "Net Margin",
     "Debt / Equity (D/E)", "Current Ratio", "Quick Ratio", "Beta", "Revenue Growth", "Profit Growth",
     "EPS Growth", "Revenue CAGR", "Profit CAGR", "EPS CAGR", "FCF CAGR", "Operating Margin Change",
+    "Sector-aware Valuation Context", "Fundamental Momentum Index", "Momentum Consistency & Stability",
+    "Fundamental Trend Timeline", "Quality × Growth × Valuation Decision Lens", "Growth Funding & Capital Efficiency",
+    "Shareholding Intelligence", "Business–Valuation Matrix", "Stock Comparison Summary",
 ]);
 
 export function normalizeText(value) {
