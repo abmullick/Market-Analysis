@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/css/features/stock-filter-ui-polish.css?v=20261002-1">
     <link rel="stylesheet" href="/css/features/analysis-filter-card-theme.css?v=20261002-1">
     <link rel="stylesheet" href="/css/features/stock-statement-layout.css?v=20261003-1">
-    <link rel="stylesheet" href="/css/features/stock-portfolio-builder.css?v=20261003-4">
+    <link rel="stylesheet" href="/css/features/stock-portfolio-builder.css?v=20261003-5">
 </head>
 <body data-page="stock-portfolio-builder">
 <header class="site-header">
@@ -105,6 +105,25 @@
     </section>
 </main>
 
-<script type="module" src="/js/app.js"></script>
+<a href="/help.html" class="help-link" title="Help & Methodology">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+    </svg>
+    <span>Help & Methodology</span>
+</a>
+
+<footer class="site-footer">
+    <div class="container"><p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p></div>
+</footer>
+
+<!-- Use the same direct-module initialization pattern as the working Stock Analysis page. -->
+<script type="module">
+    import { initNavigation } from '/js/core/navigation.js';
+    import { initStockPortfolioBuilder } from '/js/features/stock-portfolio-builder.js?v=20261004-1';
+    initNavigation();
+    initStockPortfolioBuilder();
+</script>
 </body>
 </html>
