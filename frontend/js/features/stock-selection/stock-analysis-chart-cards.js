@@ -1,25 +1,191 @@
-/* Stock Analysis / Stock Compare: Portfolio Builder-style collapsible chart cards. */
-const STOCK_CHART_CARD_CONFIG={
- "EPS Growth":{subtitle:"Annual year-over-year EPS growth",icon:"growth",accent:"#2563eb",tint:"rgba(37,99,235,.055)",border:"rgba(37,99,235,.22)"},
- "Revenue Growth":{subtitle:"Annual year-over-year revenue growth",icon:"revenue",accent:"#059669",tint:"rgba(5,150,105,.055)",border:"rgba(5,150,105,.22)"},
- "ROE Trend":{subtitle:"Derived annual ROE using average equity",icon:"quality",accent:"#7c3aed",tint:"rgba(124,58,237,.055)",border:"rgba(124,58,237,.22)"},
- "Price Growth (CAGR)":{subtitle:"1Y, 3Y, 5Y and 10Y annualised price growth",icon:"price",accent:"#b45309",tint:"rgba(180,83,9,.055)",border:"rgba(180,83,9,.22)"},
- "P/E History":{subtitle:"Year-end market P/E based on annual EPS",icon:"valuation",accent:"#8b5cf6",tint:"rgba(139,92,246,.055)",border:"rgba(139,92,246,.22)"},
- "P/B History":{subtitle:"Historical price-to-book multiple",icon:"book",accent:"#0f766e",tint:"rgba(15,118,110,.055)",border:"rgba(15,118,110,.22)"}
+/* Stock Analysis / Stock Compare: Portfolio Builder-style functional chart groups. */
+const GROUPS = {
+  trends: {
+    key: "historical-growth-return",
+    title: "Historical Growth & Return Trends",
+    subtitle: "Growth, profitability, price performance and valuation history",
+    icon: "growth",
+    accent: "#2563eb",
+    tint: "rgba(37,99,235,.055)",
+    border: "rgba(37,99,235,.22)",
+  },
+  pedigreeCompare: {
+    key: "company-pedigree-comparison",
+    title: "Company Pedigree & Trend Comparison",
+    subtitle: "Business scale, returns, margins, leverage and ownership trends",
+    icon: "pedigree",
+    accent: "#0f766e",
+    tint: "rgba(15,118,110,.055)",
+    border: "rgba(15,118,110,.22)",
+  },
+  pedigreeIndividual: {
+    key: "company-pedigree",
+    title: "Company Pedigree, Consistency & Trends",
+    subtitle: "Historical business quality, cash generation, leverage and ownership",
+    icon: "pedigree",
+    accent: "#7c3aed",
+    tint: "rgba(124,58,237,.055)",
+    border: "rgba(124,58,237,.22)",
+  },
+  earningsCompare: {
+    key: "earnings-capital-dilution",
+    title: "Earnings Quality, Capital Allocation & Dilution",
+    subtitle: "Cash earnings, reinvestment discipline and per-share value creation",
+    icon: "quality",
+    accent: "#b45309",
+    tint: "rgba(180,83,9,.055)",
+    border: "rgba(180,83,9,.22)",
+  },
 };
-const STOCK_CHART_ICONS={
- growth:'<polyline points="3 17 9 11 13 14 21 5"></polyline><polyline points="15 5 21 5 21 11"></polyline>',
- revenue:'<path d="M4 19V9"></path><path d="M10 19V5"></path><path d="M16 19v-7"></path><path d="M22 19V3"></path><path d="M2 19h21"></path>',
- quality:'<path d="M12 3l7 4v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V7l7-4z"></path><path d="M8 12l2.5 2.5L16 9"></path>',
- price:'<path d="M4 18l5-6 4 3 7-9"></path><path d="M16 6h4v4"></path>',
- valuation:'<path d="M4 20V8"></path><path d="M10 20V4"></path><path d="M16 20v-7"></path><path d="M22 20H2"></path>',
- book:'<rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="M8 7h8M8 11h8M8 15h5"></path>'
+
+const ICONS = {
+  growth: '<polyline points="3 17 9 11 13 14 21 5"></polyline><polyline points="15 5 21 5 21 11"></polyline>',
+  pedigree: '<path d="M12 3l7 4v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V7l7-4z"></path><path d="M8 12l2.5 2.5L16 9"></path>',
+  quality: '<path d="M4 19V9"></path><path d="M10 19V5"></path><path d="M16 19v-7"></path><path d="M22 19V3"></path><path d="M2 19h21"></path>',
 };
-const esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
-const iconSvg=t=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STOCK_CHART_ICONS[t]||STOCK_CHART_ICONS.growth}</svg>`;
-const chartFor=card=>{const c=card.querySelector("canvas");return c&&typeof Chart!=="undefined"?Chart.getChart(c):null};
-const fmt=v=>Number.isFinite(Number(v))?`${Number(v).toLocaleString("en-IN",{maximumFractionDigits:2})}%`:"—";
-function highlightsFor(card,title){const ch=chartFor(card);if(!ch?.data?.datasets?.length)return[];if(title==="Price Growth (CAGR)"){const d=ch.data.datasets[0],vals=(d.data||[]).map(Number);return(ch.data.labels||[]).slice(0,3).map((l,i)=>Number.isFinite(vals[i])?{value:fmt(vals[i]),label:l}:null).filter(Boolean)}return ch.data.datasets.slice(0,3).map(d=>{const vals=(d.data||[]).map(Number).filter(Number.isFinite);return vals.length?{value:fmt(vals[vals.length-1]),label:d.label||"Latest"}:null}).filter(Boolean)}
-function buildCard(chart,config,index){if(!chart||chart.dataset.stockPbChartWrapped==="1")return;const title=chart.querySelector("h3")?.textContent?.trim()||"Historical Trend",cfg=STOCK_CHART_CARD_CONFIG[title]||config;if(!cfg)return;chart.dataset.stockPbChartWrapped="1";const card=document.createElement("section");card.className="stock-analysis-pb-chart-card pb-section-card pb-health-card";card.dataset.stockChartCard="1";Object.entries({"--pb-accent":cfg.accent,"--pb-tint":cfg.tint,"--pb-border":cfg.border}).forEach(([k,v])=>card.style.setProperty(k,v));const id=`stock-analysis-chart-content-${index}`,content=document.createElement("div");content.className="stock-analysis-pb-chart-content pb-section-content pb-health-content";content.id=id;chart.parentNode.insertBefore(card,chart);content.appendChild(chart);const kpis=highlightsFor(chart,title).map(x=>`<span class="stock-analysis-pb-highlight"><strong>${esc(x.value)}</strong><small>${esc(x.label)}</small></span>`).join("");const header=document.createElement("div");header.className="stock-analysis-pb-chart-header pb-section-header pb-health-header";header.setAttribute("role","button");header.tabIndex=0;header.setAttribute("aria-expanded","false");header.setAttribute("aria-controls",id);header.innerHTML=`<div class="pb-health-header-main"><span class="pb-section-icon pb-health-icon stock-analysis-pb-icon">${iconSvg(cfg.icon)}</span><span class="pb-section-titlewrap pb-health-summary-label">${esc(title)}<small>${esc(cfg.subtitle)}</small></span></div><div class="pb-section-kpis stock-analysis-pb-kpis">${kpis}</div><div class="pb-section-controls"><button type="button" class="pb-section-caret-btn pb-health-caret-button stock-analysis-pb-caret" aria-expanded="false" aria-controls="${id}" aria-label="Expand ${esc(title)}"><svg class="pb-section-caret pb-health-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5"></path></svg></button></div>`;card.append(header,content);const setOpen=open=>{header.setAttribute("aria-expanded",String(open));content.hidden=!open;card.classList.toggle("is-open",open);const b=header.querySelector("button");if(b){b.setAttribute("aria-expanded",String(open));b.setAttribute("aria-label",`${open?"Collapse":"Expand"} ${title}`)}if(open)requestAnimationFrame(()=>chartFor(chart)?.resize())};const toggle=()=>setOpen(header.getAttribute("aria-expanded")!=="true");header.addEventListener("click",e=>{if(!e.target.closest("button"))toggle()});header.addEventListener("keydown",e=>{if(e.target.closest("button"))return;if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle()}});header.querySelector("button")?.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();toggle()});setOpen(false)}
-function scan(){[document.querySelector("#stock-details"),document.querySelector("#stock-analysis-screen")].filter(Boolean).forEach(root=>root.querySelectorAll(".stock-chart-card:not([data-stock-pb-chart-wrapped='1'])").forEach((c,i)=>buildCard(c,STOCK_CHART_CARD_CONFIG[c.querySelector("h3")?.textContent?.trim()],`${Date.now()}-${i}`)))}
-const observer=new MutationObserver(()=>{clearTimeout(observer.timer);observer.timer=setTimeout(scan,60)});function init(){scan();observer.observe(document.body,{childList:true,subtree:true})}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+
+const esc = (v) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+const iconSvg = (type) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[type] || ICONS.growth}</svg>`;
+
+function chartInstances(root) {
+  if (typeof Chart === "undefined") return [];
+  return [...root.querySelectorAll("canvas")].map((canvas) => Chart.getChart(canvas)).filter(Boolean);
+}
+
+function getHighlights(group, kind) {
+  const charts = chartInstances(group);
+  if (!charts.length) return [];
+  const out = [];
+  charts.forEach((chart) => {
+    const ds = chart.data?.datasets?.[0];
+    const vals = (ds?.data || []).map(Number).filter(Number.isFinite);
+    if (!vals.length) return;
+    const latest = vals[vals.length - 1];
+    const label = ds?.label || "Latest";
+    out.push({ value: `${latest.toLocaleString("en-IN", { maximumFractionDigits: 1 })}%`, label });
+  });
+  return out.slice(0, 3);
+}
+
+function makeGroupCard(config, content, index) {
+  const card = document.createElement("section");
+  card.className = "stock-analysis-chart-group pb-section-card pb-health-card";
+  card.dataset.stockChartGroup = config.key;
+  card.style.setProperty("--pb-accent", config.accent);
+  card.style.setProperty("--pb-tint", config.tint);
+  card.style.setProperty("--pb-border", config.border);
+
+  const contentId = `stock-chart-group-content-${config.key}-${index}`;
+  const header = document.createElement("div");
+  header.className = "stock-analysis-chart-group-header pb-section-header pb-health-header";
+  header.setAttribute("role", "button");
+  header.tabIndex = 0;
+  header.setAttribute("aria-expanded", "false");
+  header.setAttribute("aria-controls", contentId);
+  header.innerHTML = `
+    <div class="pb-health-header-main">
+      <span class="pb-section-icon pb-health-icon stock-analysis-group-icon">${iconSvg(config.icon)}</span>
+      <span class="pb-section-titlewrap pb-health-summary-label">
+        ${esc(config.title)}
+        <small>${esc(config.subtitle)}</small>
+      </span>
+    </div>
+    <div class="pb-section-kpis stock-analysis-group-kpis" aria-label="Group highlights"></div>
+    <div class="pb-section-controls">
+      <button type="button" class="pb-section-caret-btn pb-health-caret-button stock-analysis-group-caret" aria-expanded="false" aria-controls="${contentId}" aria-label="Expand ${esc(config.title)}">
+        <svg class="pb-section-caret pb-health-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5"></path></svg>
+      </button>
+    </div>`;
+
+  const body = document.createElement("div");
+  body.className = "stock-analysis-chart-group-content pb-section-content pb-health-content";
+  body.id = contentId;
+  body.appendChild(content);
+
+  const setOpen = (open) => {
+    header.setAttribute("aria-expanded", String(open));
+    body.hidden = !open;
+    card.classList.toggle("is-open", open);
+    const button = header.querySelector("button");
+    if (button) {
+      button.setAttribute("aria-expanded", String(open));
+      button.setAttribute("aria-label", `${open ? "Collapse" : "Expand"} ${config.title}`);
+    }
+    if (open) requestAnimationFrame(() => chartInstances(body).forEach((chart) => chart.resize()));
+  };
+
+  const toggle = () => setOpen(header.getAttribute("aria-expanded") !== "true");
+  header.addEventListener("click", (event) => { if (!event.target.closest("button")) toggle(); });
+  header.addEventListener("keydown", (event) => {
+    if (event.target.closest("button")) return;
+    if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
+  });
+  header.querySelector("button")?.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); toggle(); });
+
+  card.append(header, body);
+  return card;
+}
+
+function populateHighlights(card) {
+  const target = card.querySelector(".stock-analysis-group-kpis");
+  if (!target) return;
+  const charts = chartInstances(card);
+  const values = [];
+  charts.forEach((chart) => {
+    const data = (chart.data?.datasets?.[0]?.data || []).map(Number).filter(Number.isFinite);
+    if (!data.length) return;
+    const latest = data[data.length - 1];
+    const label = chart.data?.datasets?.[0]?.label || "Latest";
+    const suffix = chart.options?.scales?.y?.ticks?.callback ? "%" : "";
+    values.push(`<span class="stock-analysis-group-highlight"><strong>${latest.toLocaleString("en-IN", { maximumFractionDigits: 1 })}${suffix}</strong><small>${esc(label)}</small></span>`);
+  });
+  target.innerHTML = values.slice(0, 3).join("");
+}
+
+function groupTrendsSection(section) {
+  if (!section || section.dataset.stockChartGroupWrapped === "1") return;
+  const grid = section.querySelector(":scope > .stock-trends-grid");
+  if (!grid || !grid.querySelector(".stock-chart-card")) return;
+  const config = GROUPS.trends;
+  const content = grid;
+  const wrapper = makeGroupCard(config, content, "trends");
+  grid.parentNode.replaceChild(wrapper, grid);
+  section.dataset.stockChartGroupWrapped = "1";
+  populateHighlights(wrapper);
+}
+
+function groupPedigreeSection(section) {
+  if (!section || section.dataset.stockChartGroupWrapped === "1") return;
+  const grid = section.querySelector(":scope > .stock-pedigree-chart-grid");
+  if (!grid || !grid.querySelector(".stock-pedigree-chart-card")) return;
+  const config = section.classList.contains("stock-pedigree-compare") ? GROUPS.pedigreeCompare : GROUPS.pedigreeIndividual;
+  const wrapper = makeGroupCard(config, grid, section.classList.contains("stock-pedigree-compare") ? "compare" : "individual");
+  grid.parentNode.replaceChild(wrapper, grid);
+  section.dataset.stockChartGroupWrapped = "1";
+  populateHighlights(wrapper);
+}
+
+function groupEarningsCapitalSection(section) {
+  if (!section || section.dataset.stockChartGroupWrapped === "1") return;
+  const heading = section.querySelector("h2,h3");
+  const text = (heading?.textContent || "").toLowerCase();
+  if (!(text.includes("earnings quality") || text.includes("capital allocation") || text.includes("dilution"))) return;
+  const candidates = [...section.querySelectorAll(".stock-chart-card, .stock-pedigree-chart-card")];
+  if (!candidates.length) return;
+  const fragment = document.createDocumentFragment();
+  candidates.forEach((node) => fragment.appendChild(node));
+  const wrapper = makeGroupCard(GROUPS.earningsCompare, fragment, "earnings");
+  section.appendChild(wrapper);
+  section.dataset.stockChartGroupWrapped = "1";
+  populateHighlights(wrapper);
+}
+
+function scan() {
+  document.querySelectorAll("#stock-details .stock-trends-section, #stock-analysis-screen .stock-trends-section").forEach(groupTrendsSection);
+  document.querySelectorAll("#stock-details .stock-pedigree-section, #stock-analysis-screen .stock-pedigree-section").forEach(groupPedigreeSection);
+  document.querySelectorAll("#stock-details section, #stock-analysis-screen section").forEach(groupEarningsCapitalSection);
+}
+
+const observer = new MutationObserver(() => { clearTimeout(observer.timer); observer.timer = setTimeout(scan, 80); });
+function init() { scan(); observer.observe(document.body, { childList: true, subtree: true }); }
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
