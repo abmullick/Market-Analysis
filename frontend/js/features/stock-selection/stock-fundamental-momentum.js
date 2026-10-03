@@ -15,7 +15,7 @@ function consistency(data) {
   return avg([avg(growth), stability].filter(v => v != null));
 }
 
-function buildMomentum(data, financial) {
+export function buildMomentum(data, financial) {
   const t = data.trends || {};
   const growth = avg(["revenue_growth", "profit_growth", "eps_growth"].map(k => score(delta(t[k]), 8)).filter(v => v != null));
   const returns = avg(["roe", "roce"].map(k => score(delta(t[k]), 5)).filter(v => v != null));
@@ -26,7 +26,7 @@ function buildMomentum(data, financial) {
     if (shares != null) discipline = clamp(80 - Math.max(0, shares * 100 - 1) * 12);
   } else {
     const debt = delta(t.debt), de = delta(t.debt_equity);
-    const debtBase = Math.max(Math.abs(recent(t.debt) || 1), 1), deBase = Math.max(Math.abs(recent(t.debt_equity) || 1), .25);
+    const debtBase = Math.max(Math.abs(recent(t.debt) || 1), 1), deBase = Math.max(Math.abs(recent(t.debt_equity) || .25), .25);
     discipline = avg([debt == null ? null : clamp(50 - debt / debtBase * 100), de == null ? null : clamp(50 - de / deBase * 100)].filter(v => v != null));
   }
   const components = [
@@ -80,7 +80,9 @@ function init() {
   window.fetch = async (...args) => {
     const response = await originalFetch(...args);
     const url = String(args[0]?.url || args[0] || "");
-    if (url.includes("/api/stocks/pedigree/") && !url.includes("/compare?")) {
+    const headers = args[1]?.headers;
+    const isDerivedRequest = headers && typeof headers.get === "function" ? headers.get("X-Stock-Derived-Insights") === "1" : headers?.["X-Stock-Derived-Insights"] === "1";
+    if (!isDerivedRequest && url.includes("/api/stocks/pedigree/") && !url.includes("/compare?")) {
       response.clone().json().then(data => render(data, details)).catch(() => {});
     }
     return response;
