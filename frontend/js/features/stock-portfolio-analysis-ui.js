@@ -47,60 +47,6 @@ function valueText(el) {
     return String(el?.textContent || "").replace(/\s+/g, " ").trim();
 }
 
-function extractHighlights(section) {
-    const cards = [...section.querySelectorAll(":scope .stock-metric-card")];
-    if (cards.length) {
-        return cards.slice(0, 3).map(card => {
-            const label = valueText(card.querySelector(".stock-metric-label"));
-            const value = valueText(card.querySelector(".stock-metric-value"));
-            return label && value ? { label, value } : null;
-        }).filter(Boolean);
-    }
-
-    const riskCards = [...section.querySelectorAll(":scope .portfolio-risk-card")];
-    if (riskCards.length) {
-        return riskCards.slice(0, 3).map(card => {
-            const label = valueText(card.querySelector("span"));
-            const value = valueText(card.querySelector("strong"));
-            return label && value ? { label, value } : null;
-        }).filter(Boolean);
-    }
-
-    const summary = [...section.querySelectorAll(":scope .portfolio-positioning-summary > div, :scope .portfolio-benchmark-highlight-card")];
-    if (summary.length) {
-        return summary.slice(0, 3).map(card => {
-            const strong = card.querySelector("strong");
-            const spans = [...card.querySelectorAll("span")];
-            const label = valueText(spans[0]);
-            const value = valueText(strong);
-            return label && value ? { label, value } : null;
-        }).filter(Boolean);
-    }
-
-    const table = section.querySelector(":scope .portfolio-analysis-table tbody tr");
-    if (table) {
-        const cells = table.querySelectorAll("td");
-        return [
-            { label: "Largest visible holding", value: valueText(cells[0]?.querySelector("strong")) || "—" },
-            { label: "Allocation", value: valueText(cells[1]) || "—" },
-            { label: "Signal", value: valueText(cells[6]?.querySelector(".portfolio-signal")) || "—" },
-        ];
-    }
-
-    const firstSector = section.querySelector(":scope .portfolio-sector-row");
-    if (firstSector) {
-        return [{ label: "Largest sector", value: valueText(firstSector.querySelector(".portfolio-sector-label span")) || "—" }, { label: "Allocation", value: valueText(firstSector.querySelector(".portfolio-sector-label strong")) || "—" }];
-    }
-
-    const rebalanceCards = [...section.querySelectorAll(":scope .portfolio-rebalance-metric")];
-    if (rebalanceCards.length) return rebalanceCards.slice(0, 3).map(card => ({ label: valueText(card.querySelector(".stock-metric-label")), value: valueText(card.querySelector(".portfolio-rebalance-values")) })).filter(x => x.label && x.value);
-
-    const actionCards = [...section.querySelectorAll(":scope .portfolio-action-metric")];
-    if (actionCards.length) return actionCards.slice(0, 3).map(card => ({ label: valueText(card.querySelector(".stock-metric-label")), value: valueText(card.querySelector(".stock-metric-value")) })).filter(x => x.label && x.value);
-
-    return [];
-}
-
 function makeCard(section, index) {
     if (!section || section.dataset.pbCollapsible === "1") return;
     const config = getConfig(section);
@@ -145,16 +91,26 @@ function makeCard(section, index) {
     section.classList.remove("portfolio-analysis-section");
     section.classList.add("stock-portfolio-collapsible-ready");
 
-    const toggle = (event) => {
-        if (event?.target?.closest("button") && event.currentTarget !== header) return;
+    // The entire header is clickable. The caret is a real button as well and
+    // must toggle independently; the old implementation stopped propagation
+    // and then called a guard that immediately returned, making the caret inert.
+    const toggle = () => {
         const open = header.getAttribute("aria-expanded") === "true";
         setOpen(section, !open);
     };
-    header.addEventListener("click", toggle);
-    header.addEventListener("keydown", event => {
-        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(event); }
+    header.addEventListener("click", event => {
+        if (event.target.closest("button")) return;
+        toggle();
     });
-    header.querySelector("button")?.addEventListener("click", event => { event.stopPropagation(); toggle(event); });
+    header.addEventListener("keydown", event => {
+        if (event.target.closest("button")) return;
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
+    });
+    header.querySelector("button")?.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggle();
+    });
     setOpen(section, false);
 }
 
@@ -185,7 +141,10 @@ function setOpen(section, open) {
     const button = section.querySelector(":scope .stock-pb-caret");
     if (!header || !content) return;
     header.setAttribute("aria-expanded", open ? "true" : "false");
-    if (button) button.setAttribute("aria-expanded", open ? "true" : "false");
+    if (button) {
+        button.setAttribute("aria-expanded", open ? "true" : "false");
+        button.setAttribute("aria-label", `${open ? "Collapse" : "Expand"} ${header.querySelector(".pb-health-summary-label")?.childNodes?.[0]?.textContent?.trim() || "section"}`);
+    }
     content.hidden = !open;
     section.classList.toggle("is-open", open);
 }
@@ -207,21 +166,12 @@ function wrapExternalSections() {
     external.forEach((section, index) => makeCard(section, 100 + index));
 }
 
-function moveDataNotesToBottom() {
-    const analysis = document.getElementById("stock-portfolio-analysis-content");
-    if (!analysis) return;
-    const notes = analysis.querySelector("#portfolio-analysis-results .stock-portfolio-collapsible-card[data-pb-notes], #portfolio-analysis-results section.stock-section:has(h2)");
-    const candidate = [...analysis.querySelectorAll("#portfolio-analysis-results .stock-portfolio-collapsible-card")].find(card => /data notes/i.test(card.textContent || ""));
-    if (!candidate) return;
-    candidate.dataset.pbNotes = "1";
-    analysis.appendChild(candidate);
-}
-
 function normaliseNotes() {
     const analysis = document.getElementById("stock-portfolio-analysis-content");
     if (!analysis) return;
     const candidate = [...analysis.querySelectorAll(".stock-portfolio-collapsible-card")].find(card => /data notes/i.test(card.textContent || ""));
     if (!candidate) return;
+    candidate.dataset.pbNotes = "1";
     analysis.appendChild(candidate);
 }
 
