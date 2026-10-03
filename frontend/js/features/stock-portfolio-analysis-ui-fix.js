@@ -15,8 +15,7 @@
         );
         if (!notes) return;
         notes.dataset.pbNotes = "1";
-        if (notes.parentElement !== analysis) analysis.appendChild(notes);
-        else analysis.appendChild(notes);
+        if (notes.parentElement !== analysis || notes !== analysis.lastElementChild) analysis.appendChild(notes);
     }
 
     function refresh() {
