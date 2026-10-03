@@ -38,13 +38,6 @@
         }).filter(item => item.roe != null && item.growth != null && item.allocation != null);
     }
 
-    function quadrant(x, y, medianX, medianY) {
-        if (x >= medianX && y >= medianY) return "High growth · High quality";
-        if (x < medianX && y >= medianY) return "Lower growth · High quality";
-        if (x >= medianX && y < medianY) return "High growth · Lower quality";
-        return "Lower growth · Lower quality";
-    }
-
     function median(values) {
         const sorted = [...values].sort((a, b) => a - b);
         if (!sorted.length) return 0;
@@ -52,22 +45,25 @@
         return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
     }
 
-    function destroy() {
+    function resetChart() {
         if (chart) {
             try { chart.destroy(); } catch (_) {}
             chart = null;
         }
-        document.getElementById(ROOT_ID)?.remove();
     }
 
     function render() {
         const results = document.getElementById("portfolio-analysis-results");
         if (!results || results.hidden || !results.querySelector(".portfolio-analysis-table")) return;
 
+        // The observer also sees the section we inject. Do not rebuild it on
+        // every mutation; a new analysis run replaces the whole results DOM.
+        if (document.getElementById(ROOT_ID)) return;
+
         const rows = readRows();
         if (rows.length < 2) return;
 
-        destroy();
+        resetChart();
 
         const medianGrowth = median(rows.map(item => item.growth));
         const medianRoe = median(rows.map(item => item.roe));
@@ -99,8 +95,8 @@
             <p class="portfolio-analysis-note">The horizontal and vertical reference lines use the portfolio's own medians. This makes the map relative to the current holdings rather than applying an external threshold. It is a descriptive positioning view, not an investment score.</p>
         `;
 
-        const sector = results.querySelector(".portfolio-analysis-table")?.closest(".portfolio-analysis-section");
         const valuation = [...results.querySelectorAll(".portfolio-analysis-section")].find(section => section.textContent.includes("Portfolio Valuation"));
+        const sector = results.querySelector(".portfolio-analysis-table")?.closest(".portfolio-analysis-section");
         const anchor = valuation || sector || results.firstElementChild;
         if (anchor) anchor.insertAdjacentElement("afterend", root);
         else results.prepend(root);
@@ -138,8 +134,7 @@
                                 return lines;
                             }
                         }
-                    },
-                    positioningReference: { medianGrowth, medianRoe }
+                    }
                 },
                 scales: {
                     x: {
