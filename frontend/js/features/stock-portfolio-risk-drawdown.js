@@ -71,7 +71,7 @@
 
     function render(rows, path, metrics) {
         destroy();
-        const hhi = rows.reduce((s, r) => s + Math.pow(r.allocation, 2), 0);
+        const hhi = rows.reduce((s, r) => s + Math.pow(r.allocation / 100, 2), 0) * 100;
         const largest = Math.max(...rows.map(r => r.allocation));
         const leverageExposure = rows.reduce((s, r) => s + (r.debtEquity != null && r.debtEquity > 1 ? r.allocation : 0), 0);
         const negativeGrowthExposure = rows.reduce((s, r) => s + (r.revenueGrowth != null && r.revenueGrowth < 0 ? r.allocation : 0), 0);
