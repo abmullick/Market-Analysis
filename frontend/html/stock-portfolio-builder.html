@@ -8,12 +8,11 @@
     <link rel="stylesheet" href="/css/base.css">
     <link rel="stylesheet" href="/css/layout.css">
     <link rel="stylesheet" href="/css/components.css">
-    <!-- Use the same Stock Analysis visual stack so controls remain identical. -->
-    <link rel="stylesheet" href="/css/features/stock-selection.css?v=20261002-4">
+    <!-- Stock Selection is the single source of truth for portfolio-builder controls. -->
+    <link rel="stylesheet" href="/css/features/stock-selection.css?v=20261003-2">
     <link rel="stylesheet" href="/css/features/stock-filter-panel.css?v=20261002-3">
     <link rel="stylesheet" href="/css/features/mutual-fund-analysis.css">
     <link rel="stylesheet" href="/css/features/stock-filter-mirror.css?v=20261002-2">
-    <link rel="stylesheet" href="/css/features/stock-analysis-polish.css?v=20261003-1">
     <link rel="stylesheet" href="/css/features/stock-negative.css">
     <link rel="stylesheet" href="/css/features/stock-trends.css">
     <link rel="stylesheet" href="/css/features/stock-pedigree.css">
@@ -21,7 +20,7 @@
     <link rel="stylesheet" href="/css/features/stock-filter-ui-polish.css?v=20261002-1">
     <link rel="stylesheet" href="/css/features/analysis-filter-card-theme.css?v=20261002-1">
     <link rel="stylesheet" href="/css/features/stock-statement-layout.css?v=20261003-1">
-    <link rel="stylesheet" href="/css/features/stock-portfolio-builder.css?v=20261003-3">
+    <link rel="stylesheet" href="/css/features/stock-portfolio-builder.css?v=20261003-4">
 </head>
 <body data-page="stock-portfolio-builder">
 <header class="site-header">
@@ -33,27 +32,25 @@
 </header>
 
 <main class="container">
-    <div id="stock-portfolio-builder-content">
+    <section id="stock-portfolio-builder-content">
         <div class="pb-page-header-text">
-            <h1 class="mf-page-title">Stock Portfolio Builder</h1>
-            <p class="mf-page-subtitle">Build a portfolio of individual stocks with configurable allocations.</p>
+            <h2>Stock Portfolio Builder</h2>
+            <p>Build a portfolio of individual stocks with configurable allocations.</p>
         </div>
 
-        <div id="stock-portfolio-construction" class="stock-selection-layout">
-            <aside class="stock-selected-panel stock-portfolio-panel">
+        <div class="stock-selection-layout">
+            <section class="stock-selected-panel stock-portfolio-panel">
                 <div class="stock-selection-kicker">YOUR PORTFOLIO</div>
-                <div id="portfolio-empty" class="stock-no-selection">
-                    Add stocks from the list to start building your portfolio.
-                </div>
-                <div id="portfolio-holdings" class="portfolio-holdings" hidden></div>
+                <div id="stock-portfolio-holdings" class="portfolio-holdings"></div>
+                <div id="stock-portfolio-empty" class="stock-no-selection">Add stocks from the selection list to start building your portfolio.</div>
                 <div class="portfolio-total-row">
                     <span>Total Allocation</span>
-                    <strong id="portfolio-total">0%</strong>
+                    <strong id="stock-portfolio-total">0%</strong>
                 </div>
-                <div id="portfolio-status" class="portfolio-status portfolio-status-warn">Add stocks and set the allocation to 100%.</div>
-                <button id="portfolio-continue" class="stock-analyze-btn" type="button" disabled>Continue to Portfolio Analysis</button>
-                <button id="portfolio-clear" class="stock-page-btn stock-secondary-btn portfolio-clear-btn" type="button" hidden>Clear Portfolio</button>
-            </aside>
+                <div id="stock-portfolio-status" class="portfolio-status portfolio-status-warn">Add stocks and set allocations. Total allocation must equal 100%.</div>
+                <button id="stock-portfolio-continue" class="stock-analyze-btn" type="button" disabled>Continue to Portfolio Analysis</button>
+                <button id="stock-portfolio-clear" class="stock-page-btn stock-secondary-btn portfolio-clear-btn" type="button">Clear Portfolio</button>
+            </section>
 
             <section class="stock-picker-panel">
                 <div class="stock-section-header portfolio-picker-header">
@@ -61,67 +58,52 @@
                         <h2>Choose Stocks</h2>
                         <span>Select the stocks you want in the portfolio.</span>
                     </div>
-                    <span id="portfolio-stock-count" class="portfolio-count">0 selected</span>
+                    <span id="stock-portfolio-count" class="portfolio-count">0 selected</span>
                 </div>
 
                 <div class="stock-picker-filters portfolio-filters">
-                    <label class="portfolio-search-field">
-                        Search
-                        <input id="portfolio-stock-search" type="search" placeholder="Company or symbol">
-                    </label>
+                    <div class="portfolio-search-field">
+                        <label for="stock-portfolio-search" class="portfolio-filter-label">Company or symbol</label>
+                        <input id="stock-portfolio-search" type="search" placeholder="Company or symbol" autocomplete="off">
+                    </div>
                     <div class="portfolio-sector-field">
-                        <span class="portfolio-filter-label">Sector</span>
-                        <div class="category-picker portfolio-sector-picker">
-                            <button id="portfolio-sector-trigger" type="button" class="category-picker-trigger" aria-expanded="false">
-                                <span id="portfolio-sector-value" class="category-picker-value">All Sectors</span><span>⌄</span>
+                        <label class="portfolio-filter-label">Sector</label>
+                        <div class="category-picker" id="stock-portfolio-sector-picker">
+                            <button class="category-picker-trigger" type="button" aria-expanded="false" aria-haspopup="true">
+                                <span class="category-picker-value">All Sectors</span>
+                                <span aria-hidden="true">⌄</span>
                             </button>
-                            <div id="portfolio-sector-dropdown" class="category-picker-dropdown" hidden>
-                                <div class="category-picker-search"><span>⌕</span><input class="category-picker-search-input" id="portfolio-sector-search" placeholder="Search sectors..." autocomplete="off"></div>
-                                <div class="category-picker-actions"><button type="button" class="category-picker-action" id="portfolio-sector-select-all">Select All</button><button type="button" class="category-picker-action" id="portfolio-sector-clear-all">Clear</button></div>
-                                <div class="category-picker-list" id="portfolio-sector-list"></div>
-                                <div class="category-picker-footer" id="portfolio-sector-count">0 selected</div>
+                            <div class="category-picker-dropdown" hidden>
+                                <div class="category-picker-search">
+                                    <input class="category-picker-search-input" type="search" placeholder="Search sectors" autocomplete="off">
+                                </div>
+                                <div class="category-picker-actions">
+                                    <button class="category-picker-action" type="button" data-action="select-all">Select All</button>
+                                    <button class="category-picker-action" type="button" data-action="clear">Clear</button>
+                                </div>
+                                <div class="category-picker-list"></div>
+                                <div class="category-picker-footer">Select one or more sectors</div>
                             </div>
                         </div>
                     </div>
                     <div class="portfolio-cap-field">
-                        <span class="portfolio-filter-label">Market Cap</span>
-                        <div class="stock-chip-filter" id="portfolio-cap-filter">
+                        <label class="portfolio-filter-label">Market Cap</label>
+                        <div class="stock-chip-filter">
                             <label><input type="checkbox" value="large"><span>Large Cap</span></label>
                             <label><input type="checkbox" value="mid"><span>Mid Cap</span></label>
                             <label><input type="checkbox" value="small"><span>Small Cap</span></label>
                             <label><input type="checkbox" value="micro"><span>Micro Cap</span></label>
                         </div>
                     </div>
-                    <button id="portfolio-reset-filters" class="stock-page-btn stock-secondary-btn portfolio-reset-btn" type="button">Clear Filters</button>
+                    <button id="stock-portfolio-reset" class="stock-page-btn stock-secondary-btn portfolio-reset-btn" type="button">Clear Filters</button>
                 </div>
 
-                <div id="portfolio-result-summary" class="stock-result-summary">Loading stock universe…</div>
-                <div id="portfolio-stock-list" class="stock-picker-list">
-                    <div class="stock-loading">Loading stocks…</div>
-                </div>
+                <div id="stock-portfolio-results" class="stock-picker-list"></div>
             </section>
         </div>
-    </div>
+    </section>
 </main>
 
-<a href="/help.html" class="help-link" title="Help & Methodology">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="10"></circle>
-        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-        <line x1="12" y1="17" x2="12.01" y2="17"></line>
-    </svg>
-    <span>Help & Methodology</span>
-</a>
-
-<footer class="site-footer">
-    <div class="container"><p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p></div>
-</footer>
-
-<script type="module">
-    import { initNavigation } from '/js/core/navigation.js';
-    import { initStockPortfolioBuilder } from '/js/features/stock-portfolio-builder.js?v=20261003-3';
-    initNavigation();
-    initStockPortfolioBuilder();
-</script>
+<script type="module" src="/js/app.js"></script>
 </body>
 </html>
