@@ -91,36 +91,29 @@
       });
       if (!active.length) return;
 
-      // Do not replace chart.options.plugins.tooltip here. Chart.js keeps
-      // resolved/scriptable configuration objects internally; replacing that
-      // resolver during mousemove causes recursive config resolution and the
-      // "Maximum call stack size exceeded / _scriptable" errors seen in DevTools.
-      // Tooltip defaults are configured once below. Here we only activate the
-      // relevant elements and ask Chart.js to redraw.
       try {
         chart.tooltip.setActiveElements(active, { x, y });
         chart.update("none");
       } catch (_) {}
     }
 
-    // Direct document-level fallback. It is independent of Chart.js plugin
-    // lifecycle and works for charts created before or after this file loads.
+    // Direct mouse tracking is intentionally independent of the Chart.js plugin
+    // event lifecycle. This covers charts created before or after this file.
     if (!window.__marketAnalysisChartMouseTracking) {
       window.__marketAnalysisChartMouseTracking = true;
       document.addEventListener("mousemove", event => {
         try {
-          const target = event.target?.closest?.("canvas") || document.elementFromPoint(event.clientX, event.clientY)?.closest?.("canvas");
-          const chart = target ? Chart.getChart(target) : null;
-          if (!chart) return;
-          showTooltipAtX(chart, event.clientX, event.clientY);
+          const canvas = event.target?.closest?.("canvas") ||
+            document.elementFromPoint(event.clientX, event.clientY)?.closest?.("canvas");
+          const chart = canvas ? Chart.getChart(canvas) : null;
+          if (chart) showTooltipAtX(chart, event.clientX, event.clientY);
         } catch (_) {}
       }, true);
 
       document.addEventListener("mouseout", event => {
         try {
-          const fromCanvas = event.target?.closest?.("canvas");
-          if (!fromCanvas) return;
-          const chart = Chart.getChart(fromCanvas);
+          const canvas = event.target?.closest?.("canvas");
+          const chart = canvas ? Chart.getChart(canvas) : null;
           if (chart) clearTooltip(chart);
         } catch (_) {}
       }, true);
@@ -138,16 +131,12 @@
       chart.canvas.addEventListener("mouseleave", leave, { passive: true });
     }
 
-    const pluginAlreadyRegistered = !!Chart.registry?.plugins?.get("marketChartPolish");
-
-    if (!pluginAlreadyRegistered) {
-      const plugin = {
+    if (!Chart.registry?.plugins?.get("marketChartPolish")) {
+      Chart.register({
         id: "marketChartPolish",
-
         afterInit(chart) {
           bindMouseTracking(chart);
         },
-
         beforeDraw(chart) {
           try {
             const area = chart.chartArea;
@@ -164,15 +153,12 @@
             ctx.restore();
           } catch (_) {}
         },
-
         afterEvent(chart, args) {
           try {
             const event = args?.event;
-            if (!event) return;
-            if (event.type === "mouseout" || event.type === "mouseleave") clearTooltip(chart);
+            if (event?.type === "mouseout" || event?.type === "mouseleave") clearTooltip(chart);
           } catch (_) {}
         },
-
         afterDatasetsDraw(chart) {
           try {
             const area = chart.chartArea;
@@ -251,37 +237,24 @@
             ctx.restore();
           } catch (_) {}
         }
-      };
-
-      try {
-        Chart.register(plugin);
-      } catch (_) {}
+      });
     }
 
     try {
-      const instances = Chart.instances || {};
-      Object.values(instances).forEach(bindMouseTracking);
+      Object.values(Chart.instances || {}).forEach(bindMouseTracking);
     } catch (_) {}
 
-    // Configure tooltip behaviour once, at the defaults level. Never replace
-    // an individual chart's resolved tooltip object during pointer movement.
+    // Do NOT overwrite Chart.defaults.animation or transitions here. Chart.js
+    // 4.5.1 treats those objects as internally resolved configuration; replacing
+    // them at runtime caused core.animation.js "this._fn is not a function".
+    // The tooltip itself is configured safely at defaults level only.
     try {
-      Chart.defaults.animation = { duration: 650, easing: "easeOutQuart" };
-      if (Chart.defaults.transitions?.active) {
-        Chart.defaults.transitions.active.animation = { duration: 220, easing: "easeOutCubic" };
-      }
       if (Chart.defaults.plugins?.legend?.labels) {
         Chart.defaults.plugins.legend.labels.usePointStyle = true;
         Chart.defaults.plugins.legend.labels.padding = 14;
       }
       Chart.defaults.interaction = {
         ...(Chart.defaults.interaction || {}),
-        mode: "index",
-        intersect: false,
-        axis: "x",
-      };
-      Chart.defaults.hover = {
-        ...(Chart.defaults.hover || {}),
         mode: "index",
         intersect: false,
         axis: "x",
