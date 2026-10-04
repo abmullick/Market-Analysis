@@ -74,7 +74,7 @@ function loadFloatingNavigationTheme() {
     const stylesheet = document.createElement("link");
     stylesheet.id = "floating-navigation-theme";
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "/css/features/floating-navigation.css?v=20261004-1";
+    stylesheet.href = "/css/features/floating-navigation.css?v=20261004-2";
     document.head.appendChild(stylesheet);
 }
 
@@ -143,6 +143,12 @@ export function initNavigation() {
 
     const nav = document.getElementById("main-nav");
     if (!nav || nav.dataset.floatingNavigationReady === "1") return;
+
+    // Keep the navigation completely independent of the page header. This prevents
+    // the fixed dock from ever covering the product-owner/title area, including on mobile.
+    if (nav.closest(".site-header")) {
+        document.body.appendChild(nav);
+    }
 
     setMarketAnalysisHeaderLogo();
     loadPortfolioBuilderButtonTheme();
