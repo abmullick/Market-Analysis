@@ -4,7 +4,6 @@
       setTimeout(init, 50);
       return;
     }
-    if (Chart.registry?.plugins?.get("marketChartPolish")) return;
 
     const FONT = '600 10px Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     const SMALL = '800 8px Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
@@ -90,8 +89,6 @@
       });
       if (!active.length) return;
 
-      // Force the tooltip on even when an individual chart supplied its own
-      // tooltip defaults. The stock charts should all respond consistently.
       chart.options.plugins = chart.options.plugins || {};
       chart.options.plugins.tooltip = {
         ...(chart.options.plugins.tooltip || {}),
@@ -103,138 +100,171 @@
       chart.update("none");
     }
 
+    // Permanent document-level fallback. This is deliberately independent of
+    // Chart.js plugin lifecycle, chart creation order, or individual chart
+    // interaction settings. It finds the Chart instance from the canvas under
+    // the pointer and drives the tooltip directly.
+    if (!window.__marketAnalysisChartMouseTracking) {
+      window.__marketAnalysisChartMouseTracking = true;
+      document.addEventListener("mousemove", event => {
+        try {
+          const target = event.target?.closest?.("canvas") || document.elementFromPoint(event.clientX, event.clientY)?.closest?.("canvas");
+          const chart = target ? Chart.getChart(target) : null;
+          if (!chart) return;
+          showTooltipAtX(chart, event.clientX, event.clientY);
+        } catch (_) {}
+      }, true);
+
+      document.addEventListener("mouseout", event => {
+        try {
+          const fromCanvas = event.target?.closest?.("canvas");
+          if (!fromCanvas) return;
+          const chart = Chart.getChart(fromCanvas);
+          if (chart) clearTooltip(chart);
+        } catch (_) {}
+      }, true);
+    }
+
     function bindMouseTracking(chart) {
       if (!chart?.canvas || boundCharts.has(chart)) return;
       boundCharts.add(chart);
-
       const target = chart.canvas.parentElement || chart.canvas;
       const move = event => showTooltipAtX(chart, event.clientX, event.clientY);
       const leave = () => clearTooltip(chart);
-
-      // Listen directly on the canvas wrapper instead of relying on Chart.js
-      // to dispatch the event through its plugin event pipeline.
       target.addEventListener("mousemove", move, { passive: true });
       target.addEventListener("mouseleave", leave, { passive: true });
       chart.canvas.addEventListener("mousemove", move, { passive: true });
       chart.canvas.addEventListener("mouseleave", leave, { passive: true });
     }
 
-    const plugin = {
-      id: "marketChartPolish",
+    const pluginAlreadyRegistered = !!Chart.registry?.plugins?.get("marketChartPolish");
 
-      afterInit(chart) {
-        bindMouseTracking(chart);
-      },
+    if (!pluginAlreadyRegistered) {
+      const plugin = {
+        id: "marketChartPolish",
 
-      beforeDraw(chart) {
-        try {
-          const area = chart.chartArea;
-          if (!area || area.right <= area.left || area.bottom <= area.top) return;
-          const ctx = chart.ctx;
-          ctx.save();
-          const gradient = ctx.createLinearGradient(0, area.top, 0, area.bottom);
-          gradient.addColorStop(0, "rgba(248,251,255,.70)");
-          gradient.addColorStop(.55, "rgba(255,255,255,.46)");
-          gradient.addColorStop(1, "rgba(246,249,253,.72)");
-          roundedRect(ctx, area.left, area.top, area.right - area.left, area.bottom - area.top, 10);
-          ctx.fillStyle = gradient;
-          ctx.fill();
-          ctx.restore();
-        } catch (_) {}
-      },
+        afterInit(chart) {
+          bindMouseTracking(chart);
+        },
 
-      afterEvent(chart, args) {
-        // Keep Chart.js-native interactions working as well. Direct canvas
-        // tracking above is the reliable path for these stock charts.
-        try {
-          const event = args?.event;
-          if (!event) return;
-          if (event.type === "mouseout" || event.type === "mouseleave") clearTooltip(chart);
-        } catch (_) {}
-      },
-
-      afterDatasetsDraw(chart) {
-        try {
-          const area = chart.chartArea;
-          if (!area) return;
-          const ctx = chart.ctx;
-          const lineMetas = (chart.data?.datasets || [])
-            .map((ds, i) => ({ ds, meta: chart.getDatasetMeta(i) }))
-            .filter(x => x.meta?.type === "line");
-          if (!lineMetas.length) return;
-
-          ctx.save();
-          lineMetas.forEach(({ ds, meta }) => {
-            const index = lastVisibleIndex(meta);
-            const point = finitePoint(meta, index);
-            if (!point) return;
-            const color = safeColor(ds.borderColor);
-            ctx.beginPath();
-            ctx.arc(point.x, point.y, 7, 0, Math.PI * 2);
-            ctx.fillStyle = "rgba(37,99,235,.10)";
+        beforeDraw(chart) {
+          try {
+            const area = chart.chartArea;
+            if (!area || area.right <= area.left || area.bottom <= area.top) return;
+            const ctx = chart.ctx;
+            ctx.save();
+            const gradient = ctx.createLinearGradient(0, area.top, 0, area.bottom);
+            gradient.addColorStop(0, "rgba(248,251,255,.70)");
+            gradient.addColorStop(.55, "rgba(255,255,255,.46)");
+            gradient.addColorStop(1, "rgba(246,249,253,.72)");
+            roundedRect(ctx, area.left, area.top, area.right - area.left, area.bottom - area.top, 10);
+            ctx.fillStyle = gradient;
             ctx.fill();
-            ctx.beginPath();
-            ctx.arc(point.x, point.y, 4.2, 0, Math.PI * 2);
-            ctx.fillStyle = "#fff";
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
-            ctx.fillStyle = color;
-            ctx.fill();
-          });
+            ctx.restore();
+          } catch (_) {}
+        },
 
-          if (lineMetas.length === 1) {
-            const { ds, meta } = lineMetas[0];
-            const index = lastVisibleIndex(meta);
-            const point = finitePoint(meta, index);
-            const value = Number(ds.data?.[index]);
-            if (point && Number.isFinite(value)) {
+        afterEvent(chart, args) {
+          try {
+            const event = args?.event;
+            if (!event) return;
+            if (event.type === "mouseout" || event.type === "mouseleave") clearTooltip(chart);
+          } catch (_) {}
+        },
+
+        afterDatasetsDraw(chart) {
+          try {
+            const area = chart.chartArea;
+            if (!area) return;
+            const ctx = chart.ctx;
+            const lineMetas = (chart.data?.datasets || [])
+              .map((ds, i) => ({ ds, meta: chart.getDatasetMeta(i) }))
+              .filter(x => x.meta?.type === "line");
+            if (!lineMetas.length) return;
+
+            ctx.save();
+            lineMetas.forEach(({ ds, meta }) => {
+              const index = lastVisibleIndex(meta);
+              const point = finitePoint(meta, index);
+              if (!point) return;
               const color = safeColor(ds.borderColor);
-              const text = displayValue(value);
-              const label = chart.data.labels?.[index] ?? "Latest";
-              ctx.font = FONT;
-              const valueW = ctx.measureText(text).width;
-              ctx.font = SMALL;
-              const boxW = Math.max(58, valueW + 20);
-              const boxH = 34;
-              let x = point.x + 10;
-              let y = point.y - boxH - 8;
-              if (x + boxW > area.right - 4) x = point.x - boxW - 10;
-              if (y < area.top + 4) y = point.y + 10;
-              x = Math.max(area.left + 4, Math.min(x, area.right - boxW - 4));
-              y = Math.max(area.top + 4, Math.min(y, area.bottom - boxH - 4));
-
-              roundedRect(ctx, x, y, boxW, boxH, 8);
-              ctx.fillStyle = "rgba(255,255,255,.96)";
-              ctx.shadowColor = "rgba(15,23,42,.10)";
-              ctx.shadowBlur = 10;
-              ctx.shadowOffsetY = 3;
+              ctx.beginPath();
+              ctx.arc(point.x, point.y, 7, 0, Math.PI * 2);
+              ctx.fillStyle = "rgba(37,99,235,.10)";
               ctx.fill();
-              ctx.shadowColor = "transparent";
-              ctx.strokeStyle = "rgba(37,99,235,.22)";
-              ctx.lineWidth = 1;
-              ctx.stroke();
-
-              ctx.font = SMALL;
+              ctx.beginPath();
+              ctx.arc(point.x, point.y, 4.2, 0, Math.PI * 2);
+              ctx.fillStyle = "#fff";
+              ctx.fill();
+              ctx.beginPath();
+              ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
               ctx.fillStyle = color;
-              ctx.fillText("LATEST", x + 9, y + 11);
-              ctx.font = FONT;
-              ctx.fillStyle = "#17355d";
-              ctx.fillText(text, x + 9, y + 25);
-              ctx.font = '500 8px Inter, system-ui, sans-serif';
-              ctx.fillStyle = "#7b8da1";
-              ctx.textAlign = "right";
-              ctx.fillText(String(label), x + boxW - 8, y + 11);
-              ctx.textAlign = "left";
+              ctx.fill();
+            });
+
+            if (lineMetas.length === 1) {
+              const { ds, meta } = lineMetas[0];
+              const index = lastVisibleIndex(meta);
+              const point = finitePoint(meta, index);
+              const value = Number(ds.data?.[index]);
+              if (point && Number.isFinite(value)) {
+                const color = safeColor(ds.borderColor);
+                const text = displayValue(value);
+                const label = chart.data.labels?.[index] ?? "Latest";
+                ctx.font = FONT;
+                const valueW = ctx.measureText(text).width;
+                ctx.font = SMALL;
+                const boxW = Math.max(58, valueW + 20);
+                const boxH = 34;
+                let x = point.x + 10;
+                let y = point.y - boxH - 8;
+                if (x + boxW > area.right - 4) x = point.x - boxW - 10;
+                if (y < area.top + 4) y = point.y + 10;
+                x = Math.max(area.left + 4, Math.min(x, area.right - boxW - 4));
+                y = Math.max(area.top + 4, Math.min(y, area.bottom - boxH - 4));
+
+                roundedRect(ctx, x, y, boxW, boxH, 8);
+                ctx.fillStyle = "rgba(255,255,255,.96)";
+                ctx.shadowColor = "rgba(15,23,42,.10)";
+                ctx.shadowBlur = 10;
+                ctx.shadowOffsetY = 3;
+                ctx.fill();
+                ctx.shadowColor = "transparent";
+                ctx.strokeStyle = "rgba(37,99,235,.22)";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.font = SMALL;
+                ctx.fillStyle = color;
+                ctx.fillText("LATEST", x + 9, y + 11);
+                ctx.font = FONT;
+                ctx.fillStyle = "#17355d";
+                ctx.fillText(text, x + 9, y + 25);
+                ctx.font = '500 8px Inter, system-ui, sans-serif';
+                ctx.fillStyle = "#7b8da1";
+                ctx.textAlign = "right";
+                ctx.fillText(String(label), x + boxW - 8, y + 11);
+                ctx.textAlign = "left";
+              }
             }
-          }
-          ctx.restore();
-        } catch (_) {}
-      }
-    };
+            ctx.restore();
+          } catch (_) {}
+        }
+      };
+
+      try {
+        Chart.register(plugin);
+      } catch (_) {}
+    }
+
+    // Bind every chart that already existed before this file ran. This closes
+    // the lifecycle gap that caused the previous mouse-tracking fixes to fail.
+    try {
+      const instances = Chart.instances || {};
+      Object.values(instances).forEach(bindMouseTracking);
+    } catch (_) {}
 
     try {
-      Chart.register(plugin);
       Chart.defaults.animation = { duration: 650, easing: "easeOutQuart" };
       if (Chart.defaults.transitions?.active) {
         Chart.defaults.transitions.active.animation = { duration: 220, easing: "easeOutCubic" };
