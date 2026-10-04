@@ -25,21 +25,41 @@ function qDraw(id, datasets, yTitle, suffix = "") {
 
 function qStat(label, value, note) { return `<div class="stock-pedigree-stat"><span>${escQ(label)}</span><strong>${escQ(value)}</strong><small>${escQ(note)}</small></div>`; }
 
-function qualityNarrative(data) {
-  const e=data.earnings_quality||{}, d=data.dilution||{}, c=data.capital_allocation||{}, out=[];
-  if(e.cfo_profit_gap_5y!=null) out.push(`Over five years, operating cash flow CAGR is ${e.cfo_profit_gap_5y>=0?"ahead of":"behind"} profit CAGR by ${fmtQ(Math.abs(e.cfo_profit_gap_5y)," pp")} .`);
-  if(e.fcf_profit_gap_5y!=null) out.push(`Five-year FCF CAGR is ${e.fcf_profit_gap_5y>=0?"ahead of":"behind"} profit CAGR by ${fmtQ(Math.abs(e.fcf_profit_gap_5y)," pp")} .`);
-  if(d.share_count_cagr_5y!=null) out.push(`Implied share count changed at ${fmtQ(d.share_count_cagr_5y*100,"%",1)} CAGR over five years.`);
-  if(d.profit_vs_eps_cagr_gap_5y!=null) out.push(`Five-year profit CAGR and EPS CAGR differ by ${fmtQ(Math.abs(d.profit_vs_eps_cagr_gap_5y)*100," pp",1)}.`);
-  const capex = c.capex_to_cfo||[]; if(capex.length) out.push(`Latest capex consumed ${fmtQ(capex[capex.length-1].value,"%",1)} of operating cash flow.`);
-  return out.length ? out : ["Not enough historical observations are available for a quality summary."];
+function initQualityCard(section) {
+  const header = section.querySelector(".stock-pedigree-trends-card-header");
+  const body = section.querySelector(".stock-pedigree-trends-card-body");
+  const button = section.querySelector(".stock-pedigree-trends-caret");
+  if (!header || !body || section.dataset.qualityCollapsible === "1") return;
+  section.dataset.qualityCollapsible = "1";
+
+  const setOpen = (open) => {
+    header.setAttribute("aria-expanded", open ? "true" : "false");
+    button?.setAttribute("aria-expanded", open ? "true" : "false");
+    button?.setAttribute("aria-label", `${open ? "Collapse" : "Expand"} earnings quality and capital allocation`);
+    body.hidden = !open;
+    section.classList.toggle("is-open", open);
+    if (open && typeof Chart !== "undefined") {
+      requestAnimationFrame(() => body.querySelectorAll("canvas").forEach(canvas => Chart.getChart(canvas)?.resize()));
+    }
+  };
+
+  const toggle = () => setOpen(header.getAttribute("aria-expanded") !== "true");
+  header.addEventListener("click", event => { if (!event.target.closest("button")) toggle(); });
+  header.addEventListener("keydown", event => {
+    if (event.target.closest("button")) return;
+    if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
+  });
+  button?.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); toggle(); });
+
+  setOpen(true);
+  requestAnimationFrame(() => setOpen(false));
 }
 
 function renderQualityIndividual(data, details) {
   if (!details || details.querySelector(".stock-quality-analysis")) return;
   const e=data.earnings_quality||{}, d=data.dilution||{}, c=data.capital_allocation||{};
   const section=document.createElement("section"); section.className="stock-pedigree-section stock-quality-analysis";
-  section.innerHTML=`<div class="stock-pedigree-header"><div><h2>Earnings Quality, Capital Allocation & Dilution</h2><p>Historical cash generation, reinvestment intensity and per-share growth relationships.</p></div></div><div class="stock-pedigree-stats">${qStat("5Y CFO / Profit CAGR gap",fmtQ(e.cfo_profit_gap_5y*100," pp"),"Operating cash flow CAGR minus profit CAGR")}${qStat("5Y FCF / Profit CAGR gap",fmtQ(e.fcf_profit_gap_5y*100," pp"),"FCF CAGR minus profit CAGR")}${qStat("5Y Share-count CAGR",fmtQ(d.share_count_cagr_5y*100,"%"),"Implied annual change in shares")}${qStat("5Y Profit vs EPS gap",fmtQ(d.profit_vs_eps_cagr_gap_5y*100," pp"),"Profit CAGR minus EPS CAGR")}</div><div class="stock-pedigree-chart-grid">${qCard("quality-cash","Profit vs Cash Generation","Indexed to 100; profit, operating cash flow and free cash flow")}${qCard("quality-conversion","Cash Conversion","CFO / profit and FCF / profit")}${qCard("quality-capital","Capital Deployment","Capex relative to operating cash flow and revenue")}${qCard("quality-funding","Funding & Debt","Debt trajectory alongside free cash flow")}${qCard("quality-shares","Implied Share Count","Historical share-count proxy from profit and diluted EPS")}${qCard("quality-eps-profit","Profit vs EPS Growth","Annual profit growth versus EPS growth")}</div><div class="stock-pedigree-narrative"><h3>Quality observations</h3><ul>${qualityNarrative(data).map(x=>`<li>${escQ(x)}</li>`).join("")}</ul></div>`;
+  section.innerHTML=`<div class="stock-pedigree-header"><div><h2>Earnings Quality, Capital Allocation & Dilution</h2><p>Historical cash generation, reinvestment intensity and per-share growth relationships.</p></div></div><div class="stock-pedigree-stats">${qStat("5Y CFO / Profit CAGR gap",fmtQ(e.cfo_profit_gap_5y*100," pp"),"Operating cash flow CAGR minus profit CAGR")}${qStat("5Y FCF / Profit CAGR gap",fmtQ(e.fcf_profit_gap_5y*100," pp"),"FCF CAGR minus profit CAGR")}${qStat("5Y Share-count CAGR",fmtQ(d.share_count_cagr_5y*100,"%"),"Implied annual change in shares")}${qStat("5Y Profit vs EPS gap",fmtQ(d.profit_vs_eps_cagr_gap_5y*100," pp"),"Profit CAGR minus EPS CAGR")}</div><div class="stock-pedigree-trends-card"><div class="stock-pedigree-trends-card-header" role="button" tabindex="0" aria-expanded="true"><div class="stock-pedigree-trends-card-main"><span class="stock-pedigree-trends-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 8 12 12 14 21 5"></polyline><polyline points="15 5 21 5 21 11"></polyline></svg></span><span class="stock-pedigree-trends-title">Historical Earnings Quality & Capital Allocation<small>Six historical diagnostics covering cash generation, conversion, reinvestment, funding and per-share growth</small></span></div><div class="stock-pedigree-trends-controls"><button type="button" class="stock-pedigree-trends-caret" aria-expanded="true" aria-label="Collapse earnings quality and capital allocation"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.5L10 12.5L15 7.5"></path></svg></button></div></div><div class="stock-pedigree-trends-card-body"><div class="stock-pedigree-chart-grid">${qCard("quality-cash","Profit vs Cash Generation","Indexed to 100; profit, operating cash flow and free cash flow")}${qCard("quality-conversion","Cash Conversion","CFO / profit and FCF / profit")}${qCard("quality-capital","Capital Deployment","Capex relative to operating cash flow and revenue")}${qCard("quality-funding","Funding & Debt","Debt trajectory alongside free cash flow")}${qCard("quality-shares","Implied Share Count","Historical share-count proxy from profit and diluted EPS")}${qCard("quality-eps-profit","Profit vs EPS Growth","Annual profit growth versus EPS growth")}</div></div></div><div class="stock-pedigree-narrative"><h3>Quality observations</h3><ul>${qualityNarrative(data).map(x=>`<li>${escQ(x)}</li>`).join("")}</ul></div>`;
   details.appendChild(section);
   qDraw("quality-cash",[{label:"Net Profit",series:e.net_profit_indexed,color:QUALITY_COLORS[0]},{label:"Operating Cash Flow",series:e.cfo_indexed,color:QUALITY_COLORS[1]},{label:"Free Cash Flow",series:e.fcf_indexed,color:QUALITY_COLORS[2]}],"Index (100 = first positive observation)");
   qDraw("quality-conversion",[{label:"CFO / Net Profit",series:e.cfo_to_profit,color:QUALITY_COLORS[0]},{label:"FCF / Net Profit",series:e.fcf_to_profit,color:QUALITY_COLORS[2]}],"Percent","%");
@@ -49,6 +69,7 @@ function renderQualityIndividual(data, details) {
   qDraw("quality-eps-profit",[{label:"Profit growth",series:e.profit_growth,color:QUALITY_COLORS[0]},{label:"EPS growth",series:d.share_count_growth?.length?e.profit_growth:[],color:QUALITY_COLORS[1]}],"Growth","%");
   const epsCanvas=document.getElementById("quality-eps-profit");
   if(epsCanvas){ const old=Chart.getChart(epsCanvas); if(old) old.destroy(); qDraw("quality-eps-profit",[{label:"Profit growth",series:e.profit_growth,color:QUALITY_COLORS[0]},{label:"EPS growth",series:data.trends?.eps_growth||[],color:QUALITY_COLORS[1]}],"Growth","%"); }
+  initQualityCard(section.querySelector(".stock-pedigree-trends-card"));
 }
 
 function renderQualityCompare(datas, details) {
