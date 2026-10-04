@@ -1,0 +1,232 @@
+/* Stock Analysis / Compare — isolated visual theme
+   COSMETIC ONLY. No data, layout logic, chart, API, or interaction rules.
+   Scoped entirely under #stock-analysis-content. */
+
+#stock-analysis-content {
+    --sa-card-radius: 18px;
+    --sa-soft-border: rgba(186, 204, 224, 0.72);
+    --sa-soft-shadow: 0 8px 24px rgba(15, 23, 42, 0.055);
+    --sa-deep-shadow: 0 12px 32px rgba(15, 23, 42, 0.075);
+    --sa-navy: #10263d;
+    --sa-blue: #2563eb;
+    --sa-sky: #0ea5e9;
+    --sa-surface: rgba(255,255,255,.98);
+    --sa-tint: rgba(239,248,255,.88);
+}
+
+/* Page header — portfolio-builder-like portal card. */
+#stock-analysis-content > .pb-page-header-text {
+    position: relative;
+    overflow: hidden;
+    padding: 30px 30px 24px;
+    margin: 18px 0 22px;
+    border: 1px solid var(--sa-soft-border);
+    border-radius: 20px;
+    background:
+        radial-gradient(420px 180px at 100% 0%, rgba(14,165,233,.13), transparent 70%),
+        linear-gradient(135deg, var(--sa-surface), var(--sa-tint));
+    box-shadow: var(--sa-soft-shadow);
+}
+
+#stock-analysis-content > .pb-page-header-text::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--sa-sky), var(--sa-blue));
+    border-radius: 20px 0 0 20px;
+}
+
+#stock-analysis-content > .pb-page-header-text .mf-page-title {
+    position: relative;
+    font-weight: 800;
+    letter-spacing: -.025em;
+}
+
+#stock-analysis-content > .pb-page-header-text .mf-page-subtitle {
+    position: relative;
+    line-height: 1.65;
+}
+
+/* Selection area: same calm card language as Portfolio Builder. */
+#stock-analysis-content .stock-selection-layout {
+    gap: 20px;
+}
+
+#stock-analysis-content .stock-selected-panel,
+#stock-analysis-content .stock-picker-panel {
+    border: 1px solid var(--sa-soft-border);
+    border-radius: var(--sa-card-radius);
+    box-shadow: var(--sa-soft-shadow);
+    background: rgba(255,255,255,.98);
+}
+
+#stock-analysis-content .stock-selected-panel:hover,
+#stock-analysis-content .stock-picker-panel:hover {
+    box-shadow: var(--sa-deep-shadow);
+}
+
+/* Analysis/compare page navigation controls. */
+#stock-analysis-content .stock-back-btn,
+#stock-analysis-content .stock-analyze-btn,
+#stock-analysis-content .stock-page-btn,
+#stock-analysis-content .stock-select-btn,
+#stock-analysis-content .stock-compare-action {
+    border-radius: 999px;
+    font-weight: 650;
+    letter-spacing: .005em;
+}
+
+#stock-analysis-content .stock-analyze-btn,
+#stock-analysis-content .stock-page-btn:not(.stock-secondary-btn),
+#stock-analysis-content .stock-compare-action,
+#stock-analysis-content .stock-select-btn {
+    background: linear-gradient(135deg, #10263d, #183a5d 42%, #2563eb 115%);
+    box-shadow: 0 8px 18px rgba(16,38,61,.18);
+}
+
+#stock-analysis-content .stock-analyze-btn:hover,
+#stock-analysis-content .stock-page-btn:not(.stock-secondary-btn):hover,
+#stock-analysis-content .stock-compare-action:hover,
+#stock-analysis-content .stock-select-btn:hover {
+    filter: brightness(1.04);
+    box-shadow: 0 12px 24px rgba(16,38,61,.22);
+}
+
+/* Generated analysis cards — visual treatment only. */
+#stock-analysis-content #stock-details > * {
+    border-radius: var(--sa-card-radius);
+}
+
+#stock-analysis-content .stock-section,
+#stock-analysis-content .stock-card,
+#stock-analysis-content .stock-analysis-card,
+#stock-analysis-content .stock-comparison-section,
+#stock-analysis-content .stock-comparison-card,
+#stock-analysis-content .stock-comparison-header,
+#stock-analysis-content .stock-summary-card,
+#stock-analysis-content .stock-table-wrap,
+#stock-analysis-content .stock-comparison-table-wrap {
+    border-radius: var(--sa-card-radius);
+}
+
+/* Give major existing analytical sections the same elevated portal-card feel.
+   No dimensions or display behaviour are changed. */
+#stock-analysis-content .stock-comparison-section,
+#stock-analysis-content .stock-analysis-card,
+#stock-analysis-content .stock-summary-card,
+#stock-analysis-content .stock-section {
+    border-color: var(--sa-soft-border);
+    box-shadow: var(--sa-soft-shadow);
+}
+
+/* Comparison header gets a richer but restrained hero treatment. */
+#stock-analysis-content .stock-comparison-header {
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(340px 150px at 100% 0%, rgba(37,99,235,.12), transparent 72%),
+        linear-gradient(135deg, rgba(255,255,255,.99), rgba(239,248,255,.92));
+    border: 1px solid var(--sa-soft-border);
+    box-shadow: var(--sa-soft-shadow);
+}
+
+#stock-analysis-content .stock-comparison-header::after {
+    content: "";
+    position: absolute;
+    width: 240px;
+    height: 140px;
+    right: -90px;
+    top: -80px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(14,165,233,.13), transparent 68%);
+    pointer-events: none;
+}
+
+/* Existing collapsible historical cards: keep their structure and controls,
+   only enrich the visual surface. */
+#stock-analysis-content .stock-pedigree-trends-card,
+#stock-analysis-content .stock-growth-valuation-card,
+#stock-analysis-content .stock-quality-analysis-card,
+#stock-analysis-content .stock-quality-collapsible-card,
+#stock-analysis-content .stock-pedigree-collapsible-card {
+    border-radius: 20px;
+    border: 1px solid var(--sa-soft-border);
+    box-shadow: var(--sa-soft-shadow);
+    overflow: hidden;
+}
+
+#stock-analysis-content .stock-pedigree-trends-card-header,
+#stock-analysis-content .stock-growth-valuation-card-header,
+#stock-analysis-content .stock-quality-collapsible-card-header,
+#stock-analysis-content .stock-pedigree-collapsible-card-header {
+    background:
+        radial-gradient(360px 150px at 100% 0%, rgba(14,165,233,.11), transparent 72%),
+        linear-gradient(135deg, rgba(255,255,255,.99), rgba(239,248,255,.90));
+}
+
+/* Chart/table containers: same rounded portal treatment without changing
+   canvas dimensions or chart configuration. */
+#stock-analysis-content .stock-chart-card,
+#stock-analysis-content .stock-trend-card,
+#stock-analysis-content .stock-pedigree-chart,
+#stock-analysis-content .stock-trends-card,
+#stock-analysis-content .stock-valuation-card {
+    border-radius: 16px;
+    border-color: rgba(186,204,224,.65);
+    box-shadow: 0 4px 14px rgba(15,23,42,.045);
+}
+
+#stock-analysis-content .stock-table-wrap,
+#stock-analysis-content .stock-comparison-table-wrap {
+    border: 1px solid rgba(186,204,224,.72);
+    box-shadow: 0 5px 18px rgba(15,23,42,.045);
+    overflow: hidden;
+}
+
+#stock-analysis-content .stock-table th {
+    background: linear-gradient(180deg, #edf5fb, #e7f0f8);
+    color: var(--sa-navy);
+}
+
+/* Status/info blocks: polished surface, same information preserved. */
+#stock-analysis-content .stock-analysis-status,
+#stock-analysis-content .stock-data-note,
+#stock-analysis-content .stock-info-note {
+    border-radius: 14px;
+}
+
+/* Compare tabs/pills. */
+#stock-analysis-content .stock-tab {
+    border-radius: 999px;
+    transition: box-shadow .2s ease, transform .2s ease, background .2s ease;
+}
+
+#stock-analysis-content .stock-tab.active {
+    background: linear-gradient(135deg, #10263d, #2563eb);
+    box-shadow: 0 5px 14px rgba(37,99,235,.18);
+}
+
+/* Keep focus visible and consistent with the existing design system. */
+#stock-analysis-content :is(button, a, input, select):focus-visible {
+    outline: 3px solid rgba(14,165,233,.22);
+    outline-offset: 2px;
+}
+
+/* Mobile: cosmetic spacing only. */
+@media (max-width: 700px) {
+    #stock-analysis-content > .pb-page-header-text {
+        padding: 22px 20px 18px;
+        border-radius: 16px;
+    }
+
+    #stock-analysis-content .stock-comparison-header,
+    #stock-analysis-content .stock-pedigree-trends-card,
+    #stock-analysis-content .stock-growth-valuation-card,
+    #stock-analysis-content .stock-quality-collapsible-card,
+    #stock-analysis-content .stock-pedigree-collapsible-card {
+        border-radius: 16px;
+    }
+}
