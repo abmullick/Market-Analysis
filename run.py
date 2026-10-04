@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse
 
 from backend.config.settings import Settings
 from backend.routes.screener import router as screener_router
@@ -31,83 +31,81 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+FAVICON_URL = "/static/images/hero-market-analysis.png?v=20261006"
+
+
+def render_html_page(path: str) -> HTMLResponse:
+    """Serve HTML with the Market Analysis artwork as the only site icon."""
+    with open(path, "r", encoding="utf-8") as f:
+        html = f.read()
+    html = html.replace("/static/images/favicon.ico", FAVICON_URL)
+    html = html.replace("/favicon.ico", FAVICON_URL)
+    return HTMLResponse(content=html)
+
+
 # Serve frontend HTML pages
 @app.get("/")
 async def read_root():
-    with open("frontend/html/index.html", "r", encoding="utf-8") as f:
-        html = f.read()
-    hero_url = "https://market-analysis-g4ow.onrender.com/static/images/hero-market-analysis.png?v=20261005"
+    html = render_html_page("frontend/html/index.html").body.decode("utf-8")
+    hero_url = "https://market-analysis-g4ow.onrender.com/static/images/hero-market-analysis.png?v=20261006"
     html = html.replace(
         'https://wsrv.nl/?url=https%3A%2F%2Fcdn.jsdelivr.net%2Fgh%2Fabmullick%2FMarket-Analysis%40main%2Fstatic%2Fimages%2Fhero-market-analysis.png&amp;w=1200&amp;h=630&amp;fit=cover&amp;output=jpg',
         hero_url,
     )
     html = html.replace(
         'https://cdn.jsdelivr.net/gh/abmullick/Market-Analysis@main/static/images/hero-market-analysis.png?v=20261005',
-        '/static/images/hero-market-analysis.png?v=20261005',
-    )
-    html = html.replace(
-        '/static/images/favicon.ico',
-        '/static/images/hero-market-analysis.png?v=20261005',
+        '/static/images/hero-market-analysis.png?v=20261006',
     )
     return HTMLResponse(content=html)
 
 
 @app.get("/stocks.html")
 async def read_stocks():
-    return FileResponse("frontend/html/stocks.html")
+    return render_html_page("frontend/html/stocks.html")
 
 
 @app.get("/portfolio.html")
 async def read_portfolio():
-    return FileResponse("frontend/html/portfolio.html")
+    return render_html_page("frontend/html/portfolio.html")
 
 
 @app.get("/stock-portfolio-builder.html")
 async def read_stock_portfolio_builder():
-    return FileResponse("frontend/html/stock-portfolio-builder.html")
+    return render_html_page("frontend/html/stock-portfolio-builder.html")
 
 
 @app.get("/portfolio-builder.html")
 async def read_portfolio_builder():
-    return FileResponse("frontend/html/portfolio-builder.html")
+    return render_html_page("frontend/html/portfolio-builder.html")
 
 
 @app.get("/portfolio-select-funds.html")
 async def read_portfolio_select_funds():
-    return FileResponse("frontend/html/portfolio-select-funds.html")
+    return render_html_page("frontend/html/portfolio-select-funds.html")
 
 
 @app.get("/mutual-funds.html")
 async def read_mutual_funds():
-    return FileResponse("frontend/html/mutual-funds.html")
+    return render_html_page("frontend/html/mutual-funds.html")
 
 
 @app.get("/help.html")
 async def read_help():
-    return FileResponse("frontend/html/help.html")
+    return render_html_page("frontend/html/help.html")
 
 
 @app.get("/bond-analysis.html")
 async def read_bond_analysis():
-    return FileResponse("frontend/html/bond-analysis.html")
+    return render_html_page("frontend/html/bond-analysis.html")
 
 
-@app.get("/favicon.ico")
-async def favicon():
-    return FileResponse(
-        "static/images/hero-market-analysis.png",
-        media_type="image/png",
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
-    )
-
-
-@app.get("/og-preview-20261005.png")
+@app.get("/og-preview-20261006.png")
 async def og_preview_image():
     return FileResponse(
         "static/images/hero-market-analysis.png",
         media_type="image/png",
         headers={
-            "Cache-Control": "public, max-age=31536000, immutable",
+            "Cache-Control": "no-cache, must-revalidate",
             "Content-Disposition": "inline",
         },
     )
@@ -131,7 +129,7 @@ app.include_router(screener_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(stock_pedigree_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(stocks_router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(stock_supplemental_router, prefix="/api/stocks", tags=["stocks"])
-app.include_router(stock_market_cap_router, prefix="/api/stocks", tags=["stocks"])
+app.include_router(stock_market_cap_router, prefix="/api/stocks", tags=["stock-market-cap"])
 app.include_router(portfolio_router, prefix="/api/portfolio", tags=["portfolio"])
 app.include_router(stock_portfolio_benchmarks_router, prefix="/api/stock-benchmarks", tags=["stock-benchmarks"])
 app.include_router(mutual_funds_router, prefix="/api/mutual-funds", tags=["mutual-funds"])
