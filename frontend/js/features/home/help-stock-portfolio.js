@@ -93,4 +93,6 @@ if (document.readyState === "loading") {
     install();
 }
 
+import "./help-bond-dv01.js";
+
 export { renderPortfolioHelp };
