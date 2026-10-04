@@ -157,7 +157,30 @@
       Chart.defaults.plugins.legend.labels.usePointStyle = true;
       Chart.defaults.plugins.legend.labels.padding = 14;
     }
+
+    // Stock charts should respond to the horizontal mouse position rather than
+    // requiring the pointer to land exactly on a plotted point. This makes the
+    // historical year/value tooltip appear naturally as the cursor moves across
+    // the chart and shows all series values for that position.
+    Chart.defaults.interaction = {
+      ...(Chart.defaults.interaction || {}),
+      mode: "index",
+      intersect: false,
+      axis: "x",
+    };
+    if (Chart.defaults.hover) {
+      Chart.defaults.hover = {
+        ...(Chart.defaults.hover || {}),
+        mode: "index",
+        intersect: false,
+        axis: "x",
+      };
+    }
+
     if (Chart.defaults.plugins?.tooltip) {
+      Chart.defaults.plugins.tooltip.enabled = true;
+      Chart.defaults.plugins.tooltip.mode = "index";
+      Chart.defaults.plugins.tooltip.intersect = false;
       Chart.defaults.plugins.tooltip.backgroundColor = "rgba(15,35,63,.96)";
       Chart.defaults.plugins.tooltip.titleColor = "#dce9f8";
       Chart.defaults.plugins.tooltip.bodyColor = "#ffffff";
