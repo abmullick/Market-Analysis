@@ -202,3 +202,71 @@
     .stock-pedigree-trends-caret { width:42px; height:42px; }
     .stock-pedigree-trends-card-body { padding:0 12px 12px; }
 }
+
+
+/* ============================================================
+   UNIFY MAJOR HISTORICAL ANALYSIS COLLAPSIBLE CARDS
+   ============================================================ */
+
+/* Make all three historical sections use the same large-card
+   visual treatment when collapsed. */
+.stock-trends-section,
+.stock-pedigree-trends-card {
+    border-radius: 22px !important;
+    padding: 24px !important;
+    min-height: 0 !important;
+    box-sizing: border-box;
+    background:
+        radial-gradient(
+            circle at 92% 12%,
+            rgba(37, 99, 235, 0.08),
+            transparent 28%
+        ),
+        linear-gradient(
+            135deg,
+            #ffffff,
+            #f8fbff
+        ) !important;
+    box-shadow:
+        0 14px 36px rgba(20, 45, 80, 0.10) !important;
+}
+
+/* Make the collapsed headers equally large */
+.stock-trends-section .stock-trends-header,
+.stock-pedigree-trends-card .stock-pedigree-trends-card-header {
+    min-height: 112px !important;
+    padding: 20px 22px !important;
+    box-sizing: border-box;
+}
+
+/* Same title size */
+.stock-trends-section .stock-trends-title,
+.stock-pedigree-trends-card .stock-pedigree-trends-title {
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
+}
+
+/* Same subtitle size */
+.stock-trends-section .stock-trends-subtitle,
+.stock-pedigree-trends-card .stock-pedigree-trends-card-subtitle {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+}
+
+/* Same icon size */
+.stock-trends-section .stock-trends-icon,
+.stock-pedigree-trends-card .stock-pedigree-trends-icon {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+}
+
+/* Same large circular expand/collapse button */
+.stock-trends-section .stock-trends-toggle,
+.stock-pedigree-trends-card .stock-pedigree-trends-card-toggle {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    border-radius: 50% !important;
+}
