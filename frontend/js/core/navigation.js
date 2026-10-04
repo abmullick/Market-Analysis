@@ -1,5 +1,5 @@
-const MARKET_ANALYSIS_FAVICON = "/static/images/hero-market-analysis.png?v=4";
-const MARKET_ANALYSIS_LOGO = "/static/images/hero-market-analysis.png?v=4";
+const MARKET_ANALYSIS_FAVICON = "https://cdn.jsdelivr.net/gh/abmullick/Market-Analysis@main/static/images/hero-market-analysis.png?v=20261005";
+const MARKET_ANALYSIS_LOGO = "/static/images/hero-market-analysis.png?v=20261005";
 
 function setMarketAnalysisFavicon() {
     document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').forEach((link) => link.remove());
