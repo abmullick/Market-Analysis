@@ -6,8 +6,8 @@ function valuationFmt(v) {
   return Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
-function valuationCard(id, title, subtitle) {
-  return `<div class="stock-chart-card stock-valuation-chart-card"><h3>${title}</h3><small>${subtitle}</small><div style="position:relative;height:250px"><canvas id="${id}" class="stock-chart-canvas"></canvas></div></div>`;
+function valuationCard(key, title, subtitle) {
+  return `<div class="stock-chart-card stock-valuation-chart-card"><h3>${title}</h3><small>${subtitle}</small><div style="position:relative;height:250px"><canvas class="stock-chart-canvas ${key}" aria-label="${title}"></canvas></div></div>`;
 }
 
 function valuationEmpty(canvas) {
@@ -48,14 +48,15 @@ async function valuationJson(symbol) {
 }
 
 function drawValuationChart(canvas, seriesList, labels) {
-  if (typeof Chart === "undefined" || !canvas) return;
-  if (!seriesList.some((series) => series?.length)) { valuationEmpty(canvas); return; }
+  if (!canvas) return false;
+  if (typeof Chart === "undefined") return false;
+  if (!seriesList.some((series) => series?.length)) { valuationEmpty(canvas); return true; }
   const years = [...new Set(seriesList.flatMap((series) => (series || []).map((x) => x.year)))].sort();
-  if (!years.length) { valuationEmpty(canvas); return; }
+  if (!years.length) { valuationEmpty(canvas); return true; }
   const values = seriesList.flatMap((series) => (series || []).map((x) => x.value)).filter((v) => Number.isFinite(Number(v)));
-  if (!values.length) { valuationEmpty(canvas); return; }
+  if (!values.length) { valuationEmpty(canvas); return true; }
 
-  new Chart(canvas, {
+  const chart = new Chart(canvas, {
     type: "line",
     data: { labels: years, datasets: seriesList.map((series, index) => {
       const map = Object.fromEntries((series || []).map((x) => [x.year, x.value]));
@@ -64,10 +65,20 @@ function drawValuationChart(canvas, seriesList, labels) {
     }) },
     options: valuationOptions(),
   });
+
+  requestAnimationFrame(() => {
+    chart.resize();
+    chart.update("none");
+  });
+  return true;
 }
 
 async function renderValuationCharts(section) {
   if (section.dataset.valuationCharts === "done" || section.dataset.valuationCharts === "loading") return;
+  if (typeof Chart === "undefined") {
+    setTimeout(() => renderValuationCharts(section), 100);
+    return;
+  }
   const symbols = selectedSymbols();
   if (!symbols.length) return;
   const grid = section.querySelector(".stock-trends-grid");
@@ -80,9 +91,12 @@ async function renderValuationCharts(section) {
     if (!grid.querySelector(".stock-valuation-chart-card")) {
       grid.insertAdjacentHTML("beforeend", valuationCard("valuation-pe-history", "P/E History", "Year-end market P/E based on annual EPS") + valuationCard("valuation-pb-history", "P/B History", "Historical price-to-book multiple"));
     }
-    drawValuationChart(grid.querySelector("#valuation-pe-history"), charts.map((chart) => chart.pe_history || []), names);
-    drawValuationChart(grid.querySelector("#valuation-pb-history"), charts.map((chart) => chart.pb_history || []), names);
-    section.dataset.valuationCharts = "done";
+    const peCanvas = grid.querySelector(".valuation-pe-history");
+    const pbCanvas = grid.querySelector(".valuation-pb-history");
+    const peDrawn = drawValuationChart(peCanvas, charts.map((chart) => chart.pe_history || []), names);
+    const pbDrawn = drawValuationChart(pbCanvas, charts.map((chart) => chart.pb_history || []), names);
+    if (peDrawn && pbDrawn) section.dataset.valuationCharts = "done";
+    else delete section.dataset.valuationCharts;
   } catch (error) {
     delete section.dataset.valuationCharts;
     console.warn("Historical P/E and P/B charts unavailable:", error);
