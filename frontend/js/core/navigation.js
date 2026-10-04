@@ -78,6 +78,17 @@ function loadFloatingNavigationTheme() {
     document.head.appendChild(stylesheet);
 }
 
+function loadPortfolioBuilderDecorativeTheme() {
+    const page = document.body?.dataset.page;
+    if (page !== "portfolio-builder" && page !== "stock-portfolio-builder") return;
+    if (document.getElementById("portfolio-builder-decorative-theme")) return;
+    const stylesheet = document.createElement("link");
+    stylesheet.id = "portfolio-builder-decorative-theme";
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = "/css/features/portfolio-builder-decorative.css?v=20261004-1";
+    document.head.appendChild(stylesheet);
+}
+
 function removeLegacyHelpLinks() {
     document.querySelectorAll(".help-link").forEach((link) => link.remove());
 }
@@ -89,6 +100,7 @@ loadPortfolioBuilderButtonTheme();
 loadStockPortfolioBuilderExactTheme();
 loadHorizontalTableScrollTheme();
 loadFloatingNavigationTheme();
+loadPortfolioBuilderDecorativeTheme();
 removeLegacyHelpLinks();
 
 const NAV_ITEMS = [
@@ -140,12 +152,11 @@ export function initNavigation() {
     normalizeStockPortfolioHeader();
     removeLegacyHelpLinks();
     loadFloatingNavigationTheme();
+    loadPortfolioBuilderDecorativeTheme();
 
     const nav = document.getElementById("main-nav");
     if (!nav || nav.dataset.floatingNavigationReady === "1") return;
 
-    // Keep the navigation completely independent of the page header. This prevents
-    // the fixed dock from ever covering the product-owner/title area, including on mobile.
     if (nav.closest(".site-header")) {
         document.body.appendChild(nav);
     }
