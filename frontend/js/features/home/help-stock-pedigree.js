@@ -76,3 +76,5 @@ if (document.readyState === "loading") {
 }
 
 export { addStockPedigreeHelp };
+
+import "./help-how-to.js";
