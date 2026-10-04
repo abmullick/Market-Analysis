@@ -89,6 +89,24 @@ function loadPortfolioBuilderDecorativeTheme() {
     document.head.appendChild(stylesheet);
 }
 
+function loadStockPortfolioBusyOverlay() {
+    if (document.body?.dataset.page !== "stock-portfolio-builder") return;
+    if (!document.getElementById("analysis-busy-overlay-theme")) {
+        const stylesheet = document.createElement("link");
+        stylesheet.id = "analysis-busy-overlay-theme";
+        stylesheet.rel = "stylesheet";
+        stylesheet.href = "/css/features/analysis-busy-overlay.css?v=20261004-2";
+        document.head.appendChild(stylesheet);
+    }
+    if (!document.getElementById("analysis-busy-overlay-script")) {
+        const script = document.createElement("script");
+        script.id = "analysis-busy-overlay-script";
+        script.type = "module";
+        script.src = "/js/features/analysis-busy-overlay.js?v=20261004-2";
+        document.head.appendChild(script);
+    }
+}
+
 function removeLegacyHelpLinks() {
     document.querySelectorAll(".help-link").forEach((link) => link.remove());
 }
@@ -101,6 +119,7 @@ loadStockPortfolioBuilderExactTheme();
 loadHorizontalTableScrollTheme();
 loadFloatingNavigationTheme();
 loadPortfolioBuilderDecorativeTheme();
+loadStockPortfolioBusyOverlay();
 removeLegacyHelpLinks();
 
 const NAV_ITEMS = [
@@ -153,6 +172,7 @@ export function initNavigation() {
     removeLegacyHelpLinks();
     loadFloatingNavigationTheme();
     loadPortfolioBuilderDecorativeTheme();
+    loadStockPortfolioBusyOverlay();
 
     const nav = document.getElementById("main-nav");
     if (!nav || nav.dataset.floatingNavigationReady === "1") return;
