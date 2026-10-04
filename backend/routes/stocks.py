@@ -29,6 +29,19 @@ def _get_client() -> YahooFinanceClient:
     return client
 
 
+def _normalize_stock_symbol(symbol: str) -> str:
+    """Normalize stock-route symbols to the NSE ticker format used by the data layer.
+
+    The stock UI can send a bare NSE ticker (for example BAJFINANCE), while
+    Screener/Yahoo routing uses the Yahoo NSE form (BAJFINANCE.NS). Preserve
+    symbols that already carry an exchange suffix.
+    """
+    normalized = symbol.strip().upper()
+    if normalized.endswith((".NS", ".BO")):
+        return normalized
+    return f"{normalized}.NS"
+
+
 def _latest_statement_value(rows: list[dict[str, Any]], key: str) -> float | None:
     return rows[0].get("values", {}).get(key) if rows else None
 
@@ -205,7 +218,7 @@ async def get_market_cap_bands():
 
 
 def _load_stock_charts(symbol: str) -> dict[str, Any]:
-    normalized = symbol.strip().upper()
+    normalized = _normalize_stock_symbol(symbol)
     stock_client = _get_client()
     history = stock_client.financial_history(normalized)
     prices = yahoo_annual_prices(normalized, years=7)
@@ -259,7 +272,8 @@ async def get_stock_charts(symbol: str):
 
 
 def _load_stock_analysis(symbol: str) -> dict[str, Any]:
-    return _enrich_public_analysis(get_stock_analysis(_get_client(), symbol))
+    normalized = _normalize_stock_symbol(symbol)
+    return _enrich_public_analysis(get_stock_analysis(_get_client(), normalized))
 
 
 @router.get("/{symbol}")
@@ -280,7 +294,8 @@ async def generate_stock_insights(symbol: str, payload: dict[str, Any]) -> Insig
 
     selected = context.get("selected_stock", {})
     supplied_symbol = (selected.get("fundamentals") or {}).get("symbol")
-    if supplied_symbol and str(supplied_symbol).upper() != symbol.upper():
+    normalized_symbol = _normalize_stock_symbol(symbol)
+    if supplied_symbol and _normalize_stock_symbol(str(supplied_symbol)) != normalized_symbol:
         raise HTTPException(status_code=422, detail="Stock symbol does not match the supplied analysis context")
 
     try:
