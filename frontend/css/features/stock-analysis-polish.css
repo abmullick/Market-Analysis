@@ -98,26 +98,107 @@
 #stock-analysis-screen { display:flex; flex-direction:column; min-height:calc(100vh - 150px); }
 #stock-analysis-screen #stock-details { display:flex; flex-direction:column; flex:1; }
 #stock-analysis-screen #stock-details > .stock-warnings { order:999; margin-top:auto; background:linear-gradient(180deg,#fbfdff,#f3f7fb); }
-.stock-warnings { background:linear-gradient(180deg,#fbfdff,#f3f7fb); }
-.stock-warnings .stock-section-header { margin-bottom:10px; }
-.stock-fundamental-signals { margin-top:0; margin-bottom:16px; }
-.stock-fundamental-signal-groups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-.stock-fundamental-signal-group { min-width:0; padding:12px 14px; border:1px solid #dbe6f1; border-radius:10px; background:#fff; }
-.stock-fundamental-signal-group h3 { margin:0 0 7px; color:var(--color-primary); font-size:13px; }
-.stock-fundamental-signal-group ul { display:grid; gap:5px; margin:0; padding:0; list-style:none; }
-.stock-fundamental-signal-empty { margin:0; color:var(--color-text-light); font-size:12px; line-height:1.4; }
-.stock-fundamental-signal-group li { position:relative; padding-left:17px; color:var(--color-text); font-size:12px; line-height:1.4; }
-.stock-fundamental-signal-group li::before { position:absolute; left:0; top:0; font-size:11px; font-weight:800; }
-.stock-fundamental-signal-group.positive li::before { content:"●"; color:#16834a; }
-.stock-fundamental-signal-group.watch li::before { content:"●"; color:#c43d3d; }
+
+/* Major collapsible historical-analysis sections.
+   Keep all three seven/six-chart sections visually equal to the original
+   Historical Growth & Return Trends section when collapsed. Presentation only. */
+.stock-pedigree-trends-card {
+    position:relative;
+    overflow:hidden;
+    margin:0 0 20px;
+    border:1px solid rgba(186,204,224,.78);
+    border-radius:22px;
+    background:
+        radial-gradient(circle at 100% 0%,rgba(99,102,241,.12),transparent 27%),
+        linear-gradient(135deg,#ffffff 0%,#f5faff 58%,#f7f4ff 100%);
+    box-shadow:0 10px 30px rgba(15,23,42,.065);
+}
+.stock-pedigree-trends-card::after {
+    content:"";
+    position:absolute;
+    width:260px;
+    height:180px;
+    right:-95px;
+    top:-105px;
+    border-radius:50%;
+    background:radial-gradient(circle,rgba(14,165,233,.10),transparent 68%);
+    pointer-events:none;
+}
+.stock-pedigree-trends-card-header {
+    position:relative;
+    z-index:1;
+    min-height:112px;
+    padding:22px 24px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:18px;
+    cursor:pointer;
+    border-bottom:1px solid rgba(148,163,184,.22);
+}
+.stock-pedigree-trends-card:not(.is-open) .stock-pedigree-trends-card-header { border-bottom-color:transparent; }
+.stock-pedigree-trends-card-main { display:flex; align-items:center; gap:16px; min-width:0; }
+.stock-pedigree-trends-icon {
+    flex:0 0 46px;
+    width:46px;
+    height:46px;
+    display:grid;
+    place-items:center;
+    border:1px solid rgba(37,99,235,.20);
+    border-radius:14px;
+    background:linear-gradient(145deg,#eef7ff,#f2efff);
+    color:#2563eb;
+    box-shadow:0 5px 14px rgba(37,99,235,.10);
+}
+.stock-pedigree-trends-icon svg { width:24px; height:24px; }
+.stock-pedigree-trends-title {
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    min-width:0;
+    color:var(--color-primary);
+    font-size:20px;
+    font-weight:750;
+    line-height:1.2;
+    letter-spacing:-.018em;
+}
+.stock-pedigree-trends-title small {
+    display:block;
+    color:var(--color-text-light);
+    font-size:12px;
+    font-weight:500;
+    line-height:1.45;
+    letter-spacing:0;
+}
+.stock-pedigree-trends-controls { flex:0 0 auto; display:flex; align-items:center; }
+.stock-pedigree-trends-caret {
+    width:46px;
+    height:46px;
+    display:grid;
+    place-items:center;
+    padding:0;
+    border:0;
+    border-radius:50%;
+    background:linear-gradient(145deg,#0f172a,#1e293b);
+    color:#fff;
+    cursor:pointer;
+    box-shadow:0 7px 16px rgba(15,23,42,.18);
+    transition:transform .2s ease,box-shadow .2s ease,background .2s ease;
+}
+.stock-pedigree-trends-caret:hover { transform:translateY(-2px); box-shadow:0 10px 20px rgba(15,23,42,.22); background:linear-gradient(145deg,#111827,#334155); }
+.stock-pedigree-trends-caret svg { width:20px; height:20px; transition:transform .2s ease; }
+.stock-pedigree-trends-card:not(.is-open) .stock-pedigree-trends-caret svg { transform:rotate(-90deg); }
+.stock-pedigree-trends-card-body { position:relative; z-index:1; padding:0 20px 20px; }
+.stock-pedigree-trends-card-body[hidden] { display:none !important; }
+.stock-pedigree-trends-card-body .stock-trends-grid,
+.stock-pedigree-trends-card-body .stock-pedigree-chart-grid { width:100%; }
 
 @media (max-width:700px) {
-    .stock-hero{padding:22px;}
-    .stock-section{padding:15px;}
-    .stock-summary-grid .stock-metric-card{min-height:72px;}
-    .stock-statement-tabs{width:100%;overflow-x:auto;}
-    .stock-ai-insights-heading { display:block; }
-    .stock-ai-insights-button { margin-top:10px; }
-    .stock-comparison-header .stock-ai-comparison-button { margin-left:0; }
-    .stock-fundamental-signal-groups { grid-template-columns:1fr; }
+    .stock-pedigree-trends-card-header { min-height:96px; padding:18px; gap:12px; }
+    .stock-pedigree-trends-card-main { gap:12px; }
+    .stock-pedigree-trends-icon { flex-basis:40px; width:40px; height:40px; border-radius:12px; }
+    .stock-pedigree-trends-title { font-size:17px; }
+    .stock-pedigree-trends-title small { font-size:11px; }
+    .stock-pedigree-trends-caret { width:42px; height:42px; }
+    .stock-pedigree-trends-card-body { padding:0 12px 12px; }
 }
