@@ -3,7 +3,7 @@ services:
     name: market-analysis
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python scripts/prepare_social_assets.py
     startCommand: gunicorn run:app --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
     envVars:
       - key: APP_ENV
