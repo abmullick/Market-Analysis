@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Market Analysis</title>
 
-    <!-- Social sharing / Open Graph metadata -->
     <meta property="og:title" content="Market Analysis">
     <meta property="og:description" content="A comprehensive platform for capital market analysis covering stocks, mutual funds and bonds.">
     <meta property="og:type" content="website">
@@ -17,7 +16,6 @@
     <meta property="og:image:height" content="663">
     <meta property="og:site_name" content="Market Analysis">
 
-    <!-- X / Twitter sharing metadata -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Market Analysis">
     <meta name="twitter:description" content="A comprehensive platform for capital market analysis covering stocks, mutual funds and bonds.">
@@ -29,6 +27,7 @@
     <link rel="stylesheet" href="../css/layout.css">
     <link rel="stylesheet" href="../css/components.css">
     <link rel="stylesheet" href="../css/features/home.css">
+    <link rel="stylesheet" href="../css/features/floating-navigation.css?v=20261004-2">
 </head>
 <body>
     <header class="site-header">
@@ -39,8 +38,8 @@
                 <span class="product-owner">Product Owner: Abhisek Basu Mullick</span>
             </div>
         </div>
-        <nav id="main-nav"></nav>
     </header>
+    <nav id="main-nav" aria-label="Market Analysis navigation"></nav>
     <main>
         <section class="hero">
             <div class="container">
@@ -53,9 +52,7 @@
             <a href="mutual-funds.html" class="card card-mutual-funds" data-href="mutual-funds.html">
                 <div class="card-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="9"></circle>
-                        <path d="M12 3a15.3 15.3 0 0 1 4 9 15.3 15.3 0 0 1-4 9 15.3 15.3 0 0 1-4-9 15.3 15.3 0 0 1 4-9z"></path>
-                        <path d="M3 12h18"></path>
+                        <circle cx="12" cy="12" r="9"></circle><path d="M12 3a15.3 15.3 0 0 1 4 9 15.3 15.3 0 0 1-4 9 15.3 15.3 0 0 1-4-9 15.3 15.3 0 0 1 4-9z"></path><path d="M3 12h18"></path>
                     </svg>
                 </div>
                 <h3>Mutual Fund Analysis</h3>
@@ -65,9 +62,7 @@
             <a href="portfolio-builder.html" class="card card-portfolio-builder" data-href="portfolio-builder.html">
                 <div class="card-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                        <path d="M2 17l10 5 10-5"></path>
-                        <path d="M2 12l10 5 10-5"></path>
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path>
                     </svg>
                 </div>
                 <h3>Mutual Fund Portfolio Builder</h3>
@@ -77,10 +72,7 @@
             <a href="bond-analysis.html" class="card card-bond-analysis" data-href="bond-analysis.html">
                 <div class="card-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                        <path d="M2 17l10 5 10-5"></path>
-                        <path d="M2 12l10 5 10-5"></path>
-                        <circle cx="12" cy="17" r="2.5"></circle>
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path><circle cx="12" cy="17" r="2.5"></circle>
                     </svg>
                 </div>
                 <h3>Bond Analysis</h3>
@@ -90,9 +82,7 @@
             <a href="stocks.html" class="card card-stocks" data-href="stocks.html">
                 <div class="card-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="12" width="4" height="9" rx="1"></rect>
-                        <rect x="10" y="7" width="4" height="14" rx="1"></rect>
-                        <rect x="17" y="4" width="4" height="17" rx="1"></rect>
+                        <rect x="3" y="12" width="4" height="9" rx="1"></rect><rect x="10" y="7" width="4" height="14" rx="1"></rect><rect x="17" y="4" width="4" height="17" rx="1"></rect>
                     </svg>
                 </div>
                 <h3>Stock Analysis</h3>
@@ -102,36 +92,27 @@
             <a href="stock-portfolio-builder.html" class="card card-stock-builder" data-href="stock-portfolio-builder.html">
                 <div class="card-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="2" y="7" width="20" height="14" rx="2"></rect>
-                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                        <rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
                     </svg>
                 </div>
                 <h3>Stock Portfolio Builder</h3>
-                <p>Build and analyze your stock portfolio. Coming soon.</p>
+                <p>Build and analyze your stock portfolio.</p>
                 <span class="btn btn-stock-builder">Build Portfolio</span>
             </a>
         </section>
     </main>
-    <a href="/help.html" class="help-link" title="Help & Methodology">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-        </svg>
-        <span>Help & Methodology</span>
-    </a>
     <footer class="site-footer">
         <div class="container">
-            <p>&copy; 2026 Abhishek Basu Mullick. All rights reserved.</p>
+            <p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p>
             <p class="copyright-detail">Market Analysis is proprietary software developed by Abhishek Basu Mullick. The original source code, UI implementation, documentation, analytical implementation, scoring models, calculation logic and original content are protected by applicable copyright and intellectual-property laws. Third-party libraries, services, market data, trademarks and other third-party materials remain the property of their respective owners and are subject to their applicable licences and terms.</p>
         </div>
     </footer>
     <script type="module" src="../js/core/config.js"></script>
-    <script type="module" src="../js/core/navigation.js"></script>
+    <script type="module" src="../js/core/navigation.js?v=20261004-2"></script>
     <script type="module" src="../js/core/utils.js"></script>
     <script type="module" src="../js/features/home/index.js"></script>
     <script type="module">
-        import { initNavigation } from "../js/core/navigation.js";
+        import { initNavigation } from "../js/core/navigation.js?v=20261004-2";
         import { initHome } from "../js/features/home/index.js";
         initNavigation();
         initHome();
