@@ -2,6 +2,16 @@ function makeIcon() {
   return `<span class="stock-pedigree-trends-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 8 12 12 14 21 5"></polyline><polyline points="15 5 21 5 21 11"></polyline></svg></span>`;
 }
 
+function resizeCharts(container) {
+  if (typeof Chart === "undefined" || !container) return;
+  container.querySelectorAll("canvas").forEach(canvas => {
+    const chart = Chart.getChart(canvas);
+    if (!chart) return;
+    chart.resize();
+    chart.update("none");
+  });
+}
+
 function enhance(section) {
   if (!section || section.dataset.comparePedigreeCollapsible === "1") return;
   const grid = section.querySelector(":scope > .stock-pedigree-chart-grid");
@@ -41,8 +51,14 @@ function enhance(section) {
     button.setAttribute("aria-label", `${open ? "Collapse" : "Expand"} company pedigree and trend comparison`);
     body.hidden = !open;
     card.classList.toggle("is-open", open);
-    if (open && typeof Chart !== "undefined") {
-      requestAnimationFrame(() => body.querySelectorAll("canvas").forEach(canvas => Chart.getChart(canvas)?.resize()));
+
+    if (open) {
+      // The comparison renderer may create Chart.js instances asynchronously.
+      // Give them a visible layout before resizing/updating them.
+      requestAnimationFrame(() => {
+        resizeCharts(body);
+        requestAnimationFrame(() => resizeCharts(body));
+      });
     }
   };
 
@@ -54,8 +70,20 @@ function enhance(section) {
   });
   button.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); toggle(); });
 
+  // IMPORTANT: do not collapse on the very next animation frame. The comparison
+  // charts can be rendered asynchronously after the section mutation. Keep the
+  // card visible long enough for all Chart.js instances to initialize at a real
+  // size, then resize/update them once more before collapsing.
   setOpen(true);
-  requestAnimationFrame(() => setOpen(false));
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      resizeCharts(body);
+      setTimeout(() => {
+        resizeCharts(body);
+        setOpen(false);
+      }, 250);
+    });
+  });
 }
 
 function scan() {
