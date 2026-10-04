@@ -94,11 +94,55 @@ loadStockPortfolioBuilderExactTheme();
 loadHorizontalTableScrollTheme();
 configureHelpLinks();
 
+const NAV_ITEMS = [
+    {
+        href: "/mutual-funds.html",
+        label: "Mutual Fund Analysis",
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/><path d="M2 19h20"/></svg>'
+    },
+    {
+        href: "/portfolio-builder.html",
+        label: "Mutual Fund Portfolio Builder",
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14v13H5z"/><path d="M9 7V5a3 3 0 0 1 6 0v2M8 12h8M12 9v6"/></svg>'
+    },
+    {
+        href: "/bond-analysis.html",
+        label: "Bond Analysis",
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M6 20V9l6-5 6 5v11M9 20v-7h6v7M3 9l9-7 9 7"/></svg>'
+    },
+    {
+        href: "/stocks.html",
+        label: "Stock Analysis",
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5m0 14h16"/><path d="m7 15 4-4 3 2 5-6"/><path d="M16 7h3v3"/></svg>'
+    },
+    {
+        href: "/stock-portfolio-builder.html",
+        label: "Stock Portfolio Builder",
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14v13H5z"/><path d="M9 7V5a3 3 0 0 1 6 0v2M8 12h8M12 9v6"/></svg>'
+    },
+    {
+        href: "/help.html",
+        label: "Help & Methodology",
+        external: true,
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.5 2.5 0 1 1 4.7 1.2c-.7 1.2-2.5 1.4-2.5 3"/><path d="M12 17h.01"/></svg>'
+    }
+];
+
+const HOME_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/></svg>';
+const MENU_ICON = '<span class="nav-menu-lines" aria-hidden="true"><i></i><i></i><i></i></span>';
+
+function closeFloatingNavigation(nav) {
+    nav.classList.remove("is-open");
+    const toggle = nav.querySelector(".floating-nav-toggle");
+    if (toggle) toggle.setAttribute("aria-expanded", "false");
+}
+
 export function initNavigation() {
     normalizeStockPortfolioHeader();
 
     const nav = document.getElementById("main-nav");
     if (!nav) return;
+    if (nav.dataset.floatingNavigationReady === "1") return;
 
     setMarketAnalysisHeaderLogo();
     loadPortfolioBuilderButtonTheme();
@@ -107,19 +151,54 @@ export function initNavigation() {
 
     const path = window.location.pathname;
     const isActive = (href) => href === "/" ? path === "/" : path === href;
-    const navLink = (href, label) => {
-        const active = isActive(href);
-        const target = active ? "" : ' target="_blank" rel="noopener noreferrer"';
-        return `<a href="${href}"${target} class="${active ? "active" : ""}">${label}</a>`;
-    };
 
     nav.innerHTML = `
-        ${navLink("/", "Home")}
-        ${navLink("/mutual-funds.html", "Mutual Fund Analysis")}
-        ${navLink("/portfolio-builder.html", "Mutual Fund Portfolio Builder")}
-        ${navLink("/bond-analysis.html", "Bond Analysis")}
-        ${navLink("/stocks.html", "Stock Analysis")}
-        ${navLink("/stock-portfolio-builder.html", "Stock Portfolio Builder")}
-        ${navLink("/help.html", "Help")}
+        <div class="floating-nav-backdrop" aria-hidden="true"></div>
+        <div class="floating-nav-items" aria-label="Market Analysis tools">
+            ${NAV_ITEMS.map((item, index) => `
+                <a href="${item.href}"
+                   class="floating-nav-item${isActive(item.href) ? " active" : ""}"
+                   data-nav-index="${index}"
+                   ${item.external ? 'target="_blank" rel="noopener noreferrer"' : ""}>
+                    <span class="floating-nav-item-icon">${item.icon}</span>
+                    <span class="floating-nav-item-label">${item.label}</span>
+                </a>
+            `).join("")}
+        </div>
+        <div class="floating-nav-dock">
+            <a href="/" class="floating-nav-home${isActive("/") ? " active" : ""}" aria-label="Home" title="Home">
+                ${HOME_ICON}
+            </a>
+            <button class="floating-nav-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="floating-nav-items">
+                ${MENU_ICON}
+            </button>
+        </div>
     `;
+
+    const toggle = nav.querySelector(".floating-nav-toggle");
+    const backdrop = nav.querySelector(".floating-nav-backdrop");
+    const items = nav.querySelectorAll(".floating-nav-item");
+
+    toggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const open = nav.classList.toggle("is-open");
+        toggle.setAttribute("aria-expanded", String(open));
+    });
+
+    backdrop.addEventListener("click", () => closeFloatingNavigation(nav));
+
+    items.forEach((item) => {
+        item.addEventListener("click", () => {
+            closeFloatingNavigation(nav);
+        });
+    });
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && nav.classList.contains("is-open")) {
+            closeFloatingNavigation(nav);
+            toggle.focus();
+        }
+    });
+
+    nav.dataset.floatingNavigationReady = "1";
 }
