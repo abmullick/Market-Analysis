@@ -17,12 +17,15 @@ function ensureStyles() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-    .stock-pedigree-not-applicable {
+    .stock-pedigree-not-applicable,
+    .stock-pedigree-no-data {
       min-height: 238px;
+      height: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 28px;
+      box-sizing: border-box;
       text-align: center;
       background:
         radial-gradient(circle at 20% 15%, rgba(37,99,235,.08), transparent 38%),
@@ -30,8 +33,10 @@ function ensureStyles() {
       border: 1px solid #e1eaf4;
       border-radius: 14px;
     }
-    .stock-pedigree-na-inner { max-width: 520px; }
-    .stock-pedigree-na-icon {
+    .stock-pedigree-na-inner,
+    .stock-pedigree-no-data-inner { max-width: 520px; }
+    .stock-pedigree-na-icon,
+    .stock-pedigree-no-data-icon {
       width: 42px;
       height: 42px;
       margin: 0 auto 10px;
@@ -43,19 +48,22 @@ function ensureStyles() {
       font-size: 18px;
       font-weight: 900;
     }
-    .stock-pedigree-na-inner strong {
+    .stock-pedigree-na-inner strong,
+    .stock-pedigree-no-data-inner strong {
       display: block;
       color: #17355d;
       font-size: 13px;
       margin-bottom: 6px;
     }
-    .stock-pedigree-na-inner p {
+    .stock-pedigree-na-inner p,
+    .stock-pedigree-no-data-inner p {
       margin: 0;
       color: #71849a;
       font-size: 10px;
       line-height: 1.55;
     }
-    .stock-pedigree-na-badge {
+    .stock-pedigree-na-badge,
+    .stock-pedigree-no-data-badge {
       display: inline-flex;
       margin-top: 11px;
       padding: 4px 8px;
@@ -108,9 +116,69 @@ function replaceWorkingCapitalCard() {
     </div>`;
 }
 
+function replaceEmptyChartCards() {
+  if (typeof Chart === "undefined") return;
+
+  const cards = [...document.querySelectorAll("#stock-details .stock-pedigree-chart-card")];
+  cards.forEach((card) => {
+    if (card.dataset.noDataHandled === "1" || card.dataset.applicabilityHandled === "1") return;
+
+    const wrap = card.querySelector(".stock-pedigree-chart-wrap");
+    const canvas = wrap?.querySelector("canvas");
+    if (!wrap || !canvas) return;
+
+    const chart = Chart.getChart(canvas);
+    if (!chart) {
+      card.dataset.noDataHandled = "1";
+      wrap.innerHTML = `
+        <div class="stock-pedigree-no-data">
+          <div class="stock-pedigree-no-data-inner">
+            <div class="stock-pedigree-no-data-icon">—</div>
+            <strong>No historical data available</strong>
+            <p>This chart needs historical observations for this metric. The available data for this company does not contain enough observations to display the trend.</p>
+            <span class="stock-pedigree-no-data-badge">Data unavailable</span>
+          </div>
+        </div>`;
+      return;
+    }
+
+    const values = (chart.data?.datasets || [])
+      .flatMap((dataset) => dataset.data || [])
+      .filter((value) => Number.isFinite(Number(value)));
+    const labels = chart.data?.labels || [];
+
+    if (!values.length) {
+      chart.destroy();
+      card.dataset.noDataHandled = "1";
+      wrap.innerHTML = `
+        <div class="stock-pedigree-no-data">
+          <div class="stock-pedigree-no-data-inner">
+            <div class="stock-pedigree-no-data-icon">—</div>
+            <strong>No historical data available</strong>
+            <p>This chart needs historical observations for this metric. The available data for this company does not contain enough observations to display the trend.</p>
+            <span class="stock-pedigree-no-data-badge">Data unavailable</span>
+          </div>
+        </div>`;
+    } else if (labels.length < 2) {
+      chart.destroy();
+      card.dataset.noDataHandled = "1";
+      wrap.innerHTML = `
+        <div class="stock-pedigree-no-data">
+          <div class="stock-pedigree-no-data-inner">
+            <div class="stock-pedigree-no-data-icon">≈</div>
+            <strong>Insufficient historical data</strong>
+            <p>Only limited historical observations are available for this metric, so a meaningful trend cannot be shown.</p>
+            <span class="stock-pedigree-no-data-badge">Insufficient history</span>
+          </div>
+        </div>`;
+    }
+  });
+}
+
 function scan() {
   ensureStyles();
   replaceWorkingCapitalCard();
+  replaceEmptyChartCards();
 }
 
 const observer = new MutationObserver(scan);
