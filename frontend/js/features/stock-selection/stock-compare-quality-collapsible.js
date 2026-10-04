@@ -9,6 +9,15 @@ function enhance(section) {
   if (!grid || !heading) return;
 
   section.dataset.compareQualityCollapsible = "1";
+
+  // Keep the quality-comparison block in the analysis flow, immediately after
+  // the Company Pedigree & Trend Comparison block. The quality renderer
+  // appends asynchronously, so this explicitly restores the intended order.
+  const pedigree = section.parentElement?.querySelector(":scope > .stock-pedigree-compare");
+  if (pedigree && pedigree !== section) pedigree.insertAdjacentElement("afterend", section);
+
+  // Preserve the exact section heading/subtitle that the quality renderer
+  // created; only the presentation container is replaced.
   const title = heading.querySelector("h2")?.textContent?.trim() || "Earnings Quality, Capital Allocation & Dilution Comparison";
   const subtitle = heading.querySelector("p")?.textContent?.trim() || "The same historical calculations are applied across all selected companies.";
 
