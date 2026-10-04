@@ -1,12 +1,8 @@
 const MARKET_ANALYSIS_FAVICON = "/static/images/hero-market-analysis.png?v=4";
 const MARKET_ANALYSIS_LOGO = "/static/images/hero-market-analysis.png?v=4";
 
-// Apply the home-page Market Analysis artwork as the favicon on every page
-// that loads the shared navigation module. Remove older favicon declarations
-// so the browser does not continue using /favicon.ico or the legacy icon.
 function setMarketAnalysisFavicon() {
     document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').forEach((link) => link.remove());
-
     const favicon = document.createElement("link");
     favicon.rel = "icon";
     favicon.type = "image/png";
@@ -25,9 +21,6 @@ function normalizeStockPortfolioHeader() {
     if (document.body?.dataset.page !== "stock-portfolio-builder") return;
     const header = document.querySelector(".site-header");
     if (!header || header.dataset.stockHeaderNormalized === "1") return;
-
-    // Stock Portfolio Builder must use the exact same header structure as
-    // Stock Analysis. Do not use the large hero artwork as the header logo.
     header.innerHTML = `
         <div class="header-left">
             <img src="/static/images/logo.png" alt="Market Analysis" class="logo">
@@ -42,7 +35,6 @@ function loadPortfolioBuilderButtonTheme() {
     const page = document.body?.dataset.page;
     if (page !== "portfolio-builder" && page !== "portfolio-select-funds") return;
     if (document.getElementById("portfolio-builder-button-theme")) return;
-
     const stylesheet = document.createElement("link");
     stylesheet.id = "portfolio-builder-button-theme";
     stylesheet.rel = "stylesheet";
@@ -53,7 +45,6 @@ function loadPortfolioBuilderButtonTheme() {
 function loadStockPortfolioBuilderExactTheme() {
     if (document.body?.dataset.page !== "stock-portfolio-builder") return;
     if (document.getElementById("stock-portfolio-builder-exact-theme")) return;
-
     const stylesheet = document.createElement("link");
     stylesheet.id = "stock-portfolio-builder-exact-theme";
     stylesheet.rel = "stylesheet";
@@ -69,7 +60,6 @@ function loadHorizontalTableScrollTheme() {
         stylesheet.href = "/css/features/horizontal-table-scroll.css?v=20261003-1";
         document.head.appendChild(stylesheet);
     }
-
     if (!document.getElementById("horizontal-table-scroll-script")) {
         const script = document.createElement("script");
         script.id = "horizontal-table-scroll-script";
@@ -79,11 +69,8 @@ function loadHorizontalTableScrollTheme() {
     }
 }
 
-function configureHelpLinks() {
-    document.querySelectorAll('a[href="/help.html"], a[href="help.html"]').forEach((link) => {
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-    });
+function removeLegacyHelpLinks() {
+    document.querySelectorAll(".help-link").forEach((link) => link.remove());
 }
 
 normalizeStockPortfolioHeader();
@@ -92,7 +79,7 @@ setMarketAnalysisHeaderLogo();
 loadPortfolioBuilderButtonTheme();
 loadStockPortfolioBuilderExactTheme();
 loadHorizontalTableScrollTheme();
-configureHelpLinks();
+removeLegacyHelpLinks();
 
 const NAV_ITEMS = [
     {
@@ -134,15 +121,18 @@ const MENU_ICON = '<span class="nav-menu-lines" aria-hidden="true"><i></i><i></i
 function closeFloatingNavigation(nav) {
     nav.classList.remove("is-open");
     const toggle = nav.querySelector(".floating-nav-toggle");
-    if (toggle) toggle.setAttribute("aria-expanded", "false");
+    if (toggle) {
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.setAttribute("aria-label", "Open navigation menu");
+    }
 }
 
 export function initNavigation() {
     normalizeStockPortfolioHeader();
+    removeLegacyHelpLinks();
 
     const nav = document.getElementById("main-nav");
-    if (!nav) return;
-    if (nav.dataset.floatingNavigationReady === "1") return;
+    if (!nav || nav.dataset.floatingNavigationReady === "1") return;
 
     setMarketAnalysisHeaderLogo();
     loadPortfolioBuilderButtonTheme();
@@ -154,7 +144,8 @@ export function initNavigation() {
 
     nav.innerHTML = `
         <div class="floating-nav-backdrop" aria-hidden="true"></div>
-        <div class="floating-nav-items" aria-label="Market Analysis tools">
+        <div id="floating-nav-items" class="floating-nav-items" aria-label="Market Analysis tools">
+            <div class="floating-nav-heading">Explore Market Analysis</div>
             ${NAV_ITEMS.map((item, index) => `
                 <a href="${item.href}"
                    class="floating-nav-item${isActive(item.href) ? " active" : ""}"
@@ -162,15 +153,18 @@ export function initNavigation() {
                    ${item.external ? 'target="_blank" rel="noopener noreferrer"' : ""}>
                     <span class="floating-nav-item-icon">${item.icon}</span>
                     <span class="floating-nav-item-label">${item.label}</span>
+                    <span class="floating-nav-item-arrow" aria-hidden="true">›</span>
                 </a>
             `).join("")}
         </div>
         <div class="floating-nav-dock">
             <a href="/" class="floating-nav-home${isActive("/") ? " active" : ""}" aria-label="Home" title="Home">
                 ${HOME_ICON}
+                <span>Home</span>
             </a>
             <button class="floating-nav-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="floating-nav-items">
                 ${MENU_ICON}
+                <span class="floating-nav-toggle-label">Menu</span>
             </button>
         </div>
     `;
@@ -183,14 +177,13 @@ export function initNavigation() {
         event.stopPropagation();
         const open = nav.classList.toggle("is-open");
         toggle.setAttribute("aria-expanded", String(open));
+        toggle.setAttribute("aria-label", open ? "Close navigation menu" : "Open navigation menu");
     });
 
     backdrop.addEventListener("click", () => closeFloatingNavigation(nav));
 
     items.forEach((item) => {
-        item.addEventListener("click", () => {
-            closeFloatingNavigation(nav);
-        });
+        item.addEventListener("click", () => closeFloatingNavigation(nav));
     });
 
     document.addEventListener("keydown", (event) => {
