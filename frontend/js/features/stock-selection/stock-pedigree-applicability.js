@@ -18,7 +18,8 @@ function ensureStyles() {
   style.id = STYLE_ID;
   style.textContent = `
     .stock-pedigree-not-applicable,
-    .stock-pedigree-no-data {
+    .stock-pedigree-no-data,
+    .stock-chart-no-data {
       min-height: 238px;
       height: 100%;
       display: flex;
@@ -34,9 +35,11 @@ function ensureStyles() {
       border-radius: 14px;
     }
     .stock-pedigree-na-inner,
-    .stock-pedigree-no-data-inner { max-width: 520px; }
+    .stock-pedigree-no-data-inner,
+    .stock-chart-no-data-inner { max-width: 520px; }
     .stock-pedigree-na-icon,
-    .stock-pedigree-no-data-icon {
+    .stock-pedigree-no-data-icon,
+    .stock-chart-no-data-icon {
       width: 42px;
       height: 42px;
       margin: 0 auto 10px;
@@ -49,21 +52,24 @@ function ensureStyles() {
       font-weight: 900;
     }
     .stock-pedigree-na-inner strong,
-    .stock-pedigree-no-data-inner strong {
+    .stock-pedigree-no-data-inner strong,
+    .stock-chart-no-data-inner strong {
       display: block;
       color: #17355d;
       font-size: 13px;
       margin-bottom: 6px;
     }
     .stock-pedigree-na-inner p,
-    .stock-pedigree-no-data-inner p {
+    .stock-pedigree-no-data-inner p,
+    .stock-chart-no-data-inner p {
       margin: 0;
       color: #71849a;
       font-size: 10px;
       line-height: 1.55;
     }
     .stock-pedigree-na-badge,
-    .stock-pedigree-no-data-badge {
+    .stock-pedigree-no-data-badge,
+    .stock-chart-no-data-badge {
       display: inline-flex;
       margin-top: 11px;
       padding: 4px 8px;
@@ -175,10 +181,56 @@ function replaceEmptyChartCards() {
   });
 }
 
+function genericEmptyChartMarkup() {
+  return `
+    <div class="stock-chart-no-data">
+      <div class="stock-chart-no-data-inner">
+        <div class="stock-chart-no-data-icon">—</div>
+        <strong>No historical data available</strong>
+        <p>Historical observations for this metric are not available for this company, so there is no meaningful trend to display.</p>
+        <span class="stock-chart-no-data-badge">Data unavailable</span>
+      </div>
+    </div>`;
+}
+
+function scheduleGenericEmptyChartCheck(card) {
+  if (card.dataset.emptyStateScheduled === "1") return;
+  card.dataset.emptyStateScheduled = "1";
+  card.dataset.emptyStateSeenAt = String(Date.now());
+
+  window.setTimeout(() => {
+    if (!document.body.contains(card)) return;
+    if (card.dataset.noDataHandled === "1") return;
+
+    const canvas = card.querySelector("canvas.stock-chart-canvas, canvas");
+    if (!canvas) return;
+
+    // Never replace a live chart. This is deliberately different from the
+    // previous implementation: absence of a Chart instance is not enough to
+    // justify removing a canvas before the chart renderer has completed.
+    const chart = typeof Chart !== "undefined" ? Chart.getChart(canvas) : null;
+    if (chart) return;
+
+    const age = Date.now() - Number(card.dataset.emptyStateSeenAt || Date.now());
+    if (age < 2400) return;
+
+    card.dataset.noDataHandled = "1";
+    const host = canvas.parentElement;
+    if (!host || !host.contains(canvas)) return;
+    host.replaceChildren();
+    host.insertAdjacentHTML("beforeend", genericEmptyChartMarkup());
+  }, 2500);
+}
+
+function replaceGenericEmptyChartCards() {
+  document.querySelectorAll("#stock-details .stock-trends-section .stock-chart-card:not([data-no-data-handled='1'])").forEach(scheduleGenericEmptyChartCheck);
+}
+
 function scan() {
   ensureStyles();
   replaceWorkingCapitalCard();
   replaceEmptyChartCards();
+  replaceGenericEmptyChartCards();
 }
 
 const observer = new MutationObserver(scan);
