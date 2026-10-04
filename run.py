@@ -48,7 +48,16 @@ async def read_root():
         'https://cdn.jsdelivr.net/gh/abmullick/Market-Analysis@main/static/images/hero-market-analysis.png?v=20261005',
         '/favicon.ico?v=20261005',
     )
+    html = html.replace("</body>", "<script>new MutationObserver(function(){document.querySelectorAll('link[rel=\"icon\"],link[rel=\"shortcut icon\"]').forEach(function(l){if(!l.href.includes('/favicon.ico'))l.remove()});if(!document.querySelector('link[rel=\"icon\"]')){var l=document.createElement('link');l.rel='icon';l.href='/favicon.ico?v=20261005';document.head.appendChild(l)}}).observe(document.head,{childList:true});</script></body>")
     return HTMLResponse(content=html)
+
+
+@app.get("/js/core/navigation.js")
+async def read_navigation_js():
+    with open("frontend/js/core/navigation.js", "r", encoding="utf-8") as f:
+        js = f.read()
+    js = js.replace('const MARKET_ANALYSIS_FAVICON = "/static/images/hero-market-analysis.png?v=4";', 'const MARKET_ANALYSIS_FAVICON = "/favicon.ico?v=20261005";')
+    return Response(content=js, media_type="application/javascript")
 
 
 @app.get("/stocks.html")
