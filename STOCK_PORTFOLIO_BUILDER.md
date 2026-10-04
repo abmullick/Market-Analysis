@@ -247,3 +247,25 @@ The principal frontend modules are:
 ## 16. Interpretation limits
 
 Stock Portfolio Builder is historical and descriptive. It does not forecast future returns, guarantee portfolio outcomes, model transaction execution, include tax effects, or turn historical differences into recommendations. A portfolio metric is meaningful only in the context of its definition, historical period, available coverage and underlying data quality.
+
+## 17. Recent UI and interaction refinements
+
+### 17.1 Independent chart cards
+
+Portfolio visualisations can be presented as independently collapsible chart cards. Collapsing a chart hides only the presentation area; it does not remove the underlying calculation or chart data. When a chart is reopened, the existing Chart.js instance is resized so the visual renders correctly after being displayed again.
+
+### 17.2 Portfolio analysis loading state
+
+The **Continue to Portfolio Analysis** action now presents a blocking busy state while the analysis is being prepared. This prevents accidental repeated submissions and gives clear feedback that the portfolio analysis is in progress. The loading layer does not change the underlying analytical calculations.
+
+### 17.3 Consistent portfolio-style presentation
+
+The stock portfolio analysis cards use a consistent collapsible-card visual language, including clear section headers, prominent icons, expand/collapse controls and compact summary presentation. These changes are presentation-layer improvements and do not introduce a separate scoring or calculation engine.
+
+### 17.4 Chart integrity
+
+Chart grouping and collapsible presentation are implemented so existing chart data, canvases and Chart.js instances are retained. Opening a previously collapsed card triggers chart resizing where necessary; charts are not recreated merely because the user expands a section.
+
+### 17.5 Interpretation boundary
+
+The recent UI changes do not alter portfolio formulas, historical periods, benchmark definitions, coverage rules, or the descriptive nature of the analysis. They improve navigation and readability while preserving the existing calculation engine.
