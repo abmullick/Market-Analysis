@@ -47,8 +47,10 @@
 
     function clearTooltip(chart) {
       if (!chart?.tooltip) return;
-      chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-      chart.update("none");
+      try {
+        chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+        chart.update("none");
+      } catch (_) {}
     }
 
     function showTooltipAtX(chart, clientX, clientY) {
@@ -89,21 +91,20 @@
       });
       if (!active.length) return;
 
-      chart.options.plugins = chart.options.plugins || {};
-      chart.options.plugins.tooltip = {
-        ...(chart.options.plugins.tooltip || {}),
-        enabled: true,
-        mode: "index",
-        intersect: false,
-      };
-      chart.tooltip.setActiveElements(active, { x, y });
-      chart.update("none");
+      // Do not replace chart.options.plugins.tooltip here. Chart.js keeps
+      // resolved/scriptable configuration objects internally; replacing that
+      // resolver during mousemove causes recursive config resolution and the
+      // "Maximum call stack size exceeded / _scriptable" errors seen in DevTools.
+      // Tooltip defaults are configured once below. Here we only activate the
+      // relevant elements and ask Chart.js to redraw.
+      try {
+        chart.tooltip.setActiveElements(active, { x, y });
+        chart.update("none");
+      } catch (_) {}
     }
 
-    // Permanent document-level fallback. This is deliberately independent of
-    // Chart.js plugin lifecycle, chart creation order, or individual chart
-    // interaction settings. It finds the Chart instance from the canvas under
-    // the pointer and drives the tooltip directly.
+    // Direct document-level fallback. It is independent of Chart.js plugin
+    // lifecycle and works for charts created before or after this file loads.
     if (!window.__marketAnalysisChartMouseTracking) {
       window.__marketAnalysisChartMouseTracking = true;
       document.addEventListener("mousemove", event => {
@@ -257,13 +258,13 @@
       } catch (_) {}
     }
 
-    // Bind every chart that already existed before this file ran. This closes
-    // the lifecycle gap that caused the previous mouse-tracking fixes to fail.
     try {
       const instances = Chart.instances || {};
       Object.values(instances).forEach(bindMouseTracking);
     } catch (_) {}
 
+    // Configure tooltip behaviour once, at the defaults level. Never replace
+    // an individual chart's resolved tooltip object during pointer movement.
     try {
       Chart.defaults.animation = { duration: 650, easing: "easeOutQuart" };
       if (Chart.defaults.transitions?.active) {
