@@ -5,6 +5,7 @@
  */
 
 const PORTFOLIO_SECTION_TITLE = "Stock Portfolio Builder";
+const RECENT_STOCK_SECTION_TITLE = "Recent Stock Analysis Updates";
 
 const cards = [
     ["Build Workflow", `Build the portfolio from the same stock universe used by Stock Analysis. Search by company/symbol, optionally filter by sector and market-cap class, add the required stocks, assign allocations, and make the total exactly <strong>100%</strong> before continuing to analysis. The selected portfolio is kept in browser storage so the analysis and what-if modules can reuse the same holdings.`],
@@ -29,11 +30,23 @@ const cards = [
     ["Interpretation & Limitations", `Portfolio analysis is <strong>historical and descriptive</strong>. It describes the characteristics and historical price behaviour of the selected allocation; it does not forecast future returns, simulate individual trades, include dividends unless explicitly stated by a source metric, model taxes or transaction costs, or execute rebalancing. A portfolio metric with partial coverage should always be read together with its coverage percentage.`],
     ["Collapsible Analysis Cards", `Portfolio analysis is organised into distinct collapsible sections so the page remains readable on mobile and desktop. Each card exposes key highlights while collapsed and the detailed calculation or visualisation when expanded. The cards use distinct visual accents and bold icons while following the application's existing portfolio-builder interaction pattern.`],
     ["Charts & Visualizations", `The portfolio analysis uses visualisations for historical performance, benchmark comparison, quality-versus-growth positioning and historical risk/drawdown. Charts are presentation layers over the existing calculations; they do not introduce separate investment logic. Tooltips expose the underlying values for the selected holding, period or benchmark.`],
+    ["Analysis Loading State", `Running <strong>Continue to Portfolio Analysis</strong> now uses a blocking busy state while the analysis is being prepared. The overlay prevents accidental repeated submissions and makes it clear that the application is working. The underlying portfolio data and calculations are unchanged.`],
+    ["Chart Subcards", `Portfolio analysis visualisations can be presented as independently collapsible chart cards. Collapsing a chart hides only its presentation area; it does not delete the underlying calculation, Chart.js instance or data. Reopening a card resizes the chart so it renders correctly after being displayed again.`],
 ];
 
-function findSection() {
+const recentStockCards = [
+    ["Historical Analysis Sections", `The individual Stock Analysis report now groups the major historical analytics into readable collapsible sections. <strong>Historical Growth & Return Trends</strong>, <strong>Company Pedigree & Trend Comparison</strong>, and <strong>Earnings Quality, Capital Allocation & Dilution Comparison</strong> use a consistent card pattern. Collapsing a section hides the charts without removing their calculations or source data.`],
+    ["Chart Empty States", `Historical stock charts now retain their intended chart/card structure when data is unavailable. Instead of silently removing a chart area, the application can present a meaningful empty state in place. This distinguishes <strong>no usable observations</strong> from a missing UI component and keeps the report layout stable.`],
+    ["Historical Chart Tooltips", `Stock historical-chart hover behaviour has been refined so the tooltip follows the mouse reliably without recursive Chart.js tooltip handling. The chart data and calculations are unchanged; the improvement is limited to interaction and presentation.`],
+    ["Comparison & Analysis Tables", `Individual Stock Analysis and Compare tables have received a consistent portfolio-style visual treatment. The refinements improve hierarchy, spacing, headers and readability for comparison-heavy sections without introducing a new scoring or calculation model.`],
+    ["Stock Analysis Loading State", `Stock Analysis and ranking actions use a non-invasive busy overlay while analysis is running. The overlay communicates that the request is in progress without replacing the report content or changing the underlying analytical results.`],
+    ["NSE Symbol Normalization", `Stock API routes now normalize bare NSE symbols consistently before downstream processing. This is an internal reliability improvement for symbol handling; it does not change the stock universe or the analytical definitions shown to users.`],
+    ["Stock Portfolio Builder Presentation", `The Stock Portfolio Builder analysis now follows the portfolio-style collapsible-card presentation more consistently, including independent chart cards and improved visual hierarchy. These are presentation-layer improvements over the existing portfolio calculations.`],
+];
+
+function findSection(title) {
     return [...document.querySelectorAll(".help-section")].find((section) =>
-        section.querySelector("h3")?.textContent?.trim() === PORTFOLIO_SECTION_TITLE
+        section.querySelector("h3")?.textContent?.trim() === title
     ) || null;
 }
 
@@ -51,33 +64,54 @@ function removeLegacySections() {
     });
 }
 
-function renderPortfolioHelp() {
-    const section = findSection();
-    if (!section || section.dataset.stockPortfolioHelpUpdated === "true") return Boolean(section);
-
+function renderCards(section, cardList) {
+    if (!section) return false;
     const grid = section.querySelector(".help-grid") || document.createElement("div");
     grid.className = "help-grid";
-    grid.innerHTML = cards.map(([heading, body]) => `
+    grid.innerHTML = cardList.map(([heading, body]) => `
         <div class="help-card">
             <h4>${heading}</h4>
             <p>${body}</p>
         </div>
     `).join("");
-
     if (!grid.parentElement) section.appendChild(grid);
+    return true;
+}
+
+function renderPortfolioHelp() {
+    const section = findSection(PORTFOLIO_SECTION_TITLE);
+    if (!section || section.dataset.stockPortfolioHelpUpdated === "true") return Boolean(section);
+    renderCards(section, cards);
     section.dataset.stockPortfolioHelpUpdated = "true";
+    return true;
+}
+
+function renderRecentStockHelp() {
+    const stockSection = findSection("Stock Analysis");
+    if (!stockSection || stockSection.dataset.recentStockHelpUpdated === "true") return Boolean(stockSection);
+
+    const recentSection = document.createElement("section");
+    recentSection.className = "help-section";
+    recentSection.innerHTML = `<h3>${RECENT_STOCK_SECTION_TITLE}</h3><div class="help-grid"></div>`;
+    renderCards(recentSection, recentStockCards);
+    stockSection.parentNode?.insertBefore(recentSection, stockSection.nextSibling);
+    recentSection.dataset.recentStockHelpUpdated = "true";
     return true;
 }
 
 function install() {
     removeLegacySections();
-    if (renderPortfolioHelp()) return;
+    const portfolioReady = renderPortfolioHelp();
+    const stockReady = renderRecentStockHelp();
+    if (portfolioReady && stockReady) return;
 
     const root = document.body;
     if (!root) return;
     const observer = new MutationObserver(() => {
         removeLegacySections();
-        if (renderPortfolioHelp()) observer.disconnect();
+        const p = renderPortfolioHelp();
+        const s = renderRecentStockHelp();
+        if (p && s) observer.disconnect();
     });
     observer.observe(root, { childList: true, subtree: true });
 }
@@ -88,4 +122,4 @@ if (document.readyState === "loading") {
     install();
 }
 
-export { renderPortfolioHelp };
+export { renderPortfolioHelp, renderRecentStockHelp };
