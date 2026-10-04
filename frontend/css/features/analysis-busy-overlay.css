@@ -1,0 +1,9 @@
+/* Shared busy overlay. It blocks interaction only while an analysis/ranking request is in progress. */
+.analysis-busy-overlay{position:fixed;inset:0;z-index:100000;display:none;align-items:center;justify-content:center;background:rgba(8,22,38,.46);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);cursor:wait}
+.analysis-busy-overlay.is-visible{display:flex}
+.analysis-busy-card{min-width:300px;max-width:calc(100vw - 40px);padding:30px 36px;border:1px solid rgba(255,255,255,.28);border-radius:22px;background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(241,248,255,.97));box-shadow:0 24px 70px rgba(2,12,24,.28);text-align:center;color:#10263d}
+.analysis-busy-spinner{width:64px;height:64px;margin:0 auto 18px;border:7px solid #dbeafe;border-top-color:#2563eb;border-right-color:#0ea5e9;border-radius:50%;animation:analysisBusySpin .85s linear infinite}
+.analysis-busy-title{font-size:18px;font-weight:800;letter-spacing:-.015em}
+.analysis-busy-message{margin-top:7px;color:#64748b;font-size:13px;line-height:1.5}
+@keyframes analysisBusySpin{to{transform:rotate(360deg)}}
+@media(max-width:600px){.analysis-busy-card{min-width:0;width:calc(100vw - 36px);padding:26px 22px}.analysis-busy-spinner{width:56px;height:56px}}
