@@ -82,6 +82,17 @@ async def favicon():
     # Use the Market Analysis hero artwork (the old-man logo) as the browser favicon.
     return FileResponse("static/images/hero-market-analysis.png", media_type="image/png")
 
+
+@app.get("/static/images/hero-market-analysis.png")
+async def social_preview_image():
+    # Serve the social-preview image through an explicit route so crawlers such as
+    # WhatsApp can fetch it directly without relying on the StaticFiles mount.
+    return FileResponse(
+        "static/images/hero-market-analysis.png",
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
 # Serve static assets
 app.mount("/css", StaticFiles(directory="frontend/css"), name="css")
 app.mount("/js", StaticFiles(directory="frontend/js"), name="js")
