@@ -48,7 +48,7 @@
   }
 
   function isPortfolioContinue(button) {
-    return Boolean(button?.matches("#pb-continue-btn"));
+    return Boolean(button?.matches("#pb-continue-btn, #portfolio-continue"));
   }
 
   function onClick(event) {
@@ -87,10 +87,23 @@
     );
     const portfolioStillLoading = Boolean(portfolioLoading && !portfolioLoading.hidden);
 
+    const stockPortfolioRoot = document.getElementById("stock-portfolio-analysis-content");
+    const stockPortfolioResults = document.getElementById("portfolio-analysis-results");
+    const stockPortfolioRebalancing = document.getElementById("portfolio-rebalancing");
+    const stockPortfolioActionView = document.getElementById("portfolio-action-view");
+    const stockPortfolioReady = Boolean(
+      stockPortfolioRoot &&
+      !stockPortfolioRoot.hidden &&
+      stockPortfolioResults?.childElementCount &&
+      /data notes/i.test(stockPortfolioResults.textContent || "") &&
+      stockPortfolioRebalancing?.childElementCount &&
+      stockPortfolioActionView?.childElementCount
+    );
+
     const rankingDone = !rankingBusy && Boolean(ranking?.childElementCount || summary?.childElementCount);
     const stockDone = Boolean(stockScreen && !stockScreen.hidden && stockDetails?.childElementCount && !stockLoading);
 
-    if (rankingDone || stockDone || (portfolioDone && !portfolioStillLoading)) hide();
+    if (rankingDone || stockDone || (portfolioDone && !portfolioStillLoading) || stockPortfolioReady) hide();
   }
 
   function observeCompletion() {
