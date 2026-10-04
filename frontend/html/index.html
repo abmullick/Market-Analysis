@@ -9,8 +9,8 @@
     <meta property="og:description" content="A comprehensive platform for capital market analysis covering stocks, mutual funds and bonds.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://market-analysis-g4ow.onrender.com/">
-    <meta property="og:image" content="https://raw.githubusercontent.com/abmullick/Market-Analysis/main/static/images/hero-market-analysis.png">
-    <meta property="og:image:secure_url" content="https://raw.githubusercontent.com/abmullick/Market-Analysis/main/static/images/hero-market-analysis.png">
+    <meta property="og:image" content="https://market-analysis-g4ow.onrender.com/static/images/hero-market-analysis.png">
+    <meta property="og:image:secure_url" content="https://market-analysis-g4ow.onrender.com/static/images/hero-market-analysis.png">
     <meta property="og:image:alt" content="Market Analysis">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="720">
@@ -20,12 +20,12 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Market Analysis">
     <meta name="twitter:description" content="A comprehensive platform for capital market analysis covering stocks, mutual funds and bonds.">
-    <meta name="twitter:image" content="https://raw.githubusercontent.com/abmullick/Market-Analysis/main/static/images/hero-market-analysis.png">
+    <meta name="twitter:image" content="https://market-analysis-g4ow.onrender.com/static/images/hero-market-analysis.png">
     <meta name="twitter:image:alt" content="Market Analysis">
 
     <link rel="canonical" href="https://market-analysis-g4ow.onrender.com/">
-    <link rel="icon" href="https://cdn.jsdelivr.net/gh/abmullick/Market-Analysis@main/static/images/hero-market-analysis.png?v=20261005" type="image/png">
-    <link rel="shortcut icon" href="https://cdn.jsdelivr.net/gh/abmullick/Market-Analysis@main/static/images/hero-market-analysis.png?v=20261005" type="image/png">
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/images/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="../css/base.css">
     <link rel="stylesheet" href="../css/layout.css">
     <link rel="stylesheet" href="../css/components.css">
@@ -38,87 +38,21 @@
             <img src="/static/images/logo.png" alt="Market Analysis" class="logo">
             <div class="header-brand">
                 <h1>Market Analysis</h1>
-                <span class="product-owner">Product Owner: Abhisek Basu Mullick</span>
             </div>
         </div>
+        <button class="menu-toggle" aria-label="Open menu"><span></span><span></span><span></span></button>
     </header>
-    <nav id="main-nav" aria-label="Market Analysis navigation"></nav>
-    <main>
-        <section class="hero">
-            <div class="container">
-                <img src="/static/images/hero-market-analysis.png" alt="Market Analysis" class="hero-brand">
-                <h2>Make smarter investment decisions</h2>
-                <p>Fundamental analysis and AI-powered insights for Indian stocks and mutual funds.</p>
+    <main class="home-container">
+        <section class="hero-section">
+            <div class="hero-image-wrap">
+                <img src="/static/images/hero-market-analysis.png" alt="Strategic Market Analysis" class="hero-image">
             </div>
-        </section>
-        <section class="cards-grid">
-            <a href="mutual-funds.html" class="card card-mutual-funds" data-href="mutual-funds.html">
-                <div class="card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="9"></circle><path d="M12 3a15.3 15.3 0 0 1 4 9 15.3 15.3 0 0 1-4 9 15.3 15.3 0 0 1-4-9 15.3 15.3 0 0 1 4-9z"></path><path d="M3 12h18"></path>
-                    </svg>
-                </div>
-                <h3>Mutual Fund Analysis</h3>
-                <p>Evaluate mutual funds with portfolio holdings, sector allocation, and quality insights.</p>
-                <span class="btn btn-mutual-funds">Explore Funds</span>
-            </a>
-            <a href="portfolio-builder.html" class="card card-portfolio-builder" data-href="portfolio-builder.html">
-                <div class="card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path>
-                    </svg>
-                </div>
-                <h3>Mutual Fund Portfolio Builder</h3>
-                <p>Build and analyze your mutual fund portfolio.</p>
-                <span class="btn btn-portfolio-builder">Build Portfolio</span>
-            </a>
-            <a href="bond-analysis.html" class="card card-bond-analysis" data-href="bond-analysis.html">
-                <div class="card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path><circle cx="12" cy="17" r="2.5"></circle>
-                    </svg>
-                </div>
-                <h3>Bond Analysis</h3>
-                <p>Analyze government and corporate bonds using fixed-income data, yields, maturity, credit and risk metrics.</p>
-                <span class="btn btn-bond-analysis">Explore Bonds</span>
-            </a>
-            <a href="stocks.html" class="card card-stocks" data-href="stocks.html">
-                <div class="card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="12" width="4" height="9" rx="1"></rect><rect x="10" y="7" width="4" height="14" rx="1"></rect><rect x="17" y="4" width="4" height="17" rx="1"></rect>
-                    </svg>
-                </div>
-                <h3>Stock Analysis</h3>
-                <p>Screen the Nifty Total Market universe, analyze individual stocks, compare companies, and review valuation, profitability, financial-health and risk metrics.</p>
-                <span class="btn btn-stocks">Explore Stocks</span>
-            </a>
-            <a href="stock-portfolio-builder.html" class="card card-stock-builder" data-href="stock-portfolio-builder.html">
-                <div class="card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-                    </svg>
-                </div>
-                <h3>Stock Portfolio Builder</h3>
-                <p>Build and analyze your stock portfolio.</p>
-                <span class="btn btn-stock-builder">Build Portfolio</span>
-            </a>
+            <div class="hero-content">
+                <h2>Capital Market Analysis</h2>
+                <p>Analyze stocks, mutual funds and bonds with data-driven insights.</p>
+            </div>
         </section>
     </main>
-    <footer class="site-footer">
-        <div class="container">
-            <p>&copy; 2026 Abhisek Basu Mullick. All rights reserved.</p>
-            <p class="copyright-detail">Market Analysis is proprietary software developed by Abhishek Basu Mullick. The original source code, UI implementation, documentation, analytical implementation, scoring models, calculation logic and original content are protected by applicable copyright and intellectual-property laws. Third-party libraries, services, market data, trademarks and other third-party materials remain the property of their respective owners and are subject to their applicable licences and terms.</p>
-        </div>
-    </footer>
-    <script type="module" src="../js/core/config.js"></script>
-    <script type="module" src="../js/core/navigation.js?v=20261005-1"></script>
-    <script type="module" src="../js/core/utils.js"></script>
-    <script type="module" src="../js/features/home/index.js"></script>
-    <script type="module">
-        import { initNavigation } from "../js/core/navigation.js?v=20261005-1";
-        import { initHome } from "../js/features/home/index.js";
-        initNavigation();
-        initHome();
-    </script>
+    <script src="../js/navigation.js"></script>
 </body>
 </html>
