@@ -1,11 +1,11 @@
-const MARKET_ANALYSIS_FAVICON = "https://cdn.jsdelivr.net/gh/abmullick/Market-Analysis@main/static/images/hero-market-analysis.png?v=20261005";
+const MARKET_ANALYSIS_FAVICON = "/static/images/favicon.ico";
 const MARKET_ANALYSIS_LOGO = "/static/images/hero-market-analysis.png?v=20261005";
 
 function setMarketAnalysisFavicon() {
     document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').forEach((link) => link.remove());
     const favicon = document.createElement("link");
     favicon.rel = "icon";
-    favicon.type = "image/png";
+    favicon.type = "image/x-icon";
     favicon.href = MARKET_ANALYSIS_FAVICON;
     document.head.appendChild(favicon);
 }
