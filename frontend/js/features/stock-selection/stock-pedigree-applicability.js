@@ -16,11 +16,11 @@ function ensureStyles() {
       background: radial-gradient(circle at 20% 15%, rgba(37,99,235,.08), transparent 38%), linear-gradient(135deg, #f8fbff, #ffffff 65%, #faf7ff);
       border: 1px solid #e1eaf4; border-radius: 14px;
     }
-    .stock-pedigree-na-inner { max-width: 520px; }
-    .stock-pedigree-na-icon { width:42px; height:42px; margin:0 auto 10px; display:grid; place-items:center; border-radius:50%; background:#edf4ff; color:#2563eb; font-size:18px; font-weight:900; }
-    .stock-pedigree-na-inner strong { display:block; color:#17355d; font-size:13px; margin-bottom:6px; }
-    .stock-pedigree-na-inner p { margin:0; color:#71849a; font-size:10px; line-height:1.55; }
-    .stock-pedigree-na-badge { display:inline-flex; margin-top:11px; padding:4px 8px; border:1px solid #dbe7f3; border-radius:999px; background:#fff; color:#64758a; font-size:8px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
+    .stock-pedigree-na-inner, .stock-pedigree-no-data-inner, .stock-chart-no-data-inner { max-width: 520px; }
+    .stock-pedigree-na-icon, .stock-pedigree-no-data-icon, .stock-chart-no-data-icon { width:42px; height:42px; margin:0 auto 10px; display:grid; place-items:center; border-radius:50%; background:#edf4ff; color:#2563eb; font-size:18px; font-weight:900; }
+    .stock-pedigree-na-inner strong, .stock-pedigree-no-data-inner strong, .stock-chart-no-data-inner strong { display:block; color:#17355d; font-size:13px; margin-bottom:6px; }
+    .stock-pedigree-na-inner p, .stock-pedigree-no-data-inner p, .stock-chart-no-data-inner p { margin:0; color:#71849a; font-size:10px; line-height:1.55; }
+    .stock-pedigree-na-badge, .stock-pedigree-no-data-badge, .stock-chart-no-data-badge { display:inline-flex; margin-top:11px; padding:4px 8px; border:1px solid #dbe7f3; border-radius:999px; background:#fff; color:#64758a; font-size:8px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
   `;
   document.head.appendChild(style);
 }
@@ -43,9 +43,29 @@ function replaceWorkingCapitalCard() {
   wrap.innerHTML = `<div class="stock-pedigree-not-applicable"><div class="stock-pedigree-na-inner"><div class="stock-pedigree-na-icon">≈</div><strong>Working Capital Cycle is not applicable</strong><p>This diagnostic is designed for businesses with operating receivables, inventory and trade payables. For financial-services companies, those balances do not represent the same operating cycle, so the engine does not calculate a conventional CCC.</p><span class="stock-pedigree-na-badge">Financial-sector lens</span></div></div>`;
 }
 
+function replaceEmptyPedigreeCards() {
+  if (typeof Chart === "undefined") return;
+  document.querySelectorAll("#stock-details .stock-pedigree-chart-card").forEach((card) => {
+    if (card.dataset.pedigreeEmptyChecked === "1" || card.dataset.applicabilityHandled === "1") return;
+    const wrap = card.querySelector(".stock-pedigree-chart-wrap");
+    const canvas = wrap?.querySelector("canvas");
+    if (!wrap || !canvas) return;
+    card.dataset.pedigreeEmptyChecked = "1";
+    window.setTimeout(() => {
+      if (!document.body.contains(card) || card.dataset.applicabilityHandled === "1") return;
+      const currentCanvas = card.querySelector("canvas");
+      if (!currentCanvas) return;
+      const chart = Chart.getChart(currentCanvas);
+      if (chart) return; // A real chart exists: never touch it.
+      wrap.innerHTML = `<div class="stock-pedigree-no-data"><div class="stock-pedigree-no-data-inner"><div class="stock-pedigree-no-data-icon">—</div><strong>No historical data available</strong><p>Historical observations for this metric are not available for this company, so there is no meaningful trend to display.</p><span class="stock-pedigree-no-data-badge">Data unavailable</span></div></div>`;
+    }, 1800);
+  });
+}
+
 function scan() {
   ensureStyles();
   replaceWorkingCapitalCard();
+  replaceEmptyPedigreeCards();
 }
 
 const observer = new MutationObserver(scan);
