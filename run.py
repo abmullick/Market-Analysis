@@ -1,7 +1,8 @@
+import base64
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from backend.config.settings import Settings
 from backend.routes.screener import router as screener_router
@@ -31,10 +32,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+OG_PREVIEW_BASE64 = "PLACEHOLDER"
+
 # Serve frontend HTML pages
 @app.get("/")
 async def read_root():
-    return FileResponse("frontend/html/index.html")
+    with open("frontend/html/index.html", "r", encoding="utf-8") as f:
+        html = f.read()
+    preview_url = "https://market-analysis-g4ow.onrender.com/og-preview-20261005.jpg"
+    html = html.replace(
+        'https://wsrv.nl/?url=https%3A%2F%2Fcdn.jsdelivr.net%2Fgh%2Fabmullick%2FMarket-Analysis%40main%2Fstatic%2Fimages%2Fhero-market-analysis.png&amp;w=1200&amp;h=630&amp;fit=cover&amp;output=jpg',
+        preview_url,
+    )
+    html = html.replace(
+        'https://cdn.jsdelivr.net/gh/abmullick/Market-Analysis@main/static/images/hero-market-analysis.png?v=20261005',
+        '/favicon.ico?v=20261005',
+    )
+    return HTMLResponse(content=html)
 
 
 @app.get("/stocks.html")
@@ -79,14 +93,27 @@ async def read_bond_analysis():
 
 @app.get("/favicon.ico")
 async def favicon():
-    # Use the Market Analysis hero artwork (the old-man logo) as the browser favicon.
-    return FileResponse("static/images/hero-market-analysis.png", media_type="image/png")
+    return Response(
+        content=base64.b64decode(OG_PREVIEW_BASE64),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
+@app.get("/og-preview-20261005.jpg")
+async def og_preview_image():
+    return Response(
+        content=base64.b64decode(OG_PREVIEW_BASE64),
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "Content-Disposition": "inline",
+        },
+    )
 
 
 @app.get("/static/images/hero-market-analysis.png")
 async def social_preview_image():
-    # Serve the social-preview image through an explicit route so crawlers such as
-    # WhatsApp can fetch it directly without relying on the StaticFiles mount.
     return FileResponse(
         "static/images/hero-market-analysis.png",
         media_type="image/png",
