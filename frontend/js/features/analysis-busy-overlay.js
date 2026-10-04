@@ -2,6 +2,7 @@
   const OVERLAY_ID = "analysis-busy-overlay";
   let visible = false;
   let hideTimer = null;
+  let shownAt = 0;
 
   function ensureOverlay() {
     let overlay = document.getElementById(OVERLAY_ID);
@@ -10,23 +11,18 @@
     overlay.id = OVERLAY_ID;
     overlay.className = "analysis-busy-overlay";
     overlay.setAttribute("aria-hidden", "true");
-    overlay.innerHTML = `
-      <div class="analysis-busy-card" role="status" aria-live="polite" aria-label="Processing">
-        <div class="analysis-busy-spinner" aria-hidden="true"></div>
-        <div class="analysis-busy-title">Processing…</div>
-        <div class="analysis-busy-message">Fetching data and preparing the analysis. Please wait.</div>
-      </div>`;
+    overlay.innerHTML = `<div class="analysis-busy-card" role="status" aria-live="polite" aria-label="Processing"><div class="analysis-busy-spinner" aria-hidden="true"></div><div class="analysis-busy-title">Processing…</div><div class="analysis-busy-message">Fetching data and preparing the analysis. Please wait.</div></div>`;
     document.body.appendChild(overlay);
     return overlay;
   }
 
-  function show(message = "Fetching data and preparing the analysis. Please wait.") {
+  function show(message) {
     const overlay = ensureOverlay();
-    const msg = overlay.querySelector(".analysis-busy-message");
-    if (msg) msg.textContent = message;
+    overlay.querySelector(".analysis-busy-message").textContent = message;
     overlay.classList.add("is-visible");
     overlay.setAttribute("aria-hidden", "false");
     visible = true;
+    shownAt = Date.now();
     if (hideTimer) clearTimeout(hideTimer);
   }
 
@@ -44,12 +40,7 @@
   }
 
   function isStockAction(button) {
-    if (!button) return false;
-    return Boolean(button.closest("#stock-selection-screen") && (
-      button.matches("#stock-analyze-selected") ||
-      button.matches(".stock-compare-action") ||
-      button.matches(".stock-select-btn") && button.closest(".stock-selected-panel")
-    ));
+    return Boolean(button?.closest("#stock-selection-screen") && (button.matches("#stock-analyze-selected") || button.matches(".stock-compare-action")));
   }
 
   function isRankingAction(button) {
@@ -62,30 +53,30 @@
     if (isRankingAction(button)) {
       show("Running ranking and fetching mutual fund data. Please wait.");
       scheduleSafetyHide();
-      return;
-    }
-    if (isStockAction(button)) {
-      const compare = button.matches(".stock-compare-action");
-      show(compare ? "Fetching comparison data. Please wait." : "Fetching stock data and preparing the analysis. Please wait.");
+    } else if (isStockAction(button)) {
+      show(button.matches(".stock-compare-action") ? "Fetching comparison data. Please wait." : "Fetching stock data and preparing the analysis. Please wait.");
       scheduleSafetyHide();
     }
   }
 
-  function observeCompletion() {
+  function completionCheck() {
+    if (!visible || Date.now() - shownAt < 700) return;
     const ranking = document.getElementById("ranking-table-container");
     const summary = document.getElementById("ranking-summary");
+    const rankingBusy = document.querySelector("#ranking-results .loading, #ranking-results [aria-busy='true'], #ranking-results .spinner");
     const stockScreen = document.getElementById("stock-analysis-screen");
     const stockDetails = document.getElementById("stock-details");
     const status = document.getElementById("stock-analysis-status");
-    if (!ranking && !summary && !stockScreen && !stockDetails && !status) return;
+    const stockLoading = /loading|fetching|analy[sz]ing/i.test(status?.textContent || "") || Boolean(stockDetails?.querySelector(".stock-loading"));
+    const rankingDone = !rankingBusy && Boolean(ranking?.childElementCount || summary?.childElementCount);
+    const stockDone = Boolean(stockScreen && !stockScreen.hidden && stockDetails?.childElementCount && !stockLoading);
+    if (rankingDone || stockDone) hide();
+  }
 
-    const observer = new MutationObserver(() => {
-      if (!visible) return;
-      const rankingDone = Boolean(ranking && ranking.childElementCount) || Boolean(summary && summary.childElementCount && !ranking?.childElementCount);
-      const stockDone = Boolean(stockScreen && !stockScreen.hidden && stockDetails && stockDetails.childElementCount && !/loading|fetching/i.test(status?.textContent || ""));
-      if (rankingDone || stockDone) hide();
-    });
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["hidden", "class"] });
+  function observeCompletion() {
+    const observer = new MutationObserver(completionCheck);
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["hidden", "class", "aria-busy"] });
+    window.setInterval(completionCheck, 400);
   }
 
   document.addEventListener("click", onClick, true);
