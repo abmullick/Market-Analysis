@@ -475,3 +475,37 @@ The comparison cards call the same `buildMomentum` engine and the same historica
 The in-application Help & Methodology page has been expanded to document the new Stock Analysis engines. New formula cards cover Sector-aware Valuation Context, Fundamental Momentum, Momentum Consistency & Stability, Fundamental Trend Timeline, Quality × Growth × Valuation, Growth Funding & Capital Efficiency, Shareholding Intelligence, Business–Valuation Matrix and Stock Comparison Summary.
 
 The Help search indexes visible cards and metric accordions. Searching for a new metric or formula opens the matching collapsible card and highlights it. The formulas shown in Help are intended to match the calculations implemented by the frontend engines and the normalized data model.
+
+## 35. Recent UI, Chart and Reliability Updates
+
+### 35.1 Collapsible historical analysis cards
+
+The major historical-analysis areas are now presented as consistent collapsible cards. The individual report groups Historical Growth & Return Trends, Company Pedigree & Trend Comparison, and Earnings Quality, Capital Allocation & Dilution Comparison into expandable sections. The comparison report uses the same interaction pattern. Collapsing a section hides its chart presentation but does not remove the underlying calculations or data.
+
+### 35.2 Chart empty-state handling
+
+Historical chart areas now retain their intended report structure when sufficient observations are unavailable. A meaningful empty state can be shown in place of a chart rather than silently removing the chart container. This makes unavailable history distinguishable from a missing UI component.
+
+### 35.3 Historical chart hover behaviour
+
+Stock historical-chart tooltip handling was hardened so the tooltip follows mouse movement reliably without recursive Chart.js tooltip resolution. This is an interaction improvement only; chart series and calculations are unchanged.
+
+### 35.4 Comparison and table presentation
+
+Individual Stock Analysis and Compare tables received a consistent portfolio-style visual treatment with improved hierarchy, spacing, headers and readability. Additional Ratio, Ownership Comparison and pedigree snapshot tables also received targeted visual polish. These changes do not introduce a new comparison score or change any metric calculation.
+
+### 35.5 Analysis loading feedback
+
+Stock Analysis and ranking actions can display a non-invasive busy overlay while analysis is running. The Stock Portfolio Builder Continue action uses a blocking busy state to prevent accidental repeated submissions while portfolio analysis is being prepared. These overlays are presentation and interaction controls; they do not modify analytical results.
+
+### 35.6 NSE symbol normalization
+
+Stock API routes now normalize bare NSE symbols consistently before downstream processing. This improves reliability for symbol inputs without changing the stock universe or analytical definitions.
+
+### 35.7 Portfolio chart cards
+
+Stock Portfolio Builder analysis visualisations can be independently collapsed. Reopening a chart card resizes the existing Chart.js instance where necessary so charts render correctly after being displayed again. Chart data and calculations are not recreated solely because the user expands a card.
+
+### 35.8 Interpretation boundary
+
+All recent changes in this section are UI, interaction, reliability or presentation refinements unless explicitly stated otherwise. They do not alter the Stock Analysis formulas, portfolio calculations, historical-period definitions, benchmark definitions, scoring weights or missing-data principles.
