@@ -69,6 +69,15 @@ function loadHorizontalTableScrollTheme() {
     }
 }
 
+function loadFloatingNavigationTheme() {
+    if (document.getElementById("floating-navigation-theme")) return;
+    const stylesheet = document.createElement("link");
+    stylesheet.id = "floating-navigation-theme";
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = "/css/features/floating-navigation.css?v=20261004-1";
+    document.head.appendChild(stylesheet);
+}
+
 function removeLegacyHelpLinks() {
     document.querySelectorAll(".help-link").forEach((link) => link.remove());
 }
@@ -79,6 +88,7 @@ setMarketAnalysisHeaderLogo();
 loadPortfolioBuilderButtonTheme();
 loadStockPortfolioBuilderExactTheme();
 loadHorizontalTableScrollTheme();
+loadFloatingNavigationTheme();
 removeLegacyHelpLinks();
 
 const NAV_ITEMS = [
@@ -130,6 +140,7 @@ function closeFloatingNavigation(nav) {
 export function initNavigation() {
     normalizeStockPortfolioHeader();
     removeLegacyHelpLinks();
+    loadFloatingNavigationTheme();
 
     const nav = document.getElementById("main-nav");
     if (!nav || nav.dataset.floatingNavigationReady === "1") return;
@@ -181,10 +192,7 @@ export function initNavigation() {
     });
 
     backdrop.addEventListener("click", () => closeFloatingNavigation(nav));
-
-    items.forEach((item) => {
-        item.addEventListener("click", () => closeFloatingNavigation(nav));
-    });
+    items.forEach((item) => item.addEventListener("click", () => closeFloatingNavigation(nav)));
 
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && nav.classList.contains("is-open")) {
