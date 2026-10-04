@@ -120,7 +120,6 @@ const NAV_ITEMS = [
     {
         href: "/help.html",
         label: "Help & Methodology",
-        external: true,
         icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.5 2.5 0 1 1 4.7 1.2c-.7 1.2-2.5 1.4-2.5 3"/><path d="M12 17h.01"/></svg>'
     }
 ];
@@ -161,7 +160,7 @@ export function initNavigation() {
                 <a href="${item.href}"
                    class="floating-nav-item${isActive(item.href) ? " active" : ""}"
                    data-nav-index="${index}"
-                   ${item.external ? 'target="_blank" rel="noopener noreferrer"' : ""}>
+                   target="_blank" rel="noopener noreferrer">
                     <span class="floating-nav-item-icon">${item.icon}</span>
                     <span class="floating-nav-item-label">${item.label}</span>
                     <span class="floating-nav-item-arrow" aria-hidden="true">›</span>
