@@ -1,0 +1,238 @@
+/* Individual Stock Analysis — premium table treatment
+   Presentation-only layer. No data, calculation, API, or interaction changes. */
+
+/* Financial Statements: turn the nested statement view into a deliberate
+   research-table panel and let the table use the full available width. */
+#stock-details > .stock-section:has(.stock-statement-tabs) {
+    padding: 22px 20px 20px;
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at 100% 0%, rgba(99,102,241,.08), transparent 24%),
+        linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+    border-color: #cfddeb;
+    box-shadow: 0 10px 28px rgba(15,23,42,.065);
+}
+
+#stock-details > .stock-section:has(.stock-statement-tabs) > .stock-section-header {
+    min-height: 48px;
+    margin: 0 0 14px;
+    padding: 0 2px 13px;
+    border-bottom: 1px solid rgba(148,163,184,.22);
+}
+
+#stock-details > .stock-section:has(.stock-statement-tabs) > .stock-section-header h2 {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+}
+
+#stock-details > .stock-section:has(.stock-statement-tabs) .stock-statement-tabs {
+    margin-bottom: 14px;
+}
+
+#stock-statement-content {
+    width: 100%;
+}
+
+#stock-statement-content > .stock-section {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 18px 18px 16px;
+    border: 1px solid #d3e1ee;
+    border-radius: 16px;
+    background:
+        radial-gradient(circle at 100% 0%, rgba(37,99,235,.055), transparent 26%),
+        linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%);
+    box-shadow: 0 7px 20px rgba(15,23,42,.045);
+    overflow: visible;
+}
+
+#stock-statement-content > .stock-section > .stock-section-header {
+    min-height: 38px;
+    margin: 0 0 12px;
+    padding: 0 2px 10px;
+    border-bottom: 1px solid rgba(148,163,184,.20);
+}
+
+#stock-statement-content > .stock-section > .stock-section-header h2 {
+    color: #16385f;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -.012em;
+}
+
+#stock-statement-content .stock-table-wrap {
+    width: 100%;
+    margin-top: 0;
+    border: 1px solid #cfddea;
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(25,55,90,.055);
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+#stock-statement-content .stock-table {
+    width: 100%;
+    min-width: 900px;
+    table-layout: fixed;
+}
+
+#stock-statement-content .stock-table th:first-child,
+#stock-statement-content .stock-table td:first-child {
+    width: 22%;
+}
+
+#stock-statement-content .stock-table thead th {
+    height: 44px;
+    padding: 11px 13px;
+    background: linear-gradient(135deg, #edf6ff 0%, #f0efff 100%);
+    color: #173b68;
+    border-bottom: 1px solid #c9dceb;
+    font-size: 10.5px;
+    font-weight: 850;
+    letter-spacing: .055em;
+    text-transform: uppercase;
+}
+
+#stock-statement-content .stock-table tbody td {
+    height: 44px;
+    padding: 11px 13px;
+    color: #294867;
+    background: rgba(255,255,255,.82);
+    border-bottom: 1px solid #e2eaf2;
+    font-size: 12px;
+}
+
+#stock-statement-content .stock-table tbody tr:nth-child(even) td {
+    background: #f6f9fc;
+}
+
+#stock-statement-content .stock-table tbody tr:hover td {
+    background: linear-gradient(90deg, #eef7ff, #f7f5ff);
+}
+
+#stock-statement-content .stock-table tbody td:first-child {
+    color: #143761;
+    font-weight: 750;
+}
+
+/* Historical Trend: match the same premium research-table language while
+   keeping the existing four metrics and six-year data exactly unchanged. */
+.stock-derived-analysis .stock-derived-trend {
+    margin-top: 26px;
+    padding-top: 0;
+}
+
+.stock-derived-analysis .stock-derived-trend h3 {
+    position: relative;
+    margin: 0 0 12px;
+    padding: 12px 15px 11px;
+    border: 1px solid #d3e1ee;
+    border-radius: 13px 13px 0 0;
+    background: linear-gradient(135deg, #eef6ff 0%, #f4f1ff 100%);
+    color: #17385f;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -.012em;
+    box-shadow: 0 4px 12px rgba(15,23,42,.035);
+}
+
+.stock-derived-analysis .stock-derived-trend h3::before {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: -1px;
+    height: 3px;
+    border-radius: 0 0 4px 4px;
+    background: linear-gradient(90deg, #2f6df6, #7c5cff, #b26cff);
+}
+
+.stock-derived-analysis .stock-derived-trend .stock-table-wrap {
+    margin-top: -12px;
+    border: 1px solid #d3e1ee;
+    border-top: 0;
+    border-radius: 0 0 16px 16px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(25,55,90,.055);
+    overflow-x: auto;
+}
+
+.stock-derived-analysis .stock-derived-trend .stock-table {
+    width: 100%;
+    min-width: 760px;
+    table-layout: fixed;
+}
+
+.stock-derived-analysis .stock-derived-trend .stock-table th:first-child,
+.stock-derived-analysis .stock-derived-trend .stock-table td:first-child {
+    width: 25%;
+}
+
+.stock-derived-analysis .stock-derived-trend .stock-table thead th {
+    height: 43px;
+    padding: 11px 13px;
+    background: linear-gradient(135deg, #edf6ff 0%, #f0efff 100%);
+    color: #173b68;
+    border-bottom: 1px solid #c9dceb;
+    font-size: 10.5px;
+    font-weight: 850;
+    letter-spacing: .055em;
+    text-transform: uppercase;
+}
+
+.stock-derived-analysis .stock-derived-trend .stock-table tbody td {
+    height: 43px;
+    padding: 11px 13px;
+    color: #294867;
+    background: rgba(255,255,255,.82);
+    border-bottom: 1px solid #e2eaf2;
+    font-size: 12px;
+}
+
+.stock-derived-analysis .stock-derived-trend .stock-table tbody tr:nth-child(even) td {
+    background: #f6f9fc;
+}
+
+.stock-derived-analysis .stock-derived-trend .stock-table tbody tr:hover td {
+    background: linear-gradient(90deg, #eef7ff, #f7f5ff);
+}
+
+.stock-derived-analysis .stock-derived-trend .stock-table tbody td:first-child {
+    color: #143761;
+    font-weight: 750;
+}
+
+@media (max-width: 900px) {
+    #stock-details > .stock-section:has(.stock-statement-tabs) {
+        padding: 18px 14px 16px;
+    }
+
+    #stock-statement-content > .stock-section {
+        padding: 15px 12px 13px;
+    }
+
+    #stock-statement-content .stock-table,
+    .stock-derived-analysis .stock-derived-trend .stock-table {
+        min-width: 760px;
+    }
+
+    #stock-statement-content .stock-table th:first-child,
+    #stock-statement-content .stock-table td:first-child,
+    .stock-derived-analysis .stock-derived-trend .stock-table th:first-child,
+    .stock-derived-analysis .stock-derived-trend .stock-table td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #f4f8fc;
+        box-shadow: 7px 0 12px rgba(25,55,90,.055);
+    }
+
+    #stock-statement-content .stock-table thead th:first-child,
+    .stock-derived-analysis .stock-derived-trend .stock-table thead th:first-child {
+        z-index: 3;
+        background: #e9f2fa;
+    }
+}
