@@ -47,6 +47,10 @@
     return Boolean(button?.matches("#run-ranking"));
   }
 
+  function isPortfolioContinue(button) {
+    return Boolean(button?.matches("#pb-continue-btn"));
+  }
+
   function onClick(event) {
     const button = event.target.closest?.("button");
     if (!button || button.disabled) return;
@@ -56,11 +60,15 @@
     } else if (isStockAction(button)) {
       show(button.matches(".stock-compare-action") ? "Fetching comparison data. Please wait." : "Fetching stock data and preparing the analysis. Please wait.");
       scheduleSafetyHide();
+    } else if (isPortfolioContinue(button)) {
+      show("Analyzing your portfolio and fetching data. Please wait.");
+      scheduleSafetyHide();
     }
   }
 
   function completionCheck() {
     if (!visible || Date.now() - shownAt < 700) return;
+
     const ranking = document.getElementById("ranking-table-container");
     const summary = document.getElementById("ranking-summary");
     const rankingBusy = document.querySelector("#ranking-results .loading, #ranking-results [aria-busy='true'], #ranking-results .spinner");
@@ -68,9 +76,21 @@
     const stockDetails = document.getElementById("stock-details");
     const status = document.getElementById("stock-analysis-status");
     const stockLoading = /loading|fetching|analy[sz]ing/i.test(status?.textContent || "") || Boolean(stockDetails?.querySelector(".stock-loading"));
+
+    const portfolioLoading = document.getElementById("pb-analysis-loading");
+    const portfolioResults = document.getElementById("pb-analysis-results");
+    const portfolioError = document.getElementById("pb-analysis-error");
+    const portfolioDone = Boolean(
+      portfolioResults && !portfolioResults.hidden && portfolioResults.childElementCount
+    ) || Boolean(
+      portfolioError && !portfolioError.hidden && portfolioError.textContent.trim()
+    );
+    const portfolioStillLoading = Boolean(portfolioLoading && !portfolioLoading.hidden);
+
     const rankingDone = !rankingBusy && Boolean(ranking?.childElementCount || summary?.childElementCount);
     const stockDone = Boolean(stockScreen && !stockScreen.hidden && stockDetails?.childElementCount && !stockLoading);
-    if (rankingDone || stockDone) hide();
+
+    if (rankingDone || stockDone || (portfolioDone && !portfolioStillLoading)) hide();
   }
 
   function observeCompletion() {
