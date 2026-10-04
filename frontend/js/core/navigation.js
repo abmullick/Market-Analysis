@@ -173,16 +173,19 @@ export function initNavigation() {
         <div class="floating-nav-backdrop" aria-hidden="true"></div>
         <div id="floating-nav-items" class="floating-nav-items" aria-label="Market Analysis tools">
             <div class="floating-nav-heading">Explore Market Analysis</div>
-            ${NAV_ITEMS.map((item, index) => `
+            ${NAV_ITEMS.map((item, index) => {
+                const active = isActive(item.href);
+                const targetAttrs = active ? "" : ' target="_blank" rel="noopener noreferrer"';
+                return `
                 <a href="${item.href}"
-                   class="floating-nav-item${isActive(item.href) ? " active" : ""}"
-                   data-nav-index="${index}"
-                   target="_blank" rel="noopener noreferrer">
+                   class="floating-nav-item${active ? " active" : ""}"
+                   data-nav-index="${index}"${targetAttrs}>
                     <span class="floating-nav-item-icon">${item.icon}</span>
                     <span class="floating-nav-item-label">${item.label}</span>
                     <span class="floating-nav-item-arrow" aria-hidden="true">›</span>
                 </a>
-            `).join("")}
+            `;
+            }).join("")}
         </div>
         <div class="floating-nav-dock">
             <a href="/" class="floating-nav-home${isActive("/") ? " active" : ""}" aria-label="Home" title="Home">
