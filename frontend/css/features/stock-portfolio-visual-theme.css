@@ -1,232 +1,40 @@
-/* Stock Analysis / Compare — isolated visual theme
-   COSMETIC ONLY. No data, layout logic, chart, API, or interaction rules.
-   Scoped entirely under #stock-analysis-content. */
-
-#stock-analysis-content {
-    --sa-card-radius: 18px;
-    --sa-soft-border: rgba(186, 204, 224, 0.72);
-    --sa-soft-shadow: 0 8px 24px rgba(15, 23, 42, 0.055);
-    --sa-deep-shadow: 0 12px 32px rgba(15, 23, 42, 0.075);
-    --sa-navy: #10263d;
-    --sa-blue: #2563eb;
-    --sa-sky: #0ea5e9;
-    --sa-surface: rgba(255,255,255,.98);
-    --sa-tint: rgba(239,248,255,.88);
-}
-
-/* Page header — portfolio-builder-like portal card. */
-#stock-analysis-content > .pb-page-header-text {
-    position: relative;
-    overflow: hidden;
-    padding: 30px 30px 24px;
-    margin: 18px 0 22px;
-    border: 1px solid var(--sa-soft-border);
-    border-radius: 20px;
-    background:
-        radial-gradient(420px 180px at 100% 0%, rgba(14,165,233,.13), transparent 70%),
-        linear-gradient(135deg, var(--sa-surface), var(--sa-tint));
-    box-shadow: var(--sa-soft-shadow);
-}
-
-#stock-analysis-content > .pb-page-header-text::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    background: linear-gradient(180deg, var(--sa-sky), var(--sa-blue));
-    border-radius: 20px 0 0 20px;
-}
-
-#stock-analysis-content > .pb-page-header-text .mf-page-title {
-    position: relative;
-    font-weight: 800;
-    letter-spacing: -.025em;
-}
-
-#stock-analysis-content > .pb-page-header-text .mf-page-subtitle {
-    position: relative;
-    line-height: 1.65;
-}
-
-/* Selection area: same calm card language as Portfolio Builder. */
-#stock-analysis-content .stock-selection-layout {
-    gap: 20px;
-}
-
-#stock-analysis-content .stock-selected-panel,
-#stock-analysis-content .stock-picker-panel {
-    border: 1px solid var(--sa-soft-border);
-    border-radius: var(--sa-card-radius);
-    box-shadow: var(--sa-soft-shadow);
-    background: rgba(255,255,255,.98);
-}
-
-#stock-analysis-content .stock-selected-panel:hover,
-#stock-analysis-content .stock-picker-panel:hover {
-    box-shadow: var(--sa-deep-shadow);
-}
-
-/* Analysis/compare page navigation controls. */
-#stock-analysis-content .stock-back-btn,
-#stock-analysis-content .stock-analyze-btn,
-#stock-analysis-content .stock-page-btn,
-#stock-analysis-content .stock-select-btn,
-#stock-analysis-content .stock-compare-action {
-    border-radius: 999px;
-    font-weight: 650;
-    letter-spacing: .005em;
-}
-
-#stock-analysis-content .stock-analyze-btn,
-#stock-analysis-content .stock-page-btn:not(.stock-secondary-btn),
-#stock-analysis-content .stock-compare-action,
-#stock-analysis-content .stock-select-btn {
-    background: linear-gradient(135deg, #10263d, #183a5d 42%, #2563eb 115%);
-    box-shadow: 0 8px 18px rgba(16,38,61,.18);
-}
-
-#stock-analysis-content .stock-analyze-btn:hover,
-#stock-analysis-content .stock-page-btn:not(.stock-secondary-btn):hover,
-#stock-analysis-content .stock-compare-action:hover,
-#stock-analysis-content .stock-select-btn:hover {
-    filter: brightness(1.04);
-    box-shadow: 0 12px 24px rgba(16,38,61,.22);
-}
-
-/* Generated analysis cards — visual treatment only. */
-#stock-analysis-content #stock-details > * {
-    border-radius: var(--sa-card-radius);
-}
-
-#stock-analysis-content .stock-section,
-#stock-analysis-content .stock-card,
-#stock-analysis-content .stock-analysis-card,
-#stock-analysis-content .stock-comparison-section,
-#stock-analysis-content .stock-comparison-card,
-#stock-analysis-content .stock-comparison-header,
-#stock-analysis-content .stock-summary-card,
-#stock-analysis-content .stock-table-wrap,
-#stock-analysis-content .stock-comparison-table-wrap {
-    border-radius: var(--sa-card-radius);
-}
-
-/* Give major existing analytical sections the same elevated portal-card feel.
-   No dimensions or display behaviour are changed. */
-#stock-analysis-content .stock-comparison-section,
-#stock-analysis-content .stock-analysis-card,
-#stock-analysis-content .stock-summary-card,
-#stock-analysis-content .stock-section {
-    border-color: var(--sa-soft-border);
-    box-shadow: var(--sa-soft-shadow);
-}
-
-/* Comparison header gets a richer but restrained hero treatment. */
-#stock-analysis-content .stock-comparison-header {
-    position: relative;
-    overflow: hidden;
-    background:
-        radial-gradient(340px 150px at 100% 0%, rgba(37,99,235,.12), transparent 72%),
-        linear-gradient(135deg, rgba(255,255,255,.99), rgba(239,248,255,.92));
-    border: 1px solid var(--sa-soft-border);
-    box-shadow: var(--sa-soft-shadow);
-}
-
-#stock-analysis-content .stock-comparison-header::after {
-    content: "";
-    position: absolute;
-    width: 240px;
-    height: 140px;
-    right: -90px;
-    top: -80px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(14,165,233,.13), transparent 68%);
-    pointer-events: none;
-}
-
-/* Existing collapsible historical cards: keep their structure and controls,
-   only enrich the visual surface. */
-#stock-analysis-content .stock-pedigree-trends-card,
-#stock-analysis-content .stock-growth-valuation-card,
-#stock-analysis-content .stock-quality-analysis-card,
-#stock-analysis-content .stock-quality-collapsible-card,
-#stock-analysis-content .stock-pedigree-collapsible-card {
-    border-radius: 20px;
-    border: 1px solid var(--sa-soft-border);
-    box-shadow: var(--sa-soft-shadow);
-    overflow: hidden;
-}
-
-#stock-analysis-content .stock-pedigree-trends-card-header,
-#stock-analysis-content .stock-growth-valuation-card-header,
-#stock-analysis-content .stock-quality-collapsible-card-header,
-#stock-analysis-content .stock-pedigree-collapsible-card-header {
-    background:
-        radial-gradient(360px 150px at 100% 0%, rgba(14,165,233,.11), transparent 72%),
-        linear-gradient(135deg, rgba(255,255,255,.99), rgba(239,248,255,.90));
-}
-
-/* Chart/table containers: same rounded portal treatment without changing
-   canvas dimensions or chart configuration. */
-#stock-analysis-content .stock-chart-card,
-#stock-analysis-content .stock-trend-card,
-#stock-analysis-content .stock-pedigree-chart,
-#stock-analysis-content .stock-trends-card,
-#stock-analysis-content .stock-valuation-card {
-    border-radius: 16px;
-    border-color: rgba(186,204,224,.65);
-    box-shadow: 0 4px 14px rgba(15,23,42,.045);
-}
-
-#stock-analysis-content .stock-table-wrap,
-#stock-analysis-content .stock-comparison-table-wrap {
-    border: 1px solid rgba(186,204,224,.72);
-    box-shadow: 0 5px 18px rgba(15,23,42,.045);
-    overflow: hidden;
-}
-
-#stock-analysis-content .stock-table th {
-    background: linear-gradient(180deg, #edf5fb, #e7f0f8);
-    color: var(--sa-navy);
-}
-
-/* Status/info blocks: polished surface, same information preserved. */
-#stock-analysis-content .stock-analysis-status,
-#stock-analysis-content .stock-data-note,
-#stock-analysis-content .stock-info-note {
-    border-radius: 14px;
-}
-
-/* Compare tabs/pills. */
-#stock-analysis-content .stock-tab {
-    border-radius: 999px;
-    transition: box-shadow .2s ease, transform .2s ease, background .2s ease;
-}
-
-#stock-analysis-content .stock-tab.active {
-    background: linear-gradient(135deg, #10263d, #2563eb);
-    box-shadow: 0 5px 14px rgba(37,99,235,.18);
-}
-
-/* Keep focus visible and consistent with the existing design system. */
-#stock-analysis-content :is(button, a, input, select):focus-visible {
-    outline: 3px solid rgba(14,165,233,.22);
-    outline-offset: 2px;
-}
-
-/* Mobile: cosmetic spacing only. */
-@media (max-width: 700px) {
-    #stock-analysis-content > .pb-page-header-text {
-        padding: 22px 20px 18px;
-        border-radius: 16px;
-    }
-
-    #stock-analysis-content .stock-comparison-header,
-    #stock-analysis-content .stock-pedigree-trends-card,
-    #stock-analysis-content .stock-growth-valuation-card,
-    #stock-analysis-content .stock-quality-collapsible-card,
-    #stock-analysis-content .stock-pedigree-collapsible-card {
-        border-radius: 16px;
-    }
-}
+/* Stock Analysis / Compare — Portfolio Builder visual theme.
+   COSMETIC ONLY: no data, API, chart, navigation or business logic. */
+#stock-analysis-content{--sa-navy:#10263d;--sa-blue:#2563eb;--sa-sky:#0ea5e9;--sa-border:rgba(178,201,222,.72);--sa-card:rgba(255,255,255,.97);--sa-shadow:0 10px 28px rgba(15,23,42,.065);--sa-shadow-hover:0 16px 38px rgba(15,23,42,.105);--sa-radius:20px}
+#stock-analysis-content{position:relative}
+#stock-analysis-content::before{content:"";position:absolute;z-index:-1;left:-18vw;right:-18vw;top:-30px;height:430px;background:radial-gradient(circle at 20% 20%,rgba(14,165,233,.10),transparent 30%),radial-gradient(circle at 82% 12%,rgba(37,99,235,.10),transparent 28%),linear-gradient(180deg,rgba(239,248,255,.72),rgba(255,255,255,0));pointer-events:none}
+#stock-analysis-content>.pb-page-header-text{position:relative;overflow:hidden;margin:20px 0 26px;padding:34px 36px 30px;border:1px solid var(--sa-border);border-radius:24px;background:radial-gradient(420px 180px at 100% 0,rgba(14,165,233,.18),transparent 70%),linear-gradient(135deg,#fff 0%,#f6fbff 55%,#edf7ff 100%);box-shadow:0 14px 38px rgba(15,23,42,.075)}
+#stock-analysis-content>.pb-page-header-text::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(180deg,#0ea5e9,#2563eb,#10263d)}
+#stock-analysis-content>.pb-page-header-text::after{content:"";position:absolute;right:-75px;top:-105px;width:260px;height:260px;border-radius:50%;border:34px solid rgba(14,165,233,.055);box-shadow:0 0 0 22px rgba(37,99,235,.035),0 0 0 56px rgba(14,165,233,.025);pointer-events:none}
+#stock-analysis-content>.pb-page-header-text .mf-page-title{position:relative;font-size:30px;font-weight:850;letter-spacing:-.035em;color:var(--sa-navy);margin-bottom:8px}
+#stock-analysis-content>.pb-page-header-text .mf-page-subtitle{position:relative;max-width:980px;font-size:14px;line-height:1.7;color:#526579}
+#stock-analysis-content .stock-selection-layout{gap:24px;margin-top:20px}
+#stock-analysis-content .stock-selected-panel,#stock-analysis-content .stock-picker-panel{border:1px solid var(--sa-border);border-radius:var(--sa-radius);background:var(--sa-card);box-shadow:var(--sa-shadow);overflow:hidden}
+#stock-analysis-content .stock-selected-panel::before,#stock-analysis-content .stock-picker-panel::before{content:"";display:block;height:3px;background:linear-gradient(90deg,#0ea5e9,#2563eb,#10263d)}
+#stock-analysis-content .stock-selected-panel:hover,#stock-analysis-content .stock-picker-panel:hover{box-shadow:var(--sa-shadow-hover)}
+#stock-analysis-content .stock-analyze-btn,#stock-analysis-content .stock-page-btn,#stock-analysis-content .stock-select-btn,#stock-analysis-content .stock-back-btn,#stock-analysis-content .stock-compare-action{border-radius:12px;font-weight:750;box-shadow:0 7px 17px rgba(16,38,61,.14);transition:transform .18s ease,box-shadow .18s ease,filter .18s ease}
+#stock-analysis-content .stock-analyze-btn,#stock-analysis-content .stock-page-btn:not(.stock-secondary-btn),#stock-analysis-content .stock-compare-action,#stock-analysis-content .stock-select-btn{background:linear-gradient(135deg,#10263d 0%,#183a5d 48%,#2563eb 120%)}
+#stock-analysis-content .stock-analyze-btn:hover:not(:disabled),#stock-analysis-content .stock-page-btn:not(.stock-secondary-btn):hover:not(:disabled),#stock-analysis-content .stock-compare-action:hover:not(:disabled),#stock-analysis-content .stock-select-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 11px 24px rgba(16,38,61,.21);filter:brightness(1.04)}
+#stock-analysis-content #stock-details{display:grid;gap:22px}
+#stock-analysis-content #stock-details>section,#stock-analysis-content #stock-details>.stock-section,#stock-analysis-content #stock-details>.stock-card,#stock-analysis-content #stock-details>.stock-analysis-card,#stock-analysis-content #stock-details>.stock-summary-card{border-radius:var(--sa-radius);border-color:var(--sa-border);box-shadow:var(--sa-shadow);background:var(--sa-card)}
+#stock-analysis-content .stock-hero{position:relative;overflow:hidden;border:1px solid var(--sa-border);border-radius:24px;background:radial-gradient(420px 220px at 100% 0,rgba(14,165,233,.16),transparent 68%),linear-gradient(135deg,#10263d,#183a5d 48%,#2563eb 135%);box-shadow:0 16px 38px rgba(16,38,61,.16);color:#fff}
+#stock-analysis-content .stock-hero h1{letter-spacing:-.035em}
+#stock-analysis-content .stock-summary-grid{gap:14px}
+#stock-analysis-content .stock-metric-card{border:1px solid rgba(178,201,222,.65);border-radius:15px;background:linear-gradient(145deg,#fff,#f5faff);box-shadow:0 5px 15px rgba(15,23,42,.045);transition:transform .18s ease,box-shadow .18s ease}
+#stock-analysis-content .stock-metric-card:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(15,23,42,.075)}
+#stock-analysis-content .stock-section,#stock-analysis-content .stock-comparison-section,#stock-analysis-content .stock-comparison-card,#stock-analysis-content .stock-analysis-card{overflow:hidden}
+#stock-analysis-content .stock-section-header{background:linear-gradient(135deg,#f8fcff,#edf6fc);border-bottom:1px solid rgba(178,201,222,.58)}
+#stock-analysis-content .stock-section-header h2{color:var(--sa-navy);font-weight:800;letter-spacing:-.018em}
+#stock-analysis-content .stock-comparison-header{position:relative;overflow:hidden;border:1px solid var(--sa-border);border-radius:24px;background:radial-gradient(420px 190px at 100% 0,rgba(14,165,233,.17),transparent 70%),linear-gradient(135deg,#fff,#eef8ff);box-shadow:0 14px 34px rgba(15,23,42,.075)}
+#stock-analysis-content .stock-comparison-header::after{content:"";position:absolute;right:-80px;top:-100px;width:270px;height:270px;border-radius:50%;border:38px solid rgba(37,99,235,.045);box-shadow:0 0 0 24px rgba(14,165,233,.035),0 0 0 62px rgba(37,99,235,.025);pointer-events:none}
+#stock-analysis-content .stock-comparison-section,#stock-analysis-content .stock-comparison-card{border:1px solid var(--sa-border);box-shadow:var(--sa-shadow);background:var(--sa-card)}
+#stock-analysis-content .stock-pedigree-trends-card,#stock-analysis-content .stock-growth-valuation-card,#stock-analysis-content .stock-quality-analysis-card,#stock-analysis-content .stock-quality-collapsible-card,#stock-analysis-content .stock-pedigree-collapsible-card{border-radius:22px;border:1px solid var(--sa-border);box-shadow:var(--sa-shadow);overflow:hidden;background:var(--sa-card)}
+#stock-analysis-content .stock-pedigree-trends-card-header,#stock-analysis-content .stock-growth-valuation-card-header,#stock-analysis-content .stock-quality-collapsible-card-header,#stock-analysis-content .stock-pedigree-collapsible-card-header{background:radial-gradient(360px 160px at 100% 0,rgba(14,165,233,.13),transparent 72%),linear-gradient(135deg,#fff,#eef8ff);border-bottom:1px solid rgba(178,201,222,.58)}
+#stock-analysis-content .stock-chart-card,#stock-analysis-content .stock-trend-card,#stock-analysis-content .stock-pedigree-chart,#stock-analysis-content .stock-trends-card,#stock-analysis-content .stock-valuation-card{border-radius:17px;border:1px solid rgba(178,201,222,.62);box-shadow:0 5px 17px rgba(15,23,42,.05);background:#fff}
+#stock-analysis-content .stock-table-wrap,#stock-analysis-content .stock-comparison-table-wrap{border:1px solid var(--sa-border);border-radius:17px;box-shadow:0 7px 20px rgba(15,23,42,.05);overflow:hidden;background:#fff}
+#stock-analysis-content .stock-table th{background:linear-gradient(180deg,#edf6fc,#e4eff8);color:var(--sa-navy);font-weight:800}
+#stock-analysis-content .stock-tab{border-radius:999px;font-weight:700}
+#stock-analysis-content .stock-tab.active{background:linear-gradient(135deg,#10263d,#2563eb);box-shadow:0 6px 16px rgba(37,99,235,.2)}
+#stock-analysis-content .stock-analysis-status,#stock-analysis-content .stock-data-note,#stock-analysis-content .stock-info-note{border-radius:14px}
+#stock-analysis-content :is(button,a,input,select):focus-visible{outline:3px solid rgba(14,165,233,.24);outline-offset:2px}
+@media(max-width:700px){#stock-analysis-content>.pb-page-header-text{padding:24px 20px 20px;border-radius:18px}#stock-analysis-content>.pb-page-header-text .mf-page-title{font-size:25px}#stock-analysis-content .stock-hero,#stock-analysis-content .stock-comparison-header{border-radius:18px}#stock-analysis-content .stock-pedigree-trends-card,#stock-analysis-content .stock-growth-valuation-card,#stock-analysis-content .stock-quality-analysis-card,#stock-analysis-content .stock-quality-collapsible-card,#stock-analysis-content .stock-pedigree-collapsible-card{border-radius:18px}}
