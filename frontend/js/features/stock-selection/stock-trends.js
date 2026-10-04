@@ -21,6 +21,11 @@ function chartCard(id, title, subtitle) {
   return `<div class="stock-chart-card"><h3>${esc(title)}</h3><small>${esc(subtitle)}</small><canvas id="${esc(id)}" class="stock-chart-canvas"></canvas></div>`;
 }
 
+function showChartEmpty(canvas, title = "No historical data available", detail = "Historical observations for this metric are not available for this company, so there is no meaningful trend to display.") {
+  if (!canvas?.parentElement) return;
+  canvas.parentElement.innerHTML = `<div class="stock-chart-no-data"><div class="stock-chart-no-data-inner"><div class="stock-chart-no-data-icon">—</div><strong>${esc(title)}</strong><p>${esc(detail)}</p><span class="stock-chart-no-data-badge">Data unavailable</span></div></div>`;
+}
+
 function commonChartOptions(suffix = "%", xAxisLabel = "Financial year", yAxisLabel = "Percent") {
   return {
     responsive: true,
@@ -31,16 +36,8 @@ function commonChartOptions(suffix = "%", xAxisLabel = "Financial year", yAxisLa
       tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y, suffix)}` } },
     },
     scales: {
-      x: {
-        title: { display: true, text: xAxisLabel, color: "#475569", font: { size: 10, weight: "600" } },
-        grid: { display: false },
-        ticks: { font: { size: 9 }, color: "#64748b" },
-      },
-      y: {
-        title: { display: true, text: yAxisLabel, color: "#475569", font: { size: 10, weight: "600" } },
-        grid: { color: "#edf2f7" },
-        ticks: { font: { size: 9 }, color: "#64748b", callback: (v) => `${v}${suffix}` },
-      },
+      x: { title: { display: true, text: xAxisLabel, color: "#475569", font: { size: 10, weight: "600" } }, grid: { display: false }, ticks: { font: { size: 9 }, color: "#64748b" } },
+      y: { title: { display: true, text: yAxisLabel, color: "#475569", font: { size: 10, weight: "600" } }, grid: { color: "#edf2f7" }, ticks: { font: { size: 9 }, color: "#64748b", callback: (v) => `${v}${suffix}` } },
     },
   };
 }
@@ -48,9 +45,11 @@ function commonChartOptions(suffix = "%", xAxisLabel = "Financial year", yAxisLa
 function drawSingleChart(canvasId, series, label, color = PALETTE[0], suffix = "%", yLabel = "Percent") {
   if (typeof Chart === "undefined") return;
   const canvas = document.getElementById(canvasId);
-  if (!canvas || !series?.length) return;
+  if (!canvas) return;
+  if (!series?.length) { showChartEmpty(canvas); return; }
   const labels = series.map((x) => x.year);
   const data = series.map((x) => x.value);
+  if (!labels.length || !data.some((value) => Number.isFinite(Number(value)))) { showChartEmpty(canvas); return; }
   new Chart(canvas, {
     type: "line",
     data: { labels, datasets: [{ label, data, borderColor: color, backgroundColor: `${color}18`, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, tension: .25, spanGaps: true, fill: true }] },
@@ -62,53 +61,28 @@ function drawPriceChart(canvasId, charts) {
   if (typeof Chart === "undefined") return;
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
-
-  // Screener provides the authoritative 1Y/3Y/5Y/10Y price CAGR figures.
-  // Use the rolling Yahoo series only as a fallback when those figures are unavailable.
   const screener = charts.price_cagr || [];
   if (screener.length) {
-    new Chart(canvas, {
-      type: "bar",
-      data: {
-        labels: screener.map((x) => x.year),
-        datasets: [{ label: "Price CAGR", data: screener.map((x) => x.value), backgroundColor: PALETTE[0] }],
-      },
-      options: commonChartOptions("%", "Period", "CAGR (%)"),
-    });
+    new Chart(canvas, { type: "bar", data: { labels: screener.map((x) => x.year), datasets: [{ label: "Price CAGR", data: screener.map((x) => x.value), backgroundColor: PALETTE[0] }] }, options: commonChartOptions("%", "Period", "CAGR (%)") });
     return;
   }
-
   const all = [...(charts.price_cagr_3y || []), ...(charts.price_cagr_5y || [])];
-  if (!all.length) return;
+  if (!all.length) { showChartEmpty(canvas); return; }
   const labels = [...new Set(all.map((x) => x.year))].sort();
+  if (!labels.length) { showChartEmpty(canvas); return; }
   const map = (series) => Object.fromEntries((series || []).map((x) => [x.year, x.value]));
-  const a = map(charts.price_cagr_3y);
-  const b = map(charts.price_cagr_5y);
-  new Chart(canvas, {
-    type: "line",
-    data: { labels, datasets: [
-      { label: "3Y Price CAGR", data: labels.map((y) => a[y] ?? null), borderColor: PALETTE[0], backgroundColor: `${PALETTE[0]}12`, borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true },
-      { label: "5Y Price CAGR", data: labels.map((y) => b[y] ?? null), borderColor: PALETTE[2], backgroundColor: `${PALETTE[2]}10`, borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true },
-    ] },
-    options: commonChartOptions("%", "Year", "CAGR (%)"),
-  });
+  const a = map(charts.price_cagr_3y); const b = map(charts.price_cagr_5y);
+  new Chart(canvas, { type: "line", data: { labels, datasets: [
+    { label: "3Y Price CAGR", data: labels.map((y) => a[y] ?? null), borderColor: PALETTE[0], backgroundColor: `${PALETTE[0]}12`, borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true },
+    { label: "5Y Price CAGR", data: labels.map((y) => b[y] ?? null), borderColor: PALETTE[2], backgroundColor: `${PALETTE[2]}10`, borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true },
+  ] }, options: commonChartOptions("%", "Year", "CAGR (%)") });
 }
 
 function renderTrendSection(details, charts, comparison = false, names = []) {
   const prefix = comparison ? "compare" : "stock";
   const section = document.createElement("section");
   section.className = comparison ? "stock-trends-section stock-comparison-trends" : "stock-trends-section";
-  section.innerHTML = `
-    <div class="stock-trends-header">
-      <div><h2>Historical Growth & Return Trends</h2>
-      <p>${comparison ? "Compare the trajectory of earnings, revenue, ROE and market-price CAGR across the selected stocks." : "Historical trends complement the current ratios: growth quality, return on equity and the price paid for that growth."}</p></div>
-    </div>
-    <div class="stock-trends-grid">
-      ${chartCard(`${prefix}-eps-growth`, "EPS Growth", "Annual year-over-year EPS growth")}
-      ${chartCard(`${prefix}-revenue-growth`, "Revenue Growth", "Annual year-over-year revenue growth")}
-      ${chartCard(`${prefix}-roe-trend`, "ROE Trend", "Derived annual ROE using average equity")}
-      ${chartCard(`${prefix}-price-cagr`, "Price Growth (CAGR)", "1Y, 3Y, 5Y and 10Y annualised price growth")}
-    </div>`;
+  section.innerHTML = `<div class="stock-trends-header"><div><h2>Historical Growth & Return Trends</h2><p>${comparison ? "Compare the trajectory of earnings, revenue, ROE and market-price CAGR across the selected stocks." : "Historical trends complement the current ratios: growth quality, return on equity and the price paid for that growth."}</p></div></div><div class="stock-trends-grid">${chartCard(`${prefix}-eps-growth`, "EPS Growth", "Annual year-over-year EPS growth")}${chartCard(`${prefix}-revenue-growth`, "Revenue Growth", "Annual year-over-year revenue growth")}${chartCard(`${prefix}-roe-trend`, "ROE Trend", "Derived annual ROE using average equity")}${chartCard(`${prefix}-price-cagr`, "Price Growth (CAGR)", "1Y, 3Y, 5Y and 10Y annualised price growth")}</div>`;
   details.appendChild(section);
 
   if (!comparison) {
@@ -119,27 +93,14 @@ function renderTrendSection(details, charts, comparison = false, names = []) {
     return;
   }
 
-  const datasetsFor = (key) => names.map((name, index) => ({
-    label: name,
-    data: Object.fromEntries((charts[index]?.[key] || []).map((x) => [x.year, x.value])),
-    color: PALETTE[index % PALETTE.length],
-  }));
-
-  [
-    ["compare-eps-growth", "eps_growth", "EPS growth"],
-    ["compare-revenue-growth", "revenue_growth", "Revenue growth"],
-    ["compare-roe-trend", "roe_trend", "ROE"],
-  ].forEach(([id, key, label]) => {
-    const canvas = document.getElementById(id);
-    if (!canvas) return;
-    const rows = datasetsFor(key);
-    const labels = [...new Set(rows.flatMap((r) => Object.keys(r.data)))].sort();
-    if (!labels.length) return;
-    new Chart(canvas, {
-      type: "line",
-      data: { labels, datasets: rows.map((r) => ({ label: r.label, data: labels.map((y) => r.data[y] ?? null), borderColor: r.color, backgroundColor: `${r.color}12`, borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true })) },
-      options: commonChartOptions("%", "Financial year", label === "ROE" ? "ROE (%)" : "Growth (%)"),
-    });
+  const datasetsFor = (key) => names.map((name, index) => ({ label: name, data: Object.fromEntries((charts[index]?.[key] || []).map((x) => [x.year, x.value])), color: PALETTE[index % PALETTE.length] }));
+  [["compare-eps-growth", "eps_growth", "EPS growth"], ["compare-revenue-growth", "revenue_growth", "Revenue growth"], ["compare-roe-trend", "roe_trend", "ROE"]].forEach(([id, key, label]) => {
+    const canvas = document.getElementById(id); if (!canvas) return;
+    const rows = datasetsFor(key); const labels = [...new Set(rows.flatMap((r) => Object.keys(r.data)))].sort();
+    if (!labels.length) { showChartEmpty(canvas); return; }
+    const values = rows.flatMap((r) => Object.values(r.data)).filter((v) => Number.isFinite(Number(v)));
+    if (!values.length) { showChartEmpty(canvas); return; }
+    new Chart(canvas, { type: "line", data: { labels, datasets: rows.map((r) => ({ label: r.label, data: labels.map((y) => r.data[y] ?? null), borderColor: r.color, backgroundColor: `${r.color}12`, borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true })) }, options: commonChartOptions("%", "Financial year", label === "ROE" ? "ROE (%)" : "Growth (%)") });
   });
 
   const canvas = document.getElementById("compare-price-cagr");
@@ -147,18 +108,16 @@ function renderTrendSection(details, charts, comparison = false, names = []) {
     const hasScreener = charts.some((c) => (c?.price_cagr || []).length);
     if (hasScreener) {
       const periods = ["1Y", "3Y", "5Y", "10Y"];
-      const datasets = names.map((name, index) => {
-        const values = Object.fromEntries((charts[index]?.price_cagr || []).map((x) => [x.year, x.value]));
-        return { label: name, data: periods.map((p) => values[p] ?? null), backgroundColor: PALETTE[index % PALETTE.length] };
-      });
-      new Chart(canvas, {
-        type: "bar",
-        data: { labels: periods, datasets },
-        options: commonChartOptions("%", "Period", "CAGR (%)"),
-      });
+      const datasets = names.map((name, index) => { const values = Object.fromEntries((charts[index]?.price_cagr || []).map((x) => [x.year, x.value])); return { label: name, data: periods.map((p) => values[p] ?? null), backgroundColor: PALETTE[index % PALETTE.length] }; });
+      const values = datasets.flatMap((d) => d.data).filter((v) => Number.isFinite(Number(v)));
+      if (!values.length) { showChartEmpty(canvas); return; }
+      new Chart(canvas, { type: "bar", data: { labels: periods, datasets }, options: commonChartOptions("%", "Period", "CAGR (%)") });
     } else {
       const rows = names.map((name, index) => ({ name, c3: Object.fromEntries((charts[index]?.price_cagr_3y || []).map((x) => [x.year, x.value])), c5: Object.fromEntries((charts[index]?.price_cagr_5y || []).map((x) => [x.year, x.value])), color: PALETTE[index % PALETTE.length] }));
       const labels = [...new Set(rows.flatMap((r) => [...Object.keys(r.c3), ...Object.keys(r.c5)]))].sort();
+      if (!labels.length) { showChartEmpty(canvas); return; }
+      const values = rows.flatMap((r) => [...Object.values(r.c3), ...Object.values(r.c5)]).filter((v) => Number.isFinite(Number(v)));
+      if (!values.length) { showChartEmpty(canvas); return; }
       new Chart(canvas, { type: "line", data: { labels, datasets: rows.flatMap((r) => [
         { label: `${r.name} · 3Y`, data: labels.map((y) => r.c3[y] ?? null), borderColor: r.color, borderWidth: 2, pointRadius: 2, tension: .25, spanGaps: true },
         { label: `${r.name} · 5Y`, data: labels.map((y) => r.c5[y] ?? null), borderColor: r.color, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 2, tension: .25, spanGaps: true },
@@ -167,101 +126,41 @@ function renderTrendSection(details, charts, comparison = false, names = []) {
   }
 }
 
-function ratioCard(label, value, suffix = "", negative = false) {
-  return `<div class="stock-ratio-card ${negative ? "is-negative" : ""}"><span>${esc(label)}</span><strong>${esc(fmt(value, suffix))}</strong></div>`;
-}
+function ratioCard(label, value, suffix = "", negative = false) { return `<div class="stock-ratio-card ${negative ? "is-negative" : ""}"><span>${esc(label)}</span><strong>${esc(fmt(value, suffix))}</strong></div>`; }
 
 function renderExtendedSingle(details, f) {
   if (details.querySelector(".stock-extended-section")) return;
   const financial = String(f.sector || "").toLowerCase() === "financial services";
-  const section = document.createElement("section");
-  section.className = "stock-extended-section";
-  section.innerHTML = `
-    <div class="stock-extended-header"><h2>Core Fundamental Cross-Checks</h2><p>${financial ? "Financial-sector lens: combine P/B + P/E with ROE and ROA; leverage and conventional FCF need sector context." : "Non-financial lens: combine earnings growth and P/E with ROE/ROCE, leverage, cash conversion and free cash flow."}</p></div>
-    <div class="stock-ratio-grid">
-      ${ratioCard("ROCE", f.roce, "%")}
-      ${ratioCard("FCF Margin", f.fcf_margin, "%", Number(f.fcf_margin) < 0)}
-      ${ratioCard("CFO / Net Profit", f.cash_conversion, "%", Number(f.cash_conversion) < 0)}
-      ${ratioCard("Net Debt", f.net_debt, f.currency === "INR" ? " ₹" : "")}
-      ${ratioCard("Net Debt / EBITDA", financial ? null : f.net_debt_ebitda, "x")}
-      ${ratioCard("Debt / Equity", f.debt_equity, "x")}
-      ${ratioCard("P/E", f.pe, "x")}
-      ${ratioCard("P/B", f.pb, "x")}
-    </div>
-    <div class="stock-ratio-note">Use these metrics together rather than in isolation. For lenders, P/B and returns on equity/assets are central; for industrial and service businesses, P/E, ROCE, leverage and cash conversion provide a more complete cross-check.</div>`;
-  details.appendChild(section);
-  details.appendChild(document.createElement("div"));
+  const section = document.createElement("section"); section.className = "stock-extended-section";
+  section.innerHTML = `<div class="stock-extended-header"><h2>Core Fundamental Cross-Checks</h2><p>${financial ? "Financial-sector lens: combine P/B + P/E with ROE and ROA; leverage and conventional FCF need sector context." : "Non-financial lens: combine earnings growth and P/E with ROE/ROCE, leverage, cash conversion and free cash flow."}</p></div><div class="stock-ratio-grid">${ratioCard("ROCE", f.roce, "%")}${ratioCard("FCF Margin", f.fcf_margin, "%", Number(f.fcf_margin) < 0)}${ratioCard("CFO / Net Profit", f.cash_conversion, "%", Number(f.cash_conversion) < 0)}${ratioCard("Net Debt", f.net_debt, f.currency === "INR" ? " ₹" : "")}${ratioCard("Net Debt / EBITDA", financial ? null : f.net_debt_ebitda, "x")}${ratioCard("Debt / Equity", f.debt_equity, "x")}${ratioCard("P/E", f.pe, "x")}${ratioCard("P/B", f.pb, "x")}</div><div class="stock-ratio-note">Use these metrics together rather than in isolation. For lenders, P/B and returns on equity/assets are central; for industrial and service businesses, P/E, ROCE, leverage and cash conversion provide a more complete cross-check.</div>`;
+  details.appendChild(section); details.appendChild(document.createElement("div"));
 }
 
 function renderExtendedCompare(details, fs) {
   if (details.querySelector(".stock-extended-compare")) return;
-  const keys = [
-    ["ROCE", "roce", "%"], ["FCF Margin", "fcf_margin", "%"], ["CFO / Net Profit", "cash_conversion", "%"],
-    ["Net Debt / EBITDA", "net_debt_ebitda", "x"], ["Debt / Equity", "debt_equity", "x"], ["P/E", "pe", "x"], ["P/B", "pb", "x"], ["PEG", "peg", "x"],
-  ];
+  const keys = [["ROCE", "roce", "%"], ["FCF Margin", "fcf_margin", "%"], ["CFO / Net Profit", "cash_conversion", "%"], ["Net Debt / EBITDA", "net_debt_ebitda", "x"], ["Debt / Equity", "debt_equity", "x"], ["P/E", "pe", "x"], ["P/B", "pb", "x"], ["PEG", "peg", "x"]];
   const table = document.createElement("div"); table.className = "stock-extended-compare";
   const direction = { roce: "high", fcf_margin: "high", cash_conversion: "high", net_debt_ebitda: "low", debt_equity: "low", pe: "low", pb: "low", peg: "low" };
-  const val = (f, k, suffix) => {
-    if (f[k] == null || !Number.isFinite(Number(f[k]))) return "—";
-    return `${fmt(f[k])}${suffix}`;
-  };
-  const rows = keys.map(([label, key, suffix]) => {
-    const values = fs.map((f) => Number(f[key])).filter(Number.isFinite);
-    const best = values.length > 1 ? (direction[key] === "high" ? Math.max(...values) : Math.min(...values)) : null;
-    return `<tr><td>${esc(label)}</td>${fs.map((f) => {
-      const n = Number(f[key]);
-      const cls = best != null && Number.isFinite(n) && n === best ? "good" : Number.isFinite(n) && ["fcf_margin", "cash_conversion"].includes(key) && n < 0 ? "bad" : "";
-      return `<td class="${cls}">${esc(val(f, key, suffix))}</td>`;
-    }).join("")}</tr>`;
-  }).join("");
-  table.innerHTML = `<table><thead><tr><th>Additional Ratio</th>${fs.map((f) => `<th>${esc(f.name || f.symbol)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`;
-  details.appendChild(table);
+  const val = (f, k, suffix) => f[k] == null || !Number.isFinite(Number(f[k])) ? "—" : `${fmt(f[k])}${suffix}`;
+  const rows = keys.map(([label, key, suffix]) => { const values = fs.map((f) => Number(f[key])).filter(Number.isFinite); const best = values.length > 1 ? (direction[key] === "high" ? Math.max(...values) : Math.min(...values)) : null; return `<tr><td>${esc(label)}</td>${fs.map((f) => { const n = Number(f[key]); const cls = best != null && Number.isFinite(n) && n === best ? "good" : Number.isFinite(n) && ["fcf_margin", "cash_conversion"].includes(key) && n < 0 ? "bad" : ""; return `<td class="${cls}">${esc(val(f, key, suffix))}</td>`; }).join("")}</tr>`; }).join("");
+  table.innerHTML = `<table><thead><tr><th>Additional Ratio</th>${fs.map((f) => `<th>${esc(f.name || f.symbol)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`; details.appendChild(table);
 }
 
 async function renderIndividual(symbol, details) {
-  try {
-    const [analysis, trend] = await Promise.all([
-      getJson(`${STOCK_API}/${encodeURIComponent(symbol)}`),
-      getJson(`${STOCK_API}/${encodeURIComponent(symbol)}/charts`),
-    ]);
-    renderExtendedSingle(details, analysis.fundamentals || {});
-    renderTrendSection(details, trend.charts || {});
-  } catch (error) {
-    console.warn("Stock trend panels unavailable:", error);
-  }
+  try { const [analysis, trend] = await Promise.all([getJson(`${STOCK_API}/${encodeURIComponent(symbol)}`), getJson(`${STOCK_API}/${encodeURIComponent(symbol)}/charts`)]); renderExtendedSingle(details, analysis.fundamentals || {}); renderTrendSection(details, trend.charts || {}); }
+  catch (error) { console.warn("Stock trend panels unavailable:", error); }
 }
 
 async function renderComparison(symbols, details) {
-  try {
-    const [analyses, trends] = await Promise.all([
-      Promise.all(symbols.map((s) => getJson(`${STOCK_API}/${encodeURIComponent(s)}`))),
-      Promise.all(symbols.map((s) => getJson(`${STOCK_API}/${encodeURIComponent(s)}/charts`))),
-    ]);
-    const fs = analyses.map((x) => x.fundamentals || {});
-    renderExtendedCompare(details, fs);
-    renderTrendSection(details, trends.map((x) => x.charts || {}), true, fs.map((f) => f.name || f.symbol));
-  } catch (error) {
-    console.warn("Stock comparison trend panels unavailable:", error);
-  }
+  try { const [analyses, trends] = await Promise.all([Promise.all(symbols.map((s) => getJson(`${STOCK_API}/${encodeURIComponent(s)}`))), Promise.all(symbols.map((s) => getJson(`${STOCK_API}/${encodeURIComponent(s)}/charts`)))]); const fs = analyses.map((x) => x.fundamentals || {}); renderExtendedCompare(details, fs); renderTrendSection(details, trends.map((x) => x.charts || {}), true, fs.map((f) => f.name || f.symbol)); }
+  catch (error) { console.warn("Stock comparison trend panels unavailable:", error); }
 }
 
 function init() {
-  const details = document.getElementById("stock-details");
-  if (!details) return;
+  const details = document.getElementById("stock-details"); if (!details) return;
   let lastKey = "";
-  const render = () => {
-    const params = new URLSearchParams(location.search);
-    const symbol = params.get("symbol");
-    const compare = params.get("compare");
-    const key = symbol ? `symbol:${symbol}` : compare ? `compare:${compare}` : "";
-    if (!key || key === lastKey || !details.children.length) return;
-    lastKey = key;
-    if (symbol) renderIndividual(symbol.trim().toUpperCase(), details);
-    else if (compare) renderComparison(compare.split(",").map((x) => decodeURIComponent(x).trim().toUpperCase()).filter(Boolean).slice(0, 4), details);
-  };
-  new MutationObserver(render).observe(details, { childList: true, subtree: true });
-  addEventListener("popstate", () => { lastKey = ""; setTimeout(render, 50); });
-  setTimeout(render, 250);
+  const render = () => { const params = new URLSearchParams(location.search); const symbol = params.get("symbol"); const compare = params.get("compare"); const key = symbol ? `symbol:${symbol}` : compare ? `compare:${compare}` : ""; if (!key || key === lastKey || !details.children.length) return; lastKey = key; if (symbol) renderIndividual(symbol.trim().toUpperCase(), details); else if (compare) renderComparison(compare.split(",").map((x) => decodeURIComponent(x).trim().toUpperCase()).filter(Boolean).slice(0, 4), details); };
+  new MutationObserver(render).observe(details, { childList: true, subtree: true }); addEventListener("popstate", () => { lastKey = ""; setTimeout(render, 50); }); setTimeout(render, 250);
 }
 
 init();
