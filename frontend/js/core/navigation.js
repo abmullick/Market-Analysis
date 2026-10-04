@@ -1,11 +1,11 @@
-const MARKET_ANALYSIS_FAVICON = "/static/images/favicon.ico";
-const MARKET_ANALYSIS_LOGO = "/static/images/hero-market-analysis.png?v=20261005";
+const MARKET_ANALYSIS_FAVICON = "/static/images/hero-market-analysis.png?v=20261005";
+const MARKET_ANALYSIS_LOGO = MARKET_ANALYSIS_FAVICON;
 
 function setMarketAnalysisFavicon() {
     document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').forEach((link) => link.remove());
     const favicon = document.createElement("link");
     favicon.rel = "icon";
-    favicon.type = "image/x-icon";
+    favicon.type = "image/png";
     favicon.href = MARKET_ANALYSIS_FAVICON;
     document.head.appendChild(favicon);
 }
@@ -23,7 +23,7 @@ function normalizeStockPortfolioHeader() {
     if (!header || header.dataset.stockHeaderNormalized === "1") return;
     header.innerHTML = `
         <div class="header-left">
-            <img src="/static/images/logo.png" alt="Market Analysis" class="logo">
+            <img src="${MARKET_ANALYSIS_LOGO}" alt="Market Analysis" class="logo">
             <h1>Stock Portfolio Builder</h1>
         </div>
         <nav id="main-nav"></nav>
