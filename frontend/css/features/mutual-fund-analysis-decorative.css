@@ -7,6 +7,13 @@
     padding-bottom: 40px;
 }
 
+/* The page now has one deliberate decorative hero in mutual-funds.html.
+   The legacy JS-generated "Mutual Fund Screener" header duplicated that
+   purpose and repeated information already presented by the ranking cards. */
+#mutual-fund-content .mf-page-header {
+    display: none !important;
+}
+
 #mutual-fund-content .mf-analysis-hero {
     position: relative;
     overflow: hidden;
@@ -206,18 +213,28 @@
     font-weight: 800;
 }
 
+/* Match the compact dark CTA used by the Stock Analysis action buttons.
+   Keep it rectangular with a modest corner radius — not a pill. */
 #mutual-fund-content #run-ranking {
     width: 100%;
     min-height: var(--btn-height);
-    border-radius: var(--radius-pill);
-    background: linear-gradient(135deg, #0f172a, #2563eb 125%);
-    box-shadow: var(--btn-shadow);
+    border-radius: 10px;
+    background: #111827;
+    color: #ffffff;
+    border: 1px solid #111827;
+    box-shadow: 0 6px 16px rgba(15,23,42,.14);
 }
 
 #mutual-fund-content #run-ranking:hover {
-    background: linear-gradient(135deg, #1e293b, #1d4ed8 125%);
-    transform: translateY(-2px);
-    box-shadow: 0 7px 18px rgba(37,99,235,.20);
+    background: #000000;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(15,23,42,.18);
+}
+
+#mutual-fund-content #run-ranking:active {
+    background: #0b0f16;
+    transform: translateY(0) scale(.99);
 }
 
 #mutual-fund-content #ranking-summary,
