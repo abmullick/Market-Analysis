@@ -25,10 +25,22 @@ function qDraw(id, datasets, yTitle, suffix = "") {
 
 function qStat(label, value, note) { return `<div class="stock-pedigree-stat"><span>${escQ(label)}</span><strong>${escQ(value)}</strong><small>${escQ(note)}</small></div>`; }
 
+// Keep the existing quality observations narrative intact. The collapsible
+// presentation must not change the data/rendering path for this section.
+function qualityNarrative(data) {
+  const e=data.earnings_quality||{}, d=data.dilution||{}, c=data.capital_allocation||{}, out=[];
+  if(e.cfo_profit_gap_5y!=null) out.push(`Over five years, operating cash flow CAGR is ${e.cfo_profit_gap_5y>=0?"ahead of":"behind"} profit CAGR by ${fmtQ(Math.abs(e.cfo_profit_gap_5y)," pp")} .`);
+  if(e.fcf_profit_gap_5y!=null) out.push(`Five-year FCF CAGR is ${e.fcf_profit_gap_5y>=0?"ahead of":"behind"} profit CAGR by ${fmtQ(Math.abs(e.fcf_profit_gap_5y)," pp")} .`);
+  if(d.share_count_cagr_5y!=null) out.push(`Implied share count changed at ${fmtQ(d.share_count_cagr_5y*100,"%",1)} CAGR over five years.`);
+  if(d.profit_vs_eps_cagr_gap_5y!=null) out.push(`Five-year profit CAGR and EPS CAGR differ by ${fmtQ(Math.abs(d.profit_vs_eps_cagr_gap_5y)*100," pp",1)}.`);
+  const capex = c.capex_to_cfo||[]; if(capex.length) out.push(`Latest capex consumed ${fmtQ(capex[capex.length-1].value,"%",1)} of operating cash flow.`);
+  return out.length ? out : ["Not enough historical observations are available for a quality summary."];
+}
+
 function initQualityCard(section) {
-  const header = section.querySelector(".stock-pedigree-trends-card-header");
-  const body = section.querySelector(".stock-pedigree-trends-card-body");
-  const button = section.querySelector(".stock-pedigree-trends-caret");
+  const header = section?.querySelector(".stock-pedigree-trends-card-header");
+  const body = section?.querySelector(".stock-pedigree-trends-card-body");
+  const button = section?.querySelector(".stock-pedigree-trends-caret");
   if (!header || !body || section.dataset.qualityCollapsible === "1") return;
   section.dataset.qualityCollapsible = "1";
 
@@ -51,6 +63,8 @@ function initQualityCard(section) {
   });
   button?.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); toggle(); });
 
+  // Render the charts normally first, then collapse the container. This keeps
+  // the original chart creation path intact and avoids drawing into a hidden box.
   setOpen(true);
   requestAnimationFrame(() => setOpen(false));
 }
