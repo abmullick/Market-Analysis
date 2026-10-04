@@ -9,9 +9,11 @@ function initGrowthValuationCard(section) {
   const title = oldHeader.querySelector("h2")?.textContent?.trim() || "Historical Growth & Return Trends";
   const subtitle = oldHeader.querySelector("p")?.textContent?.trim() || "Historical earnings growth, returns and valuation trends.";
 
-  const card = document.createElement("div");
-  card.className = "stock-pedigree-trends-card stock-growth-valuation-trends-card";
-  card.innerHTML = `
+  // Reuse the exact collapsible-card structure already used by the seven-chart
+  // Historical Business & Financial Trends block. The existing section remains
+  // .stock-trends-section so the valuation renderer can continue to discover it.
+  section.classList.add("stock-pedigree-trends-card", "stock-growth-valuation-trends-card");
+  section.innerHTML = `
     <div class="stock-pedigree-trends-card-header" role="button" tabindex="0" aria-expanded="true">
       <div class="stock-pedigree-trends-card-main">
         <span class="stock-pedigree-trends-icon" aria-hidden="true">
@@ -33,21 +35,20 @@ function initGrowthValuationCard(section) {
     <div class="stock-pedigree-trends-card-body"></div>
   `;
 
-  const body = card.querySelector(".stock-pedigree-trends-card-body");
-  const header = card.querySelector(".stock-pedigree-trends-card-header");
-  const button = card.querySelector(".stock-pedigree-trends-caret");
+  const body = section.querySelector(".stock-pedigree-trends-card-body");
+  const header = section.querySelector(".stock-pedigree-trends-card-header");
+  const button = section.querySelector(".stock-pedigree-trends-caret");
 
-  // Preserve the existing chart grid and all of its chart canvases exactly as rendered.
+  // Move the existing chart grid as-is. No chart cards, canvases, data or
+  // rendering logic are recreated or removed.
   body.appendChild(grid);
-  oldHeader.remove();
-  section.appendChild(card);
 
   const setOpen = (open) => {
     header.setAttribute("aria-expanded", open ? "true" : "false");
     button?.setAttribute("aria-expanded", open ? "true" : "false");
     button?.setAttribute("aria-label", `${open ? "Collapse" : "Expand"} historical growth and return trends`);
     body.hidden = !open;
-    card.classList.toggle("is-open", open);
+    section.classList.toggle("is-open", open);
     if (open && typeof Chart !== "undefined") {
       requestAnimationFrame(() => body.querySelectorAll("canvas").forEach((canvas) => Chart.getChart(canvas)?.resize()));
     }
