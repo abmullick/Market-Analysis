@@ -8,6 +8,7 @@
 
     const FONT = '600 10px Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     const SMALL = '800 8px Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    const boundCharts = new WeakSet();
 
     function roundedRect(ctx, x, y, w, h, r) {
       const radius = Math.max(0, Math.min(r, w / 2, h / 2));
@@ -45,8 +46,85 @@
       return typeof color === "string" ? color : fallback;
     }
 
+    function clearTooltip(chart) {
+      if (!chart?.tooltip) return;
+      chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+      chart.update("none");
+    }
+
+    function showTooltipAtX(chart, clientX, clientY) {
+      if (!chart?.tooltip || !chart.canvas) return;
+      const rect = chart.canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const scaleX = chart.width / rect.width;
+      const scaleY = chart.height / rect.height;
+      const x = (clientX - rect.left) * scaleX;
+      const y = (clientY - rect.top) * scaleY;
+      const area = chart.chartArea;
+      if (!area || x < area.left || x > area.right || y < area.top || y > area.bottom) {
+        clearTooltip(chart);
+        return;
+      }
+
+      let bestIndex = -1;
+      let bestDistance = Infinity;
+      (chart.data?.datasets || []).forEach((_, datasetIndex) => {
+        const meta = chart.getDatasetMeta(datasetIndex);
+        (meta?.data || []).forEach((el, index) => {
+          if (!el || el.hidden || !Number.isFinite(el.x)) return;
+          const distance = Math.abs(el.x - x);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestIndex = index;
+          }
+        });
+      });
+      if (bestIndex < 0) return;
+
+      const active = [];
+      (chart.data?.datasets || []).forEach((_, datasetIndex) => {
+        const meta = chart.getDatasetMeta(datasetIndex);
+        const el = meta?.data?.[bestIndex];
+        if (el && !el.hidden) active.push({ datasetIndex, index: bestIndex });
+      });
+      if (!active.length) return;
+
+      // Force the tooltip on even when an individual chart supplied its own
+      // tooltip defaults. The stock charts should all respond consistently.
+      chart.options.plugins = chart.options.plugins || {};
+      chart.options.plugins.tooltip = {
+        ...(chart.options.plugins.tooltip || {}),
+        enabled: true,
+        mode: "index",
+        intersect: false,
+      };
+      chart.tooltip.setActiveElements(active, { x, y });
+      chart.update("none");
+    }
+
+    function bindMouseTracking(chart) {
+      if (!chart?.canvas || boundCharts.has(chart)) return;
+      boundCharts.add(chart);
+
+      const target = chart.canvas.parentElement || chart.canvas;
+      const move = event => showTooltipAtX(chart, event.clientX, event.clientY);
+      const leave = () => clearTooltip(chart);
+
+      // Listen directly on the canvas wrapper instead of relying on Chart.js
+      // to dispatch the event through its plugin event pipeline.
+      target.addEventListener("mousemove", move, { passive: true });
+      target.addEventListener("mouseleave", leave, { passive: true });
+      chart.canvas.addEventListener("mousemove", move, { passive: true });
+      chart.canvas.addEventListener("mouseleave", leave, { passive: true });
+    }
+
     const plugin = {
       id: "marketChartPolish",
+
+      afterInit(chart) {
+        bindMouseTracking(chart);
+      },
 
       beforeDraw(chart) {
         try {
@@ -65,57 +143,13 @@
         } catch (_) {}
       },
 
-      // Explicitly drive the tooltip from mouse position. This avoids relying
-      // on each individual chart's interaction configuration.
       afterEvent(chart, args) {
+        // Keep Chart.js-native interactions working as well. Direct canvas
+        // tracking above is the reliable path for these stock charts.
         try {
           const event = args?.event;
-          const area = chart.chartArea;
-          if (!event || !area || !chart.tooltip) return;
-
-          if (event.type === "mouseout" || event.type === "mouseleave") {
-            chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-            chart.update("none");
-            return;
-          }
-          if (event.type !== "mousemove") return;
-
-          const x = event.x;
-          const y = event.y;
-          if (x < area.left || x > area.right || y < area.top || y > area.bottom) {
-            chart.tooltip.setActiveElements([], { x, y });
-            chart.update("none");
-            return;
-          }
-
-          let bestIndex = -1;
-          let bestDistance = Infinity;
-
-          // Find the historical position nearest to the cursor.
-          (chart.data?.datasets || []).forEach((_, datasetIndex) => {
-            const meta = chart.getDatasetMeta(datasetIndex);
-            if (!meta?.data?.length) return;
-            meta.data.forEach((el, index) => {
-              if (!el || el.hidden || !Number.isFinite(el.x)) return;
-              const distance = Math.abs(el.x - x);
-              if (distance < bestDistance) {
-                bestDistance = distance;
-                bestIndex = index;
-              }
-            });
-          });
-
-          if (bestIndex < 0) return;
-
-          const active = [];
-          (chart.data?.datasets || []).forEach((_, datasetIndex) => {
-            const meta = chart.getDatasetMeta(datasetIndex);
-            const el = meta?.data?.[bestIndex];
-            if (el && !el.hidden) active.push({ datasetIndex, index: bestIndex });
-          });
-
-          chart.tooltip.setActiveElements(active, { x, y });
-          chart.update("none");
+          if (!event) return;
+          if (event.type === "mouseout" || event.type === "mouseleave") clearTooltip(chart);
         } catch (_) {}
       },
 
@@ -215,14 +249,12 @@
         intersect: false,
         axis: "x",
       };
-      if (Chart.defaults.hover) {
-        Chart.defaults.hover = {
-          ...(Chart.defaults.hover || {}),
-          mode: "index",
-          intersect: false,
-          axis: "x",
-        };
-      }
+      Chart.defaults.hover = {
+        ...(Chart.defaults.hover || {}),
+        mode: "index",
+        intersect: false,
+        axis: "x",
+      };
       if (Chart.defaults.plugins?.tooltip) {
         Chart.defaults.plugins.tooltip.enabled = true;
         Chart.defaults.plugins.tooltip.mode = "index";
