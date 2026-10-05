@@ -285,14 +285,88 @@ class MutualFundFetcher:
 
                 nav_data = chunk_nav_data.get(code, [])
                 if len(nav_data) < 2:
+                    logger.info(
+                        "TIMING: metrics fallback START | scheme=%s | fund=%s | "
+                        "bulk_rows=%d",
+                        code,
+                        fund_name,
+                        len(nav_data),
+                    )
+
+                    fallback_started = time.perf_counter()
+
                     if not dataset.is_available or not nav_data:
                         try:
-                            nav_records = await self.get_nav_history(str(code), lookback_years=lookback_years)
-                            if len(nav_records) >= 2:
-                                nav_data = [{"date": r.date, "nav": r.nav} for r in nav_records]
-                                logger.debug("MFAPI fallback returned %d NAV records for %s", len(nav_data), code)
+                            tigzig_started = time.perf_counter()
+
+                            tigzig_records = await self.get_nav_history_tigzig(
+                                str(code),
+                                lookback_years,
+                            )
+
+                            tigzig_elapsed = time.perf_counter() - tigzig_started
+
+                            logger.info(
+                                "TIMING: metrics fallback TigZig | scheme=%s | "
+                                "%.3f sec | rows=%d",
+                                code,
+                                tigzig_elapsed,
+                                len(tigzig_records),
+                            )
+
+                            if len(tigzig_records) >= 2:
+                                nav_data = [
+                                    {"date": r.date, "nav": r.nav}
+                                    for r in tigzig_records
+                                ]
+                            else:
+                                try:
+                                    mfapi_started = time.perf_counter()
+
+                                    nav_records = await self._get_nav_history_mfapi(
+                                        str(code),
+                                        lookback_years,
+                                    )
+
+                                    mfapi_elapsed = time.perf_counter() - mfapi_started
+
+                                    logger.info(
+                                        "TIMING: metrics fallback MFAPI | scheme=%s | "
+                                        "%.3f sec | rows=%d",
+                                        code,
+                                        mfapi_elapsed,
+                                        len(nav_records),
+                                    )
+
+                                    if len(nav_records) >= 2:
+                                        nav_data = [
+                                            {"date": r.date, "nav": r.nav}
+                                            for r in nav_records
+                                        ]
+
+                                except Exception as e:
+                                    logger.warning(
+                                        "MFAPI fallback failed for %s (%s): %s",
+                                        fund_name,
+                                        code,
+                                        e,
+                                    )
+
                         except Exception as e:
-                            logger.warning("MFAPI fallback failed for %s (%s): %s", fund_name, code, e)
+                            logger.warning(
+                                "TigZig fallback failed for %s (%s): %s",
+                                fund_name,
+                                code,
+                                e,
+                            )
+
+                    logger.info(
+                        "TIMING: metrics fallback END | scheme=%s | "
+                        "%.3f sec | final_rows=%d",
+                        code,
+                        time.perf_counter() - fallback_started,
+                        len(nav_data),
+                    )
 
                     if len(nav_data) < 2:
                         logger.warning("Insufficient NAV data for %s (%s)", fund_name, code)
@@ -300,9 +374,26 @@ class MutualFundFetcher:
                         continue
 
                 try:
-                    nav_records = [NAVRecord(date=d["date"], nav=d["nav"]) for d in nav_data]
-                    calculator = MetricsCalculator(scheme_code=str(code), nav_records=nav_records)
+                    calc_started = time.perf_counter()
+
+                    nav_records = [
+                        NAVRecord(date=d["date"], nav=d["nav"])
+                        for d in nav_data
+                    ]
+
+                    calculator = MetricsCalculator(
+                        scheme_code=str(code),
+                        nav_records=nav_records,
+                    )
                     metrics = calculator.calculate()
+
+                    logger.info(
+                        "TIMING: metrics calculation | scheme=%s | "
+                        "%.3f sec | rows=%d",
+                        code,
+                        time.perf_counter() - calc_started,
+                        len(nav_records),
+                    )
 
                     result = metrics.model_dump()
                     result["scheme_code"] = str(code)
