@@ -9,7 +9,7 @@ export function initHome() {
         });
     });
 
-    // Landing-page cue: indicate that more options are available below.
+    // Landing-page cue: keep the scroll indicator visible until the options are actually reached.
     const hero = document.querySelector(".hero");
     const options = document.querySelector(".cards-grid");
 
@@ -19,17 +19,17 @@ export function initHome() {
         cue.className = "landing-scroll-cue";
         cue.setAttribute("aria-label", "Scroll down to explore more options");
         cue.title = "Scroll to explore more options";
-        cue.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v13"></path><path d="m6 12 6 6 6-6"></path></svg>';
+        cue.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v13"></path><path d="m6 12 6 6-6 6"></path></svg>';
 
         cue.addEventListener("click", () => {
             options.scrollIntoView({ behavior: "smooth", block: "start" });
         });
 
         const updateCue = () => {
-            // Keep the cue visible while the landing options are still below the viewport.
-            // Hide it only once the options themselves have come into view.
+            // Do not hide merely because the user has started scrolling.
+            // Hide only after the options section has reached the top portion of the viewport.
             const optionsTop = options.getBoundingClientRect().top;
-            const hasReachedOptions = optionsTop <= window.innerHeight * 0.72;
+            const hasReachedOptions = optionsTop <= 120;
             cue.classList.toggle("is-hidden", hasReachedOptions);
         };
 
