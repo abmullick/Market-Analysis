@@ -3,6 +3,7 @@ import os
 import json
 import copy
 from typing import Any, Dict, Optional
+import time
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
@@ -372,6 +373,8 @@ async def get_category_analysis(scheme_code: str) -> CategoryAnalysisResponse:
     Returns percentile ranks for the selected fund against its category peers
     for all available metrics.
     """
+    category_analysis_started = time.perf_counter()
+    logger.info("TIMING: category-analysis START | scheme=%s", scheme_code)
     # Lightweight pre-check: the category-analysis cache is keyed by category,
     # which is available from the cheap (cached) scheme lookup. Only on a cache
     # miss do we pay for the full fund-detail computation (metrics, metadata,
@@ -395,7 +398,12 @@ async def get_category_analysis(scheme_code: str) -> CategoryAnalysisResponse:
             )
 
     try:
+        detail_started = time.perf_counter()
         detail = await get_fund_detail(scheme_code)
+        logger.info(
+            "TIMING: category-analysis get_fund_detail | %.3f sec",
+            time.perf_counter() - detail_started,
+        )
     except Exception as e:
         logger.error("Failed to fetch fund detail for category analysis %s: %s", scheme_code, e)
         raise HTTPException(status_code=502, detail=f"Failed to fetch fund detail: {str(e)}")
@@ -419,7 +427,13 @@ async def get_category_analysis(scheme_code: str) -> CategoryAnalysisResponse:
     criteria = [{"name": name, "weight": 1.0} for name in engine.CRITERIA.keys()]
 
     try:
+        candidates_started = time.perf_counter()
         funds = await fetcher.get_ranking_candidates_by_category(normalized_category)
+        logger.info(
+            "TIMING: category-analysis get_candidates | %.3f sec | funds=%d",
+            time.perf_counter() - candidates_started,
+            len(funds),
+        )
     except Exception as e:
         logger.error("Failed to fetch category funds for %s: %s", scheme_code, e)
         raise HTTPException(status_code=502, detail=f"Failed to fetch category funds: {str(e)}")
@@ -444,7 +458,16 @@ async def get_category_analysis(scheme_code: str) -> CategoryAnalysisResponse:
     if selected_fund_entry:
         all_funds_for_metrics.append(selected_fund_entry)
 
-    metrics = await fetcher.get_metrics_batch(all_funds_for_metrics, [c["name"] for c in criteria])
+    metrics_started = time.perf_counter()
+    metrics = await fetcher.get_metrics_batch(
+        all_funds_for_metrics,
+        [c["name"] for c in criteria],
+    )
+    logger.info(
+        "TIMING: category-analysis get_metrics_batch | %.3f sec | funds=%d",
+        time.perf_counter() - metrics_started,
+        len(all_funds_for_metrics),
+    )
     metrics_map = {}
     for f, m in zip(all_funds_for_metrics, metrics):
         if m:

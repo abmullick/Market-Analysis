@@ -443,18 +443,42 @@ class MutualFundFetcher:
         return matches[max(0, offset):max(0, offset) + max(0, limit)]
 
     async def get_all_schemes(self) -> list[MutualFund]:
+        started = time.perf_counter()
+
         cached, expires = self._schemes_cache.get("all", (None, 0))
         if cached and time.time() < expires:
-            logger.info("Returning cached schemes list")
+            logger.info(
+                "TIMING: get_all_schemes CACHE HIT | %.3f sec",
+                time.perf_counter() - started,
+            )
             return cached
 
+        logger.info("TIMING: get_all_schemes CACHE MISS")
+
+        schemes_started = time.perf_counter()
         schemes = await self._get_all_schemes_from_amfi()
+        schemes_elapsed = time.perf_counter() - schemes_started
 
         self._schemes_cache["all"] = (schemes, time.time() + self.cache_ttl)
+
+        logger.info(
+            "TIMING: get_all_schemes END | total=%.3f sec | "
+            "load_parse=%.3f sec | schemes=%d",
+            time.perf_counter() - started,
+            schemes_elapsed,
+            len(schemes),
+        )
+
         return schemes
 
     async def _get_all_schemes_from_amfi(self) -> list[MutualFund]:
+        total_started = time.perf_counter()
+
         text = await self.amfi.fetch_nav_all()
+        fetch_elapsed = time.perf_counter() - total_started
+
+        parse_started = time.perf_counter()
+
         schemes: list[MutualFund] = []
         current_category: str | None = None
         current_amc: str | None = None
@@ -507,6 +531,19 @@ class MutualFundFetcher:
                 nav=nav,
                 nav_date=nav_date,
             ))
+
+        parse_elapsed = time.perf_counter() - parse_started
+
+        logger.info(
+            "TIMING: _get_all_schemes_from_amfi END | "
+            "total=%.3f sec | fetch=%.3f sec | parse=%.3f sec | "
+            "bytes=%d | schemes=%d",
+            time.perf_counter() - total_started,
+            fetch_elapsed,
+            parse_elapsed,
+            len(text),
+            len(schemes),
+        )
 
         return schemes
 
