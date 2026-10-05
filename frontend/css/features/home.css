@@ -99,10 +99,10 @@
 }
 
 .product-owner {
-    font-size: 0.6875rem;
-    font-weight: 500;
-    color: var(--color-text-light);
-    letter-spacing: 0.04em;
+    font-size: 0.8rem;
+    font-weight: 750;
+    color: var(--color-primary);
+    letter-spacing: 0.035em;
     text-transform: uppercase;
 }
 
@@ -130,7 +130,7 @@
     -webkit-backdrop-filter: blur(12px);
     cursor: pointer;
     animation: landing-scroll-cue-bounce 1.8s ease-in-out infinite;
-    transition: opacity 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
 }
 
 .landing-scroll-cue svg {
@@ -150,11 +150,15 @@
     animation-play-state: paused;
 }
 
-.landing-scroll-cue.is-hidden {
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(-8px) scale(0.9);
-    animation: none;
+.landing-scroll-cue.is-up {
+    color: #4338ca;
+    border-color: rgba(99, 102, 241, 0.28);
+    background: rgba(255, 255, 255, 0.98);
+}
+
+.landing-scroll-cue.is-up:hover {
+    color: #3730a3;
+    box-shadow: 0 13px 30px rgba(15, 23, 42, 0.22), 0 4px 14px rgba(99, 102, 241, 0.20);
 }
 
 @keyframes landing-scroll-cue-bounce {
@@ -169,7 +173,9 @@
     }
 
     .product-owner {
-        font-size: 0.625rem;
+        font-size: 0.72rem;
+        font-weight: 750;
+        letter-spacing: 0.025em;
     }
 
     .landing-scroll-cue {
