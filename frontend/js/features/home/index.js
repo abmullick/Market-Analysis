@@ -9,7 +9,7 @@ export function initHome() {
         });
     });
 
-    // Landing-page cue: gently indicate that more options are available below.
+    // Landing-page cue: indicate that more options are available below.
     const hero = document.querySelector(".hero");
     const options = document.querySelector(".cards-grid");
 
@@ -26,11 +26,16 @@ export function initHome() {
         });
 
         const updateCue = () => {
-            cue.classList.toggle("is-hidden", window.scrollY > 120);
+            // Keep the cue visible while the landing options are still below the viewport.
+            // Hide it only once the options themselves have come into view.
+            const optionsTop = options.getBoundingClientRect().top;
+            const hasReachedOptions = optionsTop <= window.innerHeight * 0.72;
+            cue.classList.toggle("is-hidden", hasReachedOptions);
         };
 
         document.body.appendChild(cue);
         updateCue();
         window.addEventListener("scroll", updateCue, { passive: true });
+        window.addEventListener("resize", updateCue, { passive: true });
     }
 }
