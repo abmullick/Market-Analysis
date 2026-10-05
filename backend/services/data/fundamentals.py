@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any, Optional
 
@@ -105,8 +106,16 @@ def normalize(symbol: str, raw: dict[str, Any], history: dict[str, Any]) -> Fund
 
 def get_stock_analysis(client: YahooFinanceClient, symbol: str) -> dict[str, Any]:
     symbol = symbol.strip().upper()
-    raw = client.quote_summary(symbol)
-    history = client.financial_history(symbol)
+
+    # quote_summary() and financial_history() are independent I/O operations.
+    # Run them concurrently, but keep every calculation and downstream result
+    # construction exactly as before.
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        quote_future = executor.submit(client.quote_summary, symbol)
+        history_future = executor.submit(client.financial_history, symbol)
+        raw = quote_future.result()
+        history = history_future.result()
+
     fundamentals = normalize(symbol, raw, history)
 
     if fundamentals.peg is None and fundamentals.pe is not None and fundamentals.eps_cagr_3y and fundamentals.eps_cagr_3y > 0:
