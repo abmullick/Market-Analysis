@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     amfi_nav_url: str = "https://www.amfiindia.com/spages/NAVAll.txt"
     cache_ttl_seconds: int = 3600
 
+    # Single-user application login credentials are supplied via the server-side
+    # .env file and are intentionally not committed to the repository.
+    app_username: str = ""
+    app_password: str = ""
+
     # Bond Central credit-ratings index (supplementary source for corporate
     # bonds; refreshed independently of list/detail requests into SQLite).
     bond_central_ratings_db: str = "data/cache/bond_central_ratings.sqlite3"
