@@ -25,17 +25,28 @@ export function initHome() {
             options.scrollIntoView({ behavior: "smooth", block: "start" });
         });
 
+        // The app can have a wider layout viewport than the phone's visual viewport.
+        // Explicitly position the cue from visualViewport.width so it cannot end up
+        // outside the visible mobile screen or require horizontal scrolling to find.
+        const positionCueInVisualViewport = () => {
+            const viewportWidth = window.visualViewport?.width || window.innerWidth;
+            cue.style.setProperty("--landing-cue-left", `${Math.max(8, viewportWidth - 62)}px`);
+        };
+
         const updateCue = () => {
             // Do not hide merely because the user has started scrolling.
             // Hide only after the options section has reached the top portion of the viewport.
             const optionsTop = options.getBoundingClientRect().top;
             const hasReachedOptions = optionsTop <= 120;
             cue.classList.toggle("is-hidden", hasReachedOptions);
+            positionCueInVisualViewport();
         };
 
         document.body.appendChild(cue);
         updateCue();
         window.addEventListener("scroll", updateCue, { passive: true });
         window.addEventListener("resize", updateCue, { passive: true });
+        window.visualViewport?.addEventListener("resize", positionCueInVisualViewport, { passive: true });
+        window.visualViewport?.addEventListener("scroll", positionCueInVisualViewport, { passive: true });
     }
 }
