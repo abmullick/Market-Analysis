@@ -16,14 +16,22 @@ class MfapiError(Exception):
 class MfapiClient:
     def __init__(self, settings: Settings):
         self.base_url = settings.mfapi_base_url.rstrip("/")
+        # Keep one connection pool for the lifetime of the application instead
+        # of creating a new AsyncClient for every MFAPI request. This matters
+        # for both individual fund analysis and the parallel batch fallback.
+        self._client = httpx.AsyncClient(
+            limits=httpx.Limits(
+                max_connections=20,
+                max_keepalive_connections=10,
+            ),
+        )
 
     async def fetch_scheme(self, scheme_code: str) -> dict[str, Any]:
         url = f"{self.base_url}/mf/{scheme_code}"
         logger.info("Fetching MF scheme: %s", scheme_code)
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, timeout=15.0)
-            response.raise_for_status()
-            return response.json()
+        response = await self._client.get(url, timeout=15.0)
+        response.raise_for_status()
+        return response.json()
 
     async def fetch_nav_history(
         self,
@@ -47,19 +55,18 @@ class MfapiClient:
         async def _fetch_with_retries():
             for attempt in range(max_retries + 1):
                 try:
-                    async with httpx.AsyncClient() as client:
-                        response = await client.get(url, params=params, timeout=20.0)
-                        logger.debug(
-                            "MFAPI response for %s: status=%d size=%d",
-                            scheme_code, response.status_code, len(response.content)
-                        )
-                        response.raise_for_status()
-                        data = response.json()
-                        if isinstance(data, dict) and "error" in data:
-                            raise MfapiError(f"MFAPI error for scheme {scheme_code}: {data['error']}")
-                        if not isinstance(data, dict) or "data" not in data:
-                            raise MfapiError(f"Unexpected MFAPI response for scheme {scheme_code}: missing 'data' field")
-                        return data
+                    response = await self._client.get(url, params=params, timeout=20.0)
+                    logger.debug(
+                        "MFAPI response for %s: status=%d size=%d",
+                        scheme_code, response.status_code, len(response.content)
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    if isinstance(data, dict) and "error" in data:
+                        raise MfapiError(f"MFAPI error for scheme {scheme_code}: {data['error']}")
+                    if not isinstance(data, dict) or "data" not in data:
+                        raise MfapiError(f"Unexpected MFAPI response for scheme {scheme_code}: missing 'data' field")
+                    return data
                 except MfapiError:
                     raise
                 except Exception as e:
@@ -89,15 +96,14 @@ class MfapiClient:
         url = f"{self.base_url}/mf/search"
         params = {"q": query}
         logger.info("Searching MF schemes: %s", query)
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params, timeout=15.0)
-            response.raise_for_status()
-            data = response.json()
-            # MFAPI /mf/search returns a bare JSON list:
-            # [{"schemeCode": ..., "schemeName": ...}, ...]
-            if isinstance(data, list):
-                return data
-            if isinstance(data, dict):
-                schemes = data.get("schemes", [])
-                return schemes if isinstance(schemes, list) else []
-            return []
+        response = await self._client.get(url, params=params, timeout=15.0)
+        response.raise_for_status()
+        data = response.json()
+        # MFAPI /mf/search returns a bare JSON list:
+        # [{"schemeCode": ..., "schemeName": ...}, ...]
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            schemes = data.get("schemes", [])
+            return schemes if isinstance(schemes, list) else []
+        return []
