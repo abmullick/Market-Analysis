@@ -19,7 +19,7 @@ export function initHome() {
         cue.className = "landing-scroll-cue";
         cue.setAttribute("aria-label", "Scroll down to explore more options");
         cue.title = "Scroll to explore more options";
-        cue.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v13"></path><path d="m6 12 6 6-6 6"></path></svg>';
+        cue.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v13"></path><path d="m6 12 6 6 6-6"></path></svg>';
 
         cue.addEventListener("click", () => {
             options.scrollIntoView({ behavior: "smooth", block: "start" });
