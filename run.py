@@ -33,8 +33,6 @@ app.add_middleware(
 )
 
 # Diagnostic-only timing for the stock portfolio analysis path.
-# This records the complete server-side duration of each stock endpoint,
-# allowing us to compare total route time with individual provider timings.
 @app.middleware("http")
 async def stock_performance_diagnostics(request, call_next):
     path = request.url.path
@@ -71,6 +69,12 @@ def render_html_page(path: str) -> HTMLResponse:
         html = f.read()
     html = html.replace("/static/images/favicon.ico", FAVICON_URL)
     html = html.replace("/favicon.ico", FAVICON_URL)
+    if path.endswith("stock-portfolio-builder.html"):
+        html = html.replace(
+            "</head>",
+            '<script src="/js/features/stock-portfolio-performance-diagnostics.js?v=20261007"></script></head>',
+            1,
+        )
     return HTMLResponse(content=html)
 
 
