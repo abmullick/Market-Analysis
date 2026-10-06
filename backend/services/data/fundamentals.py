@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+import os
 import time
 from typing import Any, Optional
 
@@ -10,6 +11,17 @@ from backend.models.fundamentals import FinancialPeriod, Fundamentals
 from backend.services.data.yahoo import YahooFinanceClient, number
 from backend.services.stocks.screener import ScreenerEngine
 
+
+# Keep provider concurrency bounded across the entire process. Portfolio analysis
+# already fans out many /api/stocks requests concurrently; creating a new
+# 2-worker executor inside every request multiplies provider/parser concurrency.
+# A shared pool keeps the same two logical operations per stock while applying
+# one process-wide ceiling to the provider work.
+_PROVIDER_MAX_WORKERS = max(2, int(os.getenv("STOCK_PROVIDER_MAX_WORKERS", "8")))
+_PROVIDER_EXECUTOR = ThreadPoolExecutor(
+    max_workers=_PROVIDER_MAX_WORKERS,
+    thread_name_prefix="stock-provider",
+)
 
 # Short-lived raw-data cache used to avoid fetching the same quote/history again
 # immediately when portfolio analysis subsequently builds its charts.
@@ -126,14 +138,12 @@ def normalize(symbol: str, raw: dict[str, Any], history: dict[str, Any]) -> Fund
 def get_stock_analysis(client: YahooFinanceClient, symbol: str) -> dict[str, Any]:
     symbol = symbol.strip().upper()
 
-    # quote_summary() and financial_history() are independent I/O operations.
-    # Run them concurrently, but keep every calculation and downstream result
-    # construction exactly as before.
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        quote_future = executor.submit(client.quote_summary, symbol)
-        history_future = executor.submit(client.financial_history, symbol)
-        raw = quote_future.result()
-        history = history_future.result()
+    # quote_summary() and financial_history() remain concurrent for each stock,
+    # but all portfolio requests now share one bounded process-wide executor.
+    quote_future = _PROVIDER_EXECUTOR.submit(client.quote_summary, symbol)
+    history_future = _PROVIDER_EXECUTOR.submit(client.financial_history, symbol)
+    raw = quote_future.result()
+    history = history_future.result()
 
     # Keep the raw provider payload briefly so the immediately-following chart
     # request can reuse it instead of downloading the same quote/history again.
