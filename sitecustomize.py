@@ -64,6 +64,76 @@ def _install_screener_diagnostics() -> None:
     print("[SCREENER-PERF] server diagnostics installed (actual HTTP + shared in-flight)", flush=True)
 
 
+def _install_provider_path_diagnostics() -> None:
+    try:
+        from backend.services.data.yahoo import YahooFinanceClient
+    except Exception:
+        return
+    if getattr(YahooFinanceClient, "_diagnostic_provider_path_installed", False):
+        return
+
+    def timed_internal(name: str):
+        original = getattr(YahooFinanceClient, name)
+
+        def wrapped(self, symbol, *args, **kwargs):
+            started = time.perf_counter()
+            provider = "SCREENER" if name.startswith("_screener_") else "YAHOO"
+            print(
+                f"[STOCK-SOURCE] START {name} symbol={symbol} provider={provider} "
+                f"thread={threading.current_thread().name}",
+                flush=True,
+            )
+            try:
+                result = original(self, symbol, *args, **kwargs)
+                print(
+                    f"[STOCK-SOURCE] END {name} symbol={symbol} provider={provider} "
+                    f"duration={time.perf_counter() - started:.3f}s",
+                    flush=True,
+                )
+                return result
+            except Exception as exc:
+                print(
+                    f"[STOCK-SOURCE] FAILED {name} symbol={symbol} provider={provider} "
+                    f"duration={time.perf_counter() - started:.3f}s error={exc}",
+                    flush=True,
+                )
+                raise
+
+        return wrapped
+
+    for method_name in ("_screener_quote_summary", "_screener_history"):
+        if hasattr(YahooFinanceClient, method_name):
+            setattr(YahooFinanceClient, method_name, timed_internal(method_name))
+
+    original_get_json = YahooFinanceClient._get_json
+
+    def timed_get_json(self, path, params=None):
+        started = time.perf_counter()
+        print(
+            f"[STOCK-SOURCE] YAHOO_HTTP_START path={path} thread={threading.current_thread().name}",
+            flush=True,
+        )
+        try:
+            result = original_get_json(self, path, params)
+            print(
+                f"[STOCK-SOURCE] YAHOO_HTTP_END path={path} "
+                f"duration={time.perf_counter() - started:.3f}s",
+                flush=True,
+            )
+            return result
+        except Exception as exc:
+            print(
+                f"[STOCK-SOURCE] YAHOO_HTTP_FAILED path={path} "
+                f"duration={time.perf_counter() - started:.3f}s error={exc}",
+                flush=True,
+            )
+            raise
+
+    YahooFinanceClient._get_json = timed_get_json
+    YahooFinanceClient._diagnostic_provider_path_installed = True
+    print("[STOCK-SOURCE] provider-path diagnostics installed", flush=True)
+
+
 def _install_yahoo_diagnostics() -> None:
     try:
         from backend.services.data.yahoo import YahooFinanceClient
@@ -148,6 +218,7 @@ def _install_chart_diagnostics() -> None:
 
 
 _install_screener_diagnostics()
+_install_provider_path_diagnostics()
 _install_yahoo_diagnostics()
 _install_fundamental_pipeline_diagnostics()
 _install_chart_diagnostics()
