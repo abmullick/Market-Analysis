@@ -7,6 +7,7 @@ working directory. This intentionally does not change application behavior.
 import re
 import threading
 import time
+from concurrent.futures import Future
 
 
 def _timed_call(label: str, func, *args, **kwargs):
@@ -62,6 +63,98 @@ def _install_screener_diagnostics() -> None:
     ScreenerFinanceClient.__init__ = diagnostic_init
     ScreenerFinanceClient._diagnostic_timing_installed = True
     print("[SCREENER-PERF] server diagnostics installed (actual HTTP + shared in-flight)", flush=True)
+
+
+def _install_screener_parse_cache() -> None:
+    """Reuse CPU-parsed Screener structures when quote/history run together.
+
+    The HTTP page is already cached/in-flight deduplicated in screener.py, but
+    quote_summary() and financial_history() independently parse the same
+    BeautifulSoup document. Cache the deterministic parse results too. This is
+    diagnostic-branch only and deliberately leaves application source intact.
+    """
+    try:
+        from backend.services.data.screener import ScreenerFinanceClient
+    except Exception:
+        return
+    if getattr(ScreenerFinanceClient, "_parse_cache_installed", False):
+        return
+
+    lock = threading.Lock()
+    caches = {
+        "top_ratios": {},
+        "growth": {},
+        "table": {},
+    }
+    inflight: dict[tuple[str, int, str], Future] = {}
+    ttl = getattr(ScreenerFinanceClient, "CACHE_TTL", 300)
+
+    original_top_ratios = ScreenerFinanceClient._top_ratios
+    original_growth = ScreenerFinanceClient._growth_tables
+    original_table = ScreenerFinanceClient._table
+
+    def cached_call(cache_name: str, soup, section: str, producer):
+        now = time.time()
+        key = (cache_name, id(soup), section)
+        with lock:
+            entry = caches[cache_name].get((id(soup), section))
+            if entry is not None:
+                cached_soup, created, value = entry
+                if cached_soup is soup and now - created < ttl:
+                    return value
+                caches[cache_name].pop((id(soup), section), None)
+
+            future = inflight.get(key)
+            if future is None:
+                future = Future()
+                inflight[key] = future
+                owner = True
+            else:
+                owner = False
+
+        if not owner:
+            return future.result()
+
+        try:
+            started = time.perf_counter()
+            value = producer()
+            with lock:
+                caches[cache_name][(id(soup), section)] = (soup, time.time(), value)
+                future.set_result(value)
+            print(
+                f"[SCREENER-PARSE] MISS {cache_name} section={section} "
+                f"duration={time.perf_counter() - started:.3f}s",
+                flush=True,
+            )
+            return value
+        except BaseException as exc:
+            with lock:
+                if not future.done():
+                    future.set_exception(exc if isinstance(exc, Exception) else Exception(str(exc)))
+            raise
+        finally:
+            with lock:
+                inflight.pop(key, None)
+                cutoff = time.time() - ttl
+                for name, cache in caches.items():
+                    stale = [k for k, entry in cache.items() if entry[1] < cutoff]
+                    for k in stale:
+                        cache.pop(k, None)
+
+    def cached_top_ratios(cls, soup):
+        return cached_call("top_ratios", soup, "", lambda: original_top_ratios(soup))
+
+    def cached_growth(cls, soup):
+        return cached_call("growth", soup, "", lambda: original_growth(soup))
+
+    def cached_table(cls, soup, section_id):
+        return cached_call("table", soup, section_id, lambda: original_table(soup, section_id))
+
+    ScreenerFinanceClient._top_ratios = classmethod(cached_top_ratios)
+    ScreenerFinanceClient._growth_tables = classmethod(cached_growth)
+    ScreenerFinanceClient._table = classmethod(cached_table)
+    ScreenerFinanceClient._parse_cache_installed = True
+    print("[SCREENER-PARSE] shared parsed-page cache installed", flush=True)
 
 
 def _install_provider_path_diagnostics() -> None:
@@ -218,6 +311,7 @@ def _install_chart_diagnostics() -> None:
 
 
 _install_screener_diagnostics()
+_install_screener_parse_cache()
 _install_provider_path_diagnostics()
 _install_yahoo_diagnostics()
 _install_fundamental_pipeline_diagnostics()
