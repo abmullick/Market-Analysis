@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 
 from backend.config.settings import Settings
+from backend.middleware.performance_logging import PerformanceLoggingMiddleware
 from backend.routes.screener import router as screener_router
 from backend.routes.stocks import router as stocks_router
 from backend.routes.stock_pedigree import router as stock_pedigree_router
@@ -30,6 +31,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Diagnostic-only timing for the stock portfolio performance investigation.
+# It does not change application behavior.
+app.add_middleware(PerformanceLoggingMiddleware)
 
 FAVICON_URL = "/static/images/hero-market-analysis.png?v=20261006"
 
