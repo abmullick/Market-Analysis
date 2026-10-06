@@ -72,7 +72,7 @@ def render_html_page(path: str) -> HTMLResponse:
     if path.endswith("stock-portfolio-builder.html"):
         html = html.replace(
             "</head>",
-            '<script src="/js/features/stock-portfolio-performance-diagnostics.js?v=20261007"></script></head>',
+            '<script defer src="/js/features/stock-portfolio-performance-diagnostics.js?v=20261007"></script></head>',
             1,
         )
     return HTMLResponse(content=html)
