@@ -1,4 +1,4 @@
-"""Diagnostic-only server instrumentation for Screener fetch timing.
+"""Diagnostic-only server instrumentation for stock analysis timing.
 
 Loaded automatically by Python's site module when this repository is the
 working directory. This intentionally keeps the application UI unchanged.
@@ -67,4 +67,47 @@ def _install_screener_diagnostics() -> None:
     print("[SCREENER-PERF] server diagnostics installed (actual HTTP + shared in-flight)", flush=True)
 
 
+def _install_yahoo_diagnostics() -> None:
+    try:
+        from backend.services.data.yahoo import YahooFinanceClient
+    except Exception:
+        return
+
+    if getattr(YahooFinanceClient, "_diagnostic_timing_installed", False):
+        return
+
+    def timed_method(name: str):
+        original = getattr(YahooFinanceClient, name)
+
+        def wrapped(self, symbol, *args, **kwargs):
+            started = time.perf_counter()
+            print(
+                f"[STOCK-PROVIDER] START {name} {symbol} thread={threading.current_thread().name}",
+                flush=True,
+            )
+            try:
+                result = original(self, symbol, *args, **kwargs)
+                print(
+                    f"[STOCK-PROVIDER] END {name} {symbol} duration={time.perf_counter() - started:.3f}s",
+                    flush=True,
+                )
+                return result
+            except Exception as exc:
+                print(
+                    f"[STOCK-PROVIDER] FAILED {name} {symbol} duration={time.perf_counter() - started:.3f}s error={exc}",
+                    flush=True,
+                )
+                raise
+
+        return wrapped
+
+    for method_name in ("quote_summary", "financial_history"):
+        if hasattr(YahooFinanceClient, method_name):
+            setattr(YahooFinanceClient, method_name, timed_method(method_name))
+
+    YahooFinanceClient._diagnostic_timing_installed = True
+    print("[STOCK-PROVIDER] Yahoo provider diagnostics installed", flush=True)
+
+
 _install_screener_diagnostics()
+_install_yahoo_diagnostics()
