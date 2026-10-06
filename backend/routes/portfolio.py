@@ -1,6 +1,7 @@
 from typing import Any
 
 import asyncio
+import time
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -17,6 +18,7 @@ from backend.services.ai.groq import AIInsightService, InsightResponse
 from backend.services.data.amfi_holdings import AmfiHoldingsService
 from backend.services.portfolio.stock_overlap import compute_stock_overlap
 from backend.services.mutual_funds.fetcher import MutualFundFetcher
+from backend.services.portfolio.nav_batch import fetch_complete_nav_histories
 from backend.services.portfolio.mf_analysis import (
     PortfolioAnalysisError,
     calculate_portfolio_analysis,
@@ -34,6 +36,13 @@ router = APIRouter()
 
 settings = Settings()
 _fetcher: MutualFundFetcher | None = None
+
+# Short-lived in-process cache for the deterministic current portfolio result.
+# This specifically lets What-If reuse the result the user just viewed instead
+# of recalculating the unchanged current allocation. The NAV cache lives in
+# nav_batch.py and is shared by both endpoints in this process.
+_portfolio_result_cache: dict[str, tuple[PortfolioAnalysisResult, float]] = {}
+_PORTFOLIO_RESULT_CACHE_TTL_SECONDS = 300
 
 
 class PortfolioInsightsRequest(BaseModel):
@@ -57,6 +66,34 @@ def _get_fetcher() -> MutualFundFetcher:
     return _fetcher
 
 
+def _portfolio_cache_key(funds: list[Any]) -> str:
+    """Stable key for a portfolio's scheme/allocation combination."""
+    pairs = sorted(
+        (str(f.scheme_code).strip(), round(float(f.allocation), 8))
+        for f in funds
+    )
+    return "|".join(f"{code}:{allocation:.8f}" for code, allocation in pairs)
+
+
+def _get_cached_portfolio_result(key: str) -> PortfolioAnalysisResult | None:
+    cached = _portfolio_result_cache.get(key)
+    if cached is None:
+        return None
+    result, expires = cached
+    if time.time() >= expires:
+        _portfolio_result_cache.pop(key, None)
+        return None
+    # Never hand the cached mutable Pydantic object directly to a caller.
+    return result.model_copy(deep=True)
+
+
+def _put_cached_portfolio_result(key: str, result: PortfolioAnalysisResult) -> None:
+    _portfolio_result_cache[key] = (
+        result.model_copy(deep=True),
+        time.time() + _PORTFOLIO_RESULT_CACHE_TTL_SECONDS,
+    )
+
+
 async def _enrich_with_scheme_metadata(
     fetcher: MutualFundFetcher, funds: list[dict[str, Any]]
 ) -> None:
@@ -78,18 +115,12 @@ async def _enrich_with_scheme_metadata(
             continue
         fund["amc"] = s.amc or None
         fund["category"] = s.category or None
-        # Scheme name is used for user-facing warnings (e.g. zero-allocation
-        # exclusions) instead of an unexplained scheme code.
         fund["scheme_name"] = s.scheme_name
         fund["is_stale"] = _is_scheme_stale(s, schemes)
 
 
 def _is_scheme_stale(s: Any, schemes: list[Any]) -> bool:
-    """True if the scheme's last NAV date lags the universe's newest by >14 days.
-
-    Mirrors the stale/retired convention used by fund search: AMFI-reported
-    last-NAV dates, with a 14-day grace window for weekends/holidays.
-    """
+    """True if the scheme's last NAV date lags the universe's newest by >14 days."""
     from datetime import datetime
 
     if not s.nav_date:
@@ -127,20 +158,14 @@ async def get_portfolio_analysis():
 async def analyze_mutual_fund_portfolio(request: PortfolioAnalysisRequest) -> PortfolioAnalysisResult:
     """Analyze an allocation-based mutual-fund portfolio.
 
-    Accepts only scheme codes + allocations (the client-side Portfolio
-    Builder state). NAV histories are fetched server-side (TigZig batch path
-    with MFAPI fallback), each unique scheme fetched at most once per request.
-    No portfolio state is persisted.
+    NAV retrieval uses one TigZig bulk query for all selected schemes, with
+    concurrent per-scheme fallback only when the bulk result is insufficient.
+    Successful complete histories are cached briefly so a subsequent What-If
+    request does not download the same NAV data again.
     """
     try:
-        # Validate allocations BEFORE any NAV fetching.
         validate_allocations([f.model_dump() for f in request.funds])
 
-        # Ensure the TigZig bulk dataset (complete NAV history) is available.
-        # Without this, the request silently falls back to MFAPI, whose per-scheme
-        # history can be stale/partial (e.g. 106253 ends 2017-04-25), truncating
-        # the portfolio's common period. ensure_dataset downloads once and is a
-        # no-op afterwards; no new cache infrastructure.
         dataset = get_tigzig_dataset()
         if not dataset.is_available:
             try:
@@ -148,36 +173,47 @@ async def analyze_mutual_fund_portfolio(request: PortfolioAnalysisRequest) -> Po
             except Exception as e:
                 logger.warning("TigZig dataset initialization failed (%s); using MFAPI fallback", e)
 
-        # Fetch each unique fund's COMPLETE NAV history once for this request
-        # (lookback_years=None → no date-window clipping; the common period is
-        # derived dynamically from the full available histories).
-        funds_with_navs: list[dict[str, Any]] = []
         fetcher = _get_fetcher()
+        fund_codes = [fund.scheme_code.strip() for fund in request.funds]
+        nav_by_code = await fetch_complete_nav_histories(fetcher, fund_codes)
+
+        funds_with_navs: list[dict[str, Any]] = []
         for fund in request.funds:
             code = fund.scheme_code.strip()
-            navs = await fetcher.get_nav_history(code, lookback_years=None)
+            navs = nav_by_code.get(code, [])
+            if len(navs) < 2:
+                raise PortfolioAnalysisError(
+                    "INSUFFICIENT_NAV_DATA",
+                    f"Insufficient NAV history for scheme {code}.",
+                )
             funds_with_navs.append(
                 {"scheme_code": code, "allocation": fund.allocation, "navs": navs}
             )
 
-        # Enrich with AMC/category/stale metadata from the cached AMFI universe
-        # (no extra network calls — uses the same cache as fund search) so the
-        # Health Score Fund Mix + legacy-confidence components can run.
         await _enrich_with_scheme_metadata(fetcher, funds_with_navs)
 
+        calc_started = time.perf_counter()
         result = calculate_portfolio_analysis(funds_with_navs)
+        logger.info(
+            "TIMING: portfolio calculation | funds=%d | %.3f sec",
+            len(funds_with_navs),
+            time.perf_counter() - calc_started,
+        )
 
-        # Additive Portfolio-vs-Benchmark comparison (Phase 2E). Runs off the
-        # portfolio growth series; a failure only downgrades the comparison and
-        # never breaks the existing portfolio analysis.
         try:
+            benchmark_started = time.perf_counter()
             result.benchmark_data = await asyncio.to_thread(
                 build_benchmark_data, result.series
+            )
+            logger.info(
+                "TIMING: portfolio benchmark | %.3f sec",
+                time.perf_counter() - benchmark_started,
             )
         except Exception as e:
             logger.warning("Portfolio benchmark comparison failed: %s", e)
             result.benchmark_data = None
 
+        _put_cached_portfolio_result(_portfolio_cache_key(request.funds), result)
         return result
     except PortfolioAnalysisError as e:
         logger.info("Portfolio analysis rejected (%s): %s", e.code, e.message)
@@ -191,14 +227,7 @@ async def analyze_mutual_fund_portfolio(request: PortfolioAnalysisRequest) -> Po
 async def generate_mutual_fund_portfolio_insights(
     payload: PortfolioInsightsRequest,
 ) -> InsightResponse:
-    """Interpret the bounded Portfolio Builder context with the configured AI service.
-
-    The compact deterministic context (fund selection/allocation + portfolio
-    analysis summary) is built client-side from the SAME result object the UI
-    rendered and is interpreted as a mutual-fund PORTFOLIO via the
-    ``portfolio_builder`` context. Nothing is re-computed here — the AI layer
-    only interprets the deterministic values supplied in the payload.
-    """
+    """Interpret the bounded Portfolio Builder context with the configured AI service."""
     try:
         return await AIInsightService(settings).generate_insights(
             data=payload.model_dump(exclude_unset=True),
@@ -221,12 +250,7 @@ async def generate_mutual_fund_portfolio_insights(
 
 @router.post("/stock-overlap")
 async def stock_overlap(request: StockOverlapRequest) -> dict[str, Any]:
-    """Compute stock overlap across the supplied funds' AMFI holdings.
-
-    Holdings are fetched only for the supplied funds via the existing
-    AmfiHoldingsService (default/hardcoded quarter) and passed directly
-    to compute_stock_overlap(). No new AMFI scraping logic.
-    """
+    """Compute stock overlap across the supplied funds' AMFI holdings."""
     if not request.funds:
         raise HTTPException(status_code=400, detail="funds must not be empty")
     try:
@@ -262,15 +286,12 @@ async def analyze_mutual_fund_portfolio_what_if(
 ) -> PortfolioWhatIfResult:
     """Run a temporary What-If allocation scenario for the current funds.
 
-    Runs the SAME allocation-based analysis engine twice — once for the
-    current allocation (``request.funds``), once for the alternative
-    ``scenario_allocations`` — over ONE shared NAV fetch, so both sides use
-    identical historical data, date-alignment, and methodology. The scenario
-    is purely computational: nothing is persisted and the caller's actual
-    portfolio state is never modified.
+    Reuses the current portfolio result when the user has just analyzed the
+    same allocation. NAV histories are also reused from the shared short-lived
+    batch cache. Only the scenario calculation is then required, followed by
+    the existing benchmark comparison for the scenario.
     """
     try:
-        # Validate both sides before any NAV fetching.
         validate_allocations([f.model_dump() for f in request.funds])
         fund_codes = [f.scheme_code.strip() for f in request.funds]
         validate_scenario_allocations(
@@ -278,26 +299,65 @@ async def analyze_mutual_fund_portfolio_what_if(
             [a.model_dump() for a in request.scenario_allocations],
         )
 
-        dataset = get_tigzig_dataset()
-        if not dataset.is_available:
-            try:
-                await dataset.ensure_dataset()
-            except Exception as e:
-                logger.warning("TigZig dataset initialization failed (%s); using MFAPI fallback", e)
-
-        # One NAV fetch per unique fund, reused for BOTH the current and
-        # scenario analysis — no second data-retrieval pipeline.
         fetcher = _get_fetcher()
-        funds_with_navs: list[dict[str, Any]] = []
-        for fund in request.funds:
-            code = fund.scheme_code.strip()
-            navs = await fetcher.get_nav_history(code, lookback_years=None)
-            funds_with_navs.append(
-                {"scheme_code": code, "allocation": fund.allocation, "navs": navs}
-            )
-        await _enrich_with_scheme_metadata(fetcher, funds_with_navs)
+        current_key = _portfolio_cache_key(request.funds)
+        current_result = _get_cached_portfolio_result(current_key)
 
-        current_result = calculate_portfolio_analysis(funds_with_navs)
+        if current_result is not None:
+            logger.info("TIMING: What-If current result CACHE HIT")
+            funds_with_navs = None
+        else:
+            logger.info("TIMING: What-If current result CACHE MISS")
+            dataset = get_tigzig_dataset()
+            if not dataset.is_available:
+                try:
+                    await dataset.ensure_dataset()
+                except Exception as e:
+                    logger.warning("TigZig dataset initialization failed (%s); using MFAPI fallback", e)
+
+            nav_by_code = await fetch_complete_nav_histories(fetcher, fund_codes)
+            funds_with_navs = []
+            for fund in request.funds:
+                code = fund.scheme_code.strip()
+                navs = nav_by_code.get(code, [])
+                if len(navs) < 2:
+                    raise PortfolioAnalysisError(
+                        "INSUFFICIENT_NAV_DATA",
+                        f"Insufficient NAV history for scheme {code}.",
+                    )
+                funds_with_navs.append(
+                    {"scheme_code": code, "allocation": fund.allocation, "navs": navs}
+                )
+            await _enrich_with_scheme_metadata(fetcher, funds_with_navs)
+            current_result = calculate_portfolio_analysis(funds_with_navs)
+            try:
+                current_result.benchmark_data = await asyncio.to_thread(
+                    build_benchmark_data, current_result.series
+                )
+            except Exception as e:
+                logger.warning("What-If current benchmark comparison failed: %s", e)
+                current_result.benchmark_data = None
+            _put_cached_portfolio_result(current_key, current_result)
+
+        if funds_with_navs is None:
+            # The current result cache intentionally stores only the calculated
+            # result, not the potentially large NAV histories. If NAVs are still
+            # in the dedicated NAV cache, this retrieval is a cache hit and does
+            # not issue a new TigZig batch query.
+            nav_by_code = await fetch_complete_nav_histories(fetcher, fund_codes)
+            funds_with_navs = []
+            for fund in request.funds:
+                code = fund.scheme_code.strip()
+                navs = nav_by_code.get(code, [])
+                if len(navs) < 2:
+                    raise PortfolioAnalysisError(
+                        "INSUFFICIENT_NAV_DATA",
+                        f"Insufficient NAV history for scheme {code}.",
+                    )
+                funds_with_navs.append(
+                    {"scheme_code": code, "allocation": fund.allocation, "navs": navs}
+                )
+            await _enrich_with_scheme_metadata(fetcher, funds_with_navs)
 
         scenario_alloc_by_code = {
             a.scheme_code.strip(): a.allocation for a in request.scenario_allocations
@@ -306,18 +366,21 @@ async def analyze_mutual_fund_portfolio_what_if(
             {**fund, "allocation": scenario_alloc_by_code[fund["scheme_code"]]}
             for fund in funds_with_navs
         ]
+        scenario_started = time.perf_counter()
         scenario_result = calculate_portfolio_analysis(scenario_funds_with_navs)
+        logger.info(
+            "TIMING: What-If scenario calculation | funds=%d | %.3f sec",
+            len(scenario_funds_with_navs),
+            time.perf_counter() - scenario_started,
+        )
 
-        # Same benchmark methodology as the main endpoint, run for both sides;
-        # a failure only omits the benchmark comparison, never the metrics.
-        for result in (current_result, scenario_result):
-            try:
-                result.benchmark_data = await asyncio.to_thread(
-                    build_benchmark_data, result.series
-                )
-            except Exception as e:
-                logger.warning("What-If benchmark comparison failed: %s", e)
-                result.benchmark_data = None
+        try:
+            scenario_result.benchmark_data = await asyncio.to_thread(
+                build_benchmark_data, scenario_result.series
+            )
+        except Exception as e:
+            logger.warning("What-If benchmark comparison failed: %s", e)
+            scenario_result.benchmark_data = None
 
         return compare_portfolio_results(current_result, scenario_result)
     except PortfolioAnalysisError as e:
