@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
+import time
 
 from backend.config.settings import Settings
 from backend.routes.screener import router as screener_router
@@ -30,6 +31,36 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Diagnostic-only timing for the stock portfolio analysis path.
+# This records the complete server-side duration of each stock endpoint,
+# allowing us to compare total route time with individual provider timings.
+@app.middleware("http")
+async def stock_performance_diagnostics(request, call_next):
+    path = request.url.path
+    is_stock_analysis = (
+        path.startswith("/api/stocks/")
+        and not path.endswith("/universe")
+        and not path.endswith("/market-cap-bands")
+    )
+    if not is_stock_analysis:
+        return await call_next(request)
+
+    started = time.perf_counter()
+    print(f"[STOCK-PERF] START {request.method} {path}", flush=True)
+    try:
+        response = await call_next(request)
+        print(
+            f"[STOCK-PERF] END {request.method} {path} status={response.status_code} duration={time.perf_counter() - started:.3f}s",
+            flush=True,
+        )
+        return response
+    except Exception as exc:
+        print(
+            f"[STOCK-PERF] FAILED {request.method} {path} duration={time.perf_counter() - started:.3f}s error={exc}",
+            flush=True,
+        )
+        raise
 
 FAVICON_URL = "/static/images/hero-market-analysis.png?v=20261006"
 
