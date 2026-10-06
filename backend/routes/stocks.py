@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from backend.config.settings import Settings
 from backend.services.ai.groq import AIInsightService, InsightResponse
-from backend.services.data.fundamentals import get_stock_analysis
+from backend.services.data.fundamentals import get_cached_raw_analysis, get_stock_analysis
 from backend.services.data.stock_charts import build_stock_charts, yahoo_annual_prices
 from backend.services.data.yahoo import YahooFinanceClient, YahooFinanceError
 from backend.services.stocks.fast_nifty_universe import load_fast_nifty_total_market
@@ -220,9 +220,16 @@ async def get_market_cap_bands():
 def _load_stock_charts(symbol: str) -> dict[str, Any]:
     normalized = _normalize_stock_symbol(symbol)
     stock_client = _get_client()
-    history = stock_client.financial_history(normalized)
+    cached = get_cached_raw_analysis(normalized)
+    if cached:
+        quote, history = cached
+    else:
+        history = stock_client.financial_history(normalized)
+        quote = stock_client._screener.quote_summary(normalized)
+
+    # Price history is still fetched exactly as before; only the quote and
+    # financial-history calls are reused from the immediately preceding analysis.
     prices = yahoo_annual_prices(normalized, years=7)
-    quote = stock_client._screener.quote_summary(normalized)
     charts = build_stock_charts(
         history,
         prices,
