@@ -4,6 +4,7 @@ Loaded automatically by Python's site module when this repository is the
 working directory. This intentionally keeps the application UI unchanged.
 """
 
+import re
 import threading
 import time
 
@@ -17,53 +18,53 @@ def _install_screener_diagnostics() -> None:
     if getattr(ScreenerFinanceClient, "_diagnostic_timing_installed", False):
         return
 
-    # Stock analysis can create more than one ScreenerFinanceClient while
-    # quote_summary() and financial_history() run concurrently. Share the
-    # in-flight registry across instances so the same stock cannot trigger
-    # duplicate concurrent Screener requests.
+    # Share the application's existing in-flight coordination across client
+    # instances. The normal _fetch implementation remains responsible for the
+    # actual deduplication.
     ScreenerFinanceClient._shared_fetch_inflight = {}
     ScreenerFinanceClient._shared_fetch_inflight_lock = threading.Lock()
 
-    original_fetch = ScreenerFinanceClient._fetch
+    original_init = ScreenerFinanceClient.__init__
 
-    def timed_fetch(self, symbol):
-        # Reuse the process-wide coordination objects in the existing fetch
-        # implementation without changing the application's normal code path.
+    def diagnostic_init(self):
+        original_init(self)
         self._fetch_inflight = ScreenerFinanceClient._shared_fetch_inflight
         self._fetch_inflight_lock = ScreenerFinanceClient._shared_fetch_inflight_lock
 
-        started = time.perf_counter()
-        key = self._symbol(symbol)
-        cached = self._cache.get(key)
-        if cached and time.time() - cached[0] < self.CACHE_TTL:
-            print(f"[SCREENER-PERF] {key} CACHE_HIT", flush=True)
-            return original_fetch(self, symbol)
+        if getattr(self, "_diagnostic_http_installed", False):
+            return
 
-        with self._fetch_inflight_lock:
-            is_inflight = key in self._fetch_inflight
+        original_get = self.session.get
 
-        if is_inflight:
-            print(f"[SCREENER-PERF] {key} IN_FLIGHT_REUSE", flush=True)
-        else:
-            print(f"[SCREENER-PERF] {key} NEW_REQUEST", flush=True)
-
-        try:
-            result = original_fetch(self, symbol)
+        def diagnostic_get(url, *args, **kwargs):
+            text_url = str(url)
+            match = re.search(r"/company/([^/?#]+)", text_url)
+            symbol = match.group(1).upper() if match else "?"
+            started = time.perf_counter()
             print(
-                f"[SCREENER-PERF] {key} COMPLETE wait={time.perf_counter() - started:.3f}s",
+                f"[SCREENER-PERF] HTTP_START {symbol} thread={threading.current_thread().name}",
                 flush=True,
             )
-            return result
-        except Exception as exc:
-            print(
-                f"[SCREENER-PERF] {key} FAILED duration={time.perf_counter() - started:.3f}s error={exc}",
-                flush=True,
-            )
-            raise
+            try:
+                response = original_get(url, *args, **kwargs)
+                print(
+                    f"[SCREENER-PERF] HTTP_COMPLETE {symbol} status={response.status_code} duration={time.perf_counter() - started:.3f}s",
+                    flush=True,
+                )
+                return response
+            except Exception as exc:
+                print(
+                    f"[SCREENER-PERF] HTTP_FAILED {symbol} duration={time.perf_counter() - started:.3f}s error={exc}",
+                    flush=True,
+                )
+                raise
 
-    ScreenerFinanceClient._fetch = timed_fetch
+        self.session.get = diagnostic_get
+        self._diagnostic_http_installed = True
+
+    ScreenerFinanceClient.__init__ = diagnostic_init
     ScreenerFinanceClient._diagnostic_timing_installed = True
-    print("[SCREENER-PERF] server diagnostics installed (shared in-flight registry)", flush=True)
+    print("[SCREENER-PERF] server diagnostics installed (actual HTTP + shared in-flight)", flush=True)
 
 
 _install_screener_diagnostics()
