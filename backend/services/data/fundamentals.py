@@ -3,11 +3,30 @@ from __future__ import annotations
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+import time
 from typing import Any, Optional
 
 from backend.models.fundamentals import FinancialPeriod, Fundamentals
 from backend.services.data.yahoo import YahooFinanceClient, number
 from backend.services.stocks.screener import ScreenerEngine
+
+
+# Short-lived raw-data cache used to avoid fetching the same quote/history again
+# immediately when portfolio analysis subsequently builds its charts.
+_ANALYSIS_RAW_CACHE: dict[str, tuple[float, dict[str, Any], dict[str, Any]]] = {}
+_ANALYSIS_RAW_CACHE_TTL = 300.0
+
+
+def get_cached_raw_analysis(symbol: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    key = symbol.strip().upper()
+    cached = _ANALYSIS_RAW_CACHE.get(key)
+    if not cached:
+        return None
+    created, raw, history = cached
+    if time.monotonic() - created > _ANALYSIS_RAW_CACHE_TTL:
+        _ANALYSIS_RAW_CACHE.pop(key, None)
+        return None
+    return raw, history
 
 
 def field(raw: dict[str, Any], name: str) -> Optional[float]:
@@ -115,6 +134,10 @@ def get_stock_analysis(client: YahooFinanceClient, symbol: str) -> dict[str, Any
         history_future = executor.submit(client.financial_history, symbol)
         raw = quote_future.result()
         history = history_future.result()
+
+    # Keep the raw provider payload briefly so the immediately-following chart
+    # request can reuse it instead of downloading the same quote/history again.
+    _ANALYSIS_RAW_CACHE[symbol] = (time.monotonic(), raw, history)
 
     fundamentals = normalize(symbol, raw, history)
 
