@@ -7,3 +7,9 @@ from backend.services.mutual_funds.normalizer import (
     normalize_search_result,
 )
 from backend.services.mutual_funds.ranking import RankingEngine
+
+# Install the optimized portfolio-builder fund search after MutualFundFetcher
+# has been imported. This preserves the existing public API while replacing
+# only the expensive per-keystroke search implementation.
+from backend.services.mutual_funds.search_index import install_search_optimization
+install_search_optimization()
