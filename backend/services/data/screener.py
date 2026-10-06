@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import re
+import threading
 import time
+from concurrent.futures import Future
 from typing import Any
 
 import curl_cffi.requests
@@ -35,6 +37,8 @@ class ScreenerFinanceClient:
             "Cache-Control": "no-cache",
         })
         self._cache: dict[str, tuple[float, BeautifulSoup]] = {}
+        self._fetch_inflight: dict[str, Future[BeautifulSoup]] = {}
+        self._fetch_inflight_lock = threading.Lock()
 
     @staticmethod
     def _symbol(symbol: str) -> str:
@@ -81,38 +85,64 @@ class ScreenerFinanceClient:
         if cached and time.time() - cached[0] < self.CACHE_TTL:
             return cached[1]
 
-        last_error: Exception | None = None
-        for path in (f"/{key}/consolidated/", f"/{key}/"):
-            for attempt in range(3):
-                try:
-                    response = self.session.get(
-                        f"{self.BASE_URL}{path}",
-                        timeout=25,
-                        allow_redirects=True,
-                    )
-                    if response.status_code == 429:
-                        last_error = ScreenerFinanceError("Screener.in HTTP 429 Too Many Requests")
-                        if attempt < 2:
-                            time.sleep(1.0 + attempt)
-                            continue
-                        break
-                    response.raise_for_status()
-                    text = response.text
-                    if "Company not found" in text or "Page not found" in text:
-                        last_error = ScreenerFinanceError(f"Screener.in company not found: {key}")
-                        break
-                    soup = BeautifulSoup(text, "html.parser")
-                    if not soup.select_one("#top-ratios"):
-                        last_error = ScreenerFinanceError(f"Screener.in returned no company data for {key}")
-                        break
-                    self._cache[key] = (time.time(), soup)
-                    return soup
-                except Exception as exc:
-                    last_error = exc
-                    if attempt < 2:
-                        time.sleep(0.5 + attempt * 0.5)
+        # quote_summary() and financial_history() are deliberately executed
+        # concurrently for each stock. Both need the same Screener company
+        # page, so share one in-flight fetch instead of hitting Screener twice.
+        with self._fetch_inflight_lock:
+            inflight = self._fetch_inflight.get(key)
+            if inflight is None:
+                inflight = Future()
+                self._fetch_inflight[key] = inflight
+                fetch_owner = True
+            else:
+                fetch_owner = False
 
-        raise ScreenerFinanceError(str(last_error) if last_error else "Screener.in request failed")
+        if not fetch_owner:
+            return inflight.result()
+
+        try:
+            last_error: Exception | None = None
+            for path in (f"/{key}/consolidated/", f"/{key}/"):
+                for attempt in range(3):
+                    try:
+                        response = self.session.get(
+                            f"{self.BASE_URL}{path}",
+                            timeout=25,
+                            allow_redirects=True,
+                        )
+                        if response.status_code == 429:
+                            last_error = ScreenerFinanceError("Screener.in HTTP 429 Too Many Requests")
+                            if attempt < 2:
+                                time.sleep(1.0 + attempt)
+                                continue
+                            break
+                        response.raise_for_status()
+                        text = response.text
+                        if "Company not found" in text or "Page not found" in text:
+                            last_error = ScreenerFinanceError(f"Screener.in company not found: {key}")
+                            break
+                        soup = BeautifulSoup(text, "html.parser")
+                        if not soup.select_one("#top-ratios"):
+                            last_error = ScreenerFinanceError(f"Screener.in returned no company data for {key}")
+                            break
+                        self._cache[key] = (time.time(), soup)
+                        inflight.set_result(soup)
+                        return soup
+                    except Exception as exc:
+                        last_error = exc
+                        if attempt < 2:
+                            time.sleep(0.5 + attempt * 0.5)
+
+            error = ScreenerFinanceError(str(last_error) if last_error else "Screener.in request failed")
+            inflight.set_exception(error)
+            raise error
+        except BaseException as exc:
+            if not inflight.done():
+                inflight.set_exception(exc if isinstance(exc, Exception) else Exception(str(exc)))
+            raise
+        finally:
+            with self._fetch_inflight_lock:
+                self._fetch_inflight.pop(key, None)
 
     @classmethod
     def _top_ratios(cls, soup: BeautifulSoup) -> dict[str, float | None]:
