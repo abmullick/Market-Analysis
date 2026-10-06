@@ -6,6 +6,8 @@
     let fetchSequence = 0;
     const fundamentalCache = new Map();
     const fundamentalInflight = new Map();
+    const chartCache = new Map();
+    const chartInflight = new Map();
 
     const stamp = () => new Date().toISOString();
     const log = (...args) => console.log(PREFIX, stamp(), ...args);
@@ -39,22 +41,31 @@
         const started = performance.now();
         const symbol = decodeURIComponent(url.split("/api/stocks/")[1] || "").split("/")[0];
         const isFundamentalRequest = !url.includes("/charts");
+        const cache = isFundamentalRequest ? fundamentalCache : chartCache;
+        const inflight = isFundamentalRequest ? fundamentalInflight : chartInflight;
+        const type = isFundamentalRequest ? "fundamental" : "chart";
         log(`FETCH #${id} START`, symbol, url);
         console.trace(`${PREFIX} FETCH #${id} stack`);
 
-        if (isFundamentalRequest && fundamentalCache.has(url)) {
-            log(`FETCH #${id} CACHE HIT`, symbol, { durationMs: 0 });
-            const cached = fundamentalCache.get(url);
+        if (cache.has(url)) {
+            log(`FETCH #${id} CACHE HIT`, symbol, { type, durationMs: 0 });
+            const cached = cache.get(url);
             return new Response(JSON.stringify(cached.body), {
                 status: cached.status,
                 headers: { "Content-Type": "application/json" }
             });
         }
 
-        if (isFundamentalRequest && fundamentalInflight.has(url)) {
-            log(`FETCH #${id} IN-FLIGHT REUSE`, symbol);
-            const cached = await fundamentalInflight.get(url);
-            log(`FETCH #${id} END`, symbol, { status: cached.status, ok: cached.ok, durationMs: Math.round(performance.now() - started), reused: true });
+        if (inflight.has(url)) {
+            log(`FETCH #${id} IN-FLIGHT REUSE`, symbol, { type });
+            const cached = await inflight.get(url);
+            log(`FETCH #${id} END`, symbol, {
+                status: cached.status,
+                ok: cached.ok,
+                durationMs: Math.round(performance.now() - started),
+                reused: true,
+                type
+            });
             return new Response(JSON.stringify(cached.body), {
                 status: cached.status,
                 headers: { "Content-Type": "application/json" }
@@ -64,17 +75,17 @@
         const requestPromise = (async () => {
             try {
                 const response = await originalFetch(...args);
-                if (isFundamentalRequest && response.ok) {
+                if (response.ok) {
                     const body = await response.clone().json();
-                    fundamentalCache.set(url, { status: response.status, body });
+                    cache.set(url, { status: response.status, body });
                 }
                 return response;
             } finally {
-                if (isFundamentalRequest) fundamentalInflight.delete(url);
+                inflight.delete(url);
             }
         })();
 
-        if (isFundamentalRequest) fundamentalInflight.set(url, requestPromise.then(async response => ({
+        inflight.set(url, requestPromise.then(async response => ({
             status: response.status,
             ok: response.ok,
             body: response.ok ? await response.clone().json() : null
@@ -86,13 +97,15 @@
                 status: response.status,
                 ok: response.ok,
                 durationMs: Math.round(performance.now() - started),
-                cachedForReuse: isFundamentalRequest && response.ok
+                cachedForReuse: response.ok,
+                type
             });
             return response;
         } catch (error) {
             log(`FETCH #${id} ERROR`, symbol, {
                 durationMs: Math.round(performance.now() - started),
-                message: error?.message || String(error)
+                message: error?.message || String(error),
+                type
             });
             throw error;
         }
