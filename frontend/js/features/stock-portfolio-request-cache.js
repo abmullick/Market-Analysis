@@ -9,7 +9,7 @@
 
     const originalFetch = window.fetch.bind(window);
 
-    const cloneCachedResponse = (cached) => new Response(JSON.stringify(cached.body), {
+    const toResponse = (cached) => new Response(cached.body == null ? null : JSON.stringify(cached.body), {
         status: cached.status,
         headers: { "Content-Type": "application/json" }
     });
@@ -25,37 +25,33 @@
         const inflight = isChartRequest ? chartInflight : fundamentalInflight;
 
         if (cache.has(url)) {
-            return cloneCachedResponse(cache.get(url));
+            return toResponse(cache.get(url));
         }
 
         if (inflight.has(url)) {
-            const cached = await inflight.get(url);
-            return cloneCachedResponse(cached);
+            return toResponse(await inflight.get(url));
         }
 
         const requestPromise = (async () => {
             const response = await originalFetch(...args);
-            if (!response.ok) return {
-                status: response.status,
-                body: null,
-                ok: false
-            };
-
-            const body = await response.clone().json();
-            const cached = {
+            let body = null;
+            try {
+                body = await response.clone().json();
+            } catch (_) {
+                // Preserve status even when an error response is not JSON.
+            }
+            const result = {
                 status: response.status,
                 body,
-                ok: true
+                ok: response.ok
             };
-            cache.set(url, cached);
-            return cached;
+            if (response.ok) cache.set(url, result);
+            return result;
         })();
 
         inflight.set(url, requestPromise);
         try {
-            const cached = await requestPromise;
-            if (cached.ok) return cloneCachedResponse(cached);
-            return originalFetch(...args);
+            return toResponse(await requestPromise);
         } finally {
             inflight.delete(url);
         }
