@@ -323,3 +323,24 @@ Chart grouping and collapsible presentation are implemented so existing chart da
 ### 17.5 Interpretation boundary
 
 The recent UI changes do not alter portfolio formulas, historical periods, benchmark definitions, coverage rules, or the descriptive nature of the analysis. They improve navigation and readability while preserving the existing calculation engine.
+
+## 19. Application Authentication
+
+Market Analysis is protected by an application-wide authentication gate. The same authenticated session is required for HTML pages, FastAPI APIs and frontend static assets.
+
+The only public routes are the login surface and the authentication endpoints required to establish or terminate a session. This means adding a new page, API route or static asset does not accidentally expose it without authentication.
+
+The login experience follows the application's decorative floating-access pattern:
+
+- Glass-style login card with animated orbit decoration.
+- Responsive username/password form.
+- Return to the originally requested page after successful authentication.
+- Floating **Private access / Sign out** control on authenticated pages.
+- Session-expiry overlay when an open page detects an expired session.
+
+Sessions use cryptographically random server-side tokens stored as SHA-256 hashes in SQLite. Cookies are HttpOnly, SameSite=Lax and Secure in production. Sessions expire after 12 hours and logout invalidates the server-side session.
+
+Login protection also includes same-origin checks and a five-failed-attempt / ten-minute lockout policy. Unauthenticated API requests return HTTP 401; browser page requests redirect to the login surface.
+
+Authentication credentials are supplied through server-side `APP_USERNAME` and `APP_PASSWORD` environment variables and are never committed to the repository.
+
