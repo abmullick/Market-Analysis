@@ -205,7 +205,14 @@ async def logout(request: Request):
     return response
 
 @app.get("/")
-async def read_root():
+async def read_root(request: Request):
+    # Keep the site root publicly readable as a login/preview surface. This is
+    # important for link-preview crawlers (including WhatsApp), which may not
+    # follow the authentication redirect before parsing Open Graph metadata.
+    # The actual application HTML and every application API remain protected.
+    if not auth.current_user(request):
+        return HTMLResponse(LOGIN_PAGE)
+
     html = render_html_page("frontend/html/index.html").body.decode("utf-8")
     hero_url = "https://market-analysis-g4ow.onrender.com/static/images/hero-market-analysis.png?v=20261006"
     html = html.replace(
