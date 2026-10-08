@@ -166,7 +166,61 @@ Current Drawdown is the latest indexed portfolio value relative to its historica
 
 Because the risk path uses annual closing prices, an intra-year drawdown can be understated. This is a historical exposure view rather than a transaction-level backtest and excludes dividends, taxes, transaction costs and rebalancing.
 
-## 11. What-If / Rebalancing
+## 11. Advanced Portfolio Analytics
+
+The Stock Portfolio Builder also provides three optional portfolio-level analytics sections:
+
+- **Portfolio Health Score** — a 0–100 descriptive score combining historical return quality, downside risk, portfolio diversification, allocation-weighted fundamental quality and balance-sheet leverage.
+- **Rolling Performance** — 1Y, 3Y and 5Y overlapping rolling CAGR views where sufficient history is available, including median, average, best, worst and percentage of positive rolling periods.
+- **Drawdown & Recovery** — maximum drawdown, current drawdown, historical drawdown episodes, peak-to-trough behaviour and recovery duration.
+
+### Portfolio Health Score methodology
+
+The Health Score is a descriptive portfolio-construction indicator rather than a prediction or buy/sell signal. Its components are calculated from the portfolio data already loaded by Stock Portfolio Builder:
+
+- Historical portfolio return quality.
+- Historical maximum drawdown / downside risk.
+- Allocation-weighted fundamental quality, using available ROE, Revenue Growth and Profit Growth.
+- Allocation diversification / concentration.
+- Allocation-weighted Debt / Equity.
+
+Only components with usable data contribute to the score. The displayed component weights are normalised across the components that are available for that portfolio.
+
+The score should be interpreted together with its underlying component values and the available data coverage. It does not forecast future returns.
+
+### Rolling Performance methodology
+
+Rolling CAGR is calculated from the existing annual portfolio-price path. For a window of n years:
+
+`Rolling CAGR = (Ending Portfolio Value / Starting Portfolio Value) ^ (1 / n) − 1`
+
+The windows overlap. The section reports median rolling CAGR, average rolling CAGR, best rolling period, worst rolling period, percentage of positive rolling periods, and number of observations.
+
+Because the Stock Portfolio Builder's reused chart payload currently provides annual closing prices for this calculation, the rolling series is an annual-close consistency view rather than a daily backtest.
+
+### Drawdown & Recovery methodology
+
+Drawdown at any point is:
+
+`Drawdown = Portfolio Value / Previous Historical Peak − 1`
+
+Maximum Drawdown is the most negative drawdown in the available annual portfolio path.
+
+A drawdown episode starts when the portfolio falls below a previous peak and ends when the portfolio reaches or exceeds that peak again. An ongoing episode has no recovery date. Recovery duration is measured from the episode's peak to the recovery date.
+
+Annual closing prices can understate intra-year drawdowns. These calculations exclude dividends, taxes, transaction costs and portfolio rebalancing.
+
+### Performance architecture
+
+These three analytics deliberately reuse the same historical chart payload already fetched for Portfolio Performance. They do not issue another per-stock historical-data request.
+
+The analysis flow is:
+
+`Stock fundamentals + existing /charts data → Portfolio Performance → local Advanced Analytics`
+
+This is important because the Stock Portfolio Builder is performance-sensitive. Advanced analytics are derived locally from the existing in-memory data rather than adding another round of stock-level API calls.
+
+## 12. What-If / Rebalancing
 
 The What-If / Rebalancing module allows the user to change allocations across the same holdings and immediately compare the proposed portfolio with the current portfolio.
 
@@ -184,7 +238,7 @@ The comparison recomputes:
 
 The scenario is temporary. It does not overwrite the saved portfolio and it does not execute trades.
 
-## 12. Portfolio Action View
+## 13. Portfolio Action View
 
 The Action View provides a concise descriptive summary of portfolio characteristics that may warrant review.
 
@@ -205,7 +259,7 @@ It highlights:
 
 The Action View intentionally does not generate buy/sell recommendations or predict future returns.
 
-## 13. Data Notes and coverage
+## 14. Data Notes and coverage
 
 Portfolio fundamentals reuse the same Stock Analysis data and calculations. Holding-level signals reuse the shared fundamental-signal engine. Historical price calculations reuse the Stock Analysis chart data. Benchmark and risk views reuse the same historical-price inputs where applicable.
 
@@ -213,7 +267,7 @@ Coverage is shown whenever a portfolio metric is calculated from an incomplete s
 
 The application does not invent fundamental values, historical prices or missing observations merely to complete a portfolio card.
 
-## 14. UI and visualization
+## 15. UI and visualization
 
 Portfolio analysis is presented as distinct collapsible analysis cards. Each card provides key highlights while collapsed and detailed calculations or visualisations when expanded.
 
@@ -229,7 +283,7 @@ The analysis uses visualisations for:
 
 The presentation layer does not introduce an independent calculation engine; charts and cards consume the existing analysis results.
 
-## 15. Shared-engine principle
+## 16. Shared-engine principle
 
 The Stock Portfolio Builder deliberately reuses the existing Stock Analysis engine and endpoints wherever possible. This keeps the definitions of fundamentals, signals and historical price metrics consistent between an individual stock report and the portfolio containing that stock.
 
@@ -239,16 +293,16 @@ The principal frontend modules are:
 - `frontend/js/features/stock-portfolio-analysis.js` — portfolio snapshot, quality, valuation, sector allocation, holding analysis and historical performance.
 - `frontend/js/features/stock-portfolio-benchmark.js` — benchmark comparison.
 - `frontend/js/features/stock-portfolio-positioning-map.js` — quality × growth visualisation.
-- `frontend/js/features/stock-portfolio-risk-drawdown.js` — historical risk and drawdown.
+- `frontend/js/features/stock-portfolio-advanced-analytics.js` — local Portfolio Health Score, Rolling Performance, and Drawdown & Recovery derived from the existing analysis payload.
 - `frontend/js/features/stock-portfolio-rebalancing.js` — temporary what-if allocation analysis.
 - `frontend/js/features/stock-portfolio-action-view.js` — descriptive portfolio action summary.
 - `frontend/js/features/stock-portfolio-analysis-ui.js` — presentation/collapsible-card integration.
 
-## 16. Interpretation limits
+## 17. Interpretation limits
 
 Stock Portfolio Builder is historical and descriptive. It does not forecast future returns, guarantee portfolio outcomes, model transaction execution, include tax effects, or turn historical differences into recommendations. A portfolio metric is meaningful only in the context of its definition, historical period, available coverage and underlying data quality.
 
-## 17. Recent UI and interaction refinements
+## 18. Recent UI and interaction refinements
 
 ### 17.1 Independent chart cards
 
