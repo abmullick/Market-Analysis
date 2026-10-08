@@ -93,6 +93,12 @@ async function showAnalysis(container) {
     const chartsBySymbol = new Map(chartResults.map(item => [item.symbol, item.charts]));
     container.innerHTML = renderSummary(good, renderPerformance(good, chartsBySymbol));
     drawPerformanceVisuals(good, chartsBySymbol);
+
+    // Advanced analytics consumes the SAME chart payload already fetched above.
+    // No additional per-stock /charts requests are made.
+    window.dispatchEvent(new CustomEvent("stock-portfolio-analysis-ready", {
+        detail: { rows: good, chartsBySymbol }
+    }));
     if (errors.length) { const note = document.createElement("div"); note.className = "portfolio-partial-warning"; note.textContent = `${errors.length} holding${errors.length === 1 ? "" : "s"} could not be loaded and is excluded from the analysis. ${errors.join(" · ")}`; container.prepend(note); }
 }
 
