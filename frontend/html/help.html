@@ -1020,20 +1020,63 @@
                 <h3>Stock Portfolio Builder</h3>
                 <div class="help-grid">
                     <div class="help-card">
-                        <h4>Coming Soon</h4>
+                        <h4>Build &amp; Allocate</h4>
                         <p>
-                            Stock portfolio construction and analysis functionality is planned for a later phase.
-                            The page is available in the navigation as a placeholder while the feature is developed.
+                            Select stocks from the Stock Analysis universe, add them to the portfolio, and assign
+                            allocation weights. The allocation must total exactly 100% before Portfolio Analysis can run.
+                            The builder is an allocation-based analytical portfolio; it does not model individual
+                            purchase prices, tax lots, transaction costs or trade execution.
                         </p>
                     </div>
                     <div class="help-card">
-                        <h4>Planned Scope</h4>
+                        <h4>Portfolio Analysis</h4>
                         <p>
-                            Planned capabilities include portfolio construction, portfolio performance, risk &amp;
-                            volatility, diversification &amp; concentration, benchmark comparison, and portfolio
-                            insights. These are informational previews of the planned feature and are not implemented
-                            yet. Stock Portfolio Builder is intended to answer how good a collection of stocks is as
-                            a portfolio.
+                            Review portfolio structure, allocation-weighted quality and valuation, sector exposure,
+                            holding-level signals, historical portfolio performance, benchmark comparison and
+                            positioning. Historical calculations reuse the same Stock Analysis data and price-history
+                            engines used for individual stocks.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Portfolio Health Score</h4>
+                        <p>
+                            The Stock Portfolio Builder provides a 0–100 descriptive Health Score based on the data
+                            already loaded for the portfolio. It considers historical return quality, downside risk,
+                            diversification/concentration, allocation-weighted fundamental quality and balance-sheet
+                            leverage. Only components with usable data contribute to the score.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Rolling Performance</h4>
+                        <p>
+                            Review 1Y, 3Y and 5Y rolling CAGR where sufficient history is available. The section shows
+                            median, average, best and worst rolling returns, the percentage of positive rolling periods,
+                            and an interactive chart. The current implementation uses the existing annual closing-price
+                            history, so it is a long-term consistency view rather than a daily backtest.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Drawdown &amp; Recovery</h4>
+                        <p>
+                            Review maximum drawdown, current drawdown, historical peak-to-trough episodes and recovery
+                            duration. An ongoing drawdown has no claimed recovery date. Because the calculation uses
+                            annual closing prices, intra-year drawdowns can be understated.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Performance-First Design</h4>
+                        <p>
+                            Advanced portfolio analytics reuse the same historical chart payload already fetched for
+                            Portfolio Performance. They do not make another historical-data request for every holding,
+                            keeping the additional calculations local and lightweight.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Historical Interpretation</h4>
+                        <p>
+                            Portfolio CAGR, rolling returns and drawdown are historical/descriptive measures. They
+                            exclude dividends, taxes, transaction costs and portfolio rebalancing unless explicitly
+                            stated otherwise. None of these metrics is a forecast, guarantee or buy/sell recommendation.
                         </p>
                     </div>
                 </div>
@@ -1071,13 +1114,6 @@
                         </p>
                     </div>
                     <div class="help-card">
-                        <h4>Stock Portfolio Builder</h4>
-                        <p>
-                            Stock portfolio construction and analysis is planned for a later phase. The page is available
-                            in the navigation as a placeholder while the feature is developed.
-                        </p>
-                    </div>
-                    <div class="help-card">
                         <h4>Portfolio X-Ray</h4>
                         <p>
                             Future capabilities may include look-through analysis of the underlying stocks and sectors
@@ -1112,7 +1148,7 @@
                 <h3>Architecture</h3>
                 <p>
                     The platform follows a layered architecture: Frontend → FastAPI Routes → Services → Models → External Providers.
-                    Stock Analysis, Stock Portfolio Builder, Mutual Fund Analysis, and Mutual Fund Portfolio Builder are isolated modules.
+                    Stock Analysis, Stock Portfolio Builder, Mutual Fund Analysis, and Mutual Fund Portfolio Builder are isolated modules. Stock Portfolio Builder advanced analytics reuse its existing in-memory analysis data to avoid duplicate historical-data requests.
                     AI insights are provided via Groq and are interpretation-only; they do not compute scores or fetch data.
                 </p>
             </section>
