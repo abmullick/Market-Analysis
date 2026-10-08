@@ -1145,6 +1145,35 @@
             </section>
 
             <section class="help-section">
+                <h3>Application Access &amp; Security</h3>
+                <div class="help-grid">
+                    <div class="help-card">
+                        <h4>Private Application Login</h4>
+                        <p>
+                            Market Analysis is protected by an application-wide login. The same authenticated session
+                            protects every page, API endpoint and frontend static asset. The login uses a decorative
+                            glass-style floating card with animated orbit treatment.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Session Protection</h4>
+                        <p>
+                            Sessions use random server-side tokens, HttpOnly/SameSite cookies, HTTPS Secure cookies in
+                            production, 12-hour expiry, server-side logout invalidation, same-origin checks and login
+                            lockout after repeated failed attempts. Credentials are supplied only through server-side
+                            environment variables.
+                        </p>
+                    </div>
+                    <div class="help-card">
+                        <h4>Floating Access</h4>
+                        <p>
+                            Authenticated pages show a floating Private access / Sign out control. If a session expires
+                            while a page remains open, the application displays a session-expiry overlay and provides a
+                            secure path back to the login screen.
+                        </p>
+                    </div>
+                </div>
+
                 <h3>Architecture</h3>
                 <p>
                     The platform follows a layered architecture: Frontend → FastAPI Routes → Services → Models → External Providers.
