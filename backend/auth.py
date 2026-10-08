@@ -221,4 +221,9 @@ def protected_path(path: str) -> bool:
     return not (
         path == "/login"
         or path.startswith("/api/auth/")
+        # These are non-application branding assets required by social/link
+        # preview crawlers. They contain no application data.
+        or path == "/favicon.ico"
+        or path == "/static/images/market-analysis-og.jpg"
+        or path == "/static/images/hero-market-analysis.png"
     )
