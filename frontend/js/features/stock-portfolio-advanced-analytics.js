@@ -354,8 +354,12 @@ function renderAnalytics(payload) {
     if (old) old.remove();
     destroyCharts();
 
-    const wrapper = document.createElement("div");
-    wrapper.id = "stock-portfolio-advanced-analytics";
+    // Render the advanced sections as DIRECT children of the results container.
+    // The existing Stock Portfolio UI enhancer recognises direct
+    // .portfolio-analysis-section elements and turns them into the same
+    // collapsible cards as the rest of the builder. Keeping these sections
+    // direct also makes their placement predictable on mobile.
+    const wrapper = document.createDocumentFragment();
 
     const rows = Array.isArray(payload.rows) ? payload.rows : [];
     const chartsBySymbol = payload.chartsBySymbol instanceof Map
@@ -375,7 +379,21 @@ function renderAnalytics(payload) {
     renderRolling(wrapper, rolling);
     renderDrawdown(wrapper, drawdown);
 
-    root.appendChild(wrapper);
+    // Put the new analytics immediately after Portfolio Performance so users
+    // do not have to scroll through the lower portfolio sections to find them.
+    const performance = [...root.children].find(section =>
+        String(section.querySelector?.("h2")?.textContent || "").trim() === "Portfolio Performance"
+    );
+    const nodes = [...wrapper.childNodes];
+    if (performance?.parentNode === root) {
+        let anchor = performance;
+        nodes.forEach(node => {
+            root.insertBefore(node, anchor.nextSibling);
+            anchor = node;
+        });
+    } else {
+        nodes.forEach(node => root.appendChild(node));
+    }
 }
 
 window.addEventListener("stock-portfolio-analysis-ready", event => {
