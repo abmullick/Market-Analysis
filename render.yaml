@@ -14,3 +14,9 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      - key: APP_USERNAME
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+      - key: AUTH_SESSION_DB
+        value: data/cache/auth_sessions.sqlite3
