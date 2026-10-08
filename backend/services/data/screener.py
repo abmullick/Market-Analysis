@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import time
+import threading
 from typing import Any
 
 import curl_cffi.requests
@@ -26,15 +27,26 @@ class ScreenerFinanceClient:
     CACHE_TTL = 300
 
     def __init__(self) -> None:
-        self.session = curl_cffi.requests.Session(impersonate="chrome")
-        self.session.headers.update({
-            "User-Agent": self.USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://www.screener.in/",
-            "Cache-Control": "no-cache",
-        })
+        # curl_cffi Session objects are not safe to share across the concurrent
+        # portfolio-analysis worker threads. Keep one session per worker thread
+        # so the builder can retain concurrency without corrupting responses.
+        self._thread_local = threading.local()
         self._cache: dict[str, tuple[float, BeautifulSoup]] = {}
+        self._cache_lock = threading.Lock()
+
+    def _session(self):
+        session = getattr(self._thread_local, "session", None)
+        if session is None:
+            session = curl_cffi.requests.Session(impersonate="chrome")
+            session.headers.update({
+                "User-Agent": self.USER_AGENT,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.screener.in/",
+                "Cache-Control": "no-cache",
+            })
+            self._thread_local.session = session
+        return session
 
     @staticmethod
     def _symbol(symbol: str) -> str:
@@ -77,15 +89,16 @@ class ScreenerFinanceClient:
 
     def _fetch(self, symbol: str) -> BeautifulSoup:
         key = self._symbol(symbol)
-        cached = self._cache.get(key)
-        if cached and time.time() - cached[0] < self.CACHE_TTL:
-            return cached[1]
+        with self._cache_lock:
+            cached = self._cache.get(key)
+            if cached and time.time() - cached[0] < self.CACHE_TTL:
+                return cached[1]
 
         last_error: Exception | None = None
         for path in (f"/{key}/consolidated/", f"/{key}/"):
             for attempt in range(3):
                 try:
-                    response = self.session.get(
+                    response = self._session().get(
                         f"{self.BASE_URL}{path}",
                         timeout=25,
                         allow_redirects=True,
@@ -105,7 +118,8 @@ class ScreenerFinanceClient:
                     if not soup.select_one("#top-ratios"):
                         last_error = ScreenerFinanceError(f"Screener.in returned no company data for {key}")
                         break
-                    self._cache[key] = (time.time(), soup)
+                    with self._cache_lock:
+                        self._cache[key] = (time.time(), soup)
                     return soup
                 except Exception as exc:
                     last_error = exc
