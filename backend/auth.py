@@ -220,6 +220,7 @@ def protected_path(path: str) -> bool:
     # is behind the same session gate.
     return not (
         path == "/login"
+        or path == "/"
         or path.startswith("/api/auth/")
         # These are non-application branding assets required by social/link
         # preview crawlers. They contain no application data.
