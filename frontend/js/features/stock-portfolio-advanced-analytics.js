@@ -357,11 +357,19 @@ function renderAnalytics(payload) {
     const wrapper = document.createElement("div");
     wrapper.id = "stock-portfolio-advanced-analytics";
 
-    const rows = payload.rows || [];
-    const path = payload.path;
-    const drawdown = payload.drawdown;
-    const rolling = payload.rolling;
-    const health = payload.health;
+    const rows = Array.isArray(payload.rows) ? payload.rows : [];
+    const chartsBySymbol = payload.chartsBySymbol instanceof Map
+        ? payload.chartsBySymbol
+        : new Map(Object.entries(payload.chartsBySymbol || {}));
+    const priceMaps = buildAnnualPriceMap(rows, chartsBySymbol);
+    const path = buildPortfolioPath(rows, priceMaps);
+    const drawdown = calculateDrawdown(path);
+    const rolling = path ? {
+        1: rollingWindow(path, 1),
+        3: rollingWindow(path, 3),
+        5: rollingWindow(path, 5),
+    } : {};
+    const health = calculateHealth(rows, path, drawdown);
 
     renderHealth(wrapper, health);
     renderRolling(wrapper, rolling);
