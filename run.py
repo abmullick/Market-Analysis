@@ -102,7 +102,7 @@ def auth_floating_controls(html: str) -> str:
 #market-auth-expired h2{margin:0 0 8px;font:800 25px/1.15 system-ui,sans-serif}
 #market-auth-expired p{color:#aebdd0;line-height:1.5;margin:0 0 22px}
 #market-auth-expired a{display:block;padding:13px;border-radius:13px;background:linear-gradient(100deg,#2563eb,#7c3aed);color:#fff;text-decoration:none;font-weight:850}
-@media(max-width:600px){#market-auth-float{top:auto;bottom:16px;right:16px}}
+@media(max-width:600px){#market-auth-float{top:auto;bottom:104px;right:16px}}
 </style>
 <div id="market-auth-float"><span class="dot"></span><span>Private access</span><button type="button" id="market-auth-logout">Sign out</button></div>
 <div id="market-auth-expired"><div class="card"><h2>Session expired</h2><p>Your Market Analysis session has expired. Sign in again to continue.</p><a id="market-auth-relogin" href="/login">Sign in again</a></div></div>
