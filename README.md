@@ -16,6 +16,41 @@ Modular Indian market-analysis platform covering **Stock Analysis**, **Bond Anal
 - [`BOND_ANALYSIS.md`](BOND_ANALYSIS.md) — complete Bond Analysis implementation and parameter reference.
 - [`STOCK_PORTFOLIO_BUILDER.md`](STOCK_PORTFOLIO_BUILDER.md) — complete Stock Portfolio Builder methodology, calculations, visualisations, limitations and frontend module reference.
 
+## Application Authentication
+
+Market Analysis is a private application. All application pages, FastAPI APIs and frontend static assets are protected by the same authenticated session. The only unauthenticated surfaces are the login page and the login/logout endpoints required to establish or terminate that session.
+
+### Login experience
+
+- A decorative glass-style floating login card is shown before access is granted.
+- The login surface uses an animated orbit/background treatment and responsive mobile styling.
+- Successful login returns the user to the page they originally requested.
+- Authenticated pages display a floating **Private access / Sign out** control.
+- If the session expires while a page is open, the application displays a session-expiry overlay and provides a sign-in path.
+
+### Session security
+
+- Credentials are supplied only through server-side environment variables: `APP_USERNAME` and `APP_PASSWORD`.
+- Sessions use cryptographically random bearer tokens stored server-side as SHA-256 hashes.
+- Session cookies are HttpOnly, SameSite=Lax and Secure in production.
+- Sessions expire after 12 hours.
+- Logout invalidates the server-side session and clears the browser cookie.
+- Login failures are rate-limited: five failed attempts trigger a 10-minute lockout for the client.
+- Login/logout requests enforce same-origin checks.
+- API requests without an authenticated session return HTTP 401; browser page requests redirect to the login surface.
+- Static CSS, JavaScript, image and other frontend assets are also behind the authentication gate.
+
+### Deployment configuration
+
+Render requires the following environment variables to be configured as secrets:
+
+- `APP_USERNAME`
+- `APP_PASSWORD`
+
+The session database defaults to `data/cache/auth_sessions.sqlite3`. It is used so sessions remain valid across Gunicorn workers while allowing server-side logout invalidation.
+
+The authentication gate is implemented at the FastAPI application middleware layer, so newly added application routes are protected automatically unless they are explicitly part of the authentication surface.
+
 ## Stock Analysis
 
 The Stock Analysis page uses the **Nifty Total Market universe — Nifty 500 + Nifty Microcap 250 source universe**. The universe includes large-, mid-, small- and micro-cap stocks.
