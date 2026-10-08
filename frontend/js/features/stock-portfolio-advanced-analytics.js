@@ -359,7 +359,7 @@ function renderAnalytics(payload) {
     // .portfolio-analysis-section elements and turns them into the same
     // collapsible cards as the rest of the builder. Keeping these sections
     // direct also makes their placement predictable on mobile.
-    const wrapper = document.createDocumentFragment();
+    const wrapper = document.createElement("div");
 
     const rows = Array.isArray(payload.rows) ? payload.rows : [];
     const chartsBySymbol = payload.chartsBySymbol instanceof Map
