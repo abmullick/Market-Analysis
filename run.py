@@ -44,6 +44,22 @@ LOGIN_PAGE = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sign in · Market Analysis</title>
 <meta name="theme-color" content="#071225">
+<meta property="og:title" content="Market Analysis">
+<meta property="og:description" content="A comprehensive platform for capital market analysis covering stocks, mutual funds and bonds.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://market-analysis-g4ow.onrender.com/">
+<meta property="og:image" content="https://market-analysis-g4ow.onrender.com/static/images/market-analysis-og.jpg?v=20261009">
+<meta property="og:image:secure_url" content="https://market-analysis-g4ow.onrender.com/static/images/market-analysis-og.jpg?v=20261009">
+<meta property="og:image:alt" content="Market Analysis">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="300">
+<meta property="og:image:height" content="158">
+<meta property="og:site_name" content="Market Analysis">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Market Analysis">
+<meta name="twitter:description" content="A comprehensive platform for capital market analysis covering stocks, mutual funds and bonds.">
+<meta name="twitter:image" content="https://market-analysis-g4ow.onrender.com/static/images/market-analysis-og.jpg?v=20261009">
+<meta name="twitter:image:alt" content="Market Analysis">
 <style>
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#071225;color:#fff}
 body{display:grid;place-items:center;overflow:hidden;position:relative}
