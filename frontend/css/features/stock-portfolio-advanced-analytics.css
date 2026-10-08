@@ -1,0 +1,13 @@
+/* Stock Portfolio — advanced analytics. No data-fetching styles or layout dependencies. */
+.spa-health-section,.spa-rolling-section,.spa-drawdown-section{overflow:hidden}
+.spa-health-badge,.spa-rolling-badge{padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.06em}
+.spa-health-badge.good{background:#dcfce7;color:#166534}.spa-health-badge.watch{background:#fef3c7;color:#92400e}.spa-health-badge.risk{background:#fee2e2;color:#991b1b}
+.spa-health-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px}
+.spa-health-component{padding:13px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
+.spa-health-component>span{display:block;font-weight:700;font-size:13px;color:#334155}.spa-health-component>strong{display:block;font-size:22px;margin-top:4px;color:#0f172a}.spa-health-component>small{color:#64748b}
+.spa-health-track{height:6px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-top:9px}.spa-health-track i{display:block;height:100%;border-radius:99px}.spa-health-track i.good{background:#16a34a}.spa-health-track i.watch{background:#d97706}.spa-health-track i.risk{background:#dc2626}
+.spa-window-buttons{display:flex;gap:8px;padding:14px 16px 4px;flex-wrap:wrap}.spa-window-btn{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer}.spa-window-btn.active{background:#0f172a;color:#fff;border-color:#0f172a}
+.spa-rolling-chart-wrap{height:290px;padding:14px 16px}.spa-rolling-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;padding:0 16px 16px}.spa-stat{border:1px solid #e5e7eb;border-radius:9px;padding:10px;background:#fff}.spa-stat span{display:block;font-size:11px;color:#64748b}.spa-stat strong{display:block;margin-top:4px;font-size:15px;color:#0f172a}
+.spa-dd-chart{height:290px}.spa-episodes{display:grid;gap:7px;padding:14px 16px}.spa-episodes>div{display:flex;gap:10px;align-items:center;padding:9px 11px;border:1px solid #e5e7eb;border-radius:8px}.spa-episodes strong{min-width:72px;color:#b91c1c}.spa-episodes span{font-size:12px;color:#64748b}
+@media(max-width:800px){.spa-health-grid{grid-template-columns:1fr}.spa-rolling-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:520px){.spa-rolling-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.spa-episodes>div{display:block}.spa-episodes strong{display:block;margin-bottom:3px}}
