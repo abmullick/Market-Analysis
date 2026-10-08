@@ -23,6 +23,9 @@ const SUGGESTED_QUESTIONS = [
     "How is CAGR calculated?",
     "What is Sharpe ratio?",
     "What is Portfolio Health Score?",
+    "How is Stock Portfolio Health Score calculated?",
+    "How do stock portfolio rolling returns work?",
+    "How is stock portfolio drawdown and recovery calculated?",
 ];
 
 function buildSearchUI() {
@@ -242,6 +245,17 @@ function registerStockHelpSearchEntries() {
     ]);
 }
 
+function registerStockPortfolioHelpSearchEntries() {
+    upsertHelpSearchEntries("Stock Portfolio Builder", [
+        ["stock-pb-build", "Build & Allocate a Stock Portfolio", ["stock portfolio", "portfolio builder", "allocation", "100%", "holdings"], ["how to build stock portfolio", "stock portfolio allocation"]],
+        ["stock-pb-performance", "Portfolio Performance", ["portfolio performance", "cagr", "historical performance", "price history"], ["stock portfolio cagr", "stock portfolio performance"]],
+        ["stock-pb-health", "Portfolio Health Score", ["portfolio health score", "health score", "0-100", "return quality", "downside risk", "diversification", "concentration", "leverage"], ["how is stock portfolio health score calculated", "stock health score"]],
+        ["stock-pb-rolling", "Rolling Performance", ["rolling performance", "rolling cagr", "1y rolling", "3y rolling", "5y rolling", "positive periods"], ["stock portfolio rolling returns", "how do rolling returns work"]],
+        ["stock-pb-drawdown", "Drawdown & Recovery", ["drawdown", "recovery", "maximum drawdown", "current drawdown", "peak", "trough"], ["stock portfolio drawdown", "stock portfolio recovery"]],
+        ["stock-pb-performance-architecture", "Performance-First Advanced Analytics", ["performance", "existing data", "reuse", "duplicate requests", "charts", "api calls", "in memory"], ["why stock portfolio analytics do not add data requests", "portfolio builder performance"]],
+    ]);
+}
+
 function registerBondHelpSearchEntries() {
     upsertHelpSearchEntries("Bond Analysis", [
         ["bond-universes", "Government & Corporate Bond Universes", ["government", "corporate", "g-sec", "t-bill", "sdl", "universe"], ["what bonds are covered", "government bonds", "corporate bonds"]],
@@ -374,6 +388,7 @@ function updateAboutText() {
 function initialiseHelp() {
     removeLegacyStockPlaceholder();
     registerStockHelpSearchEntries();
+    registerStockPortfolioHelpSearchEntries();
     registerBondHelpSearchEntries();
     updateAboutText();
     updateStockAnalysisHelp();
