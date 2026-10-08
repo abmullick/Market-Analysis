@@ -5,6 +5,7 @@ let portfolioStocks = [];
 let portfolioHoldings = new Map();
 let portfolioPage = 1;
 let portfolioSelectedSectors = new Set();
+let portfolioCapBandsPromise = null;
 
 function pbEsc(value) {
     return String(value ?? "")
@@ -65,6 +66,23 @@ function pbSelectedSectors() {
 function pbSelectedCaps() {
     return [...document.querySelectorAll("#portfolio-cap-filter input:checked")]
         .map(input => String(input.value || "").trim().toLowerCase());
+}
+
+async function pbLoadCapBands() {
+    if (portfolioCapBandsPromise) return portfolioCapBandsPromise;
+    portfolioCapBandsPromise = fetch("/api/stocks/market-cap-bands", { headers: { Accept: "application/json" }, cache: "no-store" })
+        .then(async response => {
+            const data = await response.json();
+            if (!response.ok) throw new Error(data?.detail || `HTTP ${response.status}`);
+            const bands = data?.bands || {};
+            portfolioStocks = portfolioStocks.map(stock => ({ ...stock, market_cap_band: bands[stock.symbol] || null }));
+            return data;
+        })
+        .catch(error => {
+            portfolioCapBandsPromise = null;
+            throw error;
+        });
+    return portfolioCapBandsPromise;
 }
 
 function pbFilteredStocks() {
@@ -351,7 +369,15 @@ function pbBindFilters() {
     const reset = document.getElementById("portfolio-reset-filters");
 
     search?.addEventListener("input", () => { portfolioPage = 1; pbRenderStockList(); });
-    document.querySelectorAll("#portfolio-cap-filter input").forEach(input => input.addEventListener("change", () => { portfolioPage = 1; pbRenderStockList(); }));
+    document.querySelectorAll("#portfolio-cap-filter input").forEach(input => input.addEventListener("change", async event => {
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        portfolioPage = 1;
+        if (input.checked) {
+            try { await pbLoadCapBands(); } catch (error) { console.warn("Market-cap classification unavailable:", error); }
+        }
+        pbRenderStockList();
+    }));
     reset?.addEventListener("click", pbResetFilters);
 
     document.getElementById("portfolio-clear")?.addEventListener("click", () => {
