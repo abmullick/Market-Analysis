@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     # .env file and are intentionally not committed to the repository.
     app_username: str = ""
     app_password: str = ""
+    auth_session_db: str = "data/cache/auth_sessions.sqlite3"
 
     # Bond Central credit-ratings index (supplementary source for corporate
     # bonds; refreshed independently of list/detail requests into SQLite).
