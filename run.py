@@ -108,28 +108,42 @@ form.addEventListener("submit",async e=>{
 </html>"""
 
 def auth_floating_controls(html: str) -> str:
-    control = r'''
-<style id="market-auth-ui">
-#market-auth-float{position:fixed;right:18px;top:18px;z-index:2147483000;display:flex;align-items:center;gap:9px;padding:7px 9px 7px 13px;border:1px solid rgba(255,255,255,.5);border-radius:999px;background:rgba(8,18,38,.78);color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.18);backdrop-filter:blur(18px);font:700 12px/1 system-ui,sans-serif}
-#market-auth-float .dot{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 12px rgba(74,222,128,.9)}
-#market-auth-float button{border:0;border-radius:999px;padding:8px 12px;background:rgba(255,255,255,.12);color:#fff;font-weight:800;cursor:pointer}
+    # Session status and sign-out live inside the shared floating navigation.
+    control = r"""
+<style id="market-auth-session-ui">
 #market-auth-expired{display:none;position:fixed;inset:0;z-index:2147483001;place-items:center;background:rgba(3,9,20,.66);backdrop-filter:blur(12px);padding:24px}
 #market-auth-expired .card{width:min(92vw,420px);padding:30px;border:1px solid rgba(255,255,255,.2);border-radius:26px;background:rgba(15,27,49,.94);color:#fff;text-align:center;box-shadow:0 30px 90px rgba(0,0,0,.45)}
 #market-auth-expired h2{margin:0 0 8px;font:800 25px/1.15 system-ui,sans-serif}
 #market-auth-expired p{color:#aebdd0;line-height:1.5;margin:0 0 22px}
 #market-auth-expired a{display:block;padding:13px;border-radius:13px;background:linear-gradient(100deg,#2563eb,#7c3aed);color:#fff;text-decoration:none;font-weight:850}
-@media(max-width:600px){#market-auth-float{top:auto;bottom:104px;right:16px}}
 </style>
-<div id="market-auth-float"><span class="dot"></span><span>Private access</span><button type="button" id="market-auth-logout">Sign out</button></div>
 <div id="market-auth-expired"><div class="card"><h2>Session expired</h2><p>Your Market Analysis session has expired. Sign in again to continue.</p><a id="market-auth-relogin" href="/login">Sign in again</a></div></div>
 <script>
-(()=>{const logout=document.getElementById("market-auth-logout"),expired=document.getElementById("market-auth-expired");
- logout?.addEventListener("click",async()=>{try{await fetch("/api/auth/logout",{method:"POST",credentials:"same-origin"})}finally{location.href="/login?logged_out=1"}});
+(()=> {
+ const expired=document.getElementById("market-auth-expired");
+ document.addEventListener("DOMContentLoaded",()=>{
+  const logout=document.getElementById("market-auth-logout");
+  logout?.addEventListener("click",async()=>{
+   logout.disabled=true;
+   const label=logout.querySelector("span:nth-child(2)"); if(label) label.textContent="Signing out…";
+   try { await fetch("/api/auth/logout",{method:"POST",credentials:"same-origin"}); }
+   finally { location.href="/login?logged_out=1"; }
+  });
+ });
  const originalFetch=window.fetch.bind(window);
- window.fetch=async(...args)=>{const response=await originalFetch(...args);const input=args[0];const url=typeof input==="string"?input:(input&&input.url)||"";if(response.status===401&& !url.includes("/api/auth/")){expired.style.display="grid";const relog=document.getElementById("market-auth-relogin");if(relog)relog.href="/login?next="+encodeURIComponent(location.pathname+location.search)}return response};
+ window.fetch=async(...args)=>{
+  const response=await originalFetch(...args);
+  const input=args[0],url=typeof input==="string"?input:(input&&input.url)||"";
+  if(response.status===401&&!url.includes("/api/auth/")){
+   expired.style.display="grid";
+   const relog=document.getElementById("market-auth-relogin");
+   if(relog)relog.href="/login?next="+encodeURIComponent(location.pathname+location.search);
+  }
+  return response;
+ };
 })();
 </script>
-'''
+"""
     return html.replace("</body>", control + "</body>") if "</body>" in html else html + control
 
 @app.middleware("http")
