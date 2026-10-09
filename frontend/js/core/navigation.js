@@ -74,7 +74,7 @@ function loadFloatingNavigationTheme() {
     const stylesheet = document.createElement("link");
     stylesheet.id = "floating-navigation-theme";
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "/css/features/floating-navigation.css?v=20261010-1";
+    stylesheet.href = "/css/features/floating-navigation.css?v=20261010-2";
     document.head.appendChild(stylesheet);
 }
 
