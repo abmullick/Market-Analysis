@@ -341,3 +341,26 @@
 }
 @media (max-width:370px) { .floating-nav-private-label { display:none; }.floating-nav-private { width:38px;padding:0; } }
 @media (prefers-reduced-motion:reduce) { .floating-nav-private-dot { animation:none; } }
+
+
+/* High-specificity finish: keep the premium dock consistent across page themes. */
+#main-nav .floating-nav-dock {
+    border: 1px solid rgba(255,255,255,.96) !important;
+    background: linear-gradient(145deg,rgba(255,255,255,.98),rgba(232,242,255,.96)) !important;
+    box-shadow: 0 22px 58px rgba(15,23,42,.23),0 6px 20px rgba(14,165,233,.14),inset 0 1px 0 #fff !important;
+}
+#main-nav .floating-nav-home.active {
+    color: #fff !important;
+    background: linear-gradient(145deg,#334155,#0f172a) !important;
+    box-shadow: 0 8px 20px rgba(15,23,42,.28),inset 0 1px 0 rgba(255,255,255,.18) !important;
+}
+#main-nav .floating-nav-toggle {
+    color: #fff !important;
+    background: linear-gradient(135deg,#fbbf24 0%,#f59e0b 42%,#d97706 100%) !important;
+    box-shadow: 0 9px 23px rgba(217,119,6,.34),inset 0 1px 0 rgba(255,255,255,.36) !important;
+}
+#main-nav .floating-nav-private {
+    border-color: rgba(74,222,128,.30) !important;
+    background: linear-gradient(145deg,#35445a,#111827) !important;
+    box-shadow: 0 8px 20px rgba(15,23,42,.24),inset 0 1px 0 rgba(255,255,255,.18) !important;
+}
