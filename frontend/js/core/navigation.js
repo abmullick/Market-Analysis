@@ -74,7 +74,7 @@ function loadFloatingNavigationTheme() {
     const stylesheet = document.createElement("link");
     stylesheet.id = "floating-navigation-theme";
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "/css/features/floating-navigation.css?v=20261004-2";
+    stylesheet.href = "/css/features/floating-navigation.css?v=20261010-1";
     document.head.appendChild(stylesheet);
 }
 
@@ -206,12 +206,22 @@ export function initNavigation() {
                 </a>
             `;
             }).join("")}
+            <div class="floating-nav-account-heading">Your session</div>
+            <button class="floating-nav-signout" id="market-auth-logout" type="button">
+                <span class="floating-nav-signout-icon" aria-hidden="true">↗</span>
+                <span>Sign out</span>
+                <span class="floating-nav-item-arrow" aria-hidden="true">›</span>
+            </button>
         </div>
         <div class="floating-nav-dock">
             <a href="/" class="floating-nav-home${isActive("/") ? " active" : ""}" aria-label="Home" title="Home">
                 ${HOME_ICON}
                 <span>Home</span>
             </a>
+            <div class="floating-nav-private" aria-label="Private access active">
+                <span class="floating-nav-private-dot" aria-hidden="true"></span>
+                <span class="floating-nav-private-label">Private access</span>
+            </div>
             <button class="floating-nav-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="floating-nav-items">
                 ${MENU_ICON}
                 <span class="floating-nav-toggle-label">Menu</span>
