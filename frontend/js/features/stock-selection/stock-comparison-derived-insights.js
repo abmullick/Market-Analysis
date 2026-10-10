@@ -118,7 +118,7 @@ function stockName(data, symbol) {
   return data?.fundamentals?.name || data?.fundamentals?.longName || data?.name || symbol;
 }
 
-function renderTimeline(data, financial) {
+function renderTimeline(data, financial, companyName) {
   const points = buildTimeline(data, financial);
   if (points.length < 2) {
     return `<div class="derived-timeline-empty">Not enough annual history to reconstruct a meaningful momentum timeline.</div>`;
@@ -139,7 +139,7 @@ function renderTimeline(data, financial) {
   const direction = last.score - first.score;
   return `<div class="derived-timeline">
     <div class="derived-timeline-head">
-      <div><span>Fundamental Trend</span><small>Historical reconstruction of the same momentum framework</small></div>
+      <div><span>${esc(companyName)} · Fundamental Trend Timeline</span><small>Historical reconstruction of this company’s momentum framework</small></div>
       <b class="${scoreClass(last.score)}">${direction >= 5 ? "↗" : direction <= -5 ? "↘" : "→"} ${esc(status(last.score))}</b>
     </div>
     <div class="derived-timeline-chart">${bars}</div>
@@ -180,7 +180,7 @@ function renderCard(row) {
     <div class="derived-stock-context">Every score and timeline below belongs only to <strong>${esc(stockName(row.core, row.symbol))}</strong>.</div>
     <div class="derived-score-row">
       <div class="derived-score-block ${mClass}">
-        <span>Fundamental Momentum</span>
+        <span>${esc(stockName(row.core, row.symbol))} · Fundamental Momentum</span>
         <strong>${momentum.index == null ? "—" : momentum.index}</strong>
         <small>${esc(momentum.label)} · current trajectory</small>
       </div>
@@ -191,7 +191,7 @@ function renderCard(row) {
       </div>
     </div>
     <div class="derived-factors">${renderComponents(momentum)}</div>
-    ${renderTimeline(row.pedigree, financial)}
+    ${renderTimeline(row.pedigree, financial, stockName(row.core, row.symbol))}
     <div class="derived-valuation-line">
       <div><b>P/E</b> ${fundamentals.pe == null ? "—" : `${Number(fundamentals.pe).toFixed(1)}x`} <span>vs ${valuation.peMedian == null ? "—" : `${valuation.peMedian.toFixed(1)}x median`}</span></div>
       <div><b>P/B</b> ${fundamentals.pb == null ? "—" : `${Number(fundamentals.pb).toFixed(1)}x`} <span>vs ${valuation.pbMedian == null ? "—" : `${valuation.pbMedian.toFixed(1)}x median`}</span></div>
