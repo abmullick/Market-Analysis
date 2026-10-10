@@ -6,8 +6,12 @@ function removeIndividualMomentumFromCompare() {
   // The compare page has its own per-stock comparative decision lens.
   // Never leave the individual-analysis Momentum Index / Trend Timeline
   // mounted inside #stock-details, because it has no unambiguous stock owner.
+  // In comparison mode, the individual-analysis panel has no single-stock owner.
+  // Remove it wherever it appears; the comparison cards render one clearly named
+  // Momentum Index and Trend Timeline per selected stock.
   document.querySelectorAll(
-    "#stock-details .stock-fundamental-momentum, #stock-details .stock-fundamental-signals"
+    "#stock-details .stock-fundamental-momentum, #stock-details .stock-fundamental-signals, " +
+    ".stock-fundamental-momentum, .stock-fundamental-signals"
   ).forEach((el) => el.remove());
 }
 
@@ -19,16 +23,13 @@ function init() {
   // Several comparison/analysis modules render asynchronously. Keep the
   // cleanup active until those modules have finished, without touching the
   // dedicated .stock-derived-comparison section.
+  // Keep this guard active for the full comparison view. Analysis modules may
+  // render or refresh asynchronously after the initial report has appeared.
   const observer = new MutationObserver(() => removeIndividualMomentumFromCompare());
-  observer.observe(document.getElementById("stock-details") || document.body, {
+  observer.observe(document.body, {
     childList: true,
     subtree: true,
   });
-
-  window.setTimeout(() => {
-    observer.disconnect();
-    removeIndividualMomentumFromCompare();
-  }, 10000);
 }
 
 if (document.readyState === "loading") {
