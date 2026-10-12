@@ -131,12 +131,12 @@ function ensureStyles() {
   const style = document.createElement("style");
   style.id = STORY_STYLE_ID;
   style.textContent = `
-.stock-analysis-story-ribbon{margin:0 0 16px;padding:16px 18px;border:1px solid #d7e4f0;border-radius:16px;background:linear-gradient(135deg,#fafdff 0%,#f1f7ff 100%);box-shadow:0 7px 22px rgba(15,23,42,.055)}
-.stock-story-ribbon-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;margin-bottom:12px}.stock-story-kicker{display:block;font-size:9px;letter-spacing:.11em;font-weight:900;color:#64748b}.stock-story-ribbon-heading h2{margin:3px 0 0;color:#102b4e;font-size:17px}.stock-story-ribbon-note{font-size:8px;color:#7b8da0;padding:5px 8px;border:1px solid #dce6ef;border-radius:999px;background:#fff}.stock-story-ribbon-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;align-items:center;gap:7px}.stock-story-ribbon-flow>div{min-height:48px;padding:7px 9px;border:1px solid #dbe5ef;border-radius:11px;background:#fff}.stock-story-ribbon-flow>div.accent{border-color:#c8d9f6;background:linear-gradient(135deg,#fff,#f3f8ff);box-shadow:inset 0 2px 0 #2563eb}.stock-story-ribbon-flow span,.stock-comparison-story-flow b{display:grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#e8f1ff;color:#2563eb;font-size:8px;font-weight:900}.stock-story-ribbon-flow b{display:block;margin-top:4px;color:#17355d;font-size:11px}.stock-story-ribbon-flow small{display:block;margin-top:3px;color:#62758c;font-size:9px;line-height:1.35}.stock-story-ribbon-flow>i{font-style:normal;color:#8aa0b6;font-size:16px}
+.stock-analysis-story-ribbon{box-sizing:border-box;width:100%;max-width:100%;min-width:0;margin:0 0 16px;padding:16px 18px;border:1px solid #d7e4f0;border-radius:16px;background:linear-gradient(135deg,#fafdff 0%,#f1f7ff 100%);box-shadow:0 7px 22px rgba(15,23,42,.055)}
+.stock-story-ribbon-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;margin-bottom:12px}.stock-story-kicker{display:block;font-size:9px;letter-spacing:.11em;font-weight:900;color:#64748b}.stock-story-ribbon-heading h2{margin:3px 0 0;color:#102b4e;font-size:17px}.stock-story-ribbon-note{font-size:8px;color:#7b8da0;padding:5px 8px;border:1px solid #dce6ef;border-radius:999px;background:#fff}.stock-story-ribbon-flow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:7px}.stock-story-ribbon-flow>div{box-sizing:border-box;min-width:0;overflow-wrap:anywhere;min-height:48px;padding:7px 9px;border:1px solid #dbe5ef;border-radius:11px;background:#fff}.stock-story-ribbon-flow>div.accent{border-color:#c8d9f6;background:linear-gradient(135deg,#fff,#f3f8ff);box-shadow:inset 0 2px 0 #2563eb}.stock-story-ribbon-flow span,.stock-comparison-story-flow b{display:grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#e8f1ff;color:#2563eb;font-size:8px;font-weight:900}.stock-story-ribbon-flow b{display:block;margin-top:4px;color:#17355d;font-size:11px}.stock-story-ribbon-flow small{display:block;margin-top:3px;color:#62758c;font-size:9px;line-height:1.35}.stock-story-ribbon-flow>i{font-style:normal;color:#8aa0b6;font-size:16px}
 .stock-story-feed-badge{margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid #dbe7f3;border-radius:999px;background:#f7fbff;color:#64758a;font-size:8px;font-weight:800;white-space:nowrap}.stock-story-feed-badge.violet{background:#faf7ff;border-color:#e6dcfb}.stock-story-feed-badge b{color:#2563eb}.stock-story-feed-badge.violet b{color:#7c3aed}.stock-story-feed-dot{width:6px;height:6px;border-radius:50%;background:#2563eb}.stock-story-feed-badge.violet .stock-story-feed-dot{background:#7c3aed}.stock-story-arrow{color:#94a3b8}
 .stock-story-chart-divider{grid-column:1/-1;display:flex;align-items:center;gap:9px;margin-top:5px;padding:9px 12px;border:1px solid #dce7f2;border-radius:10px;background:linear-gradient(90deg,#f7fbff,#fff)}.stock-story-chart-divider span{font-size:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:900;color:#64748b}.stock-story-chart-divider b{font-size:10px;color:#17355d}.stock-story-chart-divider small{font-size:9px;color:#8291a3}
 .stock-story-engine-link{display:flex;align-items:flex-start;gap:9px;margin:11px 0 0;padding:10px 12px;border:1px solid #dce7f2;border-radius:10px;background:#f8fbff}.stock-story-engine-link>span{display:grid;place-items:center;width:21px;height:21px;border-radius:50%;background:#e8f1ff;color:#2563eb;font-weight:900;font-size:12px;flex:0 0 21px}.stock-story-engine-link b{display:block;color:#284968;font-size:9px}.stock-story-engine-link small{display:block;margin-top:3px;color:#71849a;font-size:9px;line-height:1.4}.stock-story-synthesis{margin:12px 0 0;padding:13px 14px;border:1px solid #d9e5f0;border-radius:12px;background:linear-gradient(90deg,#f7fbff,#fff);text-align:center}.stock-story-synthesis-line{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;color:#536b84;font-size:10px}.stock-story-synthesis-line span{padding:5px 8px;border-radius:999px;background:#edf5ff;color:#315a83;font-weight:800}.stock-story-synthesis-line i{font-style:normal;color:#94a3b8}.stock-story-synthesis-line strong{color:#2563eb;font-size:14px}.stock-story-synthesis-line b{color:#17355d}.stock-story-synthesis>small{display:block;margin-top:5px;color:#71849a;font-size:9px;line-height:1.4}
-.stock-comparison-story{margin:0 0 15px;padding:16px 18px;border:1px solid #d7e4f0;border-radius:16px;background:linear-gradient(135deg,#fafdff,#f1f7ff);box-shadow:0 7px 22px rgba(15,23,42,.055)}.stock-comparison-story-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.stock-comparison-story-title h2{margin:3px 0 0;color:#102b4e;font-size:17px}.stock-comparison-story-title small{color:#7a8da1;font-size:9px}.stock-comparison-story-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;align-items:center;gap:7px}.stock-comparison-story-flow>div{min-height:48px;padding:7px 9px;border:1px solid #dbe5ef;border-radius:11px;background:#fff}.stock-comparison-story-flow>div.accent{border-color:#c8d9f6;background:#f5f9ff;box-shadow:inset 0 2px 0 #2563eb}.stock-comparison-story-flow strong{display:block;margin-top:4px;color:#17355d;font-size:11px}.stock-comparison-story-flow span{display:block;margin-top:3px;color:#62758c;font-size:9px;line-height:1.35}.stock-comparison-story-flow>i{font-style:normal;color:#8aa0b6;font-size:16px}.stock-comparison-story-link{display:flex;gap:9px;align-items:flex-start;margin:0 0 12px;padding:10px 12px;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff}.stock-comparison-story-link>span{padding:4px 6px;border-radius:999px;background:#e9f2ff;color:#2563eb;font-size:8px;font-weight:900}.stock-comparison-story-link b{display:block;color:#284968;font-size:9px}.stock-comparison-story-link small{display:block;margin-top:3px;color:#71849a;font-size:9px;line-height:1.4}
+.stock-comparison-story{box-sizing:border-box;width:100%;max-width:100%;min-width:0;overflow-wrap:anywhere;margin:0 0 15px;padding:16px 18px;border:1px solid #d7e4f0;border-radius:16px;background:linear-gradient(135deg,#fafdff,#f1f7ff);box-shadow:0 7px 22px rgba(15,23,42,.055)}.stock-comparison-story-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.stock-comparison-story-title h2{margin:3px 0 0;color:#102b4e;font-size:17px}.stock-comparison-story-title small{color:#7a8da1;font-size:9px}.stock-comparison-story-flow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:7px}.stock-comparison-story-flow>div{box-sizing:border-box;min-width:0;overflow-wrap:anywhere;min-height:48px;padding:7px 9px;border:1px solid #dbe5ef;border-radius:11px;background:#fff}.stock-comparison-story-flow>div.accent{border-color:#c8d9f6;background:#f5f9ff;box-shadow:inset 0 2px 0 #2563eb}.stock-comparison-story-flow strong{display:block;margin-top:4px;color:#17355d;font-size:11px}.stock-comparison-story-flow span{display:block;margin-top:3px;color:#62758c;font-size:9px;line-height:1.35}.stock-comparison-story-flow>i{font-style:normal;color:#8aa0b6;font-size:16px}.stock-comparison-story-link{display:flex;gap:9px;align-items:flex-start;margin:0 0 12px;padding:10px 12px;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff}.stock-comparison-story-link>span{padding:4px 6px;border-radius:999px;background:#e9f2ff;color:#2563eb;font-size:8px;font-weight:900}.stock-comparison-story-link b{display:block;color:#284968;font-size:9px}.stock-comparison-story-link small{display:block;margin-top:3px;color:#71849a;font-size:9px;line-height:1.4}
 @media(max-width:850px){.stock-story-ribbon-heading,.stock-comparison-story-title{display:block}.stock-story-ribbon-note,.stock-comparison-story-title small{display:inline-block;margin-top:6px}.stock-story-ribbon-flow,.stock-comparison-story-flow{grid-template-columns:1fr}.stock-story-ribbon-flow>i,.stock-comparison-story-flow>i{transform:rotate(90deg);justify-self:center}.stock-story-feed-badge{margin-left:0;margin-top:5px}.stock-story-chart-divider{align-items:flex-start;flex-wrap:wrap}.stock-story-chart-divider small{width:100%}}
   `;
   document.head.appendChild(style);
@@ -146,11 +146,33 @@ function scan() {
   ensureStyles();
   const details = document.getElementById("stock-details");
   const screen = document.getElementById("stock-analysis-screen");
-  if (details && screen && !screen.hidden) individualStory(details);
-  if (screen && !screen.hidden) comparisonStory(screen);
+  if (!details || !screen || screen.hidden) return;
+
+  // Comparison pages share #stock-details with individual analysis. Never inject
+  // the individual-stock story ribbon into a comparison report.
+  const isComparison = Boolean(details.querySelector(".stock-comparison-header, .stock-comparison-table-wrap"));
+  if (isComparison) {
+    comparisonStory(screen);
+  } else {
+    individualStory(details);
+    comparisonStory(screen);
+  }
 }
 
-const observer = new MutationObserver(() => scan());
+// Batch mutation notifications into one scan per frame. Several analysis modules
+// update the DOM together; scanning synchronously for every mutation causes
+// needless repeated layout work on mobile browsers.
+let scanQueued = false;
+function scheduleScan() {
+  if (scanQueued) return;
+  scanQueued = true;
+  requestAnimationFrame(() => {
+    scanQueued = false;
+    scan();
+  });
+}
+
+const observer = new MutationObserver(scheduleScan);
 observer.observe(document.body, { childList: true, subtree: true });
-document.addEventListener("DOMContentLoaded", scan);
-scan();
+document.addEventListener("DOMContentLoaded", scheduleScan);
+scheduleScan();
