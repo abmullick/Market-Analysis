@@ -129,10 +129,12 @@ function injectStyles() {
     .stock-compare-choice{display:inline-flex!important;flex-direction:row!important;align-items:center!important;gap:6px!important;margin-right:10px!important;color:var(--color-text-light)!important;font-size:11px!important;font-weight:700!important;white-space:nowrap!important}
     .stock-compare-choice input{width:15px!important;height:15px!important;margin:0!important;accent-color:var(--color-primary)}
 
-    .stock-comparison-header{margin:8px 0 18px;padding:22px 24px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:linear-gradient(135deg,#ffffff,#f0f7ff);box-shadow:var(--btn-shadow)}
+    #stock-analysis-screen,#stock-details{box-sizing:border-box;min-width:0;max-width:100%}
+    .stock-comparison-header{box-sizing:border-box;width:100%;max-width:100%;min-width:0;overflow-wrap:anywhere;margin:8px 0 18px;padding:22px 24px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:linear-gradient(135deg,#ffffff,#f0f7ff);box-shadow:var(--btn-shadow)}
     .stock-comparison-header h1{margin:0 0 5px;color:var(--color-primary);font-size:1.55rem}
-    .stock-comparison-header p{margin:0;color:var(--color-text-light);font-size:13px}
-    .stock-comparison-table-wrap{overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:0 6px 22px rgba(15,23,42,.06)}
+    .stock-comparison-header h1,.stock-comparison-header p{overflow-wrap:anywhere}
+    .stock-comparison-header p{margin:0;color:var(--color-text-light);font-size:13px;line-height:1.5}
+    .stock-comparison-table-wrap{box-sizing:border-box;width:100%;max-width:100%;min-width:0;overflow:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:0 6px 22px rgba(15,23,42,.06)}
     .stock-comparison-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px;table-layout:fixed}
     .stock-comparison-table th,.stock-comparison-table td{padding:12px 14px;border-bottom:1px solid #edf1f6;text-align:right;font-size:13px;font-variant-numeric:tabular-nums;overflow:hidden}
     .stock-comparison-table th:first-child,.stock-comparison-table td:first-child{text-align:left;position:sticky;left:0;background:var(--color-surface);z-index:1;width:22%}
@@ -149,8 +151,12 @@ function injectStyles() {
     .stock-comparison-table tbody tr:hover td.compare-favorable{background:#dcfce7}
     .stock-comparison-table tbody tr:hover td.compare-negative,.stock-comparison-table tbody tr:hover td.compare-unfavorable{background:#fee2e2}
     @media(max-width:700px){
+      #stock-analysis-screen,#stock-details{width:100%;max-width:100%;min-width:0}
       .stock-compare-card{margin-top:14px}
       .stock-comparison-header{padding:18px}
+      .stock-comparison-header h1{font-size:1.4rem;line-height:1.2}
+      .stock-comparison-header p{font-size:13px}
+      .stock-comparison-table-wrap{max-width:100%;contain:layout paint}
       .stock-comparison-table th,.stock-comparison-table td{padding:10px 11px}
     }
   `;
