@@ -148,11 +148,20 @@ function scan() {
   const screen = document.getElementById("stock-analysis-screen");
   if (!details || !screen || screen.hidden) return;
 
-  // Comparison pages share #stock-details with individual analysis. Never inject
-  // the individual-stock story ribbon into a comparison report.
-  const isComparison = Boolean(details.querySelector(".stock-comparison-header, .stock-comparison-table-wrap"));
-  if (isComparison) {
-    comparisonStory(screen);
+  // The comparison route starts with a loading placeholder, before its header
+  // and table exist. Detect the route from the URL as well as the rendered DOM;
+  // otherwise the individual-story ribbon is briefly inserted and then removed,
+  // causing a visible layout jump on mobile.
+  const params = new URLSearchParams(location.search);
+  const isComparisonRoute = params.has("compare");
+  const isComparisonView = isComparisonRoute || Boolean(
+    details.querySelector(".stock-comparison-header, .stock-comparison-table-wrap")
+  );
+
+  if (isComparisonView) {
+    // Wait until the comparison table exists before adding comparison-only
+    // explanation. Never decorate the loading placeholder as an individual stock.
+    if (details.querySelector(".stock-comparison-table-wrap")) comparisonStory(screen);
   } else {
     individualStory(details);
     comparisonStory(screen);
@@ -173,6 +182,9 @@ function scheduleScan() {
 }
 
 const observer = new MutationObserver(scheduleScan);
-observer.observe(document.body, { childList: true, subtree: true });
+// #stock-details is stable for the lifetime of the page. Observing the whole
+// document wakes this enhancer for navigation, status and unrelated UI mutations.
+const observerRoot = document.getElementById("stock-details");
+if (observerRoot) observer.observe(observerRoot, { childList: true, subtree: true });
 document.addEventListener("DOMContentLoaded", scheduleScan);
 scheduleScan();
