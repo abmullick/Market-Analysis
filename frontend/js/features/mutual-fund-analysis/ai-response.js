@@ -1,3 +1,4 @@
+import { attachSpeechControls } from "../../core/ai-speech-controls.js";
 const LIST_FIELDS = ["key_points", "risks", "opportunities"];
 
 function validateInsightResponse(response) {
@@ -82,6 +83,7 @@ export function renderInsightResponse(container, response) {
     disclosure.className = "fund-ai-insights-disclosure";
     disclosure.textContent = "AI interpretation based on the fund analysis and your selected ranking criteria.";
     container.appendChild(disclosure);
+    attachSpeechControls(container);
 }
 
 export function renderInsightLoading(container) {
