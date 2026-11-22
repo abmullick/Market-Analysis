@@ -1,6 +1,6 @@
 # Copyright and Intellectual Property Notice
 
-**Market Analysis** is a software application for capital-market analysis covering stocks, mutual funds, bonds and related analytical workflows.
+**ABMAssets Market Analysis** is a software application and product brand for capital-market analysis covering stocks, mutual funds, bonds and related analytical workflows. It is an independent project founded and developed by Abhisek Basu Mullick.
 
 ## Copyright
 
