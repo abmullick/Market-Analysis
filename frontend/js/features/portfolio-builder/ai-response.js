@@ -1,3 +1,4 @@
+import { attachSpeechControls } from "../../core/ai-speech-controls.js";
 // Portfolio Builder — AI Insights DOM renderers.
 //
 // Mirrors the Mutual Fund AI Insights response conventions
@@ -89,6 +90,7 @@ export function renderInsightResponse(container, response) {
     disclosure.className = "fund-ai-insights-disclosure";
     disclosure.textContent = "AI interpretation of the portfolio's deterministic analysis — not financial advice.";
     container.appendChild(disclosure);
+    attachSpeechControls(container);
 }
 
 export function renderInsightLoading(container) {
