@@ -191,7 +191,7 @@ export function initNavigation() {
 
     nav.innerHTML = `
         <div class="floating-nav-backdrop" aria-hidden="true"></div>
-        <div id="floating-nav-items" class="floating-nav-items" aria-label="Market Analysis tools">
+        <div id="floating-nav-items" class="floating-nav-items" aria-label="ABMAssets Market Analysis tools">
             <div class="floating-nav-heading">Explore ABMAssets Market Analysis</div>
             ${NAV_ITEMS.map((item, index) => {
                 const active = isActive(item.href);
