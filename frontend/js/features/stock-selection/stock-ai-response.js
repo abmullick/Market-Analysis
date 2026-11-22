@@ -68,7 +68,7 @@ export function renderStockAIResponse(container, response) {
   disclosure.className = "stock-ai-insights-disclosure";
   disclosure.textContent = "AI interpretation based on the current stock analysis data.";
   container.appendChild(disclosure);
-    attachSpeechControls(container);
+  attachSpeechControls(container);
 }
 
 export function renderStockAILoading(container) {
