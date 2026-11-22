@@ -5,10 +5,14 @@
 import { createSpeechController } from "./speech.js";
 
 const CONTROL_CLASS = "ai-speech-controls";
+const activeControls = new WeakMap();
 
 export function attachSpeechControls(container) {
     if (!container || !container.ownerDocument) return null;
 
+    const previous = activeControls.get(container);
+    previous?.controller.stop();
+    previous?.unsubscribeVoices();
     container.querySelector(`.${CONTROL_CLASS}`)?.remove();
 
     const documentRef = container.ownerDocument;
@@ -102,6 +106,7 @@ export function attachSpeechControls(container) {
 
     populateVoices(controller.getVoices());
     const unsubscribeVoices = controller.onVoicesChanged(populateVoices);
+    activeControls.set(container, { controller, unsubscribeVoices });
 
     readButton.addEventListener("click", () => {
         const content = container.cloneNode(true);
@@ -115,11 +120,6 @@ export function attachSpeechControls(container) {
     resumeButton.addEventListener("click", () => controller.resume());
     stopButton.addEventListener("click", () => controller.stop());
     voiceSelect.addEventListener("change", () => controller.setVoiceByURI(voiceSelect.value));
-
-    controls.addEventListener("DOMNodeRemoved", () => {
-        controller.stop();
-        unsubscribeVoices();
-    }, { once: true });
 
     return controller;
 }
