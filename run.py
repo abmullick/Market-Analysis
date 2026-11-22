@@ -22,8 +22,8 @@ settings = Settings()
 auth = AuthManager(settings)
 
 app = FastAPI(
-    title="Market Analysis API",
-    description="Indian stock-market analysis with screening, fundamentals, portfolio analysis, and AI insights.",
+    title="ABMAssets Market Analysis API",
+    description="ABMAssets Market Analysis — Indian stock, mutual fund, bond and portfolio analytics.",
     version="0.1.0",
 )
 
@@ -42,24 +42,24 @@ LOGIN_PAGE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign in · Market Analysis</title>
+<title>Sign in · ABMAssets Market Analysis</title>
 <meta name="theme-color" content="#071225">
-<meta property="og:title" content="Market Analysis">
-<meta property="og:description" content="A comprehensive platform for capital market analysis covering stocks, mutual funds and bonds.">
+<meta property="og:title" content="ABMAssets Market Analysis">
+<meta property="og:description" content="ABMAssets Market Analysis — research and analytics for Indian stocks, mutual funds, bonds and portfolios.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://market-analysis-g4ow.onrender.com/">
 <meta property="og:image" content="https://market-analysis-g4ow.onrender.com/static/images/market-analysis-og.jpg?v=20261009">
 <meta property="og:image:secure_url" content="https://market-analysis-g4ow.onrender.com/static/images/market-analysis-og.jpg?v=20261009">
-<meta property="og:image:alt" content="Market Analysis">
+<meta property="og:image:alt" content="ABMAssets Market Analysis">
 <meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="300">
 <meta property="og:image:height" content="158">
-<meta property="og:site_name" content="Market Analysis">
+<meta property="og:site_name" content="ABMAssets">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Market Analysis">
-<meta name="twitter:description" content="A comprehensive platform for capital market analysis covering stocks, mutual funds and bonds.">
+<meta name="twitter:title" content="ABMAssets Market Analysis">
+<meta name="twitter:description" content="ABMAssets Market Analysis — research and analytics for Indian stocks, mutual funds, bonds and portfolios.">
 <meta name="twitter:image" content="https://market-analysis-g4ow.onrender.com/static/images/market-analysis-og.jpg?v=20261009">
-<meta name="twitter:image:alt" content="Market Analysis">
+<meta name="twitter:image:alt" content="ABMAssets Market Analysis">
 <style>
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#071225;color:#fff}
 body{display:grid;place-items:center;overflow:hidden;position:relative}
@@ -79,16 +79,16 @@ label{display:block;font-size:12px;font-weight:800;color:#dbeafe;margin:0 0 8px}
 <main class="login-stage">
 <section class="login-card">
 <div class="orbit"></div>
-<div class="brand"><div class="brand-mark">M</div><div><div class="eyebrow">Private access</div><h1>Market Analysis</h1></div></div>
+<div class="brand"><div class="brand-mark">A</div><div><div class="eyebrow">ABMAssets · Private access</div><h1>Market Analysis</h1></div></div>
 <h2 class="title">Welcome back.</h2>
-<p class="subtitle">Sign in to access the complete Market Analysis application, including stocks, portfolios, mutual funds and bonds.</p>
+<p class="subtitle">Sign in to access ABMAssets Market Analysis, including stock, mutual fund, bond and portfolio research.</p>
 <form id="login-form" autocomplete="on">
 <div class="field"><label for="username">Username</label><input class="input" id="username" name="username" autocomplete="username" required autofocus></div>
 <div class="field"><label for="password">Password</label><input class="input" id="password" name="password" type="password" autocomplete="current-password" required></div>
 <button class="submit" id="submit" type="submit">Sign in securely</button>
 <div class="message" id="message" role="alert"></div>
 </form>
-<div class="secure">🔒 <span>Protected session</span> · Market Analysis private application</div>
+<div class="secure">🔒 <span>Protected session</span> · ABMAssets Market Analysis</div>
 </section>
 </main>
 <script>
@@ -117,7 +117,7 @@ def auth_floating_controls(html: str) -> str:
 #market-auth-expired p{color:#aebdd0;line-height:1.5;margin:0 0 22px}
 #market-auth-expired a{display:block;padding:13px;border-radius:13px;background:linear-gradient(100deg,#2563eb,#7c3aed);color:#fff;text-decoration:none;font-weight:850}
 </style>
-<div id="market-auth-expired"><div class="card"><h2>Session expired</h2><p>Your Market Analysis session has expired. Sign in again to continue.</p><a id="market-auth-relogin" href="/login">Sign in again</a></div></div>
+<div id="market-auth-expired"><div class="card"><h2>Session expired</h2><p>Your ABMAssets Market Analysis session has expired. Sign in again to continue.</p><a id="market-auth-relogin" href="/login">Sign in again</a></div></div>
 <script>
 (()=> {
  const expired=document.getElementById("market-auth-expired");
