@@ -350,7 +350,7 @@ function updateAboutText() {
     about.innerHTML = `
         <h2>About</h2>
         <p>
-            Market Analysis is a quantitative capital-market analysis platform covering Indian stocks, mutual funds and bonds.
+            ABMAssets Market Analysis is a quantitative capital-market analysis platform covering Indian stocks, mutual funds and bonds. It is an independent project founded and developed by Abhisek Basu Mullick.
             It combines market data from identified external sources with deterministic calculations, transparent analytical
             methodologies, scoring models and category- or sector-relative analysis.
         </p>
@@ -376,7 +376,7 @@ function updateAboutText() {
             financial, investment or tax advice.
         </p>
         <p>
-            &copy; 2026 Abhishek Basu Mullick. All rights reserved. Market Analysis and its original software implementation,
+            &copy; 2026 Abhisek Basu Mullick. All rights reserved. ABMAssets Market Analysis and its original software implementation,
             user-interface implementation, documentation, analytical implementation, scoring models, calculation logic and
             original content are protected by applicable copyright and intellectual-property laws. Third-party data, libraries,
             services, trademarks and other third-party materials remain the property of their respective owners and are subject
