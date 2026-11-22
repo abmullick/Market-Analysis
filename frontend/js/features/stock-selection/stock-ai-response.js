@@ -1,3 +1,4 @@
+import { attachSpeechControls } from "../../core/ai-speech-controls.js";
 const LIST_FIELDS = ["key_points", "risks", "opportunities"];
 
 function validate(response) {
@@ -67,6 +68,7 @@ export function renderStockAIResponse(container, response) {
   disclosure.className = "stock-ai-insights-disclosure";
   disclosure.textContent = "AI interpretation based on the current stock analysis data.";
   container.appendChild(disclosure);
+    attachSpeechControls(container);
 }
 
 export function renderStockAILoading(container) {
