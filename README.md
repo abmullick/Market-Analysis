@@ -1,4 +1,6 @@
-# Market Analysis
+# ABMAssets Market Analysis
+
+An independent capital-market research and analytics product founded and developed by **Abhisek Basu Mullick** under the ABMAssets brand.
 
 Modular Indian market-analysis platform covering **Stock Analysis**, **Bond Analysis**, **Mutual Fund Analysis**, **Mutual Fund Portfolio Builder**, and **Stock Portfolio Builder**.
 
@@ -18,7 +20,7 @@ Modular Indian market-analysis platform covering **Stock Analysis**, **Bond Anal
 
 ## Application Authentication
 
-Market Analysis is a private application. All application pages, FastAPI APIs and frontend static assets are protected by the same authenticated session. The only unauthenticated surfaces are the login page and the login/logout endpoints required to establish or terminate that session.
+ABMAssets Market Analysis is a private application. All application pages, FastAPI APIs and frontend static assets are protected by the same authenticated session. The only unauthenticated surfaces are the login page and the login/logout endpoints required to establish or terminate that session.
 
 ### Login experience
 
