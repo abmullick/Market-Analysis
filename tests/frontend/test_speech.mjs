@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSpeechController, splitIntoChunks } from "../../frontend/js/core/speech.js";
+import { readFile } from "node:fs/promises";
+
+const speechSource = await readFile("frontend/js/core/speech.js", "utf8");
+const { createSpeechController, splitIntoChunks } = await import(
+    `data:text/javascript;base64,${Buffer.from(speechSource).toString("base64")}`,
+);
 
 class FakeUtterance {
     constructor(text) {
