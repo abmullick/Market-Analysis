@@ -1,8 +1,8 @@
 # Copyright Notice
 
-© 2026 Abhishek Basu Mullick. All rights reserved.
+© 2026 Abhisek Basu Mullick. All rights reserved.
 
-**Market Analysis** is proprietary software developed by Abhishek Basu Mullick for capital-market analysis, including stock, mutual fund, bond and portfolio analysis.
+**ABMAssets Market Analysis** is a proprietary software project founded and developed by Abhisek Basu Mullick for capital-market analysis, including stock, mutual fund, bond and portfolio analysis. The ABMAssets name is used as the project and product brand; copyright attribution remains with the individual copyright owner.
 
 The software includes original source code, user-interface implementation, documentation, analytical methodologies as implemented in the software, scoring models, calculation logic, and original content created for the application. These materials are protected by applicable copyright and other intellectual-property laws.
 
