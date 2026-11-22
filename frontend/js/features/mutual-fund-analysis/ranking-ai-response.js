@@ -1,3 +1,4 @@
+import { attachSpeechControls } from "../../core/ai-speech-controls.js";
 const LIST_FIELDS = ["key_points", "risks", "opportunities"];
 
 function validateResponse(response) {
@@ -67,6 +68,7 @@ export function renderRankingAIResponse(container, response) {
     disclosure.className = "ranking-ai-disclosure";
     disclosure.textContent = "AI interpretation of the deterministic ranking and your selected criteria. It does not recalculate the ranking.";
     container.appendChild(disclosure);
+    attachSpeechControls(container);
 }
 
 export function renderRankingAILoading(container) {
