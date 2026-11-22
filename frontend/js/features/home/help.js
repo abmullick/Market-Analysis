@@ -283,7 +283,7 @@ function updateStockAnalysisHelp() {
         ["Company Summary & Data Notes", "The report can display exchange, symbol, company name, sector, industry, country, current price and currency plus <strong>Market Cap, Enterprise Value, Latest Revenue, Latest Net Profit, Latest EBITDA and Latest Free Cash Flow</strong>. The bottom <strong>Data Notes</strong> area shows source, data-as-of information and backend warnings instead of interrupting the financial statements."],
 
         ["P/E (Price-to-Earnings Ratio)", "<strong>What it means:</strong> P/E tells you how many rupees investors are paying for each rupee of the company's earnings. <strong>Formula:</strong> P/E = Share Price ÷ Earnings Per Share (EPS). Equivalently, P/E = Market Capitalisation ÷ Net Profit. <strong>Example:</strong> if a share is ₹500 and EPS is ₹25, P/E = 500 ÷ 25 = <strong>20×</strong>. A higher P/E means the market price is higher relative to current earnings; it does not by itself tell you whether the stock is expensive or cheap. <strong>Important:</strong> negative earnings make P/E not meaningful, and trailing P/E uses historical earnings."],
-        ["Forward P/E", "<strong>What it means:</strong> Forward P/E compares today's share price with expected future EPS rather than already-reported trailing EPS. <strong>Formula:</strong> Forward P/E = Current Share Price ÷ Expected Forward EPS. <strong>Example:</strong> ₹500 price and expected EPS of ₹30 gives 500 ÷ 30 = <strong>16.7×</strong>. Forward EPS is an estimate, so Forward P/E can change when earnings expectations change even if the share price does not. In this application, Forward P/E is supplemental market data where supplied, primarily from Yahoo Finance; it is not the application's independently forecast EPS."],
+        ["Forward P/E", "<strong>What it means:</strong> Forward P/E compares today's share price with expected future EPS rather than already-reported trailing EPS. <strong>Formula:</strong> Forward P/E = Current Share Price ÷ Expected Forward EPS. <strong>Example:</strong> ₹500 price and expected EPS of ₹30 gives 500 ÷ 30 = <strong>16.7×</strong>. Forward EPS is an estimate, so Forward P/E can change when earnings expectations change even if the share price does not. In this application, Forward P/E is a provider-supplied estimate where available; it is not an earnings forecast independently produced by the application. Its source and availability can vary by instrument and data response."],
         ["P/B (Price-to-Book Ratio)", "<strong>What it means:</strong> P/B compares the market value of a share with the accounting book value attributable to each share. <strong>Formula:</strong> P/B = Share Price ÷ Book Value Per Share (BVPS), where BVPS = Shareholders' Equity ÷ Shares Outstanding. Equivalently, P/B = Market Capitalisation ÷ Shareholders' Equity. <strong>Example:</strong> ₹300 share price and ₹150 BVPS gives <strong>2.0×</strong>. P/B is especially tied to the balance sheet and can be less informative when book values do not capture important intangible or economic assets."],
         ["Price / Sales (P/S)", "<strong>What it means:</strong> P/S compares the company's market value with the revenue it generates. <strong>Formula:</strong> P/S = Market Capitalisation ÷ Revenue, or Share Price ÷ Revenue Per Share. <strong>Example:</strong> ₹100 crore market cap and ₹50 crore revenue gives <strong>2.0×</strong>. Unlike P/E, P/S can still be calculated when a company has little or negative profit, but it ignores margins, costs, interest and taxes."],
         ["PEG (Price/Earnings-to-Growth Ratio)", "<strong>What it means:</strong> PEG relates a company's P/E to its earnings-growth rate. <strong>Formula used by this application:</strong> PEG = P/E ÷ 3Y EPS CAGR expressed as a percentage. <strong>Example:</strong> P/E = 24× and 3Y EPS CAGR = 12%, so PEG = 24 ÷ 12 = <strong>2.0×</strong>. The percentage must be used as 12, not 0.12, in this formula. PEG therefore depends heavily on the selected historical growth period and can become misleading when growth is very low, negative or unusually volatile. The application uses the implemented P/E ÷ 3Y EPS CAGR relationship."],
@@ -315,7 +315,7 @@ function updateStockAnalysisHelp() {
         ["Financial Statements & Display Units", "The report contains <strong>Income Statement, Balance Sheet and Cash Flow</strong> tabs. Annual periods are shown. Financial values use the source/international <strong>B / T</strong> representation or, for INR companies, the <strong>₹ Cr</strong> display option. EPS-like rows are rendered as per-share numeric values."],
         ["Charts & Historical Trends", "Stock analysis can display historical price/performance information and valuation histories such as <strong>P/E</strong> and <strong>P/B</strong> when the source provides enough observations. Historical P/E is based on year-end market price divided by annual EPS. Historical P/B is derived from annual equity and the applicable share count and can be approximate when share count changes materially. These charts describe historical data; they are not forecasts."],
         ["Comparison View", "Comparison uses the same source-aware fundamental model as individual analysis and places valuation, profitability, financial-health and growth metrics side-by-side, including <strong>Debt / Equity</strong>. The comparison view does not silently use a different calculation source for the same metric."],
-        ["Data Sources & Freshness", "<strong>Screener</strong> is the primary Indian fundamental-data source for company financials and ratios. <strong>Yahoo Finance</strong> is supplemental for market-data fields such as Forward P/E and Beta where available. Source and data-as-of information remain visible in the report."],
+        ["Data Sources & Freshness", "For NSE-listed companies, the data layer prioritises <strong>Screener.in</strong> for Indian company fundamentals and financial history. <strong>Yahoo Finance</strong> remains integrated for selected quote and market-data fields, non-NSE symbols and fallback coverage where applicable; it is not described as the sole or primary source for Indian fundamentals. The report exposes source and data-as-of information where supplied. Data availability and freshness depend on the upstream provider and should be checked before relying on a figure."],
         ["N/M vs Missing / Unavailable", "<strong>N/M — Not Meaningful</strong> means the metric does not meaningfully apply to the company's financial model, particularly some enterprise-value metrics for financial companies. <strong>Missing / unavailable</strong> means the source did not provide a usable value. The application does not fill either state with invented estimates."],
         ["Filter Performance & Stability", "Quick filtering is designed to operate on the loaded universe. Identical lightweight requests are coalesced, and the selector avoids MutationObserver feedback loops and repeated full-page DOM rebuilds. Purely visual filter changes should not trigger expensive repeated backend universe loads."],
     ]);
@@ -350,30 +350,32 @@ function updateAboutText() {
     about.innerHTML = `
         <h2>About</h2>
         <p>
-            ABMAssets Market Analysis is a quantitative capital-market analysis platform covering Indian stocks, mutual funds and bonds. It is an independent project founded and developed by Abhisek Basu Mullick.
-            It combines market data from identified external sources with deterministic calculations, transparent analytical
-            methodologies, scoring models and category- or sector-relative analysis.
+            <strong>ABMAssets Market Analysis</strong> is an independent financial research and portfolio-analysis
+            project founded and developed by Abhisek Basu Mullick. It brings together Indian stock research,
+            mutual-fund analysis and portfolio construction, and government and corporate bond analytics.
         </p>
         <p>
-            For stocks, the platform provides fundamental analysis across valuation, growth, profitability, financial health,
-            momentum, quality, risk and sector-aware metrics, together with multi-criteria ranking, comparison and portfolio analysis.
+            The platform is built around transparent, inspectable analysis. Stock research covers company
+            fundamentals, valuation, growth, profitability, financial position, cash flow and historical context.
+            Mutual-fund tools examine performance, risk, consistency and category-relative results, and allow
+            users to model allocation-weighted portfolios. Bond tools support discovery and analysis of fixed-income
+            instruments, including yields, cash flows and interest-rate risk measures where the required data exists.
         </p>
         <p>
-            For mutual funds, the platform provides performance, risk, consistency, category-relative ranking, comparison and
-            portfolio analysis.
+            Metrics are calculated by the application's underlying logic from available source data. Rankings and
+            portfolio diagnostic scores follow defined models; they are not predictions. Source coverage, data
+            freshness and missing inputs can affect what can be calculated, so unavailable values are not silently
+            replaced with invented estimates.
         </p>
         <p>
-            For bonds, the platform provides bond discovery, yield and valuation analysis, accrued interest, duration, DV01,
-            credit and other fixed-income analytics.
+            AI-assisted explanations, where available, interpret existing data and calculated results. They do not
+            replace the calculation engines, validate source data independently or guarantee that an interpretation
+            is correct.
         </p>
         <p>
-            Financial metrics, scores and rankings are generated by the application's underlying calculation logic and
-            reproducible formulas. AI-generated insights are used to interpret and explain the application's existing data,
-            calculations and analytical results; they do not replace the underlying calculation or ranking engines.
-        </p>
-        <p>
-            Results are provided for research, educational and planning purposes only. They do not constitute personalised
-            financial, investment or tax advice.
+            Historical results describe past observations and are not forecasts or guarantees of future performance.
+            The platform is provided for research, educational and planning purposes only and does not constitute
+            personalised investment, financial or tax advice.
         </p>
         <p>
             &copy; 2026 Abhisek Basu Mullick. All rights reserved. ABMAssets Market Analysis and its original software implementation,
