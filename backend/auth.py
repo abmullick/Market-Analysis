@@ -227,4 +227,6 @@ def protected_path(path: str) -> bool:
         or path == "/favicon.ico"
         or path == "/static/images/market-analysis-og.jpg"
         or path == "/static/images/hero-market-analysis.png"
+        # ABMAssets wordmark displayed on the public sign-in screen.
+        or path == "/static/images/abmassets-brand-logo.svg"
     )
