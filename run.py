@@ -79,7 +79,7 @@ label{display:block;font-size:12px;font-weight:800;color:#dbeafe;margin:0 0 8px}
 <main class="login-stage">
 <section class="login-card">
 <div class="orbit"></div>
-<img class="abmassets-brand-logo" src="/static/images/abmassets-brand-logo.png" alt="ABMAssets" width="156" loading="eager" decoding="async">
+<img class="abmassets-brand-logo" src="/static/images/abmassets-brand-logo.svg" alt="ABMAssets" width="156" loading="eager" decoding="async">
 <div class="brand"><div class="brand-mark">A</div><div><div class="eyebrow">ABMAssets · Private access</div><h1>Market Analysis</h1></div></div>
 <h2 class="title">Welcome back.</h2>
 <p class="subtitle">Sign in to access ABMAssets Market Analysis, including stock, mutual fund, bond and portfolio research.</p>
